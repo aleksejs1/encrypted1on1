@@ -1,0 +1,17 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/dev/backend.Dockerfile
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:80"
+    environment:
+      SERVER_NAME: ":80"
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # SMTP

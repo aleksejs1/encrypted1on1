@@ -8,7 +8,9 @@ encrypted1on1 — a self-hosted, end-to-end encrypted platform for 1:1 meetings 
 
 ## Current stage
 
-Pre-implementation. No application code exists yet. The detailed spec currently lives outside this repo as a local working document (not tracked in git); an English version is planned to land here (likely `docs/SPEC.md`) as a separate task. Until that exists, treat the constraints below as authoritative, and ask before assuming anything not covered here.
+Phase 1 (skeleton) is done: `backend/` is a minimal hand-composed Symfony app (no Doctrine, no API Platform yet — nothing to justify them until there's a real entity) exposing `GET /health`; `frontend/` is a Svelte+Vite+TypeScript app with a placeholder page that calls it. `docker-compose.dev.yml` + `Makefile` (`make up`/`make down`) run the backend and Mailpit; the frontend runs on the host via `npm run dev` and proxies to the backend (see `vite.config.ts`). No auth, no crypto, no data model yet — see the roadmap in `.claude/plans/virtual-gathering-minsky.md` for what's next.
+
+The detailed spec currently lives outside this repo as a local working document (not tracked in git); an English version is planned to land here (likely `docs/SPEC.md`) as a separate task. Until that exists, treat the constraints below as authoritative, and ask before assuming anything not covered here.
 
 ## Non-negotiable constraints
 

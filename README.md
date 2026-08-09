@@ -4,13 +4,24 @@ A self-hosted, end-to-end encrypted platform for running 1:1 meetings between ma
 
 ## Status
 
-Early stage — currently in the specification phase. No application code exists yet; architecture and requirements are being finalized before implementation starts.
+Early stage. Implementation has just started: a minimal skeleton (backend boots, frontend boots, they talk to each other) exists, but no real functionality — auth, encryption, the 1:1 flow itself — has landed yet.
 
 ## Core idea
 
 - **Self-hosted.** Your company runs it, your data stays on your own infrastructure.
 - **End-to-end encrypted.** 1:1 content is encrypted client-side; the server only ever stores ciphertext derived from each user's password. Not even whoever operates the server can read it.
 - **Open source.** Licensed under AGPLv3, so the privacy claims above can actually be verified by reading the code, not just taken on faith.
+
+## Quick start (dev)
+
+```
+make up          # starts the backend (FrankenPHP) and Mailpit
+cd frontend
+npm install
+npm run dev      # frontend dev server, proxies API calls to the backend
+```
+
+`make down` stops the backend/Mailpit containers.
 
 ## License
 
