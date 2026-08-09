@@ -1,3 +1,5 @@
+import { decryptBlob, encryptBlob } from '../crypto/anketaKey';
+
 /**
  * "Итоги встречи": tactical agreed action items, jointly visible, no draft
  * phase (see the spec). Ownership convention — only the author toggles
@@ -28,4 +30,26 @@ export function addOutcome(existing: OutcomeItem[], authorId: string, text: stri
 
 export function toggleDone(existing: OutcomeItem[], id: string): OutcomeItem[] {
   return existing.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
+}
+
+/**
+ * Decrypts a prior anketa's outcomesBlob with its own key, keeps only the items still
+ * unchecked, and re-encrypts them with a new anketa's key — used both when manually
+ * creating a new anketa for an existing pair (CreateAnketa.svelte) and when archiving
+ * auto-recreates the next one (Anketa.svelte's archive flow, Phase 6d). Returns
+ * undefined when there's nothing to carry, so callers can omit the field entirely
+ * rather than send an empty-array blob.
+ */
+export async function carryForwardOutcomes(
+  blob: string | null,
+  oldKey: Uint8Array,
+  newKey: Uint8Array,
+): Promise<string | undefined> {
+  if (!blob) return undefined;
+
+  const envelope = await decryptBlob<OutcomeItem[]>(blob, oldKey);
+  const unchecked = envelope.data.filter((item) => !item.done);
+  if (unchecked.length === 0) return undefined;
+
+  return encryptBlob(unchecked, newKey);
 }

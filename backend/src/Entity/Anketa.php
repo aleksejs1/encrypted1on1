@@ -58,6 +58,19 @@ class Anketa
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $archivedAt = null;
 
+    /** Set true only via the "cancel as missed" overdue action (Phase 6d) — skips the normal publish/discuss expectation but still auto-recreates the next anketa. */
+    #[ORM\Column(type: 'boolean')]
+    private bool $missed = false;
+
+    /**
+     * Days between meetings for this pair, set once on the pair's first anketa and
+     * inherited by every later one (AnketaController::create()/archive() — see the
+     * Phase 6d plan). Nullable only because anketas created before this phase shipped
+     * have no periodicity on record.
+     */
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $periodicityDays = null;
+
     /**
      * Shared blob, both sides can write to it (comments only ever get added,
      * not edited by someone else) — protected by commentsVersion, not a
@@ -92,6 +105,7 @@ class Anketa
         \DateTimeImmutable $meetingDate,
         string $employeeSealedKey,
         string $managerSealedKey,
+        int $periodicityDays,
     ) {
         $this->id = Uuid::v7()->toRfc4122();
         $this->employee = $employee;
@@ -99,6 +113,7 @@ class Anketa
         $this->meetingDate = $meetingDate;
         $this->employeeSealedKey = $employeeSealedKey;
         $this->managerSealedKey = $managerSealedKey;
+        $this->periodicityDays = $periodicityDays;
         $this->createdAt = new \DateTimeImmutable();
     }
 
@@ -192,9 +207,25 @@ class Anketa
         }
     }
 
-    public function archive(): void
+    public function archive(bool $missed = false): void
     {
         $this->archivedAt = new \DateTimeImmutable();
+        $this->missed = $missed;
+    }
+
+    public function isMissed(): bool
+    {
+        return $this->missed;
+    }
+
+    public function getPeriodicityDays(): ?int
+    {
+        return $this->periodicityDays;
+    }
+
+    public function reschedule(\DateTimeImmutable $meetingDate): void
+    {
+        $this->meetingDate = $meetingDate;
     }
 
     public function getCommentsBlob(): ?string

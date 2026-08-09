@@ -3,10 +3,11 @@
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
   import { addComment, type Comment } from '../anketa/comments';
-  import { addOutcome, toggleDone, type OutcomeItem } from '../anketa/outcomes';
+  import { addOutcome, carryForwardOutcomes, toggleDone, type OutcomeItem } from '../anketa/outcomes';
   import { addCheckpoint, type CheckpointStatusTag, type Goal, type GoalCheckpoint } from '../anketa/goals';
   import { QUESTIONS_BY_SIDE, type Side, type Answers } from '../anketa/questions';
-  import { decryptBlob, encryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
+  import { decryptBlob, encryptBlob, generateAnketaKey, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
+  import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity';
   import { loadMasterKey } from '../crypto/session';
 
@@ -31,6 +32,9 @@
     goals: Goal[];
     goalCheckpointsBlob: string | null;
     goalCheckpointsVersion: number;
+    counterpartPublicKey: string;
+    periodicityDays: number | null;
+    missed: boolean;
   }
 
   let loadError = $state<string | null>(null);
@@ -49,6 +53,15 @@
   let publishing = $state(false);
   let archiving = $state(false);
   let actionError = $state<string | null>(null);
+
+  let periodicityDays = $state<number | null>(null);
+  let missed = $state(false);
+  let skipNextMeeting = $state(false);
+  let nextMeetingDate = $state('');
+  let rescheduleDate = $state('');
+  let rescheduling = $state(false);
+
+  const isOverdue = $derived(detail !== null && !archived && new Date(detail.meetingDate).getTime() < Date.now());
 
   let myUserId = $state('');
   let authorEmails = $state<Record<string, string>>({});
@@ -94,6 +107,13 @@
       authorEmails = { [identity.userId]: identity.email, [anketa.counterpartId]: anketa.counterpartEmail };
       counterpartSide = anketa.myRole === 'employee' ? 'manager' : 'employee';
       archived = anketa.archivedAt !== null;
+      periodicityDays = anketa.periodicityDays;
+      missed = anketa.missed;
+      if (periodicityDays !== null) {
+        const defaultNext = new Date();
+        defaultNext.setDate(defaultNext.getDate() + periodicityDays);
+        nextMeetingDate = defaultNext.toISOString().slice(0, 10);
+      }
 
       const key = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
       anketaKey = key;
@@ -176,16 +196,62 @@
     }
   }
 
-  async function handleArchive() {
+  /**
+   * Auto-recreation (Phase 6d) is triggered from right here, not a server-side
+   * background job — this browser already has the current anketa's key unsealed, so
+   * it generates and seals the *next* anketa's key itself (same dance as
+   * CreateAnketa.svelte) and sends the sealed keys along with the archive request.
+   * The server never generates or even transiently holds an anketa key.
+   */
+  async function handleArchive(missedFlag: boolean): Promise<void> {
+    if (!detail) return;
     archiving = true;
     actionError = null;
     try {
-      await apiPost(`/api/anketas/${id}/archive`, {});
+      let body: Record<string, unknown> = { missed: missedFlag };
+
+      if (skipNextMeeting) {
+        body.skipNextMeeting = true;
+      } else {
+        if (!anketaKey) throw new Error('Not ready to archive yet.');
+        const identity = await ensureUnlocked();
+        const nextKey = await generateAnketaKey();
+        const mySealedKeyNext = await sealAnketaKey(nextKey, identity.publicKey);
+        const counterpartSealedKeyNext = await sealAnketaKey(nextKey, await fromBase64(detail.counterpartPublicKey));
+        const outcomesBlobNext = await carryForwardOutcomes(detail.outcomesBlob, anketaKey, nextKey);
+
+        body = {
+          ...body,
+          nextMeetingDate: new Date(nextMeetingDate).toISOString(),
+          mySealedKey: mySealedKeyNext,
+          counterpartSealedKey: counterpartSealedKeyNext,
+          ...(outcomesBlobNext ? { outcomesBlob: outcomesBlobNext } : {}),
+        };
+      }
+
+      await apiPost(`/api/anketas/${id}/archive`, body);
       archived = true;
+      missed = missedFlag;
     } catch (error) {
       actionError = error instanceof ApiError ? error.message : 'Could not archive.';
     } finally {
       archiving = false;
+    }
+  }
+
+  async function handleReschedule(): Promise<void> {
+    if (!detail || !rescheduleDate) return;
+    rescheduling = true;
+    actionError = null;
+    try {
+      const isoDate = new Date(rescheduleDate).toISOString();
+      await apiPut(`/api/anketas/${id}/meeting-date`, { meetingDate: isoDate });
+      detail = { ...detail, meetingDate: isoDate };
+      rescheduleDate = '';
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not reschedule.';
+    } finally {
+      rescheduling = false;
     }
   }
 
@@ -414,7 +480,25 @@
     <p class="meta">
       Meeting: {new Date(detail.meetingDate).toLocaleDateString()}
       {#if archived}<span class="badge">archived</span>{/if}
+      {#if missed}<span class="badge">missed</span>{/if}
+      {#if isOverdue}<span class="badge overdue">overdue</span>{/if}
     </p>
+
+    {#if isOverdue}
+      <section>
+        <h2>This meeting is overdue</h2>
+        <div class="checkpoint-form">
+          <input type="date" bind:value={rescheduleDate} disabled={rescheduling} />
+          <button type="button" onclick={handleReschedule} disabled={rescheduling || !rescheduleDate}>
+            {rescheduling ? 'Rescheduling…' : 'Reschedule'}
+          </button>
+        </div>
+        <p>Or, if this meeting didn't happen:</p>
+        <button type="button" onclick={() => handleArchive(true)} disabled={archiving}>
+          {archiving ? 'Cancelling…' : 'Cancel as missed'}
+        </button>
+      </section>
+    {/if}
 
     <section>
       <h2>
@@ -621,9 +705,22 @@
     {/if}
 
     {#if !archived}
-      <button type="button" onclick={handleArchive} disabled={archiving}>
-        {archiving ? 'Archiving…' : 'Archive'}
-      </button>
+      <section>
+        <h2>Archive</h2>
+        <label>
+          <input type="checkbox" bind:checked={skipNextMeeting} />
+          Don't create the next meeting
+        </label>
+        {#if !skipNextMeeting}
+          <label>
+            Next meeting date
+            <input type="date" bind:value={nextMeetingDate} />
+          </label>
+        {/if}
+        <button type="button" onclick={() => handleArchive(false)} disabled={archiving}>
+          {archiving ? 'Archiving…' : 'Archive'}
+        </button>
+      </section>
     {/if}
   {/if}
 </main>
@@ -644,6 +741,10 @@
     margin-left: 0.5rem;
     font-size: 0.75rem;
     color: #6b6b6b;
+  }
+
+  .badge.overdue {
+    color: #c0392b;
   }
 
   fieldset {

@@ -65,39 +65,34 @@ class AnketaController
         $employee = $isEmployee ? $user : $counterpart;
         $manager = $isEmployee ? $counterpart : $user;
 
-        $anketa = new Anketa(
+        // Periodicity (Phase 6d) is set once, on a pair's first anketa, and inherited by
+        // every later one — same "most recent anketa for this pair" lookup goal carry-forward
+        // already needed (6c), reused here rather than a second query for the same concept.
+        $previousAnketa = $this->findMostRecentArchivedAnketaForPair($employee, $manager);
+
+        $periodicityDays = $previousAnketa?->getPeriodicityDays();
+        if (null === $periodicityDays) {
+            $periodicityDays = $body['periodicityDays'] ?? null;
+            if (!\is_int($periodicityDays) || $periodicityDays < 1) {
+                return new JsonResponse(['error' => '"periodicityDays" must be a positive integer for a new pair.'], 400);
+            }
+        }
+
+        $outcomesBlob = $body['outcomesBlob'] ?? null;
+        if (null !== $outcomesBlob && !\is_string($outcomesBlob)) {
+            return new JsonResponse(['error' => '"outcomesBlob" must be a string.'], 400);
+        }
+
+        $anketa = $this->createAnketaWithCarryForward(
             employee: $employee,
             manager: $manager,
             meetingDate: $meetingDate,
             employeeSealedKey: $isEmployee ? $body['mySealedKey'] : $body['counterpartSealedKey'],
             managerSealedKey: $isEmployee ? $body['counterpartSealedKey'] : $body['mySealedKey'],
+            periodicityDays: $periodicityDays,
+            outcomesBlob: $outcomesBlob,
+            carryFrom: $previousAnketa,
         );
-
-        // Outcomes carry-forward (Phase 6c): the client already decrypted the prior
-        // archived anketa's outcomesBlob, filtered to unchecked items, and re-encrypted
-        // with this anketa's new key — the server can't do that part, it never sees plaintext.
-        if (isset($body['outcomesBlob']) && \is_string($body['outcomesBlob'])) {
-            $anketa->seedOutcomes($body['outcomesBlob']);
-        }
-
-        $this->entityManager->persist($anketa);
-
-        // Goals carry-forward (Phase 6c): unlike outcomes, goal title/status is plaintext,
-        // so the server can do this copy itself — no client round-trip needed.
-        $previousAnketa = $this->findMostRecentArchivedAnketaForPair($employee, $manager);
-        if (null !== $previousAnketa) {
-            foreach ($this->goalRepository()->findBy(['anketa' => $previousAnketa, 'status' => Goal::STATUS_IN_PROGRESS]) as $previousGoal) {
-                $this->entityManager->persist(new Goal(
-                    goalUuid: $previousGoal->getGoalUuid(),
-                    anketa: $anketa,
-                    author: $previousGoal->getAuthor(),
-                    title: $previousGoal->getTitle(),
-                    description: $previousGoal->getDescription(),
-                    targetDate: $previousGoal->getTargetDate(),
-                    status: Goal::STATUS_IN_PROGRESS,
-                ));
-            }
-        }
 
         $this->entityManager->flush();
 
@@ -125,10 +120,14 @@ class AnketaController
     public function get(string $id, Request $request): JsonResponse
     {
         [$anketa, $user] = $this->findAccessible($id, $request);
+        $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
 
         return new JsonResponse([
             ...$this->summarize($anketa, $user),
             'mySealedKey' => $anketa->sealedKeyFor($user),
+            // Needed client-side to seal the auto-recreated next anketa's key on archive
+            // (Phase 6d) without a separate /api/users round trip — public keys aren't secret.
+            'counterpartPublicKey' => $counterpart->getPublicKey(),
             'employeeBlob' => $anketa->getEmployeeBlob(),
             'employeePublishedAt' => $anketa->getEmployeePublishedAt()?->format(\DATE_ATOM),
             'managerBlob' => $anketa->getManagerBlob(),
@@ -377,12 +376,93 @@ class AnketaController
     public function archive(string $id, Request $request): JsonResponse
     {
         $this->csrfGuard->assertValid($request);
-        [$anketa] = $this->findAccessible($id, $request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
 
-        $anketa->archive();
+        $body = $request->toArray();
+        $missed = $body['missed'] ?? false;
+        $skipNextMeeting = $body['skipNextMeeting'] ?? false;
+        if (!\is_bool($missed) || !\is_bool($skipNextMeeting)) {
+            return new JsonResponse(['error' => '"missed" and "skipNextMeeting" must be booleans.'], 400);
+        }
+
+        $nextMeetingDate = null;
+        if (!$skipNextMeeting && isset($body['nextMeetingDate'])) {
+            if (!\is_string($body['nextMeetingDate'])) {
+                return new JsonResponse(['error' => '"nextMeetingDate" must be a string.'], 400);
+            }
+            try {
+                $nextMeetingDate = new \DateTimeImmutable($body['nextMeetingDate']);
+            } catch (\Exception) {
+                return new JsonResponse(['error' => '"nextMeetingDate" must be a valid date.'], 400);
+            }
+        }
+
+        $outcomesBlob = $body['outcomesBlob'] ?? null;
+        if (null !== $outcomesBlob && !\is_string($outcomesBlob)) {
+            return new JsonResponse(['error' => '"outcomesBlob" must be a string.'], 400);
+        }
+
+        if (!$skipNextMeeting) {
+            $periodicityDays = $anketa->getPeriodicityDays();
+            if (null === $periodicityDays) {
+                return new JsonResponse(['error' => 'This anketa has no periodicity on record — pass "skipNextMeeting": true.'], 400);
+            }
+            $mySealedKey = $body['mySealedKey'] ?? null;
+            $counterpartSealedKey = $body['counterpartSealedKey'] ?? null;
+            if (!\is_string($mySealedKey) || !\is_string($counterpartSealedKey)) {
+                return new JsonResponse(['error' => 'Missing "mySealedKey" or "counterpartSealedKey".'], 400);
+            }
+        }
+
+        // Auto-recreation (Phase 6d) is triggered by *this* request, from the archiving
+        // user's own already-unlocked browser session — never a server-side background
+        // job. The server never generates or even transiently holds an anketa key; the
+        // client seals mySealedKey/counterpartSealedKey itself before sending them, exactly
+        // like a manually created anketa (see the Phase 6d plan's security-design note).
+        $anketa->archive($missed);
+
+        if (!$skipNextMeeting) {
+            $isEmployee = $anketa->isEmployee($user);
+            $this->createAnketaWithCarryForward(
+                employee: $anketa->getEmployee(),
+                manager: $anketa->getManager(),
+                meetingDate: $nextMeetingDate ?? $anketa->getArchivedAt()->modify(sprintf('+%d days', $periodicityDays)),
+                employeeSealedKey: $isEmployee ? $mySealedKey : $counterpartSealedKey,
+                managerSealedKey: $isEmployee ? $counterpartSealedKey : $mySealedKey,
+                periodicityDays: $periodicityDays,
+                outcomesBlob: $outcomesBlob,
+                carryFrom: $anketa,
+            );
+        }
+
         $this->entityManager->flush();
 
         return new JsonResponse(['ok' => true]);
+    }
+
+    #[Route('/api/anketas/{id}/meeting-date', name: 'anketa_reschedule', methods: ['PUT'])]
+    public function reschedule(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa] = $this->findAccessible($id, $request);
+
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException('Anketa is archived.');
+        }
+
+        $meetingDate = $request->toArray()['meetingDate'] ?? null;
+        if (!\is_string($meetingDate)) {
+            return new JsonResponse(['error' => 'Missing "meetingDate".'], 400);
+        }
+        try {
+            $anketa->reschedule(new \DateTimeImmutable($meetingDate));
+        } catch (\Exception) {
+            return new JsonResponse(['error' => '"meetingDate" must be a valid date.'], 400);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse(['meetingDate' => $anketa->getMeetingDate()->format(\DATE_ATOM)]);
     }
 
     private function requireUser(Request $request): User
@@ -408,6 +488,56 @@ class AnketaController
         }
 
         return [$anketa, $user];
+    }
+
+    /**
+     * Builds a new Anketa (optionally seeded with a client-carried outcomesBlob) and
+     * copies in_progress goals from $carryFrom into it, if given. Shared by create()
+     * (carryFrom = the pair's most recent archived anketa, found by query) and
+     * archive()'s auto-recreation (carryFrom = the anketa just archived, already in
+     * hand — no query needed there). Persists the new Anketa and any copied Goals;
+     * does not flush, callers do that once after whatever else they need to persist.
+     */
+    private function createAnketaWithCarryForward(
+        User $employee,
+        User $manager,
+        \DateTimeImmutable $meetingDate,
+        string $employeeSealedKey,
+        string $managerSealedKey,
+        int $periodicityDays,
+        ?string $outcomesBlob,
+        ?Anketa $carryFrom,
+    ): Anketa {
+        $anketa = new Anketa(
+            employee: $employee,
+            manager: $manager,
+            meetingDate: $meetingDate,
+            employeeSealedKey: $employeeSealedKey,
+            managerSealedKey: $managerSealedKey,
+            periodicityDays: $periodicityDays,
+        );
+
+        if (null !== $outcomesBlob) {
+            $anketa->seedOutcomes($outcomesBlob);
+        }
+
+        $this->entityManager->persist($anketa);
+
+        if (null !== $carryFrom) {
+            foreach ($this->goalRepository()->findBy(['anketa' => $carryFrom, 'status' => Goal::STATUS_IN_PROGRESS]) as $previousGoal) {
+                $this->entityManager->persist(new Goal(
+                    goalUuid: $previousGoal->getGoalUuid(),
+                    anketa: $anketa,
+                    author: $previousGoal->getAuthor(),
+                    title: $previousGoal->getTitle(),
+                    description: $previousGoal->getDescription(),
+                    targetDate: $previousGoal->getTargetDate(),
+                    status: Goal::STATUS_IN_PROGRESS,
+                ));
+            }
+        }
+
+        return $anketa;
     }
 
     /** @return \Doctrine\ORM\EntityRepository<Goal> */
@@ -464,6 +594,8 @@ class AnketaController
             'myPublishedAt' => ($isEmployee ? $anketa->getEmployeePublishedAt() : $anketa->getManagerPublishedAt())?->format(\DATE_ATOM),
             'counterpartPublishedAt' => ($isEmployee ? $anketa->getManagerPublishedAt() : $anketa->getEmployeePublishedAt())?->format(\DATE_ATOM),
             'archivedAt' => $anketa->getArchivedAt()?->format(\DATE_ATOM),
+            'missed' => $anketa->isMissed(),
+            'periodicityDays' => $anketa->getPeriodicityDays(),
         ];
     }
 }

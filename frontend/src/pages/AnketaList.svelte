@@ -9,6 +9,11 @@
     myPublishedAt: string | null;
     counterpartPublishedAt: string | null;
     archivedAt: string | null;
+    missed: boolean;
+  }
+
+  function isOverdue(anketa: AnketaSummary): boolean {
+    return anketa.archivedAt === null && new Date(anketa.meetingDate).getTime() < Date.now();
   }
 
   const anketas = apiGet<AnketaSummary[]>('/api/anketas');
@@ -34,6 +39,8 @@
                 anketa.meetingDate,
               ).toLocaleDateString()}
               {#if anketa.archivedAt}<span class="badge">archived</span>{/if}
+              {#if anketa.missed}<span class="badge">missed</span>{/if}
+              {#if isOverdue(anketa)}<span class="badge overdue">overdue</span>{/if}
               {#if anketa.myPublishedAt}<span class="badge">published by me</span>{/if}
               {#if anketa.counterpartPublishedAt}<span class="badge"
                   >published by counterpart</span
@@ -84,6 +91,10 @@
     margin-left: 0.5rem;
     font-size: 0.75rem;
     color: #6b6b6b;
+  }
+
+  .badge.overdue {
+    color: #c0392b;
   }
 
   .error {
