@@ -45,50 +45,103 @@
 </script>
 
 <main>
-  <h1>{$_('login.title')}</h1>
+  <div class="card elev-md">
+    <h1>{$_('login.title')}</h1>
+    <p class="text-muted subtitle">{$_('login.subtitle')}</p>
 
-  <form onsubmit={handleSubmit}>
-      <label>
-        {$_('login.emailLabel')}
-        <input type="email" bind:value={email} autocomplete="username" />
-      </label>
+    <form onsubmit={handleSubmit}>
+      <div class="field">
+        <label for="login-email">{$_('login.emailLabel')}</label>
+        <input
+          id="login-email"
+          class="input"
+          type="email"
+          bind:value={email}
+          autocomplete="username"
+          required
+        />
+      </div>
 
-      <label>
-        {$_('login.passwordLabel')}
-        <input type="password" bind:value={password} autocomplete="current-password" />
-      </label>
+      <div class="field">
+        <label for="login-password">{$_('login.passwordLabel')}</label>
+        <input
+          id="login-password"
+          class="input"
+          type="password"
+          bind:value={password}
+          autocomplete="current-password"
+          required
+        />
+      </div>
 
       {#if error}
-        <p class="error">{error}</p>
+        <div role="alert" class="error-banner">{error}</div>
       {/if}
 
-      <button type="submit" disabled={!canSubmit}>
+      <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
         {submitting ? $_('login.submitting') : $_('login.submit')}
       </button>
-  </form>
+
+      {#if submitting}
+        <p class="text-muted crypto-note">
+          <span aria-hidden="true">⏳</span> {$_('login.cryptoNote')}
+        </p>
+      {/if}
+    </form>
+
+    <div class="hr"></div>
+    <p class="text-muted session-note">{$_('login.sessionNote')}</p>
+  </div>
 </main>
 
 <style>
   main {
-    max-width: 24rem;
-    margin: 4rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    width: min(400px, 100%);
+    padding: 28px;
+  }
+
+  h1 {
+    font-size: 26px;
+    margin: 0 0 4px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    margin: 0 0 20px;
   }
 
   form {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 14px;
   }
 
-  label {
+  .error-banner {
+    font-size: 13px;
+    color: var(--color-accent-ink);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+
+  .crypto-note {
+    font-size: 12px;
+    margin: 0;
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    align-items: center;
+    gap: 6px;
   }
 
-  .error {
-    color: #c0392b;
+  .session-note {
+    font-size: 12px;
+    margin: 0;
   }
 </style>

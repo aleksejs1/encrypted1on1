@@ -8,10 +8,13 @@
   },
   "login": {
     "title": "Log in",
+    "subtitle": "Your key is derived from your password — it never leaves this device.",
     "emailLabel": "Email",
     "passwordLabel": "Password",
     "submit": "Log in",
     "submitting": "Logging in…",
+    "cryptoNote": "Unlocking your data — this can take a few seconds.",
+    "sessionNote": "You'll need to log in again next time you open a new tab. Your key is kept only in this tab's memory, never stored.",
     "genericError": "Something went wrong."
   },
   "activate": {
@@ -19,12 +22,21 @@
     "done": "Account created. You're logged in.",
     "lookupError": "Could not load this activation link.",
     "emailLabel": "Email:",
+    "keyExplainer": "This password creates your encryption key. It's never sent to the server — choose one you can remember, since it can't be recovered for you.",
     "passwordLabel": "Password",
     "passwordHint": "At least {min} characters.",
     "confirmPasswordLabel": "Confirm password",
     "passwordMismatch": "Passwords don't match.",
     "submit": "Activate",
     "submitting": "Creating account…",
+    "oneTimeNote": "This link only works once. After activating, you'll be logged in automatically.",
+    "strength": {
+      "tooWeak": "Too weak",
+      "weak": "Weak",
+      "okay": "Okay",
+      "good": "Good",
+      "strong": "Strong"
+    },
     "genericError": "Something went wrong."
   },
   "anketaList": {
@@ -227,5 +239,9 @@
   },
   "languageSwitcher": {
     "label": "Language"
+  },
+  "theme": {
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme"
   }
 }

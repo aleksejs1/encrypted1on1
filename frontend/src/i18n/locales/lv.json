@@ -8,10 +8,13 @@
   },
   "login": {
     "title": "Pieslēgties",
+    "subtitle": "Jūsu atslēga tiek iegūta no paroles — tā nekad nepamet šo ierīci.",
     "emailLabel": "E-pasts",
     "passwordLabel": "Parole",
     "submit": "Pieslēgties",
     "submitting": "Notiek pieslēgšanās…",
+    "cryptoNote": "Atšifrējam jūsu datus — tas var aizņemt dažas sekundes.",
+    "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
     "genericError": "Kaut kas nogāja greizi."
   },
   "activate": {
@@ -19,12 +22,21 @@
     "done": "Konts izveidots. Jūs esat pieslēdzies.",
     "lookupError": "Neizdevās ielādēt šo aktivizācijas saiti.",
     "emailLabel": "E-pasts:",
+    "keyExplainer": "Šī parole izveido jūsu šifrēšanas atslēgu. Tā nekad netiek nosūtīta uz serveri — izvēlieties tādu, ko varēsiet atcerēties, jo to jūsu vietā atjaunot nevar.",
     "passwordLabel": "Parole",
     "passwordHint": "Vismaz {min} rakstzīmes.",
     "confirmPasswordLabel": "Apstipriniet paroli",
     "passwordMismatch": "Paroles nesakrīt.",
     "submit": "Aktivizēt",
     "submitting": "Konta izveide…",
+    "oneTimeNote": "Šī saite darbojas tikai vienu reizi. Pēc aktivizācijas jūs tiksiet automātiski pieslēgts.",
+    "strength": {
+      "tooWeak": "Pārāk vāja",
+      "weak": "Vāja",
+      "okay": "Pieņemama",
+      "good": "Laba",
+      "strong": "Stipra"
+    },
     "genericError": "Kaut kas nogāja greizi."
   },
   "anketaList": {
@@ -227,5 +239,9 @@
   },
   "languageSwitcher": {
     "label": "Valoda"
+  },
+  "theme": {
+    "switchToLight": "Pārslēgt uz gaišo tēmu",
+    "switchToDark": "Pārslēgt uz tumšo tēmu"
   }
 }

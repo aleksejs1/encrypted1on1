@@ -1,11 +1,2 @@
-:root {
-  color-scheme: light dark;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
+@import './design/tokens.css';
+@import './design/components.css';
