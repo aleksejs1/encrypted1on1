@@ -412,21 +412,27 @@
     }
   }
 
-  async function handleAddCheckpoint(goalId: string): Promise<void> {
-    const text = (checkpointDraftText[goalId] ?? '').trim();
-    const statusTag = checkpointDraftStatusTag[goalId] || undefined;
+  /**
+   * Checkpoints are keyed by the goal's stable `goalUuid`, not its per-anketa row
+   * `id` — a carried-forward goal gets a fresh row id every cycle (see the Phase 6c
+   * plan), so only goalUuid lets a checkpoint's history survive carry-forward and be
+   * reconstructed across anketas later (the report, Phase 6f).
+   */
+  async function handleAddCheckpoint(goalUuid: string): Promise<void> {
+    const text = (checkpointDraftText[goalUuid] ?? '').trim();
+    const statusTag = checkpointDraftStatusTag[goalUuid] || undefined;
     if (!text && !statusTag) return;
 
-    addingCheckpoint = { ...addingCheckpoint, [goalId]: true };
+    addingCheckpoint = { ...addingCheckpoint, [goalUuid]: true };
     actionError = null;
     try {
-      await updateGoalCheckpoints((current) => addCheckpoint(current, goalId, myUserId, text || undefined, statusTag));
-      checkpointDraftText = { ...checkpointDraftText, [goalId]: '' };
-      checkpointDraftStatusTag = { ...checkpointDraftStatusTag, [goalId]: '' };
+      await updateGoalCheckpoints((current) => addCheckpoint(current, goalUuid, myUserId, text || undefined, statusTag));
+      checkpointDraftText = { ...checkpointDraftText, [goalUuid]: '' };
+      checkpointDraftStatusTag = { ...checkpointDraftStatusTag, [goalUuid]: '' };
     } catch (error) {
       actionError = error instanceof ApiError ? error.message : 'Could not add the checkpoint.';
     } finally {
-      addingCheckpoint = { ...addingCheckpoint, [goalId]: false };
+      addingCheckpoint = { ...addingCheckpoint, [goalUuid]: false };
     }
   }
 
@@ -634,7 +640,7 @@
           />
 
           <h3>Checkpoints</h3>
-          {#each allCheckpoints.filter((c) => c.goalId === goal.id) as checkpoint (checkpoint.id)}
+          {#each allCheckpoints.filter((c) => c.goalId === goal.goalUuid) as checkpoint (checkpoint.id)}
             <div class="checkpoint">
               {#if checkpoint.statusTag}<span class="badge">{checkpoint.statusTag}</span>{/if}
               {#if checkpoint.text}<p>{checkpoint.text}</p>{/if}
@@ -653,18 +659,19 @@
               <input
                 type="text"
                 placeholder="Progress update…"
-                value={checkpointDraftText[goal.id] ?? ''}
-                oninput={(e) => (checkpointDraftText = { ...checkpointDraftText, [goal.id]: e.currentTarget.value })}
-                disabled={addingCheckpoint[goal.id]}
+                value={checkpointDraftText[goal.goalUuid] ?? ''}
+                oninput={(e) =>
+                  (checkpointDraftText = { ...checkpointDraftText, [goal.goalUuid]: e.currentTarget.value })}
+                disabled={addingCheckpoint[goal.goalUuid]}
               />
               <select
-                value={checkpointDraftStatusTag[goal.id] ?? ''}
+                value={checkpointDraftStatusTag[goal.goalUuid] ?? ''}
                 onchange={(e) =>
                   (checkpointDraftStatusTag = {
                     ...checkpointDraftStatusTag,
-                    [goal.id]: e.currentTarget.value as CheckpointStatusTag | '',
+                    [goal.goalUuid]: e.currentTarget.value as CheckpointStatusTag | '',
                   })}
-                disabled={addingCheckpoint[goal.id]}
+                disabled={addingCheckpoint[goal.goalUuid]}
               >
                 <option value="">No status tag</option>
                 <option value="on_track">On track</option>
@@ -673,10 +680,11 @@
               </select>
               <button
                 type="button"
-                onclick={() => handleAddCheckpoint(goal.id)}
-                disabled={addingCheckpoint[goal.id] || (!checkpointDraftText[goal.id]?.trim() && !checkpointDraftStatusTag[goal.id])}
+                onclick={() => handleAddCheckpoint(goal.goalUuid)}
+                disabled={addingCheckpoint[goal.goalUuid] ||
+                  (!checkpointDraftText[goal.goalUuid]?.trim() && !checkpointDraftStatusTag[goal.goalUuid])}
               >
-                {addingCheckpoint[goal.id] ? 'Adding…' : 'Add checkpoint'}
+                {addingCheckpoint[goal.goalUuid] ? 'Adding…' : 'Add checkpoint'}
               </button>
             </div>
           {/if}

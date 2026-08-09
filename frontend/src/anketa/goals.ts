@@ -32,6 +32,7 @@ export type CheckpointStatusTag = 'on_track' | 'at_risk' | 'blocked';
 
 export interface GoalCheckpoint {
   id: string;
+  /** A Goal's stable `goalUuid`, not its per-anketa row `id` — see Anketa.svelte's handleAddCheckpoint for why. */
   goalId: string;
   authorId: string;
   text?: string;

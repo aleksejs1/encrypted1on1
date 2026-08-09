@@ -22,7 +22,10 @@
 <main>
   <div class="header">
     <h1>Anketas</h1>
-    <a href="/anketas/new">New anketa</a>
+    <div class="header-links">
+      <a href="/report">Report</a>
+      <a href="/anketas/new">New anketa</a>
+    </div>
   </div>
 
   {#await anketas}
@@ -67,6 +70,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .header-links {
+    display: flex;
+    gap: 1rem;
   }
 
   ul {

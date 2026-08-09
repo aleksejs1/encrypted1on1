@@ -4,6 +4,7 @@
   import CreateAnketa from './pages/CreateAnketa.svelte';
   import AnketaPage from './pages/Anketa.svelte';
   import Login from './pages/Login.svelte';
+  import Report from './pages/Report.svelte';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
 
@@ -25,6 +26,8 @@
   <CreateAnketa />
 {:else if anketaMatch}
   <AnketaPage id={anketaMatch[1]} />
+{:else if routerState.path === '/report'}
+  <Report />
 {:else}
   <AnketaList />
 {/if}
