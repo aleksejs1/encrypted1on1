@@ -14,7 +14,7 @@ RUN npm run build
 FROM dunglas/frankenphp:php8.4
 WORKDIR /app
 
-RUN apt-get update && apt-get install --no-install-recommends -y unzip libsqlite3-dev \
+RUN apt-get update && apt-get install --no-install-recommends -y unzip libsqlite3-dev sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && docker-php-ext-install pdo_sqlite
 

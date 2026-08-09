@@ -11,14 +11,14 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: "0"
-      APP_SECRET: ${APP_SECRET:?generate with: openssl rand -hex 32}
+      APP_SECRET: "${APP_SECRET:?generate one with 'openssl rand -hex 32'}"
       DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
-      SERVER_NAME: ${SERVER_NAME:?set a real public domain, e.g. 1on1.example.com — needed for Caddy's automatic HTTPS}
-      FRONTEND_URL: ${FRONTEND_URL:?e.g. https://1on1.example.com — same domain as SERVER_NAME, used to build links in emails}
-      MAILER_DSN: ${MAILER_DSN:?a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}
-      MAILER_FROM: ${MAILER_FROM:?e.g. noreply@1on1.example.com}
-      REGISTRATION_MODE: ${REGISTRATION_MODE:-invite}
-      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-}
+      SERVER_NAME: "${SERVER_NAME:?set a real public domain, e.g. 1on1.example.com, needed for Caddy's automatic HTTPS}"
+      FRONTEND_URL: "${FRONTEND_URL:?e.g. https://1on1.example.com, same domain as SERVER_NAME, used to build links in emails}"
+      MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
+      MAILER_FROM: "${MAILER_FROM:?e.g. noreply@1on1.example.com}"
+      REGISTRATION_MODE: "${REGISTRATION_MODE:-invite}"
+      ALLOWED_EMAIL_DOMAIN: "${ALLOWED_EMAIL_DOMAIN:-}"
     restart: unless-stopped
 
 volumes:
