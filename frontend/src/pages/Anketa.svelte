@@ -1,6 +1,8 @@
 <script lang="ts">
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import AnswerField from '../anketa/AnswerField.svelte';
+  import CommentThread from '../anketa/CommentThread.svelte';
+  import { addComment, mergeComments, type Comment } from '../anketa/comments';
   import { QUESTIONS_BY_SIDE, type Side, type Answers } from '../anketa/questions';
   import { decryptBlob, encryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
@@ -11,6 +13,7 @@
   interface AnketaDetail {
     id: string;
     myRole: Side;
+    counterpartId: string;
     counterpartEmail: string;
     meetingDate: string;
     archivedAt: string | null;
@@ -19,6 +22,8 @@
     employeePublishedAt: string | null;
     managerBlob: string | null;
     managerPublishedAt: string | null;
+    commentsBlob: string | null;
+    commentsVersion: number;
   }
 
   let loadError = $state<string | null>(null);
@@ -37,6 +42,11 @@
   let publishing = $state(false);
   let archiving = $state(false);
   let actionError = $state<string | null>(null);
+
+  let myUserId = $state('');
+  let authorEmails = $state<Record<string, string>>({});
+  let allComments = $state<Comment[]>([]);
+  let commentsVersion = $state(0);
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
@@ -57,11 +67,19 @@
 
       detail = anketa;
       masterKey = mk;
+      myUserId = identity.userId;
+      authorEmails = { [identity.userId]: identity.email, [anketa.counterpartId]: anketa.counterpartEmail };
       counterpartSide = anketa.myRole === 'employee' ? 'manager' : 'employee';
       archived = anketa.archivedAt !== null;
 
       const key = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
       anketaKey = key;
+
+      commentsVersion = anketa.commentsVersion;
+      if (anketa.commentsBlob) {
+        const envelope = await decryptBlob<Comment[]>(anketa.commentsBlob, key);
+        allComments = envelope.data;
+      }
 
       const myBlob = anketa.myRole === 'employee' ? anketa.employeeBlob : anketa.managerBlob;
       const myPublishedAt =
@@ -135,6 +153,46 @@
     }
   }
 
+  /**
+   * Always re-reads the current commentsBlob/commentsVersion fresh rather than
+   * trusting local state (which may be stale), per the Phase 6a plan. On a 409
+   * (someone else wrote first), merges by id and retries once more; a second
+   * conflict is rare enough to just surface as an error rather than loop.
+   */
+  async function submitComment(targetId: string, text: string): Promise<void> {
+    if (!anketaKey) return;
+
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
+    const freshComments = fresh.commentsBlob
+      ? (await decryptBlob<Comment[]>(fresh.commentsBlob, anketaKey)).data
+      : [];
+    const updated = addComment(freshComments, targetId, myUserId, text);
+
+    try {
+      await saveComments(updated, fresh.commentsVersion);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 409) throw error;
+
+      const conflict = error.body as { commentsBlob: string | null; commentsVersion: number };
+      const remoteComments = conflict.commentsBlob
+        ? (await decryptBlob<Comment[]>(conflict.commentsBlob, anketaKey)).data
+        : [];
+      const merged = mergeComments(updated, remoteComments);
+      await saveComments(merged, conflict.commentsVersion);
+    }
+  }
+
+  async function saveComments(comments: Comment[], expectedVersion: number): Promise<void> {
+    if (!anketaKey) return;
+    const blob = await encryptBlob(comments, anketaKey);
+    const result = await apiPut<{ commentsVersion: number }>(`/api/anketas/${id}/comments`, {
+      blob,
+      expectedVersion,
+    });
+    allComments = comments;
+    commentsVersion = result.commentsVersion;
+  }
+
   // Reactive autosave: fires whenever myAnswers changes (property-level mutations from AnswerField included).
   $effect(() => {
     void JSON.stringify(myAnswers);
@@ -164,6 +222,13 @@
           <legend>{question.title}</legend>
           {#each question.fields as field (field.id)}
             <AnswerField {field} bind:value={myAnswers[field.id]} readonly={myPublished} />
+            {#if myPublished}
+              <CommentThread
+                comments={allComments.filter((c) => c.targetId === field.id)}
+                {authorEmails}
+                onSubmit={(text) => submitComment(field.id, text)}
+              />
+            {/if}
           {/each}
         </fieldset>
       {/each}
@@ -192,6 +257,11 @@
             <legend>{question.title}</legend>
             {#each question.fields as field (field.id)}
               <AnswerField {field} value={counterpartAnswers[field.id]} readonly />
+              <CommentThread
+                comments={allComments.filter((c) => c.targetId === field.id)}
+                {authorEmails}
+                onSubmit={(text) => submitComment(field.id, text)}
+              />
             {/each}
           </fieldset>
         {/each}

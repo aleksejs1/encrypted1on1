@@ -58,6 +58,17 @@ class Anketa
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $archivedAt = null;
 
+    /**
+     * Shared blob, both sides can write to it (comments only ever get added,
+     * not edited by someone else) — protected by commentsVersion, not a
+     * per-side split like employeeBlob/managerBlob. See the Phase 6a plan.
+     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $commentsBlob = null;
+
+    #[ORM\Column(type: 'integer')]
+    private int $commentsVersion = 0;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -170,5 +181,27 @@ class Anketa
     public function archive(): void
     {
         $this->archivedAt = new \DateTimeImmutable();
+    }
+
+    public function getCommentsBlob(): ?string
+    {
+        return $this->commentsBlob;
+    }
+
+    public function getCommentsVersion(): int
+    {
+        return $this->commentsVersion;
+    }
+
+    /** @return bool true if saved, false on a version mismatch (caller should return 409). */
+    public function saveComments(string $blob, int $expectedVersion): bool
+    {
+        if ($expectedVersion !== $this->commentsVersion) {
+            return false;
+        }
+        $this->commentsBlob = $blob;
+        ++$this->commentsVersion;
+
+        return true;
     }
 }

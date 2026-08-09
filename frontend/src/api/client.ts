@@ -2,6 +2,8 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** The full parsed JSON error body, if there was one — e.g. the 409 comments-conflict payload. */
+    public readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -17,19 +19,19 @@ async function getCsrfToken(): Promise<string> {
   return csrfToken;
 }
 
-async function parseErrorMessage(response: Response): Promise<string> {
+async function toApiError(response: Response): Promise<ApiError> {
   try {
     const data = (await response.json()) as { error?: string };
-    return data.error ?? response.statusText;
+    return new ApiError(response.status, data.error ?? response.statusText, data);
   } catch {
-    return response.statusText;
+    return new ApiError(response.status, response.statusText);
   }
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(path, { credentials: 'include' });
   if (!response.ok) {
-    throw new ApiError(response.status, await parseErrorMessage(response));
+    throw await toApiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -47,7 +49,7 @@ async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown): Pro
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new ApiError(response.status, await parseErrorMessage(response));
+    throw await toApiError(response);
   }
   return response.json() as Promise<T>;
 }

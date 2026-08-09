@@ -104,7 +104,36 @@ class AnketaController
             'employeePublishedAt' => $anketa->getEmployeePublishedAt()?->format(\DATE_ATOM),
             'managerBlob' => $anketa->getManagerBlob(),
             'managerPublishedAt' => $anketa->getManagerPublishedAt()?->format(\DATE_ATOM),
+            'commentsBlob' => $anketa->getCommentsBlob(),
+            'commentsVersion' => $anketa->getCommentsVersion(),
         ]);
+    }
+
+    #[Route('/api/anketas/{id}/comments', name: 'anketa_comments', methods: ['PUT'])]
+    public function saveComments(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa] = $this->findAccessible($id, $request);
+
+        $body = $request->toArray();
+        $blob = $body['blob'] ?? null;
+        $expectedVersion = $body['expectedVersion'] ?? null;
+        if (!\is_string($blob) || !\is_int($expectedVersion)) {
+            return new JsonResponse(['error' => 'Missing "blob" or "expectedVersion".'], 400);
+        }
+
+        if (!$anketa->saveComments($blob, $expectedVersion)) {
+            // Conflict: hand back the current state so the client can merge without a second round-trip.
+            return new JsonResponse([
+                'error' => 'Comments changed since you last read them.',
+                'commentsBlob' => $anketa->getCommentsBlob(),
+                'commentsVersion' => $anketa->getCommentsVersion(),
+            ], 409);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse(['commentsVersion' => $anketa->getCommentsVersion()]);
     }
 
     #[Route('/api/anketas/{id}/draft', name: 'anketa_draft', methods: ['PUT'])]
