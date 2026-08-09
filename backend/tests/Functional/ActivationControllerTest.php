@@ -83,6 +83,30 @@ class ActivationControllerTest extends ApiTestCase
         self::assertSame(404, $second['status']);
     }
 
+    public function testCompleteIsRateLimitedAfterTooManyAttempts(): void
+    {
+        $client = static::createClient();
+
+        // Rate-limit consumption happens before token lookup, so bogus tokens are fine
+        // here — the configured limit (10/minute, config/packages/rate_limiter.php).
+        for ($i = 0; $i < 10; ++$i) {
+            $result = $this->jsonRequest($client, 'POST', "/api/activation-tokens/bogus-token-{$i}/complete", [
+                'authKey' => str_repeat('a', 44),
+                'publicKey' => str_repeat('b', 44),
+                'encryptedPrivateKey' => str_repeat('c', 44),
+            ]);
+            self::assertSame(404, $result['status'], "attempt {$i} should not be rate-limited yet");
+        }
+
+        $limited = $this->jsonRequest($client, 'POST', '/api/activation-tokens/bogus-token-overflow/complete', [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+
+        self::assertSame(429, $limited['status']);
+    }
+
     private function issueToken(string $email): string
     {
         [$token, $rawToken] = ActivationToken::issue($email);

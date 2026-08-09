@@ -4,11 +4,14 @@ namespace App\Controller;
 
 use App\Entity\ActivationToken;
 use App\Entity\User;
+use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -24,6 +27,8 @@ class ActivationController
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
+        #[Autowire(service: 'limiter.activation_complete')]
+        private readonly RateLimiterFactory $activationCompleteLimiter,
     ) {
     }
 
@@ -42,6 +47,14 @@ class ActivationController
     public function complete(string $token, Request $request): JsonResponse
     {
         $this->csrfGuard->assertValid($request);
+
+        // Token brute-forcing itself is already infeasible (256-bit random tokens,
+        // see ActivationToken::issue()) — this is defense-in-depth against generic
+        // automated abuse of account creation, not the primary defense.
+        $limit = $this->activationCompleteLimiter->create($request->getClientIp())->consume();
+        if (!$limit->isAccepted()) {
+            return RateLimitResponse::create($limit, $this->translator);
+        }
 
         $activationToken = $this->findUsableToken($token);
         if (null === $activationToken) {

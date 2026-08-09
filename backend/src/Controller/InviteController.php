@@ -4,14 +4,17 @@ namespace App\Controller;
 
 use App\Entity\ActivationToken;
 use App\Entity\User;
+use App\Http\RateLimitResponse;
 use App\Notification\InvitationNotifier;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -32,6 +35,8 @@ class InviteController
         private readonly TranslatorInterface $translator,
         private readonly string $registrationMode,
         private readonly string $allowedEmailDomain,
+        #[Autowire(service: 'limiter.invite')]
+        private readonly RateLimiterFactory $inviteLimiter,
     ) {
     }
 
@@ -46,6 +51,14 @@ class InviteController
         }
         if ('admin_only' === $this->registrationMode && !$inviter->isAdmin()) {
             throw new AccessDeniedHttpException($this->translator->trans('errors.admin_only_invite'));
+        }
+
+        // Keyed by the inviter's own account, not IP — this is an authenticated
+        // action, and IP-keying would collectively throttle a whole office behind
+        // one NAT for what's really a per-user action.
+        $limit = $this->inviteLimiter->create($inviter->getId())->consume();
+        if (!$limit->isAccepted()) {
+            return RateLimitResponse::create($limit, $this->translator);
         }
 
         $email = $request->toArray()['email'] ?? null;

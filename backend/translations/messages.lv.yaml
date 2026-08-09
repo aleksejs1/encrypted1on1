@@ -57,3 +57,4 @@ errors:
     not_a_participant: 'Jūs neesat dalībnieks.'
     missing_meeting_date: 'Trūkst "meetingDate".'
     invalid_csrf_token: 'Nederīgs CSRF marķieris.'
+    too_many_requests: 'Pārāk daudz pieprasījumu. Lūdzu, mēģiniet vēlreiz vēlāk.'

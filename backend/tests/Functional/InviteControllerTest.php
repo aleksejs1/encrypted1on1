@@ -57,4 +57,21 @@ class InviteControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
         self::assertSame('That email already has an account.', $result['json']['error']);
     }
+
+    public function testInviteIsRateLimitedAfterTooManyInvites(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('invite-rate-limit-sender'));
+
+        // The configured limit (10/hour, config/packages/rate_limiter.php) — each of
+        // these is a normal successful invite, not yet rate-limited.
+        for ($i = 0; $i < 10; ++$i) {
+            $result = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail("invite-rate-limit-target-{$i}")]);
+            self::assertSame(201, $result['status'], "invite {$i} should not be rate-limited yet");
+        }
+
+        $limited = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('invite-rate-limit-overflow')]);
+
+        self::assertSame(429, $limited['status']);
+    }
 }

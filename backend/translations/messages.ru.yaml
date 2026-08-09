@@ -57,3 +57,4 @@ errors:
     not_a_participant: 'Вы не являетесь участником.'
     missing_meeting_date: 'Отсутствует «meetingDate».'
     invalid_csrf_token: 'Недействительный CSRF-токен.'
+    too_many_requests: 'Слишком много запросов. Попробуйте снова позже.'

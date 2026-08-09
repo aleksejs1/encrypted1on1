@@ -18,6 +18,24 @@ use Symfony\Component\HttpKernel\KernelInterface;
 abstract class ApiTestCase extends WebTestCase
 {
     /**
+     * A private "IP" for this test method only (Phase 7f: the login/activation-complete
+     * rate limiters are keyed by client IP; without this, every test sharing the
+     * default 127.0.0.1 — including every activateUser() call across every test
+     * file — would draw from the same shared budget and trip each other's limits).
+     * A dedicated rate-limit test can still reliably trip its own limiter purely
+     * with its own requests, since nothing else shares this IP.
+     */
+    private string $clientIp;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // 3 random octets (~16.7M combinations) — a single-octet range (254 values)
+        // would make collisions likely across ~90 tests by the birthday paradox.
+        $this->clientIp = \sprintf('203.%d.%d.%d', random_int(0, 255), random_int(0, 255), random_int(0, 255));
+    }
+
+    /**
      * @param array<string, mixed>|null $body
      * @param array<string, string>     $extraHeaders
      *
@@ -25,7 +43,7 @@ abstract class ApiTestCase extends WebTestCase
      */
     protected function jsonRequest(KernelBrowser $client, string $method, string $path, ?array $body = null, array $extraHeaders = []): array
     {
-        $headers = $extraHeaders;
+        $headers = array_merge(['REMOTE_ADDR' => $this->clientIp], $extraHeaders);
         $content = null;
 
         // Every state-changing route checks CSRF first, regardless of whether it

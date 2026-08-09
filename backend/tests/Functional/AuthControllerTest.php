@@ -148,4 +148,28 @@ class AuthControllerTest extends ApiTestCase
         $me = $this->jsonRequest($client, 'GET', '/api/me');
         self::assertSame(401, $me['status']);
     }
+
+    public function testLoginIsRateLimitedAfterTooManyAttempts(): void
+    {
+        $client = static::createClient();
+
+        // The configured limit (5/minute, config/packages/rate_limiter.php) — each of
+        // these is a normal invalid-credentials rejection, not yet rate-limited.
+        for ($i = 0; $i < 5; ++$i) {
+            $result = $this->jsonRequest($client, 'POST', '/api/login', [
+                'email' => 'nobody@example.com',
+                'authKey' => str_repeat('z', 44),
+            ]);
+            self::assertSame(401, $result['status'], "attempt {$i} should not be rate-limited yet");
+        }
+
+        $limited = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => 'nobody@example.com',
+            'authKey' => str_repeat('z', 44),
+        ]);
+
+        self::assertSame(429, $limited['status']);
+        self::assertSame('Too many requests. Please try again later.', $limited['json']['error']);
+        self::assertTrue($client->getResponse()->headers->has('Retry-After'));
+    }
 }

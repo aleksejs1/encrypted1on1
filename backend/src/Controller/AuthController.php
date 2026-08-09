@@ -3,11 +3,14 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -22,6 +25,8 @@ class AuthController
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly string $registrationMode,
+        #[Autowire(service: 'limiter.login')]
+        private readonly RateLimiterFactory $loginLimiter,
     ) {
     }
 
@@ -29,6 +34,14 @@ class AuthController
     public function login(Request $request): JsonResponse
     {
         $this->csrfGuard->assertValid($request);
+
+        // Keyed by IP, not email — the point is slowing down automated guessing
+        // from one source, not punishing a specific account for someone else's
+        // attempts against it.
+        $limit = $this->loginLimiter->create($request->getClientIp())->consume();
+        if (!$limit->isAccepted()) {
+            return RateLimitResponse::create($limit, $this->translator);
+        }
 
         $body = $request->toArray();
         $email = $body['email'] ?? null;

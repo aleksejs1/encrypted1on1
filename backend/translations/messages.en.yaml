@@ -64,3 +64,4 @@ errors:
     not_a_participant: 'Not a participant.'
     missing_meeting_date: 'Missing "meetingDate".'
     invalid_csrf_token: 'Invalid CSRF token.'
+    too_many_requests: 'Too many requests. Please try again later.'
