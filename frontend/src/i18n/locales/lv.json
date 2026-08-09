@@ -38,12 +38,15 @@
     "badgeOverdue": "nokavēta",
     "badgePublishedByMe": "publicēju es",
     "badgePublishedByCounterpart": "publicēja sarunu biedrs",
-    "errorLoad": "Neizdevās ielādēt anketas."
+    "errorLoad": "Neizdevās ielādēt anketas.",
+    "viewToggleDate": "Pēc datuma",
+    "viewToggleCounterpart": "Pēc personas"
   },
   "createAnketa": {
     "title": "Jauna anketa",
     "counterpartLabel": "Sarunu biedrs",
-    "counterpartPlaceholder": "Izvēlieties personu…",
+    "counterpartPlaceholder": "Ierakstiet e-pastu, lai meklētu…",
+    "counterpartNoResults": "Netika atrasta neviena atbilstība.",
     "roleLegend": "Mana loma šajā anketā",
     "meetingDateLabel": "Tikšanās datums",
     "periodicityLabel": "Cik bieži jūs tiksieties?",

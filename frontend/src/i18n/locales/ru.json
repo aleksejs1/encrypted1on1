@@ -38,12 +38,15 @@
     "badgeOverdue": "просрочена",
     "badgePublishedByMe": "опубликовано мной",
     "badgePublishedByCounterpart": "опубликовано собеседником",
-    "errorLoad": "Не удалось загрузить анкеты."
+    "errorLoad": "Не удалось загрузить анкеты.",
+    "viewToggleDate": "По дате",
+    "viewToggleCounterpart": "По собеседнику"
   },
   "createAnketa": {
     "title": "Новая анкета",
     "counterpartLabel": "Собеседник",
-    "counterpartPlaceholder": "Выберите человека…",
+    "counterpartPlaceholder": "Введите email для поиска…",
+    "counterpartNoResults": "Совпадений не найдено.",
     "roleLegend": "Моя роль в этой анкете",
     "meetingDateLabel": "Дата встречи",
     "periodicityLabel": "Как часто вы будете встречаться?",

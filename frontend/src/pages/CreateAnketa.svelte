@@ -6,6 +6,7 @@
   import { ensureUnlocked } from '../crypto/identity';
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
+  import UserTypeahead from '../anketa/UserTypeahead.svelte';
 
   interface UserSummary {
     id: string;
@@ -113,12 +114,12 @@
     <form onsubmit={handleSubmit}>
       <label>
         {$_('createAnketa.counterpartLabel')}
-        <select bind:value={counterpartId}>
-          <option value="" disabled>{$_('createAnketa.counterpartPlaceholder')}</option>
-          {#each users as user (user.id)}
-            <option value={user.id}>{user.email}</option>
-          {/each}
-        </select>
+        <UserTypeahead
+          users={users}
+          bind:value={counterpartId}
+          placeholder={$_('createAnketa.counterpartPlaceholder')}
+          noResultsText={$_('createAnketa.counterpartNoResults')}
+        />
       </label>
 
       <fieldset>

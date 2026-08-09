@@ -38,12 +38,15 @@
     "badgeOverdue": "atrasado",
     "badgePublishedByMe": "publicado por mí",
     "badgePublishedByCounterpart": "publicado por el interlocutor",
-    "errorLoad": "No se pudieron cargar los cuestionarios."
+    "errorLoad": "No se pudieron cargar los cuestionarios.",
+    "viewToggleDate": "Por fecha",
+    "viewToggleCounterpart": "Por persona"
   },
   "createAnketa": {
     "title": "Nuevo cuestionario",
     "counterpartLabel": "Interlocutor",
-    "counterpartPlaceholder": "Selecciona una persona…",
+    "counterpartPlaceholder": "Escribe un email para buscar…",
+    "counterpartNoResults": "No se encontraron coincidencias.",
     "roleLegend": "Mi rol en este cuestionario",
     "meetingDateLabel": "Fecha de la reunión",
     "periodicityLabel": "¿Con qué frecuencia os reuniréis?",

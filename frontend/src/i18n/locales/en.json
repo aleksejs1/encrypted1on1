@@ -38,12 +38,15 @@
     "badgeOverdue": "overdue",
     "badgePublishedByMe": "published by me",
     "badgePublishedByCounterpart": "published by counterpart",
-    "errorLoad": "Could not load anketas."
+    "errorLoad": "Could not load anketas.",
+    "viewToggleDate": "By date",
+    "viewToggleCounterpart": "By person"
   },
   "createAnketa": {
     "title": "New anketa",
     "counterpartLabel": "Counterpart",
-    "counterpartPlaceholder": "Select a person…",
+    "counterpartPlaceholder": "Type an email to search…",
+    "counterpartNoResults": "No matching people found.",
     "roleLegend": "My role in this anketa",
     "meetingDateLabel": "Meeting date",
     "periodicityLabel": "How often will you meet?",
