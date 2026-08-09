@@ -99,6 +99,22 @@ a {
   background: var(--color-divider);
 }
 
+/* — banners — */
+.banner-error {
+  font-size: 13px;
+  color: var(--color-accent-ink);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+.banner-success {
+  font-size: 13px;
+  color: var(--color-accent-2-800);
+  background: var(--color-accent-2-100);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
 /* — buttons — */
 .btn {
   display: inline-flex;

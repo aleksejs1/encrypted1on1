@@ -95,7 +95,7 @@
     {#if done}
       <p>{$_('activate.done')}</p>
     {:else if lookupError}
-      <p class="error-banner">{lookupError}</p>
+      <p class="banner-error">{lookupError}</p>
     {:else if email === null}
       <p>{$_('common.loading')}</p>
     {:else}
@@ -147,7 +147,7 @@
         {/if}
 
         {#if submitError}
-          <div role="alert" class="error-banner">{submitError}</div>
+          <div role="alert" class="banner-error">{submitError}</div>
         {/if}
 
         <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
@@ -218,14 +218,6 @@
     font-size: 0.875rem;
     color: var(--color-text);
     opacity: 0.7;
-  }
-
-  .error-banner {
-    font-size: 13px;
-    color: var(--color-accent-ink);
-    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
-    border-radius: var(--radius-sm);
-    padding: 8px 12px;
   }
 
   .one-time-note {

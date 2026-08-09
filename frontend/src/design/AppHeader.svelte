@@ -1,7 +1,27 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import Logo from './Logo.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
   import LanguageSwitcher from '../i18n/LanguageSwitcher.svelte';
+  import { authState } from '../auth.svelte';
+  import { routerState } from '../router.svelte';
+  import { ensureUnlocked } from '../crypto/identity';
+
+  let isAdmin = $state(false);
+  let email = $state<string | null>(null);
+
+  $effect(() => {
+    if (!authState.authenticated) {
+      email = null;
+      return;
+    }
+    ensureUnlocked().then((identity) => {
+      isAdmin = identity.isAdmin;
+      email = identity.email;
+    });
+  });
+
+  const isHome = $derived(routerState.path === '/');
 </script>
 
 <header class="app-header">
@@ -9,8 +29,20 @@
     <Logo size={26} />
     <span class="wordmark">encrypted1on1</span>
   </div>
+
+  <nav class="app-nav">
+    {#if authState.authenticated && isHome}
+      {#if isAdmin}<a href="/admin">{$_('anketaList.admin')}</a>{/if}
+      <a href="/report">{$_('anketaList.report')}</a>
+      <a href="/anketas/new">{$_('anketaList.newAnketa')}</a>
+    {:else if authState.authenticated}
+      <a href="/">{$_('common.backToAnketas')}</a>
+    {/if}
+  </nav>
+
   <LanguageSwitcher />
   <ThemeToggle />
+  {#if email}<span class="user-email text-muted">{email}</span>{/if}
 </header>
 
 <style>
@@ -26,12 +58,33 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-right: auto;
   }
 
   .wordmark {
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
     font-size: 17px;
+  }
+
+  .app-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-right: auto;
+    flex-wrap: wrap;
+  }
+
+  .app-nav a {
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  .app-nav a:hover {
+    color: var(--color-accent-ink);
+  }
+
+  .user-email {
+    font-size: 13px;
   }
 </style>

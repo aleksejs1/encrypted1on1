@@ -4,7 +4,8 @@
     "remove": "Удалить",
     "loading": "Загрузка…",
     "roleEmployee": "Сотрудник",
-    "roleManager": "Менеджер"
+    "roleManager": "Менеджер",
+    "backToAnketas": "← Анкеты"
   },
   "login": {
     "title": "Вход",
@@ -52,7 +53,8 @@
     "badgePublishedByCounterpart": "опубликовано собеседником",
     "errorLoad": "Не удалось загрузить анкеты.",
     "viewToggleDate": "По дате",
-    "viewToggleCounterpart": "По собеседнику"
+    "viewToggleCounterpart": "По собеседнику",
+    "nextMeetingLabel": "Ближайшая встреча: {date}"
   },
   "createAnketa": {
     "title": "Новая анкета",
@@ -65,6 +67,7 @@
     "periodicityWeekly": "Раз в неделю",
     "periodicityBiweekly": "Раз в 2 недели",
     "periodicityMonthly": "Раз в месяц",
+    "periodicityInherited": "Вы уже встречались раньше — периодичность для этой пары уже задана и переносится автоматически.",
     "submit": "Создать анкету",
     "submitting": "Создание…",
     "errorLoad": "Не удалось загрузить пользователей.",

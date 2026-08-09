@@ -4,7 +4,8 @@
     "remove": "Noņemt",
     "loading": "Ielādē…",
     "roleEmployee": "Darbinieks",
-    "roleManager": "Vadītājs"
+    "roleManager": "Vadītājs",
+    "backToAnketas": "← Anketas"
   },
   "login": {
     "title": "Pieslēgties",
@@ -52,7 +53,8 @@
     "badgePublishedByCounterpart": "publicēja sarunu biedrs",
     "errorLoad": "Neizdevās ielādēt anketas.",
     "viewToggleDate": "Pēc datuma",
-    "viewToggleCounterpart": "Pēc personas"
+    "viewToggleCounterpart": "Pēc personas",
+    "nextMeetingLabel": "Nākamā tikšanās: {date}"
   },
   "createAnketa": {
     "title": "Jauna anketa",
@@ -65,6 +67,7 @@
     "periodicityWeekly": "Reizi nedēļā",
     "periodicityBiweekly": "Reizi 2 nedēļās",
     "periodicityMonthly": "Reizi mēnesī",
+    "periodicityInherited": "Jūs jau esat tikušies iepriekš — šī pāra periodiskums jau ir noteikts un tiek pārnests automātiski.",
     "submit": "Izveidot anketu",
     "submitting": "Izveido…",
     "errorLoad": "Neizdevās ielādēt lietotājus.",

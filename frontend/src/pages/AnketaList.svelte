@@ -17,174 +17,249 @@
     missed: boolean;
   }
 
+  interface BadgeMeta {
+    cls: string;
+    label: string;
+  }
+
   function isOverdue(anketa: AnketaSummary): boolean {
     return anketa.archivedAt === null && new Date(anketa.meetingDate).getTime() < Date.now();
   }
 
+  function initials(email: string): string {
+    return email.slice(0, 2).toUpperCase();
+  }
+
+  function badgesFor(anketa: AnketaSummary): BadgeMeta[] {
+    const list: BadgeMeta[] = [];
+    if (isOverdue(anketa)) list.push({ cls: 'tag-outline', label: $_('anketaList.badgeOverdue') });
+    if (anketa.archivedAt) list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeArchived') });
+    if (anketa.missed) list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeMissed') });
+    if (anketa.myPublishedAt) list.push({ cls: 'tag-accent', label: $_('anketaList.badgePublishedByMe') });
+    if (anketa.counterpartPublishedAt) {
+      list.push({ cls: 'tag-accent-2', label: $_('anketaList.badgePublishedByCounterpart') });
+    }
+    return list;
+  }
+
   const anketas = apiGet<AnketaSummary[]>('/api/anketas');
 
-  let isAdmin = $state(false);
   let showInvite = $state(false);
   let groupBy = $state<'date' | 'counterpart'>('date');
 
   $effect(() => {
     ensureUnlocked().then((identity) => {
-      isAdmin = identity.isAdmin;
       showInvite = identity.registrationMode === 'invite';
     });
   });
 </script>
 
 <main>
-  <div class="header">
-    <h1>{$_('anketaList.title')}</h1>
-    <div class="header-links">
-      {#if isAdmin}<a href="/admin">{$_('anketaList.admin')}</a>{/if}
-      <a href="/report">{$_('anketaList.report')}</a>
-      <a href="/anketas/new">{$_('anketaList.newAnketa')}</a>
-    </div>
-  </div>
+  <h1>{$_('anketaList.title')}</h1>
 
   {#if showInvite}
-    <section>
+    <div class="invite-wrap">
       <InviteForm />
-    </section>
+    </div>
   {/if}
 
-  {#snippet anketaItem(anketa: AnketaSummary)}
-    <li>
-      <a href="/anketas/{anketa.id}">
-        {anketa.counterpartEmail} ({$_(anketa.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager')}) — {new Date(
-          anketa.meetingDate,
-        ).toLocaleDateString()}
-        {#if anketa.archivedAt}<span class="badge">{$_('anketaList.badgeArchived')}</span>{/if}
-        {#if anketa.missed}<span class="badge">{$_('anketaList.badgeMissed')}</span>{/if}
-        {#if isOverdue(anketa)}<span class="badge overdue">{$_('anketaList.badgeOverdue')}</span>{/if}
-        {#if anketa.myPublishedAt}<span class="badge">{$_('anketaList.badgePublishedByMe')}</span>{/if}
-        {#if anketa.counterpartPublishedAt}<span class="badge"
-            >{$_('anketaList.badgePublishedByCounterpart')}</span
-          >{/if}
-      </a>
-    </li>
+  {#snippet anketaRow(anketa: AnketaSummary)}
+    <a href="/anketas/{anketa.id}" class="card elev-sm anketa-row">
+      <div class="avatar">{initials(anketa.counterpartEmail)}</div>
+      <div class="anketa-info">
+        <div class="anketa-email">{anketa.counterpartEmail}</div>
+        <div class="text-muted anketa-meta">
+          {$_(anketa.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager')} —
+          {new Date(anketa.meetingDate).toLocaleDateString()}
+        </div>
+      </div>
+      <div class="badges">
+        {#each badgesFor(anketa) as badge (badge.cls + badge.label)}
+          <span class="tag {badge.cls}">{badge.label}</span>
+        {/each}
+      </div>
+    </a>
   {/snippet}
 
   {#await anketas}
-    <p>{$_('common.loading')}</p>
+    <p class="text-muted">{$_('common.loading')}</p>
   {:then list}
     {#if list.length === 0}
-      <p>{$_('anketaList.empty')}</p>
+      <div class="card elev-sm empty-state">
+        <p class="text-muted">{$_('anketaList.empty')}</p>
+        <a href="/anketas/new" class="btn btn-primary">{$_('anketaList.newAnketa')}</a>
+      </div>
     {:else}
-      <div class="view-toggle">
-        <button type="button" aria-pressed={groupBy === 'date'} onclick={() => (groupBy = 'date')}>
+      <div class="seg view-toggle">
+        <label class="seg-opt">
+          <input type="radio" name="view" bind:group={groupBy} value="date" />
           {$_('anketaList.viewToggleDate')}
-        </button>
-        <button type="button" aria-pressed={groupBy === 'counterpart'} onclick={() => (groupBy = 'counterpart')}>
+        </label>
+        <label class="seg-opt">
+          <input type="radio" name="view" bind:group={groupBy} value="counterpart" />
           {$_('anketaList.viewToggleCounterpart')}
-        </button>
+        </label>
       </div>
 
       {#if groupBy === 'counterpart'}
-        {#each groupByCounterpart(list) as group (group.counterpartId)}
-          <section>
-            <h2>{group.counterpartEmail}</h2>
-            <ul>
-              {#each group.anketas as anketa (anketa.id)}
-                {@render anketaItem(anketa)}
-              {/each}
-            </ul>
-          </section>
-        {/each}
-      {:else}
-        <ul>
-          {#each list as anketa (anketa.id)}
-            {@render anketaItem(anketa)}
+        <div class="groups">
+          {#each groupByCounterpart(list) as group (group.counterpartId)}
+            <div class="card group-card">
+              <div class="group-header">
+                <div class="avatar avatar-accent-2">{initials(group.counterpartEmail)}</div>
+                <div class="anketa-info">
+                  <div class="anketa-email">{group.counterpartEmail}</div>
+                  <div class="text-muted anketa-meta">
+                    {$_('anketaList.nextMeetingLabel', {
+                      values: { date: new Date(group.anketas[0].meetingDate).toLocaleDateString() },
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div class="group-anketas">
+                {#each group.anketas as anketa (anketa.id)}
+                  <a href="/anketas/{anketa.id}" class="group-anketa-row">
+                    <span class="group-anketa-date">{new Date(anketa.meetingDate).toLocaleDateString()}</span>
+                    <div class="badges">
+                      {#each badgesFor(anketa) as badge (badge.cls + badge.label)}
+                        <span class="tag {badge.cls}">{badge.label}</span>
+                      {/each}
+                    </div>
+                  </a>
+                {/each}
+              </div>
+            </div>
           {/each}
-        </ul>
+        </div>
+      {:else}
+        <div class="flat-list">
+          {#each list as anketa (anketa.id)}
+            {@render anketaRow(anketa)}
+          {/each}
+        </div>
       {/if}
     {/if}
   {:catch error}
-    <p class="error">{error.message}</p>
+    <p class="banner-error">{error.message}</p>
   {/await}
 </main>
 
 <style>
   main {
-    max-width: 40rem;
-    margin: 4rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 28px 24px 60px;
   }
 
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  h1 {
+    font-size: 30px;
+    margin-bottom: 20px;
   }
 
-  .header-links {
-    display: flex;
-    gap: 1rem;
+  .invite-wrap {
+    margin-bottom: 24px;
+    max-width: 26rem;
   }
 
   .view-toggle {
-    display: flex;
-    gap: 0.5rem;
-    margin: 1rem 0;
+    margin-bottom: 20px;
   }
 
-  .view-toggle button {
-    font: inherit;
-    padding: 0.3rem 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 1rem;
-    background: white;
-    cursor: pointer;
-  }
-
-  .view-toggle button[aria-pressed='true'] {
-    background: #333;
-    color: white;
-    border-color: #333;
-  }
-
-  section {
-    margin-bottom: 1.5rem;
-  }
-
-  section h2 {
-    font-size: 1rem;
-    margin: 0 0 0.5rem;
-  }
-
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  .flat-list,
+  .groups {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 10px;
   }
 
-  li a {
-    display: block;
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 0.25rem;
+  .anketa-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
     text-decoration: none;
     color: inherit;
   }
 
-  .badge {
-    margin-left: 0.5rem;
-    font-size: 0.75rem;
-    color: #6b6b6b;
+  .avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--color-accent-100);
+    color: var(--color-accent-800);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-size: 14px;
+    flex: none;
   }
 
-  .badge.overdue {
-    color: #c0392b;
+  .avatar-accent-2 {
+    background: var(--color-accent-2-100);
+    color: var(--color-accent-2-800);
   }
 
-  .error {
-    color: #c0392b;
+  .anketa-info {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .anketa-email {
+    font-size: 14px;
+  }
+
+  .anketa-meta {
+    font-size: 12px;
+  }
+
+  .badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .group-card {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    flex-wrap: wrap;
+  }
+
+  .group-anketas {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 16px 14px;
+  }
+
+  .group-anketa-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    text-decoration: none;
+    color: inherit;
+    flex-wrap: wrap;
+  }
+
+  .group-anketa-date {
+    font-size: 13px;
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .empty-state {
+    align-items: center;
+    text-align: center;
+    padding: 48px 24px;
   }
 </style>

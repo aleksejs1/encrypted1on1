@@ -42,11 +42,21 @@
     achieved: 'anketa.goalStatusAchieved',
     cancelled: 'anketa.goalStatusCancelled',
   };
+  const GOAL_STATUS_TAG_CLASSES: Record<Goal['status'], string> = {
+    in_progress: 'tag-accent',
+    achieved: 'tag-accent-2',
+    cancelled: 'tag-neutral',
+  };
 
   const CHECKPOINT_STATUS_TAG_KEYS: Record<string, string> = {
     on_track: 'anketa.statusTagOnTrack',
     at_risk: 'anketa.statusTagAtRisk',
     blocked: 'anketa.statusTagBlocked',
+  };
+  const CHECKPOINT_STATUS_TAG_CLASSES: Record<string, string> = {
+    on_track: 'tag-accent-2',
+    at_risk: 'tag-outline',
+    blocked: 'tag-neutral',
   };
 
   const managerTargets = $derived(
@@ -132,131 +142,220 @@
   <h1>{$_('report.title')}</h1>
 
   {#if loadError}
-    <p class="error">{loadError}</p>
+    <p class="banner-error">{loadError}</p>
   {:else}
-    <form onsubmit={handleGenerate}>
-      <label>
-        {$_('report.reportForLabel')}
-        <select bind:value={target}>
+    <form class="card filters" onsubmit={handleGenerate}>
+      <div class="field target-field">
+        <label for="report-for">{$_('report.reportForLabel')}</label>
+        <select id="report-for" class="input" bind:value={target}>
           <option value="me">{$_('report.me')}</option>
           {#each managerTargets as person (person.id)}
             <option value={person.id}>{person.email}</option>
           {/each}
         </select>
-      </label>
+      </div>
 
       <fieldset>
         <legend>{$_('report.dateRangeLegend')}</legend>
-        <button type="button" onclick={applyQuarterPreset}>{$_('report.quarterPreset')}</button>
-        <label>
-          {$_('report.fromLabel')}
-          <input type="date" bind:value={rangeStart} />
-        </label>
-        <label>
-          {$_('report.toLabel')}
-          <input type="date" bind:value={rangeEnd} />
-        </label>
+        <button type="button" class="btn btn-secondary" onclick={applyQuarterPreset}>{$_('report.quarterPreset')}</button>
+        <div class="range-row">
+          <div class="field">
+            <label for="range-from">{$_('report.fromLabel')}</label>
+            <input id="range-from" class="input" type="date" bind:value={rangeStart} />
+          </div>
+          <div class="field">
+            <label for="range-to">{$_('report.toLabel')}</label>
+            <input id="range-to" class="input" type="date" bind:value={rangeEnd} />
+          </div>
+        </div>
       </fieldset>
 
       {#if generateError}
-        <p class="error">{generateError}</p>
+        <p class="banner-error">{generateError}</p>
       {/if}
 
-      <button type="submit" disabled={generating || !rangeStart || !rangeEnd}>
+      <button type="submit" class="btn btn-primary btn-block" disabled={generating || !rangeStart || !rangeEnd}>
         {generating ? $_('report.generating') : $_('report.generate')}
       </button>
     </form>
 
     {#if report}
-      <section>
-        <h2>{$_('report.achievementsHeading')}</h2>
-        {#if report.achievements.length === 0}
-          <p>{$_('report.nothingInRange')}</p>
-        {:else}
-          <ul>
-            {#each report.achievements as entry (entry.id)}
-              <li>{entry.date} — {entry.text}</li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
+      <div class="results">
+        <section class="card">
+          <h3>{$_('report.achievementsHeading')}</h3>
+          {#if report.achievements.length === 0}
+            <p class="text-muted">{$_('report.nothingInRange')}</p>
+          {:else}
+            <ul>
+              {#each report.achievements as entry (entry.id)}
+                <li>{entry.text} <span class="text-muted entry-date">— {entry.date}</span></li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
 
-      <section>
-        <h2>{$_('report.growthHeading')}</h2>
-        {#if report.growth.length === 0}
-          <p>{$_('report.nothingInRange')}</p>
-        {:else}
-          <ul>
-            {#each report.growth as entry (entry.id)}
-              <li>{entry.date} — {entry.text}</li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
+        <section class="card">
+          <h3>{$_('report.growthHeading')}</h3>
+          {#if report.growth.length === 0}
+            <p class="text-muted">{$_('report.nothingInRange')}</p>
+          {:else}
+            <ul>
+              {#each report.growth as entry (entry.id)}
+                <li>{entry.text} <span class="text-muted entry-date">— {entry.date}</span></li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
 
-      <section>
-        <h2>{$_('report.goalsHeading')}</h2>
-        {#if report.goals.length === 0}
-          <p>{$_('report.noGoalsInRange')}</p>
-        {:else}
-          {#each report.goals as goal (goal.goalUuid)}
-            <fieldset>
-              <legend>{goal.title} <span class="badge">{$_(GOAL_STATUS_KEYS[goal.status])}</span></legend>
-              {#if goal.description}<p>{goal.description}</p>{/if}
-              {#if goal.checkpoints.length === 0}
-                <p>{$_('report.noCheckpointsInRange')}</p>
-              {:else}
-                <ul>
-                  {#each goal.checkpoints as checkpoint (checkpoint.id)}
-                    <li>
-                      {new Date(checkpoint.createdAt).toLocaleDateString()}
-                      {#if checkpoint.statusTag}<span class="badge">{$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}</span>{/if}
-                      {#if checkpoint.text}— {checkpoint.text}{/if}
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </fieldset>
-          {/each}
-        {/if}
-      </section>
+        <section class="card">
+          <h3>{$_('report.goalsHeading')}</h3>
+          {#if report.goals.length === 0}
+            <p class="text-muted">{$_('report.noGoalsInRange')}</p>
+          {:else}
+            <div class="goals">
+              {#each report.goals as goal (goal.goalUuid)}
+                <div class="goal">
+                  <div class="goal-header">
+                    <strong>{goal.title}</strong>
+                    <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}">{$_(GOAL_STATUS_KEYS[goal.status])}</span>
+                  </div>
+                  {#if goal.description}<p class="text-muted goal-description">{goal.description}</p>{/if}
+                  {#if goal.checkpoints.length === 0}
+                    <p class="text-muted">{$_('report.noCheckpointsInRange')}</p>
+                  {:else}
+                    <ul class="checkpoints">
+                      {#each goal.checkpoints as checkpoint (checkpoint.id)}
+                        <li>
+                          <span class="text-muted checkpoint-date">{new Date(checkpoint.createdAt).toLocaleDateString()}</span>
+                          {#if checkpoint.text}<span>{checkpoint.text}</span>{/if}
+                          {#if checkpoint.statusTag}<span class="tag {CHECKPOINT_STATUS_TAG_CLASSES[checkpoint.statusTag]}">{$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}</span>{/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </section>
+      </div>
     {/if}
   {/if}
 </main>
 
 <style>
   main {
-    max-width: 40rem;
-    margin: 4rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
   }
 
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+  h1 {
+    font-size: 28px;
+    margin-bottom: 20px;
   }
 
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+  .filters {
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .target-field {
+    max-width: 280px;
   }
 
   fieldset {
-    border: 1px solid #ddd;
-    border-radius: 0.25rem;
-    margin-bottom: 1rem;
+    border: none;
+    padding: 0;
+    margin: 0;
   }
 
-  .badge {
-    margin-left: 0.5rem;
-    font-size: 0.75rem;
-    color: #6b6b6b;
+  fieldset legend {
+    font-size: 13px;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    margin-bottom: 8px;
   }
 
-  .error {
-    color: #c0392b;
+  .range-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  .range-row .field {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  h3 {
+    margin: 0 0 4px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .entry-date {
+    font-size: 11px;
+  }
+
+  .goals {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .goal {
+    border-top: 1px solid var(--color-divider);
+    padding-top: 12px;
+  }
+
+  .goal:first-child {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .goal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 14px;
+  }
+
+  .goal-description {
+    margin: 4px 0 0;
+  }
+
+  .checkpoints {
+    list-style: none;
+    padding: 0;
+    margin-top: 8px;
+  }
+
+  .checkpoints li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .checkpoint-date {
+    font-size: 11px;
+    width: 70px;
+    flex: none;
   }
 </style>

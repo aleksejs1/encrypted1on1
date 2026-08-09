@@ -26,43 +26,44 @@
   }
 </script>
 
-<form onsubmit={handleSubmit}>
-  <label>
-    {$_('inviteForm.label')}
-    <input type="email" bind:value={email} placeholder={$_('inviteForm.placeholder')} disabled={submitting} />
-  </label>
+<form class="card" onsubmit={handleSubmit}>
+  <div class="field">
+    <label for="invite-email">{$_('inviteForm.label')}</label>
+    <div class="row">
+      <input
+        id="invite-email"
+        class="input"
+        type="email"
+        bind:value={email}
+        placeholder={$_('inviteForm.placeholder')}
+        disabled={submitting}
+      />
+      <button type="submit" class="btn btn-primary" disabled={submitting || !email.trim()}>
+        {submitting ? $_('inviteForm.submitting') : $_('inviteForm.submit')}
+      </button>
+    </div>
+  </div>
   {#if error}
-    <p class="error">{error}</p>
+    <p class="banner-error">{error}</p>
   {/if}
   {#if sent}
-    <p class="sent">{$_('inviteForm.sent')}</p>
+    <p class="banner-success">{$_('inviteForm.sent')}</p>
   {/if}
-  <button type="submit" disabled={submitting || !email.trim()}>
-    {submitting ? $_('inviteForm.submitting') : $_('inviteForm.submit')}
-  </button>
 </form>
 
 <style>
   form {
+    max-width: 26rem;
+  }
+
+  .row {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    max-width: 20rem;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .error {
-    color: #c0392b;
-    font-size: 0.85rem;
-  }
-
-  .sent {
-    color: #2e7d32;
-    font-size: 0.85rem;
+  .row .input {
+    flex: 1;
+    min-width: 11rem;
   }
 </style>

@@ -60,6 +60,7 @@
 
 <div class="typeahead">
   <input
+    class="input"
     type="text"
     role="combobox"
     aria-expanded={open}
@@ -73,9 +74,9 @@
     {placeholder}
   />
   {#if open}
-    <ul class="results" id="user-typeahead-results">
+    <ul class="results card elev-md" id="user-typeahead-results">
       {#if filtered.length === 0}
-        <li class="empty">{noResultsText}</li>
+        <li class="empty text-muted">{noResultsText}</li>
       {:else}
         {#each filtered as user, i (user.id)}
           <li>
@@ -98,26 +99,18 @@
     position: relative;
   }
 
-  input {
-    width: 100%;
-    box-sizing: border-box;
-  }
-
   .results {
     position: absolute;
     z-index: 1;
     top: 100%;
     left: 0;
     right: 0;
-    margin: 0.25rem 0 0;
-    padding: 0.25rem;
+    margin: 4px 0 0;
+    padding: 6px;
     list-style: none;
     max-height: 12rem;
     overflow-y: auto;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 0.25rem;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    gap: 2px;
   }
 
   .results li {
@@ -128,22 +121,24 @@
     display: block;
     width: 100%;
     box-sizing: border-box;
-    padding: 0.4rem 0.5rem;
+    padding: 8px 10px;
     text-align: left;
     background: none;
     border: none;
-    border-radius: 0.2rem;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font: inherit;
+    font-size: 13px;
+    color: inherit;
   }
 
   .results button.highlighted,
   .results button:hover {
-    background: #f0f0f0;
+    background: color-mix(in srgb, var(--color-text) 7%, transparent);
   }
 
   .results .empty {
-    padding: 0.4rem 0.5rem;
-    color: #6b6b6b;
+    padding: 8px 10px;
+    font-size: 13px;
   }
 </style>

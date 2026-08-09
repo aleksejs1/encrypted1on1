@@ -4,7 +4,8 @@
     "remove": "Eliminar",
     "loading": "Cargando…",
     "roleEmployee": "Empleado",
-    "roleManager": "Responsable"
+    "roleManager": "Responsable",
+    "backToAnketas": "← Cuestionarios"
   },
   "login": {
     "title": "Iniciar sesión",
@@ -52,7 +53,8 @@
     "badgePublishedByCounterpart": "publicado por el interlocutor",
     "errorLoad": "No se pudieron cargar los cuestionarios.",
     "viewToggleDate": "Por fecha",
-    "viewToggleCounterpart": "Por persona"
+    "viewToggleCounterpart": "Por persona",
+    "nextMeetingLabel": "Próxima reunión: {date}"
   },
   "createAnketa": {
     "title": "Nuevo cuestionario",
@@ -65,6 +67,7 @@
     "periodicityWeekly": "Semanalmente",
     "periodicityBiweekly": "Cada 2 semanas",
     "periodicityMonthly": "Mensualmente",
+    "periodicityInherited": "Ya os habéis reunido antes — la periodicidad de esta pareja ya está establecida y se traslada automáticamente.",
     "submit": "Crear cuestionario",
     "submitting": "Creando…",
     "errorLoad": "No se pudieron cargar los usuarios.",

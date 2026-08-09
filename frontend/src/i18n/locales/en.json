@@ -4,7 +4,8 @@
     "remove": "Remove",
     "loading": "Loading…",
     "roleEmployee": "Employee",
-    "roleManager": "Manager"
+    "roleManager": "Manager",
+    "backToAnketas": "← Anketas"
   },
   "login": {
     "title": "Log in",
@@ -52,7 +53,8 @@
     "badgePublishedByCounterpart": "published by counterpart",
     "errorLoad": "Could not load anketas.",
     "viewToggleDate": "By date",
-    "viewToggleCounterpart": "By person"
+    "viewToggleCounterpart": "By person",
+    "nextMeetingLabel": "Next meeting: {date}"
   },
   "createAnketa": {
     "title": "New anketa",
@@ -65,6 +67,7 @@
     "periodicityWeekly": "Weekly",
     "periodicityBiweekly": "Every 2 weeks",
     "periodicityMonthly": "Monthly",
+    "periodicityInherited": "You've met before — this pair's periodicity is already set and carries over.",
     "submit": "Create anketa",
     "submitting": "Creating…",
     "errorLoad": "Could not load users.",

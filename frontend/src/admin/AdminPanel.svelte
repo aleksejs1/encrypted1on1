@@ -69,83 +69,97 @@
   <h1>{$_('admin.title')}</h1>
 
   {#if loadError}
-    <p class="error">{loadError}</p>
+    <p class="banner-error">{loadError}</p>
   {:else if isAdmin === null}
-    <p>{$_('common.loading')}</p>
+    <p class="text-muted">{$_('common.loading')}</p>
   {:else if !isAdmin}
-    <p>{$_('admin.notAuthorized')}</p>
+    <p class="text-muted">{$_('admin.notAuthorized')}</p>
   {:else}
-    <section>
+    <div class="invite-wrap">
       <InviteForm />
-    </section>
+    </div>
 
     {#if actionError}
-      <p class="error">{actionError}</p>
+      <p class="banner-error">{actionError}</p>
     {/if}
 
-    <table>
-      <thead>
-        <tr>
-          <th>{$_('admin.emailHeader')}</th>
-          <th>{$_('admin.statusHeader')}</th>
-          <th>{$_('admin.roleHeader')}</th>
-          <th>{$_('admin.createdHeader')}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each users as user (user.id)}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
           <tr>
-            <td>{user.email}</td>
-            <td>{user.isBlocked ? $_('admin.statusBlocked') : $_('admin.statusActive')}</td>
-            <td>{user.isAdmin ? $_('admin.roleAdmin') : $_('admin.roleUser')}</td>
-            <td>{new Date(user.createdAt).toLocaleDateString()}</td>
-            <td class="actions">
-              <button
-                type="button"
-                onclick={() => toggleBlocked(user)}
-                disabled={pending[user.id] || user.id === myUserId}
-              >
-                {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
-              </button>
-              <button type="button" onclick={() => toggleAdmin(user)} disabled={pending[user.id]}>
-                {user.isAdmin ? $_('admin.revokeAdmin') : $_('admin.makeAdmin')}
-              </button>
-            </td>
+            <th>{$_('admin.emailHeader')}</th>
+            <th>{$_('admin.statusHeader')}</th>
+            <th>{$_('admin.roleHeader')}</th>
+            <th>{$_('admin.createdHeader')}</th>
+            <th></th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each users as user (user.id)}
+            <tr>
+              <td>{user.email}</td>
+              <td>
+                <span class="tag {user.isBlocked ? 'tag-neutral' : 'tag-accent-2'}">
+                  {user.isBlocked ? $_('admin.statusBlocked') : $_('admin.statusActive')}
+                </span>
+              </td>
+              <td>{user.isAdmin ? $_('admin.roleAdmin') : $_('admin.roleUser')}</td>
+              <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+              <td class="actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-small"
+                  onclick={() => toggleBlocked(user)}
+                  disabled={pending[user.id] || user.id === myUserId}
+                >
+                  {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-small"
+                  onclick={() => toggleAdmin(user)}
+                  disabled={pending[user.id]}
+                >
+                  {user.isAdmin ? $_('admin.revokeAdmin') : $_('admin.makeAdmin')}
+                </button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 </main>
 
 <style>
   main {
-    max-width: 48rem;
-    margin: 4rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
+  h1 {
+    font-size: 28px;
+    margin-bottom: 20px;
   }
 
-  th,
-  td {
-    text-align: left;
-    padding: 0.5rem;
-    border-bottom: 1px solid #ddd;
+  .invite-wrap {
+    margin-bottom: 24px;
+    max-width: 26rem;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
   }
 
   .actions {
     display: flex;
-    gap: 0.5rem;
+    gap: 8px;
+    white-space: nowrap;
   }
 
-  .error {
-    color: #c0392b;
+  .btn-small {
+    padding: 4px 12px;
+    font-size: 12px;
   }
 </style>

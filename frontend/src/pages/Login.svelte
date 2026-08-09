@@ -75,7 +75,7 @@
       </div>
 
       {#if error}
-        <div role="alert" class="error-banner">{error}</div>
+        <div role="alert" class="banner-error">{error}</div>
       {/if}
 
       <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
@@ -122,14 +122,6 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-  }
-
-  .error-banner {
-    font-size: 13px;
-    color: var(--color-accent-ink);
-    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
-    border-radius: var(--radius-sm);
-    padding: 8px 12px;
   }
 
   .crypto-note {
