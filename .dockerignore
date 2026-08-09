@@ -1,0 +1,18 @@
+# Applies to every Dockerfile using the repo root as build context (dev and
+# prod) — without this, `COPY backend/ ./` / `COPY frontend/ ./` pull in
+# whatever gitignored local build artifacts happen to exist on the machine
+# building the image (found the hard way: a stray local backend/var/test.db
+# got baked into a prod image and then copied into its named volume on first
+# run, since Docker seeds an empty named volume from the image's existing
+# content at that path).
+.git/
+private/
+
+backend/var/
+backend/vendor/
+backend/.phpunit.result.cache
+backend/.env.test.local
+backend/.env.local
+
+frontend/node_modules/
+frontend/dist/

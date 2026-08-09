@@ -1,0 +1,27 @@
+# Prod Caddyfile — see the Phase 7d plan for why the base FrankenPHP image's
+# default (routes everything through php_server, falling back to index.php)
+# doesn't work here: SPA client-side routes like /anketas/abc-123 aren't real
+# Symfony routes, so that fallback would 404 them instead of serving the SPA.
+{
+	skip_install_trust
+	frankenphp
+}
+
+{$SERVER_NAME:localhost} {
+	root * /app/public
+	encode zstd br gzip
+
+	# Only the real API surface goes to PHP.
+	@backend path /api/* /health
+	handle @backend {
+		php_server
+	}
+
+	# Everything else: serve the literal static file if it exists (built SPA
+	# assets), otherwise fall back to index.html so the SPA's own client-side
+	# router (router.svelte.ts) can handle the route.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

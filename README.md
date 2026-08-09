@@ -25,6 +25,15 @@ npm run dev      # frontend dev server, proxies API calls to the backend
 
 `make down` stops the backend/Mailpit containers.
 
+## Production
+
+1. Copy `.env.prod.example` to `.env.prod` and fill in real values — an `APP_SECRET` (`openssl rand -hex 32`), your real domain (`SERVER_NAME`/`FRONTEND_URL`), and a real SMTP DSN (`MAILER_DSN`/`MAILER_FROM`). Point DNS at the server first and make sure ports 80/443 are reachable — Caddy (bundled in the prod image via FrankenPHP) provisions its own HTTPS certificate automatically on first boot.
+2. `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build` — builds and starts a single container serving both the built frontend and the API.
+3. Run migrations (not automatic on boot, deliberately — see `CLAUDE.md`): `docker compose -f docker-compose.prod.yml exec app php bin/console doctrine:migrations:migrate --no-interaction`.
+4. Bootstrap the first (admin) account: `docker compose -f docker-compose.prod.yml exec app php bin/console app:create-activation-link <email> --admin`.
+
+Data (the SQLite database) lives in a named Docker volume, so it survives image rebuilds/redeploys — back it up before any major upgrade (a documented backup procedure is a later phase).
+
 ## License
 
 AGPLv3 — see [LICENSE](LICENSE).

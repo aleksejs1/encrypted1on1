@@ -1,2 +1,5 @@
 # Local-only working files — not part of the public repo, see CLAUDE.md
 /private/
+
+# Real production secrets — copy .env.prod.example to this and fill it in.
+/.env.prod
