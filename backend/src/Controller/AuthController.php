@@ -70,6 +70,14 @@ class AuthController
             return new JsonResponse(['error' => 'Not authenticated.'], 401);
         }
 
-        return new JsonResponse(['id' => $user->getId(), 'email' => $user->getEmail(), 'isAdmin' => $user->isAdmin()]);
+        return new JsonResponse([
+            'id' => $user->getId(),
+            'email' => $user->getEmail(),
+            'isAdmin' => $user->isAdmin(),
+            // So a page refresh can re-derive the unwrapped private key from the
+            // sessionStorage master-key without a full re-login — see identity.ts.
+            'publicKey' => $user->getPublicKey(),
+            'encryptedPrivateKey' => $user->getEncryptedPrivateKey(),
+        ]);
     }
 }

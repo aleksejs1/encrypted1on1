@@ -5,6 +5,8 @@
   import { generateKeyPair, packWrappedPrivateKey, wrapPrivateKey } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
+  import { markAuthenticated } from '../auth.svelte';
+  import { navigate } from '../router.svelte';
 
   const { token }: { token: string } = $props();
 
@@ -58,6 +60,8 @@
 
       await storeMasterKey(masterKey);
       done = true;
+      markAuthenticated();
+      navigate('/');
     } catch (error) {
       submitError = error instanceof ApiError ? error.message : 'Something went wrong.';
     } finally {

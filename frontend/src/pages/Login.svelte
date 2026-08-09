@@ -5,12 +5,12 @@
   import { unpackWrappedPrivateKey, unwrapPrivateKey } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
+  import { markAuthenticated } from '../auth.svelte';
 
   let email = $state('');
   let password = $state('');
   let submitting = $state(false);
   let error = $state<string | null>(null);
-  let loggedIn = $state(false);
 
   const canSubmit = $derived(email.length > 0 && password.length > 0 && !submitting);
 
@@ -34,7 +34,7 @@
       await unwrapPrivateKey(wrapped, masterKey);
 
       await storeMasterKey(masterKey);
-      loggedIn = true;
+      markAuthenticated();
     } catch (err) {
       error = err instanceof ApiError ? err.message : 'Something went wrong.';
     } finally {
@@ -46,10 +46,7 @@
 <main>
   <h1>Log in</h1>
 
-  {#if loggedIn}
-    <p>Logged in.</p>
-  {:else}
-    <form onsubmit={handleSubmit}>
+  <form onsubmit={handleSubmit}>
       <label>
         Email
         <input type="email" bind:value={email} autocomplete="username" />
@@ -67,8 +64,7 @@
       <button type="submit" disabled={!canSubmit}>
         {submitting ? 'Logging in…' : 'Log in'}
       </button>
-    </form>
-  {/if}
+  </form>
 </main>
 
 <style>
