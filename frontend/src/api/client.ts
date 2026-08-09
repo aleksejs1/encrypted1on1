@@ -1,3 +1,6 @@
+import { get } from 'svelte/store';
+import { locale } from 'svelte-i18n';
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -29,7 +32,10 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(path, { credentials: 'include' });
+  const response = await fetch(path, {
+    credentials: 'include',
+    headers: { 'X-Locale': get(locale) ?? 'en' },
+  });
   if (!response.ok) {
     throw await toApiError(response);
   }
@@ -45,6 +51,9 @@ async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown): Pro
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': token,
+      // The active UI language (Phase 6h) — lets the backend translate error
+      // messages (Phase 6j) into it, independent of the browser's Accept-Language.
+      'X-Locale': get(locale) ?? 'en',
     },
     body: JSON.stringify(body),
   });

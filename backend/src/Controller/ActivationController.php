@@ -10,6 +10,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * The activation flow: look up what email a token is for, then complete it
@@ -22,6 +23,7 @@ class ActivationController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -30,7 +32,7 @@ class ActivationController
     {
         $activationToken = $this->findUsableToken($token);
         if (null === $activationToken) {
-            return new JsonResponse(['error' => 'Invalid or expired activation link.'], 404);
+            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_or_expired_activation_link')], 404);
         }
 
         return new JsonResponse(['email' => $activationToken->getEmail()]);
@@ -43,13 +45,13 @@ class ActivationController
 
         $activationToken = $this->findUsableToken($token);
         if (null === $activationToken) {
-            return new JsonResponse(['error' => 'Invalid or expired activation link.'], 404);
+            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_or_expired_activation_link')], 404);
         }
 
         $body = $request->toArray();
         foreach (['authKey', 'publicKey', 'encryptedPrivateKey'] as $field) {
             if (empty($body[$field]) || !\is_string($body[$field])) {
-                return new JsonResponse(['error' => sprintf('Missing or invalid "%s".', $field)], 400);
+                return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
             }
         }
 

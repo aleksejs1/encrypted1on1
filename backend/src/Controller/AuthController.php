@@ -9,6 +9,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class AuthController
 {
@@ -19,6 +20,7 @@ class AuthController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
+        private readonly TranslatorInterface $translator,
         private readonly string $registrationMode,
     ) {
     }
@@ -32,7 +34,7 @@ class AuthController
         $email = $body['email'] ?? null;
         $authKey = $body['authKey'] ?? null;
         if (!\is_string($email) || !\is_string($authKey)) {
-            return new JsonResponse(['error' => 'Missing "email" or "authKey".'], 400);
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_email_or_auth_key')], 400);
         }
 
         $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
@@ -43,13 +45,13 @@ class AuthController
         $isValid = hash_equals($expectedHash, $authKey) && null !== $user;
 
         if (!$isValid) {
-            return new JsonResponse(['error' => 'Invalid email or password.'], 401);
+            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_email_or_password')], 401);
         }
 
         // Distinct from the 401 above: this only triggers after a *correct* password is
         // already proven, so there's no enumeration concern in a clearer message here.
         if ($user->isBlocked()) {
-            return new JsonResponse(['error' => 'This account has been blocked.'], 403);
+            return new JsonResponse(['error' => $this->translator->trans('errors.account_blocked')], 403);
         }
 
         $this->authSession->logIn($request, $user);
@@ -74,7 +76,7 @@ class AuthController
     {
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
-            return new JsonResponse(['error' => 'Not authenticated.'], 401);
+            return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
         }
 
         return new JsonResponse([
@@ -103,12 +105,12 @@ class AuthController
 
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
-            return new JsonResponse(['error' => 'Not authenticated.'], 401);
+            return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
         }
 
         $locale = $request->toArray()['locale'] ?? null;
         if (!\is_string($locale) || !\in_array($locale, User::SUPPORTED_LOCALES, true)) {
-            return new JsonResponse(['error' => sprintf('"locale" must be one of: %s.', implode(', ', User::SUPPORTED_LOCALES))], 400);
+            return new JsonResponse(['error' => $this->translator->trans('errors.locale_must_be_one_of', ['%locales%' => implode(', ', User::SUPPORTED_LOCALES)])], 400);
         }
 
         $user->setLocale($locale);

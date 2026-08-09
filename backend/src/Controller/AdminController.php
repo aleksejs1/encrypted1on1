@@ -12,6 +12,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Every route here is admin-only (see requireAdmin()) — the account-lifecycle
@@ -25,6 +26,7 @@ class AdminController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -52,12 +54,12 @@ class AdminController
 
         $target = $this->findUser($id);
         if ($target->getId() === $admin->getId()) {
-            return new JsonResponse(['error' => 'You cannot block your own account.'], 400);
+            return new JsonResponse(['error' => $this->translator->trans('errors.cannot_block_own_account')], 400);
         }
 
         $blocked = $request->toArray()['blocked'] ?? null;
         if (!\is_bool($blocked)) {
-            return new JsonResponse(['error' => 'Missing "blocked".'], 400);
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blocked')], 400);
         }
 
         $target->setBlocked($blocked);
@@ -76,7 +78,7 @@ class AdminController
 
         $isAdmin = $request->toArray()['isAdmin'] ?? null;
         if (!\is_bool($isAdmin)) {
-            return new JsonResponse(['error' => 'Missing "isAdmin".'], 400);
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_is_admin')], 400);
         }
 
         $target->setAdmin($isAdmin);
@@ -89,10 +91,10 @@ class AdminController
     {
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
-            throw new UnauthorizedHttpException('', 'Not authenticated.');
+            throw new UnauthorizedHttpException('', $this->translator->trans('errors.not_authenticated'));
         }
         if (!$user->isAdmin()) {
-            throw new AccessDeniedHttpException('Admin only.');
+            throw new AccessDeniedHttpException($this->translator->trans('errors.admin_only'));
         }
 
         return $user;
@@ -102,7 +104,7 @@ class AdminController
     {
         $user = $this->entityManager->find(User::class, $id);
         if (null === $user) {
-            throw new NotFoundHttpException('User not found.');
+            throw new NotFoundHttpException($this->translator->trans('errors.user_not_found'));
         }
 
         return $user;
