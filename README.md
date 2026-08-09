@@ -1,5 +1,7 @@
 # encrypted1on1
 
+[![CI](https://github.com/aleksejs1/encrypted1on1/actions/workflows/ci.yml/badge.svg)](https://github.com/aleksejs1/encrypted1on1/actions/workflows/ci.yml)
+
 A self-hosted, end-to-end encrypted platform for running 1:1 meetings between managers and employees.
 
 ## Status
