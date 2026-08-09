@@ -6,15 +6,17 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * The single mechanism behind account creation, whether that's the CLI
- * bootstrap of the first admin or (in a later phase) an emailed invite —
- * see bin/console app:create-activation-link. Not an API Platform resource:
- * accessed only through the two custom activation controllers.
+ * The single mechanism behind account creation — the CLI bootstrap
+ * (bin/console app:create-activation-link) and the Phase 6g invite endpoint
+ * both go through issue() below. Not an API Platform resource: accessed
+ * only through the two custom activation controllers.
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'activation_tokens')]
 class ActivationToken
 {
+    public const TOKEN_TTL_HOURS = 24;
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
     private string $id;
@@ -46,6 +48,19 @@ class ActivationToken
         $this->grantsAdmin = $grantsAdmin;
         $this->expiresAt = $expiresAt;
         $this->createdAt = new \DateTimeImmutable();
+    }
+
+    /**
+     * @return array{0: self, 1: string} the entity to persist, and the raw token — the
+     *                                    latter only ever exists here and in the emailed/printed URL, never stored
+     */
+    public static function issue(string $email, bool $grantsAdmin = false): array
+    {
+        $rawToken = bin2hex(random_bytes(32));
+        $tokenHash = hash('sha256', $rawToken);
+        $expiresAt = new \DateTimeImmutable(sprintf('+%d hours', self::TOKEN_TTL_HOURS));
+
+        return [new self($tokenHash, $email, $grantsAdmin, $expiresAt), $rawToken];
     }
 
     public function getEmail(): string

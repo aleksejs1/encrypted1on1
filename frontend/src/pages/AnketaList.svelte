@@ -1,5 +1,7 @@
 <script lang="ts">
   import { apiGet } from '../api/client';
+  import { ensureUnlocked } from '../crypto/identity';
+  import InviteForm from '../admin/InviteForm.svelte';
 
   interface AnketaSummary {
     id: string;
@@ -17,16 +19,33 @@
   }
 
   const anketas = apiGet<AnketaSummary[]>('/api/anketas');
+
+  let isAdmin = $state(false);
+  let showInvite = $state(false);
+
+  $effect(() => {
+    ensureUnlocked().then((identity) => {
+      isAdmin = identity.isAdmin;
+      showInvite = identity.registrationMode === 'invite';
+    });
+  });
 </script>
 
 <main>
   <div class="header">
     <h1>Anketas</h1>
     <div class="header-links">
+      {#if isAdmin}<a href="/admin">Admin</a>{/if}
       <a href="/report">Report</a>
       <a href="/anketas/new">New anketa</a>
     </div>
   </div>
+
+  {#if showInvite}
+    <section>
+      <InviteForm />
+    </section>
+  {/if}
 
   {#await anketas}
     <p>Loading…</p>

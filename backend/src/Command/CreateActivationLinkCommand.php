@@ -21,8 +21,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'app:create-activation-link', description: 'Create an activation link for a new account')]
 class CreateActivationLinkCommand extends Command
 {
-    private const TOKEN_TTL_HOURS = 24;
-
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly string $frontendBaseUrl,
@@ -43,16 +41,12 @@ class CreateActivationLinkCommand extends Command
         $email = $input->getArgument('email');
         $grantsAdmin = (bool) $input->getOption('admin');
 
-        $token = bin2hex(random_bytes(32));
-        $tokenHash = hash('sha256', $token);
-        $expiresAt = new \DateTimeImmutable(sprintf('+%d hours', self::TOKEN_TTL_HOURS));
-
-        $activationToken = new ActivationToken($tokenHash, $email, $grantsAdmin, $expiresAt);
+        [$activationToken, $rawToken] = ActivationToken::issue($email, $grantsAdmin);
         $this->entityManager->persist($activationToken);
         $this->entityManager->flush();
 
-        $io->success(sprintf('Activation link created (expires in %d hours):', self::TOKEN_TTL_HOURS));
-        $io->writeln(sprintf('%s/activate/%s', rtrim($this->frontendBaseUrl, '/'), $token));
+        $io->success(sprintf('Activation link created (expires in %d hours):', ActivationToken::TOKEN_TTL_HOURS));
+        $io->writeln(sprintf('%s/activate/%s', rtrim($this->frontendBaseUrl, '/'), $rawToken));
 
         return Command::SUCCESS;
     }

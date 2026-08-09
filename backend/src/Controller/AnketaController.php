@@ -408,7 +408,13 @@ class AnketaController
             return new JsonResponse(['error' => '"outcomesBlob" must be a string.'], 400);
         }
 
-        if (!$skipNextMeeting) {
+        // Closes the Phase 6d deferred item: if either participant is now blocked
+        // (Phase 6g), auto-recreation stops for this pair — same effect as
+        // skipNextMeeting, but forced, regardless of what the client asked for.
+        $eitherBlocked = $anketa->getEmployee()->isBlocked() || $anketa->getManager()->isBlocked();
+        $createNext = !$skipNextMeeting && !$eitherBlocked;
+
+        if ($createNext) {
             $periodicityDays = $anketa->getPeriodicityDays();
             if (null === $periodicityDays) {
                 return new JsonResponse(['error' => 'This anketa has no periodicity on record — pass "skipNextMeeting": true.'], 400);
@@ -429,7 +435,7 @@ class AnketaController
 
         $nextAnketa = null;
         $nextRecipient = null;
-        if (!$skipNextMeeting) {
+        if ($createNext) {
             $isEmployee = $anketa->isEmployee($user);
             $nextAnketa = $this->createAnketaWithCarryForward(
                 employee: $anketa->getEmployee(),

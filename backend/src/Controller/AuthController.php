@@ -19,6 +19,7 @@ class AuthController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
+        private readonly string $registrationMode,
     ) {
     }
 
@@ -43,6 +44,12 @@ class AuthController
 
         if (!$isValid) {
             return new JsonResponse(['error' => 'Invalid email or password.'], 401);
+        }
+
+        // Distinct from the 401 above: this only triggers after a *correct* password is
+        // already proven, so there's no enumeration concern in a clearer message here.
+        if ($user->isBlocked()) {
+            return new JsonResponse(['error' => 'This account has been blocked.'], 403);
         }
 
         $this->authSession->logIn($request, $user);
@@ -78,6 +85,9 @@ class AuthController
             // sessionStorage master-key without a full re-login — see identity.ts.
             'publicKey' => $user->getPublicKey(),
             'encryptedPrivateKey' => $user->getEncryptedPrivateKey(),
+            // Every authenticated user needs this to decide whether to show the general
+            // "Invite" UI (Phase 6g) — not admin-only information.
+            'registrationMode' => $this->registrationMode,
         ]);
     }
 }

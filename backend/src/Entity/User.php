@@ -58,6 +58,11 @@ class User
     #[Groups(['user:read'])]
     private bool $isAdmin;
 
+    /** Reversible, login-only gate (Phase 6g) — doesn't touch data, unlike account deletion. */
+    #[ORM\Column(type: 'boolean')]
+    #[Groups(['user:read'])]
+    private bool $isBlocked = false;
+
     public function __construct(
         string $email,
         string $authHash,
@@ -107,5 +112,20 @@ class User
     public function isAdmin(): bool
     {
         return $this->isAdmin;
+    }
+
+    public function isBlocked(): bool
+    {
+        return $this->isBlocked;
+    }
+
+    public function setAdmin(bool $isAdmin): void
+    {
+        $this->isAdmin = $isAdmin;
+    }
+
+    public function setBlocked(bool $isBlocked): void
+    {
+        $this->isBlocked = $isBlocked;
     }
 }

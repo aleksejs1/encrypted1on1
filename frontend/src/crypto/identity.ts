@@ -7,6 +7,8 @@ export interface Identity {
   userId: string;
   email: string;
   isAdmin: boolean;
+  /** "invite" | "admin_only" (Phase 6g) — every authenticated user needs this to decide whether to show the general "Invite" UI. */
+  registrationMode: string;
   publicKey: Uint8Array;
   privateKey: Uint8Array;
 }
@@ -15,6 +17,7 @@ interface MeResponse {
   id: string;
   email: string;
   isAdmin: boolean;
+  registrationMode: string;
   publicKey: string;
   encryptedPrivateKey: string;
 }
@@ -47,6 +50,7 @@ export async function ensureUnlocked(): Promise<Identity> {
       userId: me.id,
       email: me.email,
       isAdmin: me.isAdmin,
+      registrationMode: me.registrationMode,
       publicKey: await fromBase64(me.publicKey),
       privateKey,
     };

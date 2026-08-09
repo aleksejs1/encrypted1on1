@@ -5,6 +5,7 @@
   import AnketaPage from './pages/Anketa.svelte';
   import Login from './pages/Login.svelte';
   import Report from './pages/Report.svelte';
+  import AdminPanel from './admin/AdminPanel.svelte';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
 
@@ -28,6 +29,8 @@
   <AnketaPage id={anketaMatch[1]} />
 {:else if routerState.path === '/report'}
   <Report />
+{:else if routerState.path === '/admin'}
+  <AdminPanel />
 {:else}
   <AnketaList />
 {/if}

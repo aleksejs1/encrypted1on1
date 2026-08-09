@@ -1,0 +1,73 @@
+<?php
+
+namespace App\Controller;
+
+use App\Entity\ActivationToken;
+use App\Entity\User;
+use App\Notification\InvitationNotifier;
+use App\Security\AuthSession;
+use App\Security\CsrfGuard;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\Routing\Attribute\Route;
+
+/**
+ * One endpoint serves both `REGISTRATION_MODE=invite` (any logged-in user)
+ * and `admin_only` (admin-only) — the spec's two invite-based modes differ
+ * only in *who* may call this, not in the mechanism itself (see the Phase
+ * 6g plan). `domain` mode (open self-registration) is a different flow
+ * entirely and isn't built here.
+ */
+class InviteController
+{
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+        private readonly AuthSession $authSession,
+        private readonly CsrfGuard $csrfGuard,
+        private readonly InvitationNotifier $notifier,
+        private readonly string $registrationMode,
+        private readonly string $allowedEmailDomain,
+    ) {
+    }
+
+    #[Route('/api/invites', name: 'invite_create', methods: ['POST'])]
+    public function create(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+
+        $inviter = $this->authSession->getCurrentUser($request);
+        if (null === $inviter) {
+            throw new UnauthorizedHttpException('', 'Not authenticated.');
+        }
+        if ('admin_only' === $this->registrationMode && !$inviter->isAdmin()) {
+            throw new AccessDeniedHttpException('Only admins can invite new users while registration is admin-only.');
+        }
+
+        $email = $request->toArray()['email'] ?? null;
+        if (!\is_string($email) || '' === $email) {
+            return new JsonResponse(['error' => 'Missing "email".'], 400);
+        }
+
+        if ('' !== $this->allowedEmailDomain && !str_ends_with($email, '@'.$this->allowedEmailDomain)) {
+            return new JsonResponse(['error' => sprintf('Only "@%s" email addresses can be invited.', $this->allowedEmailDomain)], 400);
+        }
+
+        $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+        if (null !== $existing) {
+            return new JsonResponse(['error' => 'That email already has an account.'], 400);
+        }
+
+        // Admin status is only ever granted via the CLI bootstrap or the admin panel's
+        // explicit "make admin" action (Phase 6g) — never implicitly through an invite.
+        [$activationToken, $rawToken] = ActivationToken::issue($email);
+        $this->entityManager->persist($activationToken);
+        $this->entityManager->flush();
+
+        $this->notifier->notifyInvited($email, $rawToken, $inviter);
+
+        return new JsonResponse(['ok' => true], 201);
+    }
+}
