@@ -69,6 +69,13 @@ class Anketa
     #[ORM\Column(type: 'integer')]
     private int $commentsVersion = 0;
 
+    /** Same shape as commentsBlob/commentsVersion — see the Phase 6b plan for why this isn't unified with it. */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $outcomesBlob = null;
+
+    #[ORM\Column(type: 'integer')]
+    private int $outcomesVersion = 0;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -201,6 +208,28 @@ class Anketa
         }
         $this->commentsBlob = $blob;
         ++$this->commentsVersion;
+
+        return true;
+    }
+
+    public function getOutcomesBlob(): ?string
+    {
+        return $this->outcomesBlob;
+    }
+
+    public function getOutcomesVersion(): int
+    {
+        return $this->outcomesVersion;
+    }
+
+    /** @return bool true if saved, false on a version mismatch (caller should return 409). */
+    public function saveOutcomes(string $blob, int $expectedVersion): bool
+    {
+        if ($expectedVersion !== $this->outcomesVersion) {
+            return false;
+        }
+        $this->outcomesBlob = $blob;
+        ++$this->outcomesVersion;
 
         return true;
     }

@@ -106,6 +106,8 @@ class AnketaController
             'managerPublishedAt' => $anketa->getManagerPublishedAt()?->format(\DATE_ATOM),
             'commentsBlob' => $anketa->getCommentsBlob(),
             'commentsVersion' => $anketa->getCommentsVersion(),
+            'outcomesBlob' => $anketa->getOutcomesBlob(),
+            'outcomesVersion' => $anketa->getOutcomesVersion(),
         ]);
     }
 
@@ -134,6 +136,32 @@ class AnketaController
         $this->entityManager->flush();
 
         return new JsonResponse(['commentsVersion' => $anketa->getCommentsVersion()]);
+    }
+
+    #[Route('/api/anketas/{id}/outcomes', name: 'anketa_outcomes', methods: ['PUT'])]
+    public function saveOutcomes(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa] = $this->findAccessible($id, $request);
+
+        $body = $request->toArray();
+        $blob = $body['blob'] ?? null;
+        $expectedVersion = $body['expectedVersion'] ?? null;
+        if (!\is_string($blob) || !\is_int($expectedVersion)) {
+            return new JsonResponse(['error' => 'Missing "blob" or "expectedVersion".'], 400);
+        }
+
+        if (!$anketa->saveOutcomes($blob, $expectedVersion)) {
+            return new JsonResponse([
+                'error' => 'Outcomes changed since you last read them.',
+                'outcomesBlob' => $anketa->getOutcomesBlob(),
+                'outcomesVersion' => $anketa->getOutcomesVersion(),
+            ], 409);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse(['outcomesVersion' => $anketa->getOutcomesVersion()]);
     }
 
     #[Route('/api/anketas/{id}/draft', name: 'anketa_draft', methods: ['PUT'])]

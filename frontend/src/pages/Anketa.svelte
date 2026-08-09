@@ -2,7 +2,8 @@
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
-  import { addComment, mergeComments, type Comment } from '../anketa/comments';
+  import { addComment, type Comment } from '../anketa/comments';
+  import { addOutcome, toggleDone, type OutcomeItem } from '../anketa/outcomes';
   import { QUESTIONS_BY_SIDE, type Side, type Answers } from '../anketa/questions';
   import { decryptBlob, encryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
@@ -24,6 +25,8 @@
     managerPublishedAt: string | null;
     commentsBlob: string | null;
     commentsVersion: number;
+    outcomesBlob: string | null;
+    outcomesVersion: number;
   }
 
   let loadError = $state<string | null>(null);
@@ -47,6 +50,10 @@
   let authorEmails = $state<Record<string, string>>({});
   let allComments = $state<Comment[]>([]);
   let commentsVersion = $state(0);
+  let allOutcomes = $state<OutcomeItem[]>([]);
+  let outcomesVersion = $state(0);
+  let newOutcomeText = $state('');
+  let addingOutcome = $state(false);
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
@@ -79,6 +86,12 @@
       if (anketa.commentsBlob) {
         const envelope = await decryptBlob<Comment[]>(anketa.commentsBlob, key);
         allComments = envelope.data;
+      }
+
+      outcomesVersion = anketa.outcomesVersion;
+      if (anketa.outcomesBlob) {
+        const envelope = await decryptBlob<OutcomeItem[]>(anketa.outcomesBlob, key);
+        allOutcomes = envelope.data;
       }
 
       const myBlob = anketa.myRole === 'employee' ? anketa.employeeBlob : anketa.managerBlob;
@@ -156,20 +169,29 @@
   /**
    * Always re-reads the current commentsBlob/commentsVersion fresh rather than
    * trusting local state (which may be stale), per the Phase 6a plan. On a 409
-   * (someone else wrote first), merges by id and retries once more; a second
-   * conflict is rare enough to just surface as an error rather than loop.
+   * (someone else wrote first), re-applies the same operation to the *latest*
+   * remote state and retries once more, rather than merging a stale
+   * already-computed result — the latter silently drops edits to an id the
+   * remote write also touched (found while building outcomes' toggleDone,
+   * which edits an existing item in place; add-only comments happened to work
+   * either way, but this is the version that's actually correct in general).
+   * A second conflict is rare enough to just surface as an error, not loop.
    */
   async function submitComment(targetId: string, text: string): Promise<void> {
+    if (!anketaKey) return;
+    await updateComments((current) => addComment(current, targetId, myUserId, text));
+  }
+
+  async function updateComments(apply: (current: Comment[]) => Comment[]): Promise<void> {
     if (!anketaKey) return;
 
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
     const freshComments = fresh.commentsBlob
       ? (await decryptBlob<Comment[]>(fresh.commentsBlob, anketaKey)).data
       : [];
-    const updated = addComment(freshComments, targetId, myUserId, text);
 
     try {
-      await saveComments(updated, fresh.commentsVersion);
+      await saveComments(apply(freshComments), fresh.commentsVersion);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409) throw error;
 
@@ -177,8 +199,7 @@
       const remoteComments = conflict.commentsBlob
         ? (await decryptBlob<Comment[]>(conflict.commentsBlob, anketaKey)).data
         : [];
-      const merged = mergeComments(updated, remoteComments);
-      await saveComments(merged, conflict.commentsVersion);
+      await saveComments(apply(remoteComments), conflict.commentsVersion);
     }
   }
 
@@ -191,6 +212,63 @@
     });
     allComments = comments;
     commentsVersion = result.commentsVersion;
+  }
+
+  async function handleAddOutcome(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (!newOutcomeText.trim() || addingOutcome) return;
+
+    addingOutcome = true;
+    actionError = null;
+    try {
+      await updateOutcomes((current) => addOutcome(current, myUserId, newOutcomeText.trim()));
+      newOutcomeText = '';
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not add the item.';
+    } finally {
+      addingOutcome = false;
+    }
+  }
+
+  async function handleToggleOutcome(itemId: string): Promise<void> {
+    try {
+      await updateOutcomes((current) => toggleDone(current, itemId));
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not update the item.';
+    }
+  }
+
+  /** Same shape as updateComments — see the comment above it. */
+  async function updateOutcomes(apply: (current: OutcomeItem[]) => OutcomeItem[]): Promise<void> {
+    if (!anketaKey) return;
+
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
+    const freshOutcomes = fresh.outcomesBlob
+      ? (await decryptBlob<OutcomeItem[]>(fresh.outcomesBlob, anketaKey)).data
+      : [];
+
+    try {
+      await saveOutcomes(apply(freshOutcomes), fresh.outcomesVersion);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 409) throw error;
+
+      const conflict = error.body as { outcomesBlob: string | null; outcomesVersion: number };
+      const remoteOutcomes = conflict.outcomesBlob
+        ? (await decryptBlob<OutcomeItem[]>(conflict.outcomesBlob, anketaKey)).data
+        : [];
+      await saveOutcomes(apply(remoteOutcomes), conflict.outcomesVersion);
+    }
+  }
+
+  async function saveOutcomes(items: OutcomeItem[], expectedVersion: number): Promise<void> {
+    if (!anketaKey) return;
+    const blob = await encryptBlob(items, anketaKey);
+    const result = await apiPut<{ outcomesVersion: number }>(`/api/anketas/${id}/outcomes`, {
+      blob,
+      expectedVersion,
+    });
+    allOutcomes = items;
+    outcomesVersion = result.outcomesVersion;
   }
 
   // Reactive autosave: fires whenever myAnswers changes (property-level mutations from AnswerField included).
@@ -266,6 +344,37 @@
           </fieldset>
         {/each}
       {/if}
+    </section>
+
+    <section>
+      <h2>Meeting outcomes</h2>
+      {#each allOutcomes as item (item.id)}
+        <fieldset>
+          <label>
+            <input
+              type="checkbox"
+              checked={item.done}
+              disabled={item.authorId !== myUserId}
+              onchange={() => handleToggleOutcome(item.id)}
+            />
+            {item.text}
+          </label>
+          <CommentThread
+            comments={allComments.filter((c) => c.targetId === item.id)}
+            {authorEmails}
+            onSubmit={(text) => submitComment(item.id, text)}
+          />
+        </fieldset>
+      {:else}
+        <p>No outcomes recorded yet.</p>
+      {/each}
+
+      <form onsubmit={handleAddOutcome}>
+        <input type="text" bind:value={newOutcomeText} placeholder="Add an outcome…" disabled={addingOutcome} />
+        <button type="submit" disabled={addingOutcome || !newOutcomeText.trim()}>
+          {addingOutcome ? 'Adding…' : 'Add'}
+        </button>
+      </form>
     </section>
 
     {#if actionError}
