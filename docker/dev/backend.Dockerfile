@@ -4,8 +4,9 @@ FROM dunglas/frankenphp:php8.4
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install --no-install-recommends -y unzip \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --no-install-recommends -y unzip libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pdo_sqlite
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
