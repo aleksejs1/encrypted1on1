@@ -1,0 +1,13 @@
+email:
+    anketa_created:
+        subject: 'Новая анкета 1-на-1'
+        body: "%creator% назначил(а) с вами встречу 1-на-1 на %date%.\n\nПожалуйста, заполните свою часть: %url%"
+    meeting_tomorrow:
+        subject: 'Ваша встреча 1-на-1 завтра'
+        body: "Ваша встреча 1-на-1 с %counterpart% состоится завтра (%date%).\n\n%url%"
+    not_filled_out:
+        subject: 'Напоминание: заполните анкету к завтрашней встрече'
+        body: "Вы ещё не заполнили свою часть анкеты к завтрашней встрече 1-на-1 с %counterpart% (%date%).\n\n%url%"
+    invited:
+        subject: 'Вас пригласили в encrypted1on1'
+        body: "%inviter% пригласил(а) вас в encrypted1on1.\n\nАктивируйте аккаунт: %url%"

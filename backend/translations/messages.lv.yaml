@@ -1,0 +1,13 @@
+email:
+    anketa_created:
+        subject: 'Ieplānota jauna 1:1 anketa'
+        body: "%creator% ir ieplānojis(-usi) ar jums 1:1 tikšanos %date%.\n\nLūdzu, aizpildiet savu daļu: %url%"
+    meeting_tomorrow:
+        subject: 'Jūsu 1:1 tikšanās ir rīt'
+        body: "Jūsu 1:1 tikšanās ar %counterpart% ir rīt (%date%).\n\n%url%"
+    not_filled_out:
+        subject: 'Atgādinājums: aizpildiet anketu pirms rītdienas tikšanās'
+        body: "Jūs vēl neesat aizpildījis(-usi) savu daļu rītdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
+    invited:
+        subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
+        body: "%inviter% jūs uzaicināja pievienoties encrypted1on1.\n\nAktivizējiet savu kontu: %url%"

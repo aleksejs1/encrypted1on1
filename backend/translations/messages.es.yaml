@@ -1,0 +1,13 @@
+email:
+    anketa_created:
+        subject: 'Nuevo cuestionario 1:1 programado'
+        body: "%creator% ha programado una reunión 1:1 contigo para el %date%.\n\nPor favor, completa tu parte: %url%"
+    meeting_tomorrow:
+        subject: 'Tu reunión 1:1 es mañana'
+        body: "Tu reunión 1:1 con %counterpart% es mañana (%date%).\n\n%url%"
+    not_filled_out:
+        subject: 'Recordatorio: completa el cuestionario antes de la reunión de mañana'
+        body: "Todavía no has completado tu parte para la reunión 1:1 de mañana con %counterpart% (%date%).\n\n%url%"
+    invited:
+        subject: 'Te han invitado a encrypted1on1'
+        body: "%inviter% te ha invitado a encrypted1on1.\n\nActiva tu cuenta: %url%"

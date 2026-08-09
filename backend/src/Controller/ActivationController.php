@@ -53,12 +53,19 @@ class ActivationController
             }
         }
 
+        // Optional: the frontend's currently-active UI locale (Phase 6h) at the moment of
+        // activation, so this account starts with a sensible email language (Phase 6i)
+        // instead of always English. Invalid/missing values fall back to English inside
+        // the constructor itself — not worth a hard validation error for a preference field.
+        $locale = $body['locale'] ?? 'en';
+
         $user = new User(
             email: $activationToken->getEmail(),
             authHash: $body['authKey'],
             publicKey: $body['publicKey'],
             encryptedPrivateKey: $body['encryptedPrivateKey'],
             isAdmin: $activationToken->grantsAdmin(),
+            locale: \is_string($locale) ? $locale : 'en',
         );
         $activationToken->markUsed();
 

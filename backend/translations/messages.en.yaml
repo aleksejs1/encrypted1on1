@@ -1,0 +1,18 @@
+# English (default/fallback — see config/packages/translation.php).
+# Every value here must exist, with the exact same keys, in every other
+# messages.*.yaml — nothing enforces that automatically yet (see the 6h
+# frontend equivalent, src/i18n/locales.test.ts, for the pattern this
+# should eventually get too, once a real test suite exists — Phase 7).
+email:
+    anketa_created:
+        subject: 'New 1:1 anketa scheduled'
+        body: "%creator% has scheduled a 1:1 with you for %date%.\n\nPlease fill out your part: %url%"
+    meeting_tomorrow:
+        subject: 'Your 1:1 is tomorrow'
+        body: "Your 1:1 with %counterpart% is tomorrow (%date%).\n\n%url%"
+    not_filled_out:
+        subject: "Reminder: fill out tomorrow's anketa"
+        body: "You haven't filled out your part yet for tomorrow's 1:1 with %counterpart% (%date%).\n\n%url%"
+    invited:
+        subject: "You've been invited to encrypted1on1"
+        body: "%inviter% has invited you to encrypted1on1.\n\nActivate your account: %url%"

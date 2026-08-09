@@ -90,4 +90,30 @@ class AuthController
             'registrationMode' => $this->registrationMode,
         ]);
     }
+
+    /**
+     * Background sync target for the frontend's language switcher (Phase 6h/6i) — updates
+     * which language *emails* to this user are sent in. Deliberately doesn't affect what
+     * the UI displays (that stays a client-only preference, see the Phase 6i plan).
+     */
+    #[Route('/api/me/locale', name: 'me_set_locale', methods: ['PUT'])]
+    public function setLocale(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+
+        $user = $this->authSession->getCurrentUser($request);
+        if (null === $user) {
+            return new JsonResponse(['error' => 'Not authenticated.'], 401);
+        }
+
+        $locale = $request->toArray()['locale'] ?? null;
+        if (!\is_string($locale) || !\in_array($locale, User::SUPPORTED_LOCALES, true)) {
+            return new JsonResponse(['error' => sprintf('"locale" must be one of: %s.', implode(', ', User::SUPPORTED_LOCALES))], 400);
+        }
+
+        $user->setLocale($locale);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['locale' => $user->getLocale()]);
+    }
 }

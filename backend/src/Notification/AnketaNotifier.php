@@ -7,21 +7,24 @@ use App\Entity\User;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * All three notification emails are plain-text, hand-built strings — no Twig,
- * no templating dependency (see the Phase 6e plan): this backend never has
- * anketa plaintext to interpolate in the first place, so the entire email
- * body being a literal PHP string here is what makes "never leaks content"
- * structurally true, not just a convention to remember. Sending is
- * best-effort — a transport failure is logged (no monolog-bundle in this
- * minimal Symfony setup, so plain error_log() rather than pulling one in for
- * a single log line) and never allowed to fail the request it's attached to.
+ * Every email is translated into the *recipient's* saved `User::locale`
+ * (Phase 6i), never the sender's or the current request's — a reminder
+ * command has no "current request" locale to speak of, and
+ * `notifyAnketaCreated()`'s creator and recipient can easily use the app in
+ * different languages. Bodies stay plain text (no Twig, see the Phase 6e
+ * plan) — `trans()`'s own `%placeholder%` substitution is all the
+ * templating this needs, and it's exactly as auditable as the hardcoded
+ * strings this replaced: still no code path that can interpolate anketa
+ * content, since the translator only ever sees the metadata passed in below.
  */
 class AnketaNotifier
 {
     public function __construct(
         private readonly MailerInterface $mailer,
+        private readonly TranslatorInterface $translator,
         private readonly string $frontendBaseUrl,
         private readonly string $mailerFrom,
     ) {
@@ -29,53 +32,40 @@ class AnketaNotifier
 
     public function notifyAnketaCreated(Anketa $anketa, User $recipient, User $creator): void
     {
-        $this->send(
-            $recipient,
-            'New 1:1 anketa scheduled',
-            sprintf(
-                "%s has scheduled a 1:1 with you for %s.\n\nPlease fill out your part: %s",
-                $creator->getEmail(),
-                $this->formatDate($anketa),
-                $this->anketaUrl($anketa),
-            ),
-        );
+        $this->send($recipient, 'email.anketa_created', [
+            '%creator%' => $creator->getEmail(),
+            '%date%' => $this->formatDate($anketa),
+            '%url%' => $this->anketaUrl($anketa),
+        ]);
     }
 
     public function notifyMeetingTomorrow(Anketa $anketa, User $recipient, User $counterpart): void
     {
-        $this->send(
-            $recipient,
-            'Your 1:1 is tomorrow',
-            sprintf(
-                "Your 1:1 with %s is tomorrow (%s).\n\n%s",
-                $counterpart->getEmail(),
-                $this->formatDate($anketa),
-                $this->anketaUrl($anketa),
-            ),
-        );
+        $this->send($recipient, 'email.meeting_tomorrow', [
+            '%counterpart%' => $counterpart->getEmail(),
+            '%date%' => $this->formatDate($anketa),
+            '%url%' => $this->anketaUrl($anketa),
+        ]);
     }
 
     public function notifyNotFilledOut(Anketa $anketa, User $recipient, User $counterpart): void
     {
-        $this->send(
-            $recipient,
-            "Reminder: fill out tomorrow's anketa",
-            sprintf(
-                "You haven't filled out your part yet for tomorrow's 1:1 with %s (%s).\n\n%s",
-                $counterpart->getEmail(),
-                $this->formatDate($anketa),
-                $this->anketaUrl($anketa),
-            ),
-        );
+        $this->send($recipient, 'email.not_filled_out', [
+            '%counterpart%' => $counterpart->getEmail(),
+            '%date%' => $this->formatDate($anketa),
+            '%url%' => $this->anketaUrl($anketa),
+        ]);
     }
 
-    private function send(User $recipient, string $subject, string $body): void
+    /** @param array<string, string> $params */
+    private function send(User $recipient, string $key, array $params): void
     {
+        $locale = $recipient->getLocale();
         $email = (new Email())
             ->from($this->mailerFrom)
             ->to($recipient->getEmail())
-            ->subject($subject)
-            ->text($body);
+            ->subject($this->translator->trans("$key.subject", $params, null, $locale))
+            ->text($this->translator->trans("$key.body", $params, null, $locale));
 
         try {
             $this->mailer->send($email);

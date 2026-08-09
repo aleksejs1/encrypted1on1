@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
+  import { _, locale } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
@@ -56,6 +56,9 @@
         authKey: await toBase64(authKey),
         publicKey: await toBase64(publicKey),
         encryptedPrivateKey: await packWrappedPrivateKey(wrapped),
+        // The UI language active right now (Phase 6h) — so this account starts with a
+        // sensible email language (Phase 6i) instead of always English.
+        locale: $locale,
       });
 
       await storeMasterKey(masterKey);
