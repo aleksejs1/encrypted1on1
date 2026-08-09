@@ -76,6 +76,13 @@ class Anketa
     #[ORM\Column(type: 'integer')]
     private int $outcomesVersion = 0;
 
+    /** Goals' progress checkpoints — same shape again, still not unified (see the Phase 6b plan). Goal title/description/targetDate/status are NOT here — see Goal.php. */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $goalCheckpointsBlob = null;
+
+    #[ORM\Column(type: 'integer')]
+    private int $goalCheckpointsVersion = 0;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -217,6 +224,12 @@ class Anketa
         return $this->outcomesBlob;
     }
 
+    /** Seeds an initial outcomesBlob at creation time (carry-forward, Phase 6c) without touching outcomesVersion — it stays 0, same as a freshly created anketa with no blob at all. */
+    public function seedOutcomes(string $blob): void
+    {
+        $this->outcomesBlob = $blob;
+    }
+
     public function getOutcomesVersion(): int
     {
         return $this->outcomesVersion;
@@ -232,5 +245,32 @@ class Anketa
         ++$this->outcomesVersion;
 
         return true;
+    }
+
+    public function getGoalCheckpointsBlob(): ?string
+    {
+        return $this->goalCheckpointsBlob;
+    }
+
+    public function getGoalCheckpointsVersion(): int
+    {
+        return $this->goalCheckpointsVersion;
+    }
+
+    /** @return bool true if saved, false on a version mismatch (caller should return 409). */
+    public function saveGoalCheckpoints(string $blob, int $expectedVersion): bool
+    {
+        if ($expectedVersion !== $this->goalCheckpointsVersion) {
+            return false;
+        }
+        $this->goalCheckpointsBlob = $blob;
+        ++$this->goalCheckpointsVersion;
+
+        return true;
+    }
+
+    public function isArchived(): bool
+    {
+        return null !== $this->archivedAt;
     }
 }

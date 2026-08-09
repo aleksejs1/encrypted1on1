@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Anketa;
+use App\Entity\Goal;
 use App\Entity\User;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
@@ -61,15 +62,43 @@ class AnketaController
         }
 
         $isEmployee = 'employee' === $body['myRole'];
+        $employee = $isEmployee ? $user : $counterpart;
+        $manager = $isEmployee ? $counterpart : $user;
+
         $anketa = new Anketa(
-            employee: $isEmployee ? $user : $counterpart,
-            manager: $isEmployee ? $counterpart : $user,
+            employee: $employee,
+            manager: $manager,
             meetingDate: $meetingDate,
             employeeSealedKey: $isEmployee ? $body['mySealedKey'] : $body['counterpartSealedKey'],
             managerSealedKey: $isEmployee ? $body['counterpartSealedKey'] : $body['mySealedKey'],
         );
 
+        // Outcomes carry-forward (Phase 6c): the client already decrypted the prior
+        // archived anketa's outcomesBlob, filtered to unchecked items, and re-encrypted
+        // with this anketa's new key — the server can't do that part, it never sees plaintext.
+        if (isset($body['outcomesBlob']) && \is_string($body['outcomesBlob'])) {
+            $anketa->seedOutcomes($body['outcomesBlob']);
+        }
+
         $this->entityManager->persist($anketa);
+
+        // Goals carry-forward (Phase 6c): unlike outcomes, goal title/status is plaintext,
+        // so the server can do this copy itself — no client round-trip needed.
+        $previousAnketa = $this->findMostRecentArchivedAnketaForPair($employee, $manager);
+        if (null !== $previousAnketa) {
+            foreach ($this->goalRepository()->findBy(['anketa' => $previousAnketa, 'status' => Goal::STATUS_IN_PROGRESS]) as $previousGoal) {
+                $this->entityManager->persist(new Goal(
+                    goalUuid: $previousGoal->getGoalUuid(),
+                    anketa: $anketa,
+                    author: $previousGoal->getAuthor(),
+                    title: $previousGoal->getTitle(),
+                    description: $previousGoal->getDescription(),
+                    targetDate: $previousGoal->getTargetDate(),
+                    status: Goal::STATUS_IN_PROGRESS,
+                ));
+            }
+        }
+
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $anketa->getId()], 201);
@@ -108,6 +137,12 @@ class AnketaController
             'commentsVersion' => $anketa->getCommentsVersion(),
             'outcomesBlob' => $anketa->getOutcomesBlob(),
             'outcomesVersion' => $anketa->getOutcomesVersion(),
+            'goals' => array_map(
+                fn (Goal $goal) => $this->serializeGoal($goal),
+                $this->goalRepository()->findBy(['anketa' => $anketa]),
+            ),
+            'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
+            'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
         ]);
     }
 
@@ -162,6 +197,138 @@ class AnketaController
         $this->entityManager->flush();
 
         return new JsonResponse(['outcomesVersion' => $anketa->getOutcomesVersion()]);
+    }
+
+    #[Route('/api/anketas/{id}/goal-checkpoints', name: 'anketa_goal_checkpoints', methods: ['PUT'])]
+    public function saveGoalCheckpoints(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa] = $this->findAccessible($id, $request);
+
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException('Anketa is archived.');
+        }
+
+        $body = $request->toArray();
+        $blob = $body['blob'] ?? null;
+        $expectedVersion = $body['expectedVersion'] ?? null;
+        if (!\is_string($blob) || !\is_int($expectedVersion)) {
+            return new JsonResponse(['error' => 'Missing "blob" or "expectedVersion".'], 400);
+        }
+
+        if (!$anketa->saveGoalCheckpoints($blob, $expectedVersion)) {
+            return new JsonResponse([
+                'error' => 'Goal checkpoints changed since you last read them.',
+                'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
+                'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
+            ], 409);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse(['goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion()]);
+    }
+
+    #[Route('/api/anketas/{id}/goals', name: 'anketa_goal_create', methods: ['POST'])]
+    public function createGoal(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException('Anketa is archived.');
+        }
+
+        $body = $request->toArray();
+        foreach (['goalUuid', 'title'] as $field) {
+            if (empty($body[$field]) || !\is_string($body[$field])) {
+                return new JsonResponse(['error' => sprintf('Missing or invalid "%s".', $field)], 400);
+            }
+        }
+        $description = $body['description'] ?? null;
+        if (null !== $description && !\is_string($description)) {
+            return new JsonResponse(['error' => '"description" must be a string.'], 400);
+        }
+
+        $targetDate = null;
+        if (!empty($body['targetDate'])) {
+            if (!\is_string($body['targetDate'])) {
+                return new JsonResponse(['error' => '"targetDate" must be a string.'], 400);
+            }
+            try {
+                $targetDate = new \DateTimeImmutable($body['targetDate']);
+            } catch (\Exception) {
+                return new JsonResponse(['error' => '"targetDate" must be a valid date.'], 400);
+            }
+        }
+
+        $goal = new Goal(
+            goalUuid: $body['goalUuid'],
+            anketa: $anketa,
+            author: $user,
+            title: $body['title'],
+            description: $description,
+            targetDate: $targetDate,
+        );
+        $this->entityManager->persist($goal);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeGoal($goal), 201);
+    }
+
+    #[Route('/api/anketas/{id}/goals/{goalId}', name: 'anketa_goal_update', methods: ['PUT'])]
+    public function updateGoal(string $id, string $goalId, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        $goal = $this->entityManager->find(Goal::class, $goalId);
+        if (null === $goal || $goal->getAnketa()->getId() !== $anketa->getId()) {
+            throw new NotFoundHttpException('Goal not found.');
+        }
+        if (!$goal->isAuthor($user)) {
+            throw new AccessDeniedHttpException('Only the goal\'s author can edit it.');
+        }
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException('Anketa is archived.');
+        }
+
+        $body = $request->toArray();
+        if (isset($body['title'])) {
+            if (!\is_string($body['title']) || '' === $body['title']) {
+                return new JsonResponse(['error' => '"title" must be a non-empty string.'], 400);
+            }
+            $goal->setTitle($body['title']);
+        }
+        if (\array_key_exists('description', $body)) {
+            if (null !== $body['description'] && !\is_string($body['description'])) {
+                return new JsonResponse(['error' => '"description" must be a string.'], 400);
+            }
+            $goal->setDescription($body['description']);
+        }
+        if (\array_key_exists('targetDate', $body)) {
+            if (null === $body['targetDate']) {
+                $goal->setTargetDate(null);
+            } elseif (\is_string($body['targetDate'])) {
+                try {
+                    $goal->setTargetDate(new \DateTimeImmutable($body['targetDate']));
+                } catch (\Exception) {
+                    return new JsonResponse(['error' => '"targetDate" must be a valid date.'], 400);
+                }
+            } else {
+                return new JsonResponse(['error' => '"targetDate" must be a string or null.'], 400);
+            }
+        }
+        if (isset($body['status'])) {
+            if (!\in_array($body['status'], Goal::STATUSES, true)) {
+                return new JsonResponse(['error' => sprintf('"status" must be one of: %s.', implode(', ', Goal::STATUSES))], 400);
+            }
+            $goal->setStatus($body['status']);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeGoal($goal));
     }
 
     #[Route('/api/anketas/{id}/draft', name: 'anketa_draft', methods: ['PUT'])]
@@ -241,6 +408,46 @@ class AnketaController
         }
 
         return [$anketa, $user];
+    }
+
+    /** @return \Doctrine\ORM\EntityRepository<Goal> */
+    private function goalRepository(): \Doctrine\ORM\EntityRepository
+    {
+        return $this->entityManager->getRepository(Goal::class);
+    }
+
+    /**
+     * "Pair" is the unordered set of two users — roles aren't verified, they're just a
+     * per-anketa choice (see the Phase 5 plan), so carry-forward must match regardless
+     * of which one played employee/manager last time.
+     */
+    private function findMostRecentArchivedAnketaForPair(User $a, User $b): ?Anketa
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('anketa')
+            ->from(Anketa::class, 'anketa')
+            ->where('(anketa.employee = :a AND anketa.manager = :b) OR (anketa.employee = :b AND anketa.manager = :a)')
+            ->andWhere('anketa.archivedAt IS NOT NULL')
+            ->setParameter('a', $a)
+            ->setParameter('b', $b)
+            ->orderBy('anketa.meetingDate', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    private function serializeGoal(Goal $goal): array
+    {
+        return [
+            'id' => $goal->getId(),
+            'goalUuid' => $goal->getGoalUuid(),
+            'authorId' => $goal->getAuthor()->getId(),
+            'title' => $goal->getTitle(),
+            'description' => $goal->getDescription(),
+            'targetDate' => $goal->getTargetDate()?->format('Y-m-d'),
+            'status' => $goal->getStatus(),
+            'createdAt' => $goal->getCreatedAt()->format(\DATE_ATOM),
+        ];
     }
 
     private function summarize(Anketa $anketa, User $user): array

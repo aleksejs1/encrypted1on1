@@ -1,14 +1,27 @@
 <script lang="ts">
   import { apiGet, apiPost, ApiError } from '../api/client';
-  import { generateAnketaKey, sealAnketaKey } from '../crypto/anketaKey';
+  import { decryptBlob, encryptBlob, generateAnketaKey, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity';
   import { navigate } from '../router.svelte';
+  import type { OutcomeItem } from '../anketa/outcomes';
 
   interface UserSummary {
     id: string;
     email: string;
     publicKey: string;
+  }
+
+  interface AnketaSummary {
+    id: string;
+    counterpartId: string;
+    meetingDate: string;
+    archivedAt: string | null;
+  }
+
+  interface AnketaDetailForCarry {
+    mySealedKey: string;
+    outcomesBlob: string | null;
   }
 
   let users = $state<UserSummary[]>([]);
@@ -45,6 +58,23 @@
       const counterpart = users.find((u) => u.id === counterpartId);
       if (!counterpart) throw new Error('Counterpart not found.');
 
+      // Outcomes carry-forward (Phase 6c plan): goals carry forward server-side (plaintext,
+      // no client involvement needed), but outcomes are still an encrypted blob, so unchecked
+      // items from the pair's most recent archived anketa have to be decrypted and re-encrypted
+      // here, client-side, before the new anketa exists. `GET /api/anketas` is already sorted by
+      // meetingDate DESC, so the first archived match for this counterpart is the most recent one.
+      let carriedOutcomes: OutcomeItem[] = [];
+      const priorAnketas = await apiGet<AnketaSummary[]>('/api/anketas');
+      const previous = priorAnketas.find((a) => a.counterpartId === counterpartId && a.archivedAt !== null);
+      if (previous) {
+        const previousDetail = await apiGet<AnketaDetailForCarry>(`/api/anketas/${previous.id}`);
+        if (previousDetail.outcomesBlob) {
+          const previousKey = await unsealAnketaKey(previousDetail.mySealedKey, identity.publicKey, identity.privateKey);
+          const envelope = await decryptBlob<OutcomeItem[]>(previousDetail.outcomesBlob, previousKey);
+          carriedOutcomes = envelope.data.filter((item) => !item.done);
+        }
+      }
+
       const anketaKey = await generateAnketaKey();
       const mySealedKey = await sealAnketaKey(anketaKey, identity.publicKey);
       const counterpartSealedKey = await sealAnketaKey(anketaKey, await fromBase64(counterpart.publicKey));
@@ -55,6 +85,7 @@
         meetingDate: new Date(meetingDate).toISOString(),
         mySealedKey,
         counterpartSealedKey,
+        ...(carriedOutcomes.length > 0 ? { outcomesBlob: await encryptBlob(carriedOutcomes, anketaKey) } : {}),
       });
 
       navigate(`/anketas/${result.id}`);

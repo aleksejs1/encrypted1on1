@@ -4,6 +4,7 @@
   import CommentThread from '../anketa/CommentThread.svelte';
   import { addComment, type Comment } from '../anketa/comments';
   import { addOutcome, toggleDone, type OutcomeItem } from '../anketa/outcomes';
+  import { addCheckpoint, type CheckpointStatusTag, type Goal, type GoalCheckpoint } from '../anketa/goals';
   import { QUESTIONS_BY_SIDE, type Side, type Answers } from '../anketa/questions';
   import { decryptBlob, encryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
@@ -27,6 +28,9 @@
     commentsVersion: number;
     outcomesBlob: string | null;
     outcomesVersion: number;
+    goals: Goal[];
+    goalCheckpointsBlob: string | null;
+    goalCheckpointsVersion: number;
   }
 
   let loadError = $state<string | null>(null);
@@ -54,6 +58,18 @@
   let outcomesVersion = $state(0);
   let newOutcomeText = $state('');
   let addingOutcome = $state(false);
+
+  let goals = $state<Goal[]>([]);
+  let allCheckpoints = $state<GoalCheckpoint[]>([]);
+  let goalCheckpointsVersion = $state(0);
+  let newGoalTitle = $state('');
+  let newGoalDescription = $state('');
+  let newGoalTargetDate = $state('');
+  let addingGoal = $state(false);
+  let goalSaving = $state<Record<string, boolean>>({});
+  let checkpointDraftText = $state<Record<string, string>>({});
+  let checkpointDraftStatusTag = $state<Record<string, CheckpointStatusTag | ''>>({});
+  let addingCheckpoint = $state<Record<string, boolean>>({});
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
@@ -92,6 +108,13 @@
       if (anketa.outcomesBlob) {
         const envelope = await decryptBlob<OutcomeItem[]>(anketa.outcomesBlob, key);
         allOutcomes = envelope.data;
+      }
+
+      goals = anketa.goals;
+      goalCheckpointsVersion = anketa.goalCheckpointsVersion;
+      if (anketa.goalCheckpointsBlob) {
+        const envelope = await decryptBlob<GoalCheckpoint[]>(anketa.goalCheckpointsBlob, key);
+        allCheckpoints = envelope.data;
       }
 
       const myBlob = anketa.myRole === 'employee' ? anketa.employeeBlob : anketa.managerBlob;
@@ -271,6 +294,109 @@
     outcomesVersion = result.outcomesVersion;
   }
 
+  async function handleAddGoal(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (!newGoalTitle.trim() || addingGoal) return;
+
+    addingGoal = true;
+    actionError = null;
+    try {
+      const goal = await apiPost<Goal>(`/api/anketas/${id}/goals`, {
+        goalUuid: crypto.randomUUID(),
+        title: newGoalTitle.trim(),
+        description: newGoalDescription.trim() || null,
+        targetDate: newGoalTargetDate || null,
+      });
+      goals = [...goals, goal];
+      newGoalTitle = '';
+      newGoalDescription = '';
+      newGoalTargetDate = '';
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not add the goal.';
+    } finally {
+      addingGoal = false;
+    }
+  }
+
+  /** Saves the goal's title/description/targetDate as currently edited in place — see the template's bind:value on the goal object fields. */
+  async function handleSaveGoal(goal: Goal): Promise<void> {
+    goalSaving = { ...goalSaving, [goal.id]: true };
+    actionError = null;
+    try {
+      const updated = await apiPut<Goal>(`/api/anketas/${id}/goals/${goal.id}`, {
+        title: goal.title,
+        description: goal.description,
+        targetDate: goal.targetDate,
+      });
+      goals = goals.map((g) => (g.id === goal.id ? updated : g));
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not save the goal.';
+    } finally {
+      goalSaving = { ...goalSaving, [goal.id]: false };
+    }
+  }
+
+  async function handleUpdateGoalStatus(goal: Goal): Promise<void> {
+    actionError = null;
+    try {
+      const updated = await apiPut<Goal>(`/api/anketas/${id}/goals/${goal.id}`, { status: goal.status });
+      goals = goals.map((g) => (g.id === goal.id ? updated : g));
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not update the goal status.';
+    }
+  }
+
+  async function handleAddCheckpoint(goalId: string): Promise<void> {
+    const text = (checkpointDraftText[goalId] ?? '').trim();
+    const statusTag = checkpointDraftStatusTag[goalId] || undefined;
+    if (!text && !statusTag) return;
+
+    addingCheckpoint = { ...addingCheckpoint, [goalId]: true };
+    actionError = null;
+    try {
+      await updateGoalCheckpoints((current) => addCheckpoint(current, goalId, myUserId, text || undefined, statusTag));
+      checkpointDraftText = { ...checkpointDraftText, [goalId]: '' };
+      checkpointDraftStatusTag = { ...checkpointDraftStatusTag, [goalId]: '' };
+    } catch (error) {
+      actionError = error instanceof ApiError ? error.message : 'Could not add the checkpoint.';
+    } finally {
+      addingCheckpoint = { ...addingCheckpoint, [goalId]: false };
+    }
+  }
+
+  /** Same reapply-on-conflict shape as updateComments/updateOutcomes — see the comment above updateComments. */
+  async function updateGoalCheckpoints(apply: (current: GoalCheckpoint[]) => GoalCheckpoint[]): Promise<void> {
+    if (!anketaKey) return;
+
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
+    const freshCheckpoints = fresh.goalCheckpointsBlob
+      ? (await decryptBlob<GoalCheckpoint[]>(fresh.goalCheckpointsBlob, anketaKey)).data
+      : [];
+
+    try {
+      await saveGoalCheckpoints(apply(freshCheckpoints), fresh.goalCheckpointsVersion);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 409) throw error;
+
+      const conflict = error.body as { goalCheckpointsBlob: string | null; goalCheckpointsVersion: number };
+      const remoteCheckpoints = conflict.goalCheckpointsBlob
+        ? (await decryptBlob<GoalCheckpoint[]>(conflict.goalCheckpointsBlob, anketaKey)).data
+        : [];
+      await saveGoalCheckpoints(apply(remoteCheckpoints), conflict.goalCheckpointsVersion);
+    }
+  }
+
+  async function saveGoalCheckpoints(checkpoints: GoalCheckpoint[], expectedVersion: number): Promise<void> {
+    if (!anketaKey) return;
+    const blob = await encryptBlob(checkpoints, anketaKey);
+    const result = await apiPut<{ goalCheckpointsVersion: number }>(`/api/anketas/${id}/goal-checkpoints`, {
+      blob,
+      expectedVersion,
+    });
+    allCheckpoints = checkpoints;
+    goalCheckpointsVersion = result.goalCheckpointsVersion;
+  }
+
   // Reactive autosave: fires whenever myAnswers changes (property-level mutations from AnswerField included).
   $effect(() => {
     void JSON.stringify(myAnswers);
@@ -377,6 +503,119 @@
       </form>
     </section>
 
+    <section>
+      <h2>Goals</h2>
+      {#each goals as goal (goal.id)}
+        {@const isMyGoal = goal.authorId === myUserId}
+        <fieldset>
+          <label>
+            Title
+            <input type="text" bind:value={goal.title} readonly={!isMyGoal} />
+          </label>
+          <label>
+            Description
+            <textarea
+              value={goal.description ?? ''}
+              oninput={(e) => (goal.description = e.currentTarget.value)}
+              readonly={!isMyGoal}
+            ></textarea>
+          </label>
+          <label>
+            Target date
+            <input
+              type="date"
+              value={goal.targetDate ?? ''}
+              oninput={(e) => (goal.targetDate = e.currentTarget.value || null)}
+              disabled={!isMyGoal}
+            />
+          </label>
+          <label>
+            Status
+            <select bind:value={goal.status} disabled={!isMyGoal} onchange={() => handleUpdateGoalStatus(goal)}>
+              <option value="in_progress">In progress</option>
+              <option value="achieved">Achieved</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </label>
+          {#if isMyGoal}
+            <button type="button" onclick={() => handleSaveGoal(goal)} disabled={goalSaving[goal.id]}>
+              {goalSaving[goal.id] ? 'Saving…' : 'Save'}
+            </button>
+          {/if}
+
+          <CommentThread
+            comments={allComments.filter((c) => c.targetId === goal.id)}
+            {authorEmails}
+            onSubmit={(text) => submitComment(goal.id, text)}
+          />
+
+          <h3>Checkpoints</h3>
+          {#each allCheckpoints.filter((c) => c.goalId === goal.id) as checkpoint (checkpoint.id)}
+            <div class="checkpoint">
+              {#if checkpoint.statusTag}<span class="badge">{checkpoint.statusTag}</span>{/if}
+              {#if checkpoint.text}<p>{checkpoint.text}</p>{/if}
+              <CommentThread
+                comments={allComments.filter((c) => c.targetId === checkpoint.id)}
+                {authorEmails}
+                onSubmit={(text) => submitComment(checkpoint.id, text)}
+              />
+            </div>
+          {:else}
+            <p>No checkpoints yet.</p>
+          {/each}
+
+          {#if isMyGoal}
+            <div class="checkpoint-form">
+              <input
+                type="text"
+                placeholder="Progress update…"
+                value={checkpointDraftText[goal.id] ?? ''}
+                oninput={(e) => (checkpointDraftText = { ...checkpointDraftText, [goal.id]: e.currentTarget.value })}
+                disabled={addingCheckpoint[goal.id]}
+              />
+              <select
+                value={checkpointDraftStatusTag[goal.id] ?? ''}
+                onchange={(e) =>
+                  (checkpointDraftStatusTag = {
+                    ...checkpointDraftStatusTag,
+                    [goal.id]: e.currentTarget.value as CheckpointStatusTag | '',
+                  })}
+                disabled={addingCheckpoint[goal.id]}
+              >
+                <option value="">No status tag</option>
+                <option value="on_track">On track</option>
+                <option value="at_risk">At risk</option>
+                <option value="blocked">Blocked</option>
+              </select>
+              <button
+                type="button"
+                onclick={() => handleAddCheckpoint(goal.id)}
+                disabled={addingCheckpoint[goal.id] || (!checkpointDraftText[goal.id]?.trim() && !checkpointDraftStatusTag[goal.id])}
+              >
+                {addingCheckpoint[goal.id] ? 'Adding…' : 'Add checkpoint'}
+              </button>
+            </div>
+          {/if}
+        </fieldset>
+      {:else}
+        <p>No goals yet.</p>
+      {/each}
+
+      <form onsubmit={handleAddGoal}>
+        <input type="text" bind:value={newGoalTitle} placeholder="Goal title…" disabled={addingGoal} />
+        <input
+          type="text"
+          bind:value={newGoalDescription}
+          placeholder="Description (optional)…"
+          disabled={addingGoal}
+        />
+        <input type="date" bind:value={newGoalTargetDate} disabled={addingGoal} />
+        <button type="submit" disabled={addingGoal || !newGoalTitle.trim()}>
+          {addingGoal ? 'Adding…' : 'Add goal'}
+        </button>
+      </form>
+    </section>
+
     {#if actionError}
       <p class="error">{actionError}</p>
     {/if}
@@ -416,6 +655,18 @@
   .save-state {
     font-size: 0.8rem;
     color: #6b6b6b;
+  }
+
+  .checkpoint {
+    border-top: 1px solid #eee;
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .checkpoint-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
   }
 
   .error {
