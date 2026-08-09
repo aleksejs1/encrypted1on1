@@ -7,7 +7,8 @@ return static function (ContainerConfigurator $container): void {
         ->defaults()
             ->autowire()
             ->autoconfigure()
-            ->bind('string $frontendBaseUrl', '%env(FRONTEND_URL)%');
+            ->bind('string $frontendBaseUrl', '%env(FRONTEND_URL)%')
+            ->bind('string $mailerFrom', '%env(MAILER_FROM)%');
 
     $services->load('App\\', __DIR__.'/../src/')
         ->exclude(__DIR__.'/../src/Kernel.php');

@@ -58,6 +58,10 @@ class Anketa
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $archivedAt = null;
 
+    /** Set once SendRemindersCommand (Phase 6e) has sent the day-before reminder batch for this anketa — guards against double-sending on a cron rerun. */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $reminderSentAt = null;
+
     /** Set true only via the "cancel as missed" overdue action (Phase 6d) — skips the normal publish/discuss expectation but still auto-recreates the next anketa. */
     #[ORM\Column(type: 'boolean')]
     private bool $missed = false;
@@ -303,5 +307,15 @@ class Anketa
     public function isArchived(): bool
     {
         return null !== $this->archivedAt;
+    }
+
+    public function getReminderSentAt(): ?\DateTimeImmutable
+    {
+        return $this->reminderSentAt;
+    }
+
+    public function markReminderSent(): void
+    {
+        $this->reminderSentAt = new \DateTimeImmutable();
     }
 }

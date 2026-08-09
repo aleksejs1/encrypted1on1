@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Anketa;
 use App\Entity\Goal;
 use App\Entity\User;
+use App\Notification\AnketaNotifier;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +30,7 @@ class AnketaController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
+        private readonly AnketaNotifier $notifier,
     ) {
     }
 
@@ -95,6 +97,10 @@ class AnketaController
         );
 
         $this->entityManager->flush();
+
+        // Sent after the flush — only for an anketa that actually made it to the DB.
+        // Best-effort (see AnketaNotifier); never blocks the response on a mail failure.
+        $this->notifier->notifyAnketaCreated($anketa, $counterpart, $user);
 
         return new JsonResponse(['id' => $anketa->getId()], 201);
     }
@@ -421,9 +427,11 @@ class AnketaController
         // like a manually created anketa (see the Phase 6d plan's security-design note).
         $anketa->archive($missed);
 
+        $nextAnketa = null;
+        $nextRecipient = null;
         if (!$skipNextMeeting) {
             $isEmployee = $anketa->isEmployee($user);
-            $this->createAnketaWithCarryForward(
+            $nextAnketa = $this->createAnketaWithCarryForward(
                 employee: $anketa->getEmployee(),
                 manager: $anketa->getManager(),
                 meetingDate: $nextMeetingDate ?? $anketa->getArchivedAt()->modify(sprintf('+%d days', $periodicityDays)),
@@ -433,9 +441,16 @@ class AnketaController
                 outcomesBlob: $outcomesBlob,
                 carryFrom: $anketa,
             );
+            // The recipient is the participant who *didn't* trigger this archive request —
+            // same "creator notifies the other side" shape as manual creation in create().
+            $nextRecipient = $isEmployee ? $anketa->getManager() : $anketa->getEmployee();
         }
 
         $this->entityManager->flush();
+
+        if (null !== $nextAnketa && null !== $nextRecipient) {
+            $this->notifier->notifyAnketaCreated($nextAnketa, $nextRecipient, $user);
+        }
 
         return new JsonResponse(['ok' => true]);
     }
