@@ -35,6 +35,7 @@ class SendRemindersCommand extends Command
         $tomorrowStart = (new \DateTimeImmutable('tomorrow', new \DateTimeZone('UTC')));
         $tomorrowEnd = $tomorrowStart->modify('+1 day');
 
+        /** @var Anketa[] $anketas */
         $anketas = $this->entityManager->createQueryBuilder()
             ->select('anketa')
             ->from(Anketa::class, 'anketa')

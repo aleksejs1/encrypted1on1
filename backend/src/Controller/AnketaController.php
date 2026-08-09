@@ -112,6 +112,7 @@ class AnketaController
     {
         $user = $this->requireUser($request);
 
+        /** @var Anketa[] $anketas */
         $anketas = $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Anketa::class, 'a')
@@ -434,6 +435,8 @@ class AnketaController
         // client seals mySealedKey/counterpartSealedKey itself before sending them, exactly
         // like a manually created anketa (see the Phase 6d plan's security-design note).
         $anketa->archive($missed);
+        $archivedAt = $anketa->getArchivedAt();
+        \assert(null !== $archivedAt); // archive() just set this, unconditionally, on the line above.
 
         $nextAnketa = null;
         $nextRecipient = null;
@@ -442,7 +445,7 @@ class AnketaController
             $nextAnketa = $this->createAnketaWithCarryForward(
                 employee: $anketa->getEmployee(),
                 manager: $anketa->getManager(),
-                meetingDate: $nextMeetingDate ?? $anketa->getArchivedAt()->modify(sprintf('+%d days', $periodicityDays)),
+                meetingDate: $nextMeetingDate ?? $archivedAt->modify(sprintf('+%d days', $periodicityDays)),
                 employeeSealedKey: $isEmployee ? $mySealedKey : $counterpartSealedKey,
                 managerSealedKey: $isEmployee ? $counterpartSealedKey : $mySealedKey,
                 periodicityDays: $periodicityDays,
@@ -456,7 +459,9 @@ class AnketaController
 
         $this->entityManager->flush();
 
-        if (null !== $nextAnketa && null !== $nextRecipient) {
+        // $nextAnketa and $nextRecipient are always assigned together, above, inside the
+        // same `if ($createNext)` block — checking one implies the other.
+        if (null !== $nextAnketa) {
             $this->notifier->notifyAnketaCreated($nextAnketa, $nextRecipient, $user);
         }
 
@@ -576,7 +581,8 @@ class AnketaController
      */
     private function findMostRecentArchivedAnketaForPair(User $a, User $b): ?Anketa
     {
-        return $this->entityManager->createQueryBuilder()
+        /** @var Anketa|null $anketa */
+        $anketa = $this->entityManager->createQueryBuilder()
             ->select('anketa')
             ->from(Anketa::class, 'anketa')
             ->where('(anketa.employee = :a AND anketa.manager = :b) OR (anketa.employee = :b AND anketa.manager = :a)')
@@ -587,8 +593,14 @@ class AnketaController
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $anketa;
     }
 
+    /**
+     * @return array{id: string, goalUuid: string, authorId: string, title: string,
+     *     description: string|null, targetDate: string|null, status: string, createdAt: string}
+     */
     private function serializeGoal(Goal $goal): array
     {
         return [
@@ -603,6 +615,11 @@ class AnketaController
         ];
     }
 
+    /**
+     * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
+     *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
+     *     archivedAt: string|null, missed: bool, periodicityDays: int|null}
+     */
     private function summarize(Anketa $anketa, User $user): array
     {
         $isEmployee = $anketa->isEmployee($user);

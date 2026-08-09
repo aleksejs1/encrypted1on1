@@ -17,7 +17,12 @@ use Symfony\Component\HttpKernel\KernelInterface;
  */
 abstract class ApiTestCase extends WebTestCase
 {
-    /** @return array{status: int, json: mixed} */
+    /**
+     * @param array<string, mixed>|null $body
+     * @param array<string, string>     $extraHeaders
+     *
+     * @return array{status: int, json: mixed}
+     */
     protected function jsonRequest(KernelBrowser $client, string $method, string $path, ?array $body = null, array $extraHeaders = []): array
     {
         $headers = $extraHeaders;
@@ -45,8 +50,18 @@ abstract class ApiTestCase extends WebTestCase
     {
         $client->request('GET', '/api/csrf-token');
         $data = json_decode((string) $client->getResponse()->getContent(), true);
+        \assert(\is_array($data) && \is_string($data['token']));
 
         return $data['token'];
+    }
+
+    /** The container's real entity manager, typed — ContainerInterface::get() only declares `object`. */
+    protected function entityManager(): EntityManagerInterface
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        \assert($entityManager instanceof EntityManagerInterface);
+
+        return $entityManager;
     }
 
     /**
@@ -59,11 +74,9 @@ abstract class ApiTestCase extends WebTestCase
      */
     protected function activateUser(KernelBrowser $client, string $email, bool $admin = false, string $locale = 'en'): array
     {
-        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
-
         [$token, $rawToken] = ActivationToken::issue($email, $admin);
-        $entityManager->persist($token);
-        $entityManager->flush();
+        $this->entityManager()->persist($token);
+        $this->entityManager()->flush();
 
         $result = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
             'authKey' => str_repeat('a', 44),
@@ -74,7 +87,10 @@ abstract class ApiTestCase extends WebTestCase
 
         self::assertSame(200, $result['status'], 'activation should succeed in test setup: '.json_encode($result));
 
-        return $result['json'];
+        /** @var array{id: string, email: string, isAdmin: bool} $json */
+        $json = $result['json'];
+
+        return $json;
     }
 
     /** A fresh, collision-free email for this test run. */

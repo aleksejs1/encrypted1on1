@@ -22,7 +22,8 @@
     },
     "config": {
         "allow-plugins": {
-            "symfony/runtime": true
+            "symfony/runtime": true,
+            "phpstan/extension-installer": true
         },
         "sort-packages": true,
         "optimize-autoloader": true
@@ -43,6 +44,10 @@
         }
     },
     "require-dev": {
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.2",
+        "phpstan/phpstan-doctrine": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
         "phpunit/phpunit": "^13.3",
         "symfony/browser-kit": "^8.1"
     },
@@ -52,6 +57,10 @@
             "rm -rf var/cache/test",
             "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
             "vendor/bin/phpunit"
+        ],
+        "stan": [
+            "vendor/bin/phpstan analyse --memory-limit=512M",
+            "vendor/bin/phpstan analyse --configuration=phpstan.tests.neon.dist --memory-limit=512M"
         ]
     }
 }

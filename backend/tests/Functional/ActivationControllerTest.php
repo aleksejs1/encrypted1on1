@@ -4,7 +4,6 @@ namespace App\Tests\Functional;
 
 use App\Entity\ActivationToken;
 use App\Tests\Support\ApiTestCase;
-use Doctrine\ORM\EntityManagerInterface;
 
 class ActivationControllerTest extends ApiTestCase
 {
@@ -86,10 +85,9 @@ class ActivationControllerTest extends ApiTestCase
 
     private function issueToken(string $email): string
     {
-        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
         [$token, $rawToken] = ActivationToken::issue($email);
-        $entityManager->persist($token);
-        $entityManager->flush();
+        $this->entityManager()->persist($token);
+        $this->entityManager()->flush();
 
         return $rawToken;
     }

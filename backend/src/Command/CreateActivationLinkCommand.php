@@ -39,6 +39,7 @@ class CreateActivationLinkCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $email = $input->getArgument('email');
+        \assert(\is_string($email)); // InputArgument::REQUIRED (not ARRAY mode) — always a string.
         $grantsAdmin = (bool) $input->getOption('admin');
 
         [$activationToken, $rawToken] = ActivationToken::issue($email, $grantsAdmin);

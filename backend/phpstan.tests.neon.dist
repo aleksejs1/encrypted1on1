@@ -1,0 +1,13 @@
+# Separate, one level below src/'s max (see phpstan.neon.dist): functional tests
+# decode arbitrary JSON API responses into a genuinely `mixed` shape (no per-endpoint
+# response DTOs anywhere in this app — plain arrays/JsonResponse throughout, matching
+# its own no-generic-CRUD-ceremony style), and level 9's strict-mixed-offset-access
+# rule flags every `$result['json']['id']`-style access with ~100 findings that are
+# inherent to testing a JSON API this way, not real bugs. Confirmed empirically
+# (level 8: clean; level 9: 98 errors, all offsetAccess/argument.type/encapsedStringPart
+# on the same handful of mixed-JSON values) before picking this level, not guessed.
+parameters:
+    level: 8
+    paths:
+        - tests
+    tmpDir: var/cache/phpstan-tests

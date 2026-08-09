@@ -28,7 +28,6 @@
 
   let users = $state<UserSummary[]>([]);
   let priorAnketas = $state<AnketaSummary[]>([]);
-  let myUserId = $state<string | null>(null);
   let loadError = $state<string | null>(null);
 
   let counterpartId = $state('');
@@ -49,7 +48,6 @@
   $effect(() => {
     Promise.all([ensureUnlocked(), apiGet<UserSummary[]>('/api/users'), apiGet<AnketaSummary[]>('/api/anketas')])
       .then(([identity, allUsers, allAnketas]) => {
-        myUserId = identity.userId;
         users = allUsers.filter((u) => u.id !== identity.userId);
         priorAnketas = allAnketas;
       })

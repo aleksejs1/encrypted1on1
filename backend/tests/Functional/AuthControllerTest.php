@@ -4,7 +4,6 @@ namespace App\Tests\Functional;
 
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
-use Doctrine\ORM\EntityManagerInterface;
 
 class AuthControllerTest extends ApiTestCase
 {
@@ -82,10 +81,10 @@ class AuthControllerTest extends ApiTestCase
         $user = $this->activateUser($client, $email);
         $this->jsonRequest($client, 'POST', '/api/logout');
 
-        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
-        $entity = $entityManager->find(User::class, $user['id']);
+        $entity = $this->entityManager()->find(User::class, $user['id']);
+        \assert($entity instanceof User);
         $entity->setBlocked(true);
-        $entityManager->flush();
+        $this->entityManager()->flush();
 
         $result = $this->jsonRequest($client, 'POST', '/api/login', [
             'email' => $email,
@@ -103,7 +102,7 @@ class AuthControllerTest extends ApiTestCase
             'POST',
             '/api/login',
             server: ['CONTENT_TYPE' => 'application/json'],
-            content: json_encode(['email' => 'x@example.com', 'authKey' => str_repeat('a', 44)]),
+            content: json_encode(['email' => 'x@example.com', 'authKey' => str_repeat('a', 44)], \JSON_THROW_ON_ERROR),
         );
 
         self::assertSame(403, $client->getResponse()->getStatusCode());

@@ -67,15 +67,12 @@
   let myUserId = $state('');
   let authorEmails = $state<Record<string, string>>({});
   let allComments = $state<Comment[]>([]);
-  let commentsVersion = $state(0);
   let allOutcomes = $state<OutcomeItem[]>([]);
-  let outcomesVersion = $state(0);
   let newOutcomeText = $state('');
   let addingOutcome = $state(false);
 
   let goals = $state<Goal[]>([]);
   let allCheckpoints = $state<GoalCheckpoint[]>([]);
-  let goalCheckpointsVersion = $state(0);
   let newGoalTitle = $state('');
   let newGoalDescription = $state('');
   let newGoalTargetDate = $state('');
@@ -119,20 +116,17 @@
       const key = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
       anketaKey = key;
 
-      commentsVersion = anketa.commentsVersion;
       if (anketa.commentsBlob) {
         const envelope = await decryptBlob<Comment[]>(anketa.commentsBlob, key);
         allComments = envelope.data;
       }
 
-      outcomesVersion = anketa.outcomesVersion;
       if (anketa.outcomesBlob) {
         const envelope = await decryptBlob<OutcomeItem[]>(anketa.outcomesBlob, key);
         allOutcomes = envelope.data;
       }
 
       goals = anketa.goals;
-      goalCheckpointsVersion = anketa.goalCheckpointsVersion;
       if (anketa.goalCheckpointsBlob) {
         const envelope = await decryptBlob<GoalCheckpoint[]>(anketa.goalCheckpointsBlob, key);
         allCheckpoints = envelope.data;
@@ -296,12 +290,11 @@
   async function saveComments(comments: Comment[], expectedVersion: number): Promise<void> {
     if (!anketaKey) return;
     const blob = await encryptBlob(comments, anketaKey);
-    const result = await apiPut<{ commentsVersion: number }>(`/api/anketas/${id}/comments`, {
+    await apiPut<{ commentsVersion: number }>(`/api/anketas/${id}/comments`, {
       blob,
       expectedVersion,
     });
     allComments = comments;
-    commentsVersion = result.commentsVersion;
   }
 
   async function handleAddOutcome(event: SubmitEvent): Promise<void> {
@@ -353,12 +346,11 @@
   async function saveOutcomes(items: OutcomeItem[], expectedVersion: number): Promise<void> {
     if (!anketaKey) return;
     const blob = await encryptBlob(items, anketaKey);
-    const result = await apiPut<{ outcomesVersion: number }>(`/api/anketas/${id}/outcomes`, {
+    await apiPut<{ outcomesVersion: number }>(`/api/anketas/${id}/outcomes`, {
       blob,
       expectedVersion,
     });
     allOutcomes = items;
-    outcomesVersion = result.outcomesVersion;
   }
 
   async function handleAddGoal(event: SubmitEvent): Promise<void> {
@@ -462,19 +454,12 @@
   async function saveGoalCheckpoints(checkpoints: GoalCheckpoint[], expectedVersion: number): Promise<void> {
     if (!anketaKey) return;
     const blob = await encryptBlob(checkpoints, anketaKey);
-    const result = await apiPut<{ goalCheckpointsVersion: number }>(`/api/anketas/${id}/goal-checkpoints`, {
+    await apiPut<{ goalCheckpointsVersion: number }>(`/api/anketas/${id}/goal-checkpoints`, {
       blob,
       expectedVersion,
     });
     allCheckpoints = checkpoints;
-    goalCheckpointsVersion = result.goalCheckpointsVersion;
   }
-
-  const GOAL_STATUS_KEYS: Record<Goal['status'], string> = {
-    in_progress: 'anketa.goalStatusInProgress',
-    achieved: 'anketa.goalStatusAchieved',
-    cancelled: 'anketa.goalStatusCancelled',
-  };
 
   const CHECKPOINT_STATUS_TAG_KEYS: Record<CheckpointStatusTag, string> = {
     on_track: 'anketa.statusTagOnTrack',

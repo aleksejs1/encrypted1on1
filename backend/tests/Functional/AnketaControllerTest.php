@@ -4,7 +4,6 @@ namespace App\Tests\Functional;
 
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 class AnketaControllerTest extends ApiTestCase
@@ -246,10 +245,10 @@ class AnketaControllerTest extends ApiTestCase
         [$employeeClient, , , $manager] = $this->makePair('archive-blocked-cp');
         $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
 
-        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
-        $managerEntity = $entityManager->find(User::class, $manager['id']);
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
         $managerEntity->setBlocked(true);
-        $entityManager->flush();
+        $this->entityManager()->flush();
 
         $before = \count($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
 
@@ -331,7 +330,10 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame('in_progress', $carried['status']);
     }
 
-    /** @return array{0: KernelBrowser, 1: array, 2: KernelBrowser, 3: array} */
+    /**
+     * @return array{0: KernelBrowser, 1: array{id: string, email: string, isAdmin: bool},
+     *     2: KernelBrowser, 3: array{id: string, email: string, isAdmin: bool}}
+     */
     private function makePair(string $label): array
     {
         $employeeClient = static::createClient();
@@ -342,7 +344,11 @@ class AnketaControllerTest extends ApiTestCase
         return [$employeeClient, $employee, $managerClient, $manager];
     }
 
-    /** @return array{status: int, json: mixed} */
+    /**
+     * @param array<string, mixed> $overrides
+     *
+     * @return array{status: int, json: mixed}
+     */
     private function createAnketaAsEmployee(KernelBrowser $employeeClient, string $counterpartId, array $overrides = []): array
     {
         $body = array_merge([
@@ -361,6 +367,11 @@ class AnketaControllerTest extends ApiTestCase
         return $this->jsonRequest($employeeClient, 'POST', '/api/anketas', $body);
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     *
+     * @return array<string, mixed>
+     */
     private static function findById(array $rows, string $id): array
     {
         foreach ($rows as $row) {
@@ -371,6 +382,11 @@ class AnketaControllerTest extends ApiTestCase
         self::fail("no row with id {$id} found");
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $goals
+     *
+     * @return array<string, mixed>
+     */
     private static function findByGoalUuid(array $goals, string $goalUuid): array
     {
         foreach ($goals as $goal) {
