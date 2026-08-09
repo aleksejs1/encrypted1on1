@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
@@ -26,8 +27,7 @@
         email = result.email;
       })
       .catch((error: unknown) => {
-        lookupError =
-          error instanceof ApiError ? error.message : 'Could not load this activation link.';
+        lookupError = error instanceof ApiError ? error.message : $_('activate.lookupError');
       });
   });
 
@@ -63,7 +63,7 @@
       markAuthenticated();
       navigate('/');
     } catch (error) {
-      submitError = error instanceof ApiError ? error.message : 'Something went wrong.';
+      submitError = error instanceof ApiError ? error.message : $_('activate.genericError');
     } finally {
       submitting = false;
     }
@@ -71,32 +71,32 @@
 </script>
 
 <main>
-  <h1>Activate account</h1>
+  <h1>{$_('activate.title')}</h1>
 
   {#if done}
-    <p>Account created. You're logged in.</p>
+    <p>{$_('activate.done')}</p>
   {:else if lookupError}
     <p class="error">{lookupError}</p>
   {:else if email === null}
-    <p>Loading…</p>
+    <p>{$_('common.loading')}</p>
   {:else}
     <form onsubmit={handleSubmit}>
-      <p>Email: <strong>{email}</strong></p>
+      <p>{$_('activate.emailLabel')} <strong>{email}</strong></p>
 
       <label>
-        Password
+        {$_('activate.passwordLabel')}
         <input type="password" bind:value={password} autocomplete="new-password" />
       </label>
       {#if passwordTooShort}
-        <p class="hint">At least {MIN_PASSWORD_LENGTH} characters.</p>
+        <p class="hint">{$_('activate.passwordHint', { values: { min: MIN_PASSWORD_LENGTH } })}</p>
       {/if}
 
       <label>
-        Confirm password
+        {$_('activate.confirmPasswordLabel')}
         <input type="password" bind:value={confirmPassword} autocomplete="new-password" />
       </label>
       {#if passwordsMismatch}
-        <p class="hint">Passwords don't match.</p>
+        <p class="hint">{$_('activate.passwordMismatch')}</p>
       {/if}
 
       {#if submitError}
@@ -104,7 +104,7 @@
       {/if}
 
       <button type="submit" disabled={!canSubmit}>
-        {submitting ? 'Creating account…' : 'Activate'}
+        {submitting ? $_('activate.submitting') : $_('activate.submit')}
       </button>
     </form>
   {/if}

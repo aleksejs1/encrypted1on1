@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
@@ -36,7 +37,7 @@
       await storeMasterKey(masterKey);
       markAuthenticated();
     } catch (err) {
-      error = err instanceof ApiError ? err.message : 'Something went wrong.';
+      error = err instanceof ApiError ? err.message : $_('login.genericError');
     } finally {
       submitting = false;
     }
@@ -44,16 +45,16 @@
 </script>
 
 <main>
-  <h1>Log in</h1>
+  <h1>{$_('login.title')}</h1>
 
   <form onsubmit={handleSubmit}>
       <label>
-        Email
+        {$_('login.emailLabel')}
         <input type="email" bind:value={email} autocomplete="username" />
       </label>
 
       <label>
-        Password
+        {$_('login.passwordLabel')}
         <input type="password" bind:value={password} autocomplete="current-password" />
       </label>
 
@@ -62,7 +63,7 @@
       {/if}
 
       <button type="submit" disabled={!canSubmit}>
-        {submitting ? 'Logging in…' : 'Log in'}
+        {submitting ? $_('login.submitting') : $_('login.submit')}
       </button>
   </form>
 </main>

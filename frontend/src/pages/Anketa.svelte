@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
@@ -99,7 +100,7 @@
         loadMasterKey(),
         apiGet<AnketaDetail>(`/api/anketas/${id}`),
       ]);
-      if (!mk) throw new Error('Not logged in.');
+      if (!mk) throw new Error($_('anketa.errorNotLoggedIn'));
 
       detail = anketa;
       masterKey = mk;
@@ -158,7 +159,7 @@
 
       loaded = true;
     } catch (error) {
-      loadError = error instanceof ApiError ? error.message : 'Could not load this anketa.';
+      loadError = error instanceof ApiError ? error.message : $_('anketa.errorLoad');
     }
   }
 
@@ -190,7 +191,7 @@
       await apiPost(`/api/anketas/${id}/publish`, { blob });
       myPublished = true;
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not publish.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorPublish');
     } finally {
       publishing = false;
     }
@@ -213,7 +214,7 @@
       if (skipNextMeeting) {
         body.skipNextMeeting = true;
       } else {
-        if (!anketaKey) throw new Error('Not ready to archive yet.');
+        if (!anketaKey) throw new Error($_('anketa.errorNotReadyToArchive'));
         const identity = await ensureUnlocked();
         const nextKey = await generateAnketaKey();
         const mySealedKeyNext = await sealAnketaKey(nextKey, identity.publicKey);
@@ -233,7 +234,7 @@
       archived = true;
       missed = missedFlag;
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not archive.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorArchive');
     } finally {
       archiving = false;
     }
@@ -249,7 +250,7 @@
       detail = { ...detail, meetingDate: isoDate };
       rescheduleDate = '';
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not reschedule.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorReschedule');
     } finally {
       rescheduling = false;
     }
@@ -313,7 +314,7 @@
       await updateOutcomes((current) => addOutcome(current, myUserId, newOutcomeText.trim()));
       newOutcomeText = '';
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not add the item.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorAddOutcome');
     } finally {
       addingOutcome = false;
     }
@@ -323,7 +324,7 @@
     try {
       await updateOutcomes((current) => toggleDone(current, itemId));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not update the item.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorUpdateOutcome');
     }
   }
 
@@ -378,7 +379,7 @@
       newGoalDescription = '';
       newGoalTargetDate = '';
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not add the goal.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorAddGoal');
     } finally {
       addingGoal = false;
     }
@@ -396,7 +397,7 @@
       });
       goals = goals.map((g) => (g.id === goal.id ? updated : g));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not save the goal.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorSaveGoal');
     } finally {
       goalSaving = { ...goalSaving, [goal.id]: false };
     }
@@ -408,7 +409,7 @@
       const updated = await apiPut<Goal>(`/api/anketas/${id}/goals/${goal.id}`, { status: goal.status });
       goals = goals.map((g) => (g.id === goal.id ? updated : g));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not update the goal status.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorUpdateGoalStatus');
     }
   }
 
@@ -430,7 +431,7 @@
       checkpointDraftText = { ...checkpointDraftText, [goalUuid]: '' };
       checkpointDraftStatusTag = { ...checkpointDraftStatusTag, [goalUuid]: '' };
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not add the checkpoint.';
+      actionError = error instanceof ApiError ? error.message : $_('anketa.errorAddCheckpoint');
     } finally {
       addingCheckpoint = { ...addingCheckpoint, [goalUuid]: false };
     }
@@ -469,6 +470,18 @@
     goalCheckpointsVersion = result.goalCheckpointsVersion;
   }
 
+  const GOAL_STATUS_KEYS: Record<Goal['status'], string> = {
+    in_progress: 'anketa.goalStatusInProgress',
+    achieved: 'anketa.goalStatusAchieved',
+    cancelled: 'anketa.goalStatusCancelled',
+  };
+
+  const CHECKPOINT_STATUS_TAG_KEYS: Record<CheckpointStatusTag, string> = {
+    on_track: 'anketa.statusTagOnTrack',
+    at_risk: 'anketa.statusTagAtRisk',
+    blocked: 'anketa.statusTagBlocked',
+  };
+
   // Reactive autosave: fires whenever myAnswers changes (property-level mutations from AnswerField included).
   $effect(() => {
     void JSON.stringify(myAnswers);
@@ -480,40 +493,40 @@
   {#if loadError}
     <p class="error">{loadError}</p>
   {:else if !detail}
-    <p>Loading…</p>
+    <p>{$_('anketa.loading')}</p>
   {:else}
-    <h1>Anketa with {detail.counterpartEmail}</h1>
+    <h1>{$_('anketa.titleWithCounterpart', { values: { email: detail.counterpartEmail } })}</h1>
     <p class="meta">
-      Meeting: {new Date(detail.meetingDate).toLocaleDateString()}
-      {#if archived}<span class="badge">archived</span>{/if}
-      {#if missed}<span class="badge">missed</span>{/if}
-      {#if isOverdue}<span class="badge overdue">overdue</span>{/if}
+      {$_('anketa.meetingLabel')} {new Date(detail.meetingDate).toLocaleDateString()}
+      {#if archived}<span class="badge">{$_('anketa.badgeArchived')}</span>{/if}
+      {#if missed}<span class="badge">{$_('anketa.badgeMissed')}</span>{/if}
+      {#if isOverdue}<span class="badge overdue">{$_('anketa.badgeOverdue')}</span>{/if}
     </p>
 
     {#if isOverdue}
       <section>
-        <h2>This meeting is overdue</h2>
+        <h2>{$_('anketa.overdueHeading')}</h2>
         <div class="checkpoint-form">
           <input type="date" bind:value={rescheduleDate} disabled={rescheduling} />
           <button type="button" onclick={handleReschedule} disabled={rescheduling || !rescheduleDate}>
-            {rescheduling ? 'Rescheduling…' : 'Reschedule'}
+            {rescheduling ? $_('anketa.rescheduling') : $_('anketa.reschedule')}
           </button>
         </div>
-        <p>Or, if this meeting didn't happen:</p>
+        <p>{$_('anketa.orIfDidNotHappen')}</p>
         <button type="button" onclick={() => handleArchive(true)} disabled={archiving}>
-          {archiving ? 'Cancelling…' : 'Cancel as missed'}
+          {archiving ? $_('anketa.cancelling') : $_('anketa.cancelAsMissed')}
         </button>
       </section>
     {/if}
 
     <section>
       <h2>
-        My side ({detail.myRole})
-        {#if myPublished}<span class="badge">published</span>{/if}
+        {$_('anketa.mySideHeading', { values: { role: $_(detail.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager') } })}
+        {#if myPublished}<span class="badge">{$_('anketa.badgePublished')}</span>{/if}
       </h2>
       {#each QUESTIONS_BY_SIDE[detail.myRole] as question (question.id)}
         <fieldset>
-          <legend>{question.title}</legend>
+          <legend>{$_(question.titleKey)}</legend>
           {#each question.fields as field (field.id)}
             <AnswerField {field} bind:value={myAnswers[field.id]} readonly={myPublished} />
             {#if myPublished}
@@ -529,26 +542,29 @@
 
       {#if !myPublished}
         <p class="save-state">
-          {#if saveState === 'saving'}Saving…{:else if saveState === 'saved'}Saved.{:else if saveState === 'error'}Could
-            not save draft.{/if}
+          {#if saveState === 'saving'}{$_('anketa.savingDraft')}{:else if saveState === 'saved'}{$_(
+              'anketa.savedDraft',
+            )}{:else if saveState === 'error'}{$_('anketa.saveError')}{/if}
         </p>
         <button type="button" onclick={handlePublish} disabled={publishing}>
-          {publishing ? 'Publishing…' : 'Publish'}
+          {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
         </button>
       {/if}
     </section>
 
     <section>
       <h2>
-        {detail.counterpartEmail}'s side ({counterpartSide})
-        {#if counterpartPublished}<span class="badge">published</span>{/if}
+        {$_('anketa.counterpartSideHeading', {
+          values: { email: detail.counterpartEmail, role: counterpartSide ? $_(counterpartSide === 'employee' ? 'common.roleEmployee' : 'common.roleManager') : '' },
+        })}
+        {#if counterpartPublished}<span class="badge">{$_('anketa.badgePublished')}</span>{/if}
       </h2>
       {#if !counterpartAnswers}
-        <p>Not published yet.</p>
+        <p>{$_('anketa.notPublishedYet')}</p>
       {:else if counterpartSide}
         {#each QUESTIONS_BY_SIDE[counterpartSide] as question (question.id)}
           <fieldset>
-            <legend>{question.title}</legend>
+            <legend>{$_(question.titleKey)}</legend>
             {#each question.fields as field (field.id)}
               <AnswerField {field} value={counterpartAnswers[field.id]} readonly />
               <CommentThread
@@ -563,7 +579,7 @@
     </section>
 
     <section>
-      <h2>Meeting outcomes</h2>
+      <h2>{$_('anketa.outcomesHeading')}</h2>
       {#each allOutcomes as item (item.id)}
         <fieldset>
           <label>
@@ -582,28 +598,33 @@
           />
         </fieldset>
       {:else}
-        <p>No outcomes recorded yet.</p>
+        <p>{$_('anketa.outcomesEmpty')}</p>
       {/each}
 
       <form onsubmit={handleAddOutcome}>
-        <input type="text" bind:value={newOutcomeText} placeholder="Add an outcome…" disabled={addingOutcome} />
+        <input
+          type="text"
+          bind:value={newOutcomeText}
+          placeholder={$_('anketa.outcomesPlaceholder')}
+          disabled={addingOutcome}
+        />
         <button type="submit" disabled={addingOutcome || !newOutcomeText.trim()}>
-          {addingOutcome ? 'Adding…' : 'Add'}
+          {addingOutcome ? $_('anketa.adding') : $_('anketa.add')}
         </button>
       </form>
     </section>
 
     <section>
-      <h2>Goals</h2>
+      <h2>{$_('anketa.goalsHeading')}</h2>
       {#each goals as goal (goal.id)}
         {@const isMyGoal = goal.authorId === myUserId}
         <fieldset>
           <label>
-            Title
+            {$_('anketa.goalTitleLabel')}
             <input type="text" bind:value={goal.title} readonly={!isMyGoal} />
           </label>
           <label>
-            Description
+            {$_('anketa.goalDescriptionLabel')}
             <textarea
               value={goal.description ?? ''}
               oninput={(e) => (goal.description = e.currentTarget.value)}
@@ -611,7 +632,7 @@
             ></textarea>
           </label>
           <label>
-            Target date
+            {$_('anketa.goalTargetDateLabel')}
             <input
               type="date"
               value={goal.targetDate ?? ''}
@@ -620,16 +641,16 @@
             />
           </label>
           <label>
-            Status
+            {$_('anketa.goalStatusLabel')}
             <select bind:value={goal.status} disabled={!isMyGoal} onchange={() => handleUpdateGoalStatus(goal)}>
-              <option value="in_progress">In progress</option>
-              <option value="achieved">Achieved</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="in_progress">{$_('anketa.goalStatusInProgress')}</option>
+              <option value="achieved">{$_('anketa.goalStatusAchieved')}</option>
+              <option value="cancelled">{$_('anketa.goalStatusCancelled')}</option>
             </select>
           </label>
           {#if isMyGoal}
             <button type="button" onclick={() => handleSaveGoal(goal)} disabled={goalSaving[goal.id]}>
-              {goalSaving[goal.id] ? 'Saving…' : 'Save'}
+              {goalSaving[goal.id] ? $_('anketa.saving') : $_('anketa.save')}
             </button>
           {/if}
 
@@ -639,10 +660,10 @@
             onSubmit={(text) => submitComment(goal.id, text)}
           />
 
-          <h3>Checkpoints</h3>
+          <h3>{$_('anketa.checkpointsHeading')}</h3>
           {#each allCheckpoints.filter((c) => c.goalId === goal.goalUuid) as checkpoint (checkpoint.id)}
             <div class="checkpoint">
-              {#if checkpoint.statusTag}<span class="badge">{checkpoint.statusTag}</span>{/if}
+              {#if checkpoint.statusTag}<span class="badge">{$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}</span>{/if}
               {#if checkpoint.text}<p>{checkpoint.text}</p>{/if}
               <CommentThread
                 comments={allComments.filter((c) => c.targetId === checkpoint.id)}
@@ -651,14 +672,14 @@
               />
             </div>
           {:else}
-            <p>No checkpoints yet.</p>
+            <p>{$_('anketa.noCheckpointsYet')}</p>
           {/each}
 
           {#if isMyGoal}
             <div class="checkpoint-form">
               <input
                 type="text"
-                placeholder="Progress update…"
+                placeholder={$_('anketa.checkpointPlaceholder')}
                 value={checkpointDraftText[goal.goalUuid] ?? ''}
                 oninput={(e) =>
                   (checkpointDraftText = { ...checkpointDraftText, [goal.goalUuid]: e.currentTarget.value })}
@@ -673,10 +694,10 @@
                   })}
                 disabled={addingCheckpoint[goal.goalUuid]}
               >
-                <option value="">No status tag</option>
-                <option value="on_track">On track</option>
-                <option value="at_risk">At risk</option>
-                <option value="blocked">Blocked</option>
+                <option value="">{$_('anketa.noStatusTag')}</option>
+                <option value="on_track">{$_('anketa.statusTagOnTrack')}</option>
+                <option value="at_risk">{$_('anketa.statusTagAtRisk')}</option>
+                <option value="blocked">{$_('anketa.statusTagBlocked')}</option>
               </select>
               <button
                 type="button"
@@ -684,26 +705,31 @@
                 disabled={addingCheckpoint[goal.goalUuid] ||
                   (!checkpointDraftText[goal.goalUuid]?.trim() && !checkpointDraftStatusTag[goal.goalUuid])}
               >
-                {addingCheckpoint[goal.goalUuid] ? 'Adding…' : 'Add checkpoint'}
+                {addingCheckpoint[goal.goalUuid] ? $_('anketa.addingCheckpoint') : $_('anketa.addCheckpoint')}
               </button>
             </div>
           {/if}
         </fieldset>
       {:else}
-        <p>No goals yet.</p>
+        <p>{$_('anketa.noGoalsYet')}</p>
       {/each}
 
       <form onsubmit={handleAddGoal}>
-        <input type="text" bind:value={newGoalTitle} placeholder="Goal title…" disabled={addingGoal} />
+        <input
+          type="text"
+          bind:value={newGoalTitle}
+          placeholder={$_('anketa.goalTitlePlaceholder')}
+          disabled={addingGoal}
+        />
         <input
           type="text"
           bind:value={newGoalDescription}
-          placeholder="Description (optional)…"
+          placeholder={$_('anketa.goalDescriptionPlaceholder')}
           disabled={addingGoal}
         />
         <input type="date" bind:value={newGoalTargetDate} disabled={addingGoal} />
         <button type="submit" disabled={addingGoal || !newGoalTitle.trim()}>
-          {addingGoal ? 'Adding…' : 'Add goal'}
+          {addingGoal ? $_('anketa.addingGoal') : $_('anketa.addGoal')}
         </button>
       </form>
     </section>
@@ -714,19 +740,19 @@
 
     {#if !archived}
       <section>
-        <h2>Archive</h2>
+        <h2>{$_('anketa.archiveHeading')}</h2>
         <label>
           <input type="checkbox" bind:checked={skipNextMeeting} />
-          Don't create the next meeting
+          {$_('anketa.skipNextMeeting')}
         </label>
         {#if !skipNextMeeting}
           <label>
-            Next meeting date
+            {$_('anketa.nextMeetingDateLabel')}
             <input type="date" bind:value={nextMeetingDate} />
           </label>
         {/if}
         <button type="button" onclick={() => handleArchive(false)} disabled={archiving}>
-          {archiving ? 'Archiving…' : 'Archive'}
+          {archiving ? $_('anketa.archiving') : $_('anketa.archive')}
         </button>
       </section>
     {/if}

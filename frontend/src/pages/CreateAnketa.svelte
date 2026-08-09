@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { generateAnketaKey, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
@@ -52,7 +53,7 @@
         priorAnketas = allAnketas;
       })
       .catch((error: unknown) => {
-        loadError = error instanceof ApiError ? error.message : 'Could not load users.';
+        loadError = error instanceof ApiError ? error.message : $_('createAnketa.errorLoad');
       });
   });
 
@@ -65,7 +66,7 @@
     try {
       const identity = await ensureUnlocked();
       const counterpart = users.find((u) => u.id === counterpartId);
-      if (!counterpart) throw new Error('Counterpart not found.');
+      if (!counterpart) throw new Error($_('createAnketa.errorCounterpartNotFound'));
 
       const anketaKey = await generateAnketaKey();
       const mySealedKey = await sealAnketaKey(anketaKey, identity.publicKey);
@@ -96,7 +97,7 @@
 
       navigate(`/anketas/${result.id}`);
     } catch (error) {
-      submitError = error instanceof ApiError ? error.message : 'Something went wrong.';
+      submitError = error instanceof ApiError ? error.message : $_('createAnketa.genericError');
     } finally {
       submitting = false;
     }
@@ -104,16 +105,16 @@
 </script>
 
 <main>
-  <h1>New anketa</h1>
+  <h1>{$_('createAnketa.title')}</h1>
 
   {#if loadError}
     <p class="error">{loadError}</p>
   {:else}
     <form onsubmit={handleSubmit}>
       <label>
-        Counterpart
+        {$_('createAnketa.counterpartLabel')}
         <select bind:value={counterpartId}>
-          <option value="" disabled>Select a person…</option>
+          <option value="" disabled>{$_('createAnketa.counterpartPlaceholder')}</option>
           {#each users as user (user.id)}
             <option value={user.id}>{user.email}</option>
           {/each}
@@ -121,23 +122,23 @@
       </label>
 
       <fieldset>
-        <legend>My role in this anketa</legend>
-        <label><input type="radio" bind:group={myRole} value="employee" /> Employee</label>
-        <label><input type="radio" bind:group={myRole} value="manager" /> Manager</label>
+        <legend>{$_('createAnketa.roleLegend')}</legend>
+        <label><input type="radio" bind:group={myRole} value="employee" /> {$_('common.roleEmployee')}</label>
+        <label><input type="radio" bind:group={myRole} value="manager" /> {$_('common.roleManager')}</label>
       </fieldset>
 
       <label>
-        Meeting date
+        {$_('createAnketa.meetingDateLabel')}
         <input type="date" bind:value={meetingDate} />
       </label>
 
       {#if counterpartId && !previousAnketa}
         <label>
-          How often will you meet?
+          {$_('createAnketa.periodicityLabel')}
           <select bind:value={periodicityDays}>
-            <option value={7}>Weekly</option>
-            <option value={14}>Every 2 weeks</option>
-            <option value={30}>Monthly</option>
+            <option value={7}>{$_('createAnketa.periodicityWeekly')}</option>
+            <option value={14}>{$_('createAnketa.periodicityBiweekly')}</option>
+            <option value={30}>{$_('createAnketa.periodicityMonthly')}</option>
           </select>
         </label>
       {/if}
@@ -147,7 +148,7 @@
       {/if}
 
       <button type="submit" disabled={!canSubmit}>
-        {submitting ? 'Creating…' : 'Create anketa'}
+        {submitting ? $_('createAnketa.submitting') : $_('createAnketa.submit')}
       </button>
     </form>
   {/if}

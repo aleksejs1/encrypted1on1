@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiPost, ApiError } from '../api/client';
 
   let email = $state('');
@@ -18,7 +19,7 @@
       sent = true;
       email = '';
     } catch (err) {
-      error = err instanceof ApiError ? err.message : 'Could not send the invite.';
+      error = err instanceof ApiError ? err.message : $_('inviteForm.error');
     } finally {
       submitting = false;
     }
@@ -27,17 +28,17 @@
 
 <form onsubmit={handleSubmit}>
   <label>
-    Invite a colleague
-    <input type="email" bind:value={email} placeholder="name@example.com" disabled={submitting} />
+    {$_('inviteForm.label')}
+    <input type="email" bind:value={email} placeholder={$_('inviteForm.placeholder')} disabled={submitting} />
   </label>
   {#if error}
     <p class="error">{error}</p>
   {/if}
   {#if sent}
-    <p class="sent">Invite sent.</p>
+    <p class="sent">{$_('inviteForm.sent')}</p>
   {/if}
   <button type="submit" disabled={submitting || !email.trim()}>
-    {submitting ? 'Sending…' : 'Send invite'}
+    {submitting ? $_('inviteForm.submitting') : $_('inviteForm.submit')}
   </button>
 </form>
 

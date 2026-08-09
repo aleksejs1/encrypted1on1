@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
@@ -36,6 +37,18 @@
   let generateError = $state<string | null>(null);
   let report = $state<ReportData | null>(null);
 
+  const GOAL_STATUS_KEYS: Record<Goal['status'], string> = {
+    in_progress: 'anketa.goalStatusInProgress',
+    achieved: 'anketa.goalStatusAchieved',
+    cancelled: 'anketa.goalStatusCancelled',
+  };
+
+  const CHECKPOINT_STATUS_TAG_KEYS: Record<string, string> = {
+    on_track: 'anketa.statusTagOnTrack',
+    at_risk: 'anketa.statusTagAtRisk',
+    blocked: 'anketa.statusTagBlocked',
+  };
+
   const managerTargets = $derived(
     [...new Map(anketas.filter((a) => a.myRole === 'manager').map((a) => [a.counterpartId, a.counterpartEmail]))].map(
       ([id, email]) => ({ id, email }),
@@ -48,7 +61,7 @@
         anketas = list;
       })
       .catch((error: unknown) => {
-        loadError = error instanceof ApiError ? error.message : 'Could not load anketas.';
+        loadError = error instanceof ApiError ? error.message : $_('report.errorLoad');
       });
     applyQuarterPreset();
   });
@@ -108,7 +121,7 @@
 
       report = aggregateReport(decrypted);
     } catch (error) {
-      generateError = error instanceof ApiError ? error.message : 'Could not generate the report.';
+      generateError = error instanceof ApiError ? error.message : $_('report.errorGenerate');
     } finally {
       generating = false;
     }
@@ -116,16 +129,16 @@
 </script>
 
 <main>
-  <h1>Report</h1>
+  <h1>{$_('report.title')}</h1>
 
   {#if loadError}
     <p class="error">{loadError}</p>
   {:else}
     <form onsubmit={handleGenerate}>
       <label>
-        Report for
+        {$_('report.reportForLabel')}
         <select bind:value={target}>
-          <option value="me">Me</option>
+          <option value="me">{$_('report.me')}</option>
           {#each managerTargets as person (person.id)}
             <option value={person.id}>{person.email}</option>
           {/each}
@@ -133,14 +146,14 @@
       </label>
 
       <fieldset>
-        <legend>Date range</legend>
-        <button type="button" onclick={applyQuarterPreset}>Last 3 months</button>
+        <legend>{$_('report.dateRangeLegend')}</legend>
+        <button type="button" onclick={applyQuarterPreset}>{$_('report.quarterPreset')}</button>
         <label>
-          From
+          {$_('report.fromLabel')}
           <input type="date" bind:value={rangeStart} />
         </label>
         <label>
-          To
+          {$_('report.toLabel')}
           <input type="date" bind:value={rangeEnd} />
         </label>
       </fieldset>
@@ -150,15 +163,15 @@
       {/if}
 
       <button type="submit" disabled={generating || !rangeStart || !rangeEnd}>
-        {generating ? 'Generating…' : 'Generate report'}
+        {generating ? $_('report.generating') : $_('report.generate')}
       </button>
     </form>
 
     {#if report}
       <section>
-        <h2>Achievements</h2>
+        <h2>{$_('report.achievementsHeading')}</h2>
         {#if report.achievements.length === 0}
-          <p>Nothing in this range.</p>
+          <p>{$_('report.nothingInRange')}</p>
         {:else}
           <ul>
             {#each report.achievements as entry (entry.id)}
@@ -169,9 +182,9 @@
       </section>
 
       <section>
-        <h2>Growth</h2>
+        <h2>{$_('report.growthHeading')}</h2>
         {#if report.growth.length === 0}
-          <p>Nothing in this range.</p>
+          <p>{$_('report.nothingInRange')}</p>
         {:else}
           <ul>
             {#each report.growth as entry (entry.id)}
@@ -182,22 +195,22 @@
       </section>
 
       <section>
-        <h2>Goals</h2>
+        <h2>{$_('report.goalsHeading')}</h2>
         {#if report.goals.length === 0}
-          <p>No goals touched in this range.</p>
+          <p>{$_('report.noGoalsInRange')}</p>
         {:else}
           {#each report.goals as goal (goal.goalUuid)}
             <fieldset>
-              <legend>{goal.title} <span class="badge">{goal.status}</span></legend>
+              <legend>{goal.title} <span class="badge">{$_(GOAL_STATUS_KEYS[goal.status])}</span></legend>
               {#if goal.description}<p>{goal.description}</p>{/if}
               {#if goal.checkpoints.length === 0}
-                <p>No checkpoints in this range.</p>
+                <p>{$_('report.noCheckpointsInRange')}</p>
               {:else}
                 <ul>
                   {#each goal.checkpoints as checkpoint (checkpoint.id)}
                     <li>
                       {new Date(checkpoint.createdAt).toLocaleDateString()}
-                      {#if checkpoint.statusTag}<span class="badge">{checkpoint.statusTag}</span>{/if}
+                      {#if checkpoint.statusTag}<span class="badge">{$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}</span>{/if}
                       {#if checkpoint.text}— {checkpoint.text}{/if}
                     </li>
                   {/each}

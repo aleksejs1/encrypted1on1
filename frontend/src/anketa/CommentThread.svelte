@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import type { Comment } from './comments';
 
   const {
@@ -26,7 +27,7 @@
       await onSubmit(text.trim());
       text = '';
     } catch {
-      error = 'Could not post the comment.';
+      error = $_('commentThread.error');
     } finally {
       submitting = false;
     }
@@ -35,7 +36,7 @@
 
 <div class="thread">
   <button type="button" class="toggle" onclick={() => (expanded = !expanded)}>
-    {comments.length > 0 ? `${comments.length} comment${comments.length === 1 ? '' : 's'}` : 'Comment'}
+    {$_('commentThread.toggle', { values: { count: comments.length } })}
   </button>
 
   {#if expanded}
@@ -47,9 +48,9 @@
     {/each}
 
     <form onsubmit={handleSubmit}>
-      <input type="text" bind:value={text} placeholder="Add a comment…" />
+      <input type="text" bind:value={text} placeholder={$_('commentThread.placeholder')} />
       <button type="submit" disabled={submitting || !text.trim()}>
-        {submitting ? 'Posting…' : 'Post'}
+        {submitting ? $_('commentThread.posting') : $_('commentThread.post')}
       </button>
     </form>
     {#if error}

@@ -4,26 +4,33 @@
  * validation, and translations, and explicitly not a form-builder (the
  * questions are the same for the whole app, just not copy-pasted through
  * the codebase).
+ *
+ * Display text lives in the i18n locale files (Phase 6h), not here — every
+ * `*Key` field below is a translation key (`questions.employee.*`/
+ * `questions.fields.*`/`questions.options.*` in `src/i18n/locales/*.json`),
+ * resolved through svelte-i18n's `$_()` at render time (`AnswerField.svelte`,
+ * `Anketa.svelte`). Field/option ids are stable data identifiers (used as
+ * `Answers` keys and radio/checkbox values) — those never change with locale.
  */
 
 export type FieldType = 'radio' | 'checkboxes' | 'text' | 'list';
 
 export interface FieldOption {
   value: string;
-  label: string;
+  labelKey: string;
 }
 
 export interface QuestionField {
   /** Stable key within a side's answer data object. */
   id: string;
   type: FieldType;
-  label: string;
+  labelKey: string;
   options?: FieldOption[];
 }
 
 export interface Question {
   id: string;
-  title: string;
+  titleKey: string;
   fields: QuestionField[];
 }
 
@@ -52,125 +59,125 @@ export type Answers = Record<string, AnswerValue>;
 const employeeQuestions: Question[] = [
   {
     id: 'mood',
-    title: 'Mood',
+    titleKey: 'questions.employee.mood.title',
     fields: [
       {
         id: 'moodNow',
         type: 'radio',
-        label: 'How are you feeling?',
+        labelKey: 'questions.fields.moodNow',
         options: [
-          { value: 'bad', label: 'Bad' },
-          { value: 'neutral', label: 'Neutral' },
-          { value: 'good', label: 'Good' },
+          { value: 'bad', labelKey: 'questions.options.moodNow.bad' },
+          { value: 'neutral', labelKey: 'questions.options.moodNow.neutral' },
+          { value: 'good', labelKey: 'questions.options.moodNow.good' },
         ],
       },
       {
         id: 'moodTrend',
         type: 'radio',
-        label: 'Compared to last time?',
+        labelKey: 'questions.fields.moodTrend',
         options: [
-          { value: 'worse', label: 'Worse' },
-          { value: 'same', label: 'About the same' },
-          { value: 'better', label: 'Better' },
+          { value: 'worse', labelKey: 'questions.options.trend.worse' },
+          { value: 'same', labelKey: 'questions.options.trend.same' },
+          { value: 'better', labelKey: 'questions.options.trend.better' },
         ],
       },
-      { id: 'moodNotes', type: 'text', label: 'Anything to add?' },
+      { id: 'moodNotes', type: 'text', labelKey: 'questions.fields.anythingToAdd' },
     ],
   },
   {
     id: 'feelings',
-    title: 'Feelings',
+    titleKey: 'questions.employee.feelings.title',
     fields: [
       {
         id: 'feelingsList',
         type: 'checkboxes',
-        label: 'Which of these apply?',
+        labelKey: 'questions.fields.feelingsList',
         options: [
-          { value: 'excited', label: 'Excited' },
-          { value: 'anxious', label: 'Anxious' },
-          { value: 'confident', label: 'Confident' },
-          { value: 'overwhelmed', label: 'Overwhelmed' },
-          { value: 'motivated', label: 'Motivated' },
-          { value: 'frustrated', label: 'Frustrated' },
+          { value: 'excited', labelKey: 'questions.options.feelingsList.excited' },
+          { value: 'anxious', labelKey: 'questions.options.feelingsList.anxious' },
+          { value: 'confident', labelKey: 'questions.options.feelingsList.confident' },
+          { value: 'overwhelmed', labelKey: 'questions.options.feelingsList.overwhelmed' },
+          { value: 'motivated', labelKey: 'questions.options.feelingsList.motivated' },
+          { value: 'frustrated', labelKey: 'questions.options.feelingsList.frustrated' },
         ],
       },
-      { id: 'feelingsNotes', type: 'text', label: 'Anything to add?' },
+      { id: 'feelingsNotes', type: 'text', labelKey: 'questions.fields.anythingToAdd' },
     ],
   },
   {
     id: 'workload',
-    title: 'Workload',
+    titleKey: 'questions.employee.workload.title',
     fields: [
       {
         id: 'workloadNow',
         type: 'radio',
-        label: 'How much work do you have?',
+        labelKey: 'questions.fields.workloadNow',
         options: [
-          { value: 'too_much', label: 'Too much' },
-          { value: 'just_right', label: 'Just right' },
-          { value: 'too_little', label: 'Too little' },
+          { value: 'too_much', labelKey: 'questions.options.workloadNow.tooMuch' },
+          { value: 'just_right', labelKey: 'questions.options.workloadNow.justRight' },
+          { value: 'too_little', labelKey: 'questions.options.workloadNow.tooLittle' },
         ],
       },
       {
         id: 'workloadTrend',
         type: 'radio',
-        label: 'Compared to last time?',
+        labelKey: 'questions.fields.workloadTrend',
         options: [
-          { value: 'more', label: 'More work' },
-          { value: 'same', label: 'About the same' },
-          { value: 'less', label: 'Less work' },
+          { value: 'more', labelKey: 'questions.options.workloadTrend.more' },
+          { value: 'same', labelKey: 'questions.options.trend.same' },
+          { value: 'less', labelKey: 'questions.options.workloadTrend.less' },
         ],
       },
-      { id: 'workloadNotes', type: 'text', label: 'Anything to add?' },
+      { id: 'workloadNotes', type: 'text', labelKey: 'questions.fields.anythingToAdd' },
     ],
   },
   {
     id: 'growth',
-    title: 'Growth. What did you learn, discover, take away?',
-    fields: [{ id: 'growthEntries', type: 'list', label: 'Entries' }],
+    titleKey: 'questions.employee.growth.title',
+    fields: [{ id: 'growthEntries', type: 'list', labelKey: 'questions.fields.entries' }],
   },
   {
     id: 'friction',
-    title: "What's harder in my work than it should be",
-    fields: [{ id: 'frictionNotes', type: 'text', label: 'Details' }],
+    titleKey: 'questions.employee.friction.title',
+    fields: [{ id: 'frictionNotes', type: 'text', labelKey: 'questions.fields.details' }],
   },
   {
     id: 'achievements',
-    title: 'Achievements',
-    fields: [{ id: 'achievementEntries', type: 'list', label: 'Entries' }],
+    titleKey: 'questions.employee.achievements.title',
+    fields: [{ id: 'achievementEntries', type: 'list', labelKey: 'questions.fields.entries' }],
   },
   {
     id: 'discuss',
-    title: 'What else to discuss',
-    fields: [{ id: 'discussEntries', type: 'list', label: 'Entries' }],
+    titleKey: 'questions.employee.discuss.title',
+    fields: [{ id: 'discussEntries', type: 'list', labelKey: 'questions.fields.entries' }],
   },
 ];
 
 const managerQuestions: Question[] = [
   {
     id: 'periodSummary',
-    title: 'How did the period go since the last meeting',
-    fields: [{ id: 'periodSummaryNotes', type: 'text', label: 'Details' }],
+    titleKey: 'questions.manager.periodSummary.title',
+    fields: [{ id: 'periodSummaryNotes', type: 'text', labelKey: 'questions.fields.details' }],
   },
   {
     id: 'feedback',
-    title: "Feedback: what's going well, what could improve",
-    fields: [{ id: 'feedbackNotes', type: 'text', label: 'Details' }],
+    titleKey: 'questions.manager.feedback.title',
+    fields: [{ id: 'feedbackNotes', type: 'text', labelKey: 'questions.fields.details' }],
   },
   {
     id: 'support',
-    title: 'How can I help / what gets in the way',
-    fields: [{ id: 'supportNotes', type: 'text', label: 'Details' }],
+    titleKey: 'questions.manager.support.title',
+    fields: [{ id: 'supportNotes', type: 'text', labelKey: 'questions.fields.details' }],
   },
   {
     id: 'employeeAchievements',
-    title: 'Achievements worth recognizing',
-    fields: [{ id: 'employeeAchievementEntries', type: 'list', label: 'Entries' }],
+    titleKey: 'questions.manager.employeeAchievements.title',
+    fields: [{ id: 'employeeAchievementEntries', type: 'list', labelKey: 'questions.fields.entries' }],
   },
   {
     id: 'managerDiscuss',
-    title: 'What else to discuss',
-    fields: [{ id: 'managerDiscussEntries', type: 'list', label: 'Entries' }],
+    titleKey: 'questions.manager.managerDiscuss.title',
+    fields: [{ id: 'managerDiscussEntries', type: 'list', labelKey: 'questions.fields.entries' }],
   },
 ];
 

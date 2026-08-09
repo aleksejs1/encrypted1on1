@@ -22,6 +22,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "libsodium-wrappers-sumo": "^0.8.4"
+    "libsodium-wrappers-sumo": "^0.8.4",
+    "svelte-i18n": "^4.0.1"
   }
 }

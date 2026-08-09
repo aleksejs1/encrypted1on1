@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import type { QuestionField, ListEntry, AnswerValue } from './questions';
 
   let {
@@ -33,7 +34,7 @@
 </script>
 
 <div class="field">
-  <span class="label">{field.label}</span>
+  <span class="label">{$_(field.labelKey)}</span>
 
   {#if field.type === 'radio'}
     <div class="options">
@@ -47,7 +48,7 @@
             disabled={readonly}
             onchange={() => (value = option.value)}
           />
-          {option.label}
+          {$_(option.labelKey)}
         </label>
       {/each}
     </div>
@@ -61,7 +62,7 @@
             disabled={readonly}
             onchange={(e) => toggleCheckbox(option.value, e.currentTarget.checked)}
           />
-          {option.label}
+          {$_(option.labelKey)}
         </label>
       {/each}
     </div>
@@ -78,7 +79,7 @@
           <span class="entry-date">{new Date(entry.date).toLocaleDateString()}</span>
           <span>{entry.text}</span>
           {#if !readonly}
-            <button type="button" onclick={() => removeListEntry(entry.id)}>Remove</button>
+            <button type="button" onclick={() => removeListEntry(entry.id)}>{$_('common.remove')}</button>
           {/if}
         </li>
       {/each}
@@ -88,10 +89,10 @@
         <input
           type="text"
           bind:value={newEntryText}
-          placeholder="Add an entry…"
+          placeholder={$_('answerField.addEntryPlaceholder')}
           onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addListEntry())}
         />
-        <button type="button" onclick={addListEntry}>Add</button>
+        <button type="button" onclick={addListEntry}>{$_('common.add')}</button>
       </div>
     {/if}
   {/if}

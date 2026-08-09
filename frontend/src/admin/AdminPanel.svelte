@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, ApiError } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity';
   import InviteForm from './InviteForm.svelte';
@@ -29,7 +30,7 @@
         });
       })
       .catch((error: unknown) => {
-        loadError = error instanceof ApiError ? error.message : 'Could not load the admin panel.';
+        loadError = error instanceof ApiError ? error.message : $_('admin.errorLoad');
       });
   });
 
@@ -42,7 +43,7 @@
       });
       users = users.map((u) => (u.id === user.id ? { ...u, isBlocked: result.isBlocked } : u));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not update the user.';
+      actionError = error instanceof ApiError ? error.message : $_('admin.errorUpdate');
     } finally {
       pending = { ...pending, [user.id]: false };
     }
@@ -57,7 +58,7 @@
       });
       users = users.map((u) => (u.id === user.id ? { ...u, isAdmin: result.isAdmin } : u));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : 'Could not update the user.';
+      actionError = error instanceof ApiError ? error.message : $_('admin.errorUpdate');
     } finally {
       pending = { ...pending, [user.id]: false };
     }
@@ -65,14 +66,14 @@
 </script>
 
 <main>
-  <h1>Admin panel</h1>
+  <h1>{$_('admin.title')}</h1>
 
   {#if loadError}
     <p class="error">{loadError}</p>
   {:else if isAdmin === null}
-    <p>Loading…</p>
+    <p>{$_('common.loading')}</p>
   {:else if !isAdmin}
-    <p>Not authorized.</p>
+    <p>{$_('admin.notAuthorized')}</p>
   {:else}
     <section>
       <InviteForm />
@@ -85,10 +86,10 @@
     <table>
       <thead>
         <tr>
-          <th>Email</th>
-          <th>Status</th>
-          <th>Role</th>
-          <th>Created</th>
+          <th>{$_('admin.emailHeader')}</th>
+          <th>{$_('admin.statusHeader')}</th>
+          <th>{$_('admin.roleHeader')}</th>
+          <th>{$_('admin.createdHeader')}</th>
           <th></th>
         </tr>
       </thead>
@@ -96,8 +97,8 @@
         {#each users as user (user.id)}
           <tr>
             <td>{user.email}</td>
-            <td>{user.isBlocked ? 'Blocked' : 'Active'}</td>
-            <td>{user.isAdmin ? 'Admin' : 'User'}</td>
+            <td>{user.isBlocked ? $_('admin.statusBlocked') : $_('admin.statusActive')}</td>
+            <td>{user.isAdmin ? $_('admin.roleAdmin') : $_('admin.roleUser')}</td>
             <td>{new Date(user.createdAt).toLocaleDateString()}</td>
             <td class="actions">
               <button
@@ -105,10 +106,10 @@
                 onclick={() => toggleBlocked(user)}
                 disabled={pending[user.id] || user.id === myUserId}
               >
-                {user.isBlocked ? 'Unblock' : 'Block'}
+                {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
               </button>
               <button type="button" onclick={() => toggleAdmin(user)} disabled={pending[user.id]}>
-                {user.isAdmin ? 'Revoke admin' : 'Make admin'}
+                {user.isAdmin ? $_('admin.revokeAdmin') : $_('admin.makeAdmin')}
               </button>
             </td>
           </tr>

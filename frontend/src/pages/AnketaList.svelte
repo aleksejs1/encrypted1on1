@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { apiGet } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity';
   import InviteForm from '../admin/InviteForm.svelte';
@@ -33,11 +34,11 @@
 
 <main>
   <div class="header">
-    <h1>Anketas</h1>
+    <h1>{$_('anketaList.title')}</h1>
     <div class="header-links">
-      {#if isAdmin}<a href="/admin">Admin</a>{/if}
-      <a href="/report">Report</a>
-      <a href="/anketas/new">New anketa</a>
+      {#if isAdmin}<a href="/admin">{$_('anketaList.admin')}</a>{/if}
+      <a href="/report">{$_('anketaList.report')}</a>
+      <a href="/anketas/new">{$_('anketaList.newAnketa')}</a>
     </div>
   </div>
 
@@ -48,24 +49,24 @@
   {/if}
 
   {#await anketas}
-    <p>Loading…</p>
+    <p>{$_('common.loading')}</p>
   {:then list}
     {#if list.length === 0}
-      <p>No anketas yet.</p>
+      <p>{$_('anketaList.empty')}</p>
     {:else}
       <ul>
         {#each list as anketa (anketa.id)}
           <li>
             <a href="/anketas/{anketa.id}">
-              {anketa.counterpartEmail} ({anketa.myRole}) — {new Date(
+              {anketa.counterpartEmail} ({$_(anketa.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager')}) — {new Date(
                 anketa.meetingDate,
               ).toLocaleDateString()}
-              {#if anketa.archivedAt}<span class="badge">archived</span>{/if}
-              {#if anketa.missed}<span class="badge">missed</span>{/if}
-              {#if isOverdue(anketa)}<span class="badge overdue">overdue</span>{/if}
-              {#if anketa.myPublishedAt}<span class="badge">published by me</span>{/if}
+              {#if anketa.archivedAt}<span class="badge">{$_('anketaList.badgeArchived')}</span>{/if}
+              {#if anketa.missed}<span class="badge">{$_('anketaList.badgeMissed')}</span>{/if}
+              {#if isOverdue(anketa)}<span class="badge overdue">{$_('anketaList.badgeOverdue')}</span>{/if}
+              {#if anketa.myPublishedAt}<span class="badge">{$_('anketaList.badgePublishedByMe')}</span>{/if}
               {#if anketa.counterpartPublishedAt}<span class="badge"
-                  >published by counterpart</span
+                  >{$_('anketaList.badgePublishedByCounterpart')}</span
                 >{/if}
             </a>
           </li>
