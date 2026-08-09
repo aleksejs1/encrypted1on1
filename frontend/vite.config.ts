@@ -9,6 +9,7 @@ export default defineConfig({
       // Proxied to the backend container instead of configuring CORS —
       // simplest option for a dev-only concern (see plan Phase 1).
       '/health': 'http://localhost:8000',
+      '/api': 'http://localhost:8000',
     },
   },
 })

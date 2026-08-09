@@ -6,7 +6,8 @@ return static function (ContainerConfigurator $container): void {
     $services = $container->services()
         ->defaults()
             ->autowire()
-            ->autoconfigure();
+            ->autoconfigure()
+            ->bind('string $frontendBaseUrl', '%env(FRONTEND_URL)%');
 
     $services->load('App\\', __DIR__.'/../src/')
         ->exclude(__DIR__.'/../src/Kernel.php');

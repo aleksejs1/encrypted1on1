@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { generateKeyPair, unwrapPrivateKey, wrapPrivateKey } from './keypair';
+import {
+  generateKeyPair,
+  packWrappedPrivateKey,
+  unpackWrappedPrivateKey,
+  unwrapPrivateKey,
+  wrapPrivateKey,
+} from './keypair';
 import { getSodium } from './sodium';
 
 describe('keypair', () => {
@@ -31,5 +37,18 @@ describe('keypair', () => {
     const wrapped = await wrapPrivateKey(privateKey, masterKey);
 
     await expect(unwrapPrivateKey(wrapped, wrongKey)).rejects.toThrow();
+  });
+
+  it('round-trips through pack/unpack for transport', async () => {
+    const sodium = await getSodium();
+    const { privateKey } = await generateKeyPair();
+    const masterKey = sodium.randombytes_buf(32);
+
+    const wrapped = await wrapPrivateKey(privateKey, masterKey);
+    const packed = await packWrappedPrivateKey(wrapped);
+    const unpacked = await unpackWrappedPrivateKey(packed);
+    const unwrapped = await unwrapPrivateKey(unpacked, masterKey);
+
+    expect(unwrapped).toEqual(privateKey);
   });
 });

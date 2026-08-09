@@ -1,38 +1,14 @@
 <script lang="ts">
-  type HealthStatus = { status: string };
+  import Activate from './pages/Activate.svelte';
+  import Login from './pages/Login.svelte';
 
-  async function checkHealth(): Promise<HealthStatus> {
-    const response = await fetch('/health');
-    if (!response.ok) {
-      throw new Error(`Backend returned ${response.status}`);
-    }
-    return response.json();
-  }
-
-  const health = checkHealth();
+  // Hand-rolled path branching: with only two views, a router library is
+  // premature — see the Phase 4 plan for why that's deferred.
+  const activationMatch = window.location.pathname.match(/^\/activate\/(.+)$/);
 </script>
 
-<main>
-  <h1>encrypted1on1</h1>
-  <p>Backend health check:</p>
-  {#await health}
-    <p>Checking…</p>
-  {:then result}
-    <pre>{JSON.stringify(result)}</pre>
-  {:catch error}
-    <p class="error">Could not reach the backend: {error.message}</p>
-  {/await}
-</main>
-
-<style>
-  main {
-    max-width: 32rem;
-    margin: 4rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
-  }
-
-  .error {
-    color: #c0392b;
-  }
-</style>
+{#if activationMatch}
+  <Activate token={activationMatch[1]} />
+{:else}
+  <Login />
+{/if}

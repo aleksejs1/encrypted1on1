@@ -1,3 +1,4 @@
+import { fromBase64, toBase64 } from './encoding';
 import { getSodium } from './sodium';
 
 export interface KeyPair {
@@ -46,4 +47,27 @@ export async function unwrapPrivateKey(
     wrapped.nonce,
     masterKey,
   );
+}
+
+/**
+ * Packs {nonce, ciphertext} into one base64 string for transport/storage —
+ * the API and the `users` table each have a single `encryptedPrivateKey`
+ * column/field, not two. The nonce is fixed-length, so unpacking is a plain
+ * slice, not a delimiter-based format that could be ambiguous.
+ */
+export async function packWrappedPrivateKey(wrapped: WrappedPrivateKey): Promise<string> {
+  const combined = new Uint8Array(wrapped.nonce.length + wrapped.ciphertext.length);
+  combined.set(wrapped.nonce, 0);
+  combined.set(wrapped.ciphertext, wrapped.nonce.length);
+  return toBase64(combined);
+}
+
+export async function unpackWrappedPrivateKey(packed: string): Promise<WrappedPrivateKey> {
+  const sodium = await getSodium();
+  const combined = await fromBase64(packed);
+  const nonceLength = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+  return {
+    nonce: combined.slice(0, nonceLength),
+    ciphertext: combined.slice(nonceLength),
+  };
 }

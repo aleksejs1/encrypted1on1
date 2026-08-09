@@ -13,6 +13,7 @@
         "symfony/dotenv": "^8.1",
         "symfony/framework-bundle": "^7.2",
         "symfony/runtime": "^7.2",
+        "symfony/security-csrf": "^8.1",
         "symfony/string": "^7.2",
         "symfony/uid": "^8.1"
     },

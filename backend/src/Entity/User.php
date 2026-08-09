@@ -54,14 +54,24 @@ class User
     #[Groups(['user:read'])]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct(string $email, string $authHash, string $publicKey, string $encryptedPrivateKey)
-    {
+    #[ORM\Column(type: 'boolean')]
+    #[Groups(['user:read'])]
+    private bool $isAdmin;
+
+    public function __construct(
+        string $email,
+        string $authHash,
+        string $publicKey,
+        string $encryptedPrivateKey,
+        bool $isAdmin = false,
+    ) {
         $this->id = Uuid::v7()->toRfc4122();
         $this->email = $email;
         $this->authHash = $authHash;
         $this->publicKey = $publicKey;
         $this->encryptedPrivateKey = $encryptedPrivateKey;
         $this->createdAt = new \DateTimeImmutable();
+        $this->isAdmin = $isAdmin;
     }
 
     public function getId(): string
@@ -92,5 +102,10 @@ class User
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->isAdmin;
     }
 }
