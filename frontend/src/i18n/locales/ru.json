@@ -5,7 +5,8 @@
     "loading": "Загрузка…",
     "roleEmployee": "Сотрудник",
     "roleManager": "Менеджер",
-    "backToAnketas": "← Анкеты"
+    "backToAnketas": "← Анкеты",
+    "logout": "Выйти"
   },
   "login": {
     "title": "Вход",

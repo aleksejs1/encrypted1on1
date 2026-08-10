@@ -5,7 +5,8 @@
     "loading": "Ielādē…",
     "roleEmployee": "Darbinieks",
     "roleManager": "Vadītājs",
-    "backToAnketas": "← Anketas"
+    "backToAnketas": "← Anketas",
+    "logout": "Izrakstīties"
   },
   "login": {
     "title": "Pieslēgties",

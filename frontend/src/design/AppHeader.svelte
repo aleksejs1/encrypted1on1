@@ -3,12 +3,20 @@
   import Logo from './Logo.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
   import LanguageSwitcher from '../i18n/LanguageSwitcher.svelte';
-  import { authState } from '../auth.svelte';
-  import { routerState } from '../router.svelte';
+  import { authState, logOut } from '../auth.svelte';
+  import { routerState, navigate } from '../router.svelte';
   import { ensureUnlocked } from '../crypto/identity';
 
   let isAdmin = $state(false);
   let email = $state<string | null>(null);
+  let loggingOut = $state(false);
+
+  async function handleLogout(): Promise<void> {
+    loggingOut = true;
+    await logOut();
+    loggingOut = false;
+    navigate('/');
+  }
 
   $effect(() => {
     if (!authState.authenticated) {
@@ -43,6 +51,11 @@
   <LanguageSwitcher />
   <ThemeToggle />
   {#if email}<span class="user-email text-muted">{email}</span>{/if}
+  {#if authState.authenticated}
+    <button type="button" class="btn btn-ghost logout-btn" onclick={handleLogout} disabled={loggingOut}>
+      {$_('common.logout')}
+    </button>
+  {/if}
 </header>
 
 <style>
@@ -85,6 +98,11 @@
   }
 
   .user-email {
+    font-size: 13px;
+  }
+
+  .logout-btn {
+    padding: 4px 10px;
     font-size: 13px;
   }
 </style>

@@ -1,4 +1,6 @@
-import { apiGet, ApiError } from './api/client';
+import { apiGet, apiPost, ApiError } from './api/client';
+import { clearIdentity } from './crypto/identity';
+import { clearMasterKey } from './crypto/session';
 
 export const authState = $state<{ checked: boolean; authenticated: boolean }>({
   checked: false,
@@ -24,4 +26,22 @@ export async function checkAuth(): Promise<void> {
 export function markAuthenticated(): void {
   authState.authenticated = true;
   authState.checked = true;
+}
+
+/**
+ * Invalidates the server session and clears every trace of key material this
+ * tab was holding (the unwrapped private key cached in identity.ts, the
+ * master key in sessionStorage) — logging out is the one place both need to
+ * go away together, not just the server-side half.
+ */
+export async function logOut(): Promise<void> {
+  try {
+    await apiPost('/api/logout', {});
+  } catch {
+    // Best-effort: even if invalidating the server session fails (e.g. it was
+    // already gone), still clear local state so this tab stops acting logged in.
+  }
+  clearMasterKey();
+  clearIdentity();
+  authState.authenticated = false;
 }
