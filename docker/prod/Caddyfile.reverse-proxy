@@ -1,0 +1,47 @@
+# Alternate to docker-compose.prod.yml's docker/prod/Caddyfile, for hosts
+# where an existing reverse proxy (e.g. a host-level nginx already serving
+# other projects on 80/443) owns those ports. Used via
+# docker-compose.prod.reverse-proxy.yml — see README.md's "Production,
+# behind an existing reverse proxy" section.
+#
+# Two differences from the direct-facing Caddyfile: auto_https is off (the
+# existing reverse proxy terminates TLS and forwards plain HTTP here, so
+# Caddy has no certificate to manage and nothing to redirect), and Caddy is
+# told which upstream to trust the X-Forwarded-* headers of (CADDY_TRUSTED_PROXIES)
+# — without this, Caddy ignores those headers by default and the app would see
+# every request as coming from the reverse proxy's own IP over plain HTTP,
+# silently breaking the session cookie's Secure flag (see
+# backend/config/packages/framework.php's TRUSTED_PROXIES, the other half of
+# this same fix). The @backend/handle/try_files routing itself is identical
+# to the direct-facing Caddyfile.
+{
+	skip_install_trust
+	frankenphp
+	auto_https off
+	servers {
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES:127.0.0.1 ::1}
+	}
+}
+
+# A bare port, not {$SERVER_NAME:...} — this app is single-tenant (one
+# domain per deployment), so matching on the Host header isn't needed and
+# only adds a class of "wrong Host header from the proxy → 421" failures
+# that a plain port match avoids entirely.
+:80 {
+	root * /app/public
+	encode zstd br gzip
+
+	# Only the real API surface goes to PHP.
+	@backend path /api/* /health
+	handle @backend {
+		php_server
+	}
+
+	# Everything else: serve the literal static file if it exists (built SPA
+	# assets), otherwise fall back to index.html so the SPA's own client-side
+	# router (router.svelte.ts) can handle the route.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

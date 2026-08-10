@@ -6,11 +6,14 @@ set -eu
 # then swaps in the backup file and restarts. Run from the repo root.
 #
 # Usage: ./docker/prod/restore.sh path/to/backup.db
-# Env:   ENV_FILE (default .env.prod)
+# Env:   ENV_FILE (default .env.prod), PROD_COMPOSE_FILE (default
+#        docker-compose.prod.yml — set to docker-compose.prod.reverse-proxy.yml
+#        if that's what you deployed with)
 
 BACKUP_FILE="${1:?usage: restore.sh path/to/backup.db}"
 ENV_FILE="${ENV_FILE:-.env.prod}"
-COMPOSE="docker compose -f docker-compose.prod.yml --env-file $ENV_FILE"
+PROD_COMPOSE_FILE="${PROD_COMPOSE_FILE:-docker-compose.prod.yml}"
+COMPOSE="docker compose -f $PROD_COMPOSE_FILE --env-file $ENV_FILE"
 
 if [ ! -f "$BACKUP_FILE" ]; then
     echo "No such file: $BACKUP_FILE" >&2

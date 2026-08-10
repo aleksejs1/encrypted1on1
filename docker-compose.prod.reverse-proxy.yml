@@ -1,0 +1,53 @@
+# Alternate to docker-compose.prod.yml, for hosts where an existing reverse
+# proxy (e.g. a host-level nginx already serving other projects on 80/443)
+# owns those ports. See README.md's "Production, behind an existing reverse
+# proxy" section for the full setup (host nginx config, etc).
+#
+# Standalone, not layered on top of docker-compose.prod.yml via `-f a -f b`
+# — Compose's merge behavior for list-valued keys like `ports` differs by
+# key (replace vs. concatenate) in ways that would be easy to get subtly
+# wrong here, so this is a complete, independently-readable file instead.
+# Same image (docker/prod/app.Dockerfile) as the direct-facing file — no
+# rebuild needed to switch topologies, just a different Compose file and a
+# different bind-mounted Caddyfile.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/prod/app.Dockerfile
+    ports:
+      # Caddy only ever listens on port 80 in this mode (auto_https is off
+      # in Caddyfile.reverse-proxy, so there's nothing on 443 to publish).
+      # Bind to localhost, not 0.0.0.0 — this port is an implementation
+      # detail of the reverse-proxy handoff, not meant to be reachable
+      # directly from outside the host.
+      - "${APP_INTERNAL_BIND:?e.g. 127.0.0.1:8090 — set in .env.prod, must match your reverse proxy's upstream/proxy_pass target}:80"
+    volumes:
+      - data:/app/var
+      - ./docker/prod/Caddyfile.reverse-proxy:/etc/frankenphp/Caddyfile:ro
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      APP_SECRET: "${APP_SECRET:?generate one with 'openssl rand -hex 32'}"
+      DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
+      SERVER_NAME: "${SERVER_NAME:?set a real public domain, e.g. 1on1.example.com}"
+      FRONTEND_URL: "${FRONTEND_URL:?e.g. https://1on1.example.com, same domain as SERVER_NAME, used to build links in emails}"
+      MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
+      MAILER_FROM: "${MAILER_FROM:?e.g. noreply@1on1.example.com}"
+      REGISTRATION_MODE: "${REGISTRATION_MODE:-invite}"
+      ALLOWED_EMAIL_DOMAIN: "${ALLOWED_EMAIL_DOMAIN:-}"
+      # Told to Symfony (backend/config/packages/framework.php) so it trusts
+      # X-Forwarded-* from the reverse proxy — without this, session cookies
+      # would lose their Secure flag even on real HTTPS traffic, since Caddy
+      # only ever sees the internal plain-HTTP hop from the proxy. Defaults
+      # assume the reverse proxy runs on the same host (loopback) — widen
+      # this if it's elsewhere (a different container, a separate host).
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.1,::1}"
+      # Same trust decision, told to Caddy itself (docker/prod/Caddyfile.reverse-proxy)
+      # — Caddy also needs to trust the proxy's X-Forwarded-* before it will
+      # relay them onward, independently of the Symfony-level setting above.
+      CADDY_TRUSTED_PROXIES: "${CADDY_TRUSTED_PROXIES:-127.0.0.1 ::1}"
+    restart: unless-stopped
+
+volumes:
+  data:

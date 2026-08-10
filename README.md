@@ -34,6 +34,34 @@ npm run dev      # frontend dev server, proxies API calls to the backend
 
 Data (the SQLite database) lives in a named Docker volume, so it survives image rebuilds/redeploys — back it up before any major upgrade (see "Backups" below).
 
+### Production, behind an existing reverse proxy
+
+If this host already runs its own nginx (or similar) that owns ports 80/443 and reverse-proxies to several other unrelated projects, `docker-compose.prod.yml` won't work as-is — Caddy would fail to bind those ports. Use `docker-compose.prod.reverse-proxy.yml` instead: Caddy binds to one internal-only port and never attempts its own HTTPS certificate; your existing proxy terminates TLS and forwards plain HTTP to that port.
+
+1. In `.env.prod`, fill in `APP_INTERNAL_BIND` (e.g. `127.0.0.1:8090`) plus the usual `APP_SECRET`/`SERVER_NAME`/etc. — see the "Only needed with docker-compose.prod.reverse-proxy.yml" section in `.env.prod.example` for `TRUSTED_PROXIES`/`CADDY_TRUSTED_PROXIES` (default to trusting loopback, correct if your reverse proxy runs on the same host).
+2. `docker compose -f docker-compose.prod.reverse-proxy.yml --env-file .env.prod up -d --build`.
+3. Point your existing reverse proxy at it. An nginx `server` block, terminating TLS as it already does for your other sites:
+
+   ```nginx
+   server {
+       listen 443 ssl;
+       server_name 1on1.example.com;
+
+       # ... your existing TLS cert config ...
+
+       location / {
+           proxy_pass http://127.0.0.1:8090;
+           proxy_set_header Host $host;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Host $host;
+       }
+   }
+   ```
+
+   `X-Forwarded-Proto` specifically is the one that matters most — without it, the app can't tell the connection was actually HTTPS, and the session cookie silently loses its `Secure` flag even though the browser is on a real HTTPS connection.
+4. Migrations/admin bootstrap are the same commands as above, just with `-f docker-compose.prod.reverse-proxy.yml` instead. Same for `backup.sh`/`restore.sh` — export `PROD_COMPOSE_FILE=docker-compose.prod.reverse-proxy.yml` first (see "Backups" below).
+
 ### Backups
 
 `docker/prod/backup.sh` takes an online, consistent snapshot of the database (via SQLite's own `.backup` command, safe to run while the app is live) and copies it out to `./backups` on the host, pruning anything older than 14 days. Run it via cron, e.g. daily at 3am:
@@ -42,7 +70,7 @@ Data (the SQLite database) lives in a named Docker volume, so it survives image 
 0 3 * * * cd /path/to/encrypted1on1 && ./docker/prod/backup.sh >> backups/backup.log 2>&1
 ```
 
-`BACKUP_DIR`/`RETENTION_DAYS`/`ENV_FILE` env vars override the defaults (`./backups`, 14, `.env.prod`) if needed.
+`BACKUP_DIR`/`RETENTION_DAYS`/`ENV_FILE` env vars override the defaults (`./backups`, 14, `.env.prod`) if needed; `PROD_COMPOSE_FILE` (default `docker-compose.prod.yml`) if you deployed with `docker-compose.prod.reverse-proxy.yml` instead.
 
 To restore a backup: `./docker/prod/restore.sh backups/data-<timestamp>.db` — stops the app, swaps in the backup file, restarts it.
 

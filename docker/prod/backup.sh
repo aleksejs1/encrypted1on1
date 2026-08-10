@@ -13,10 +13,13 @@ set -eu
 # shell might have them.
 #
 # Usage: ./docker/prod/backup.sh
-# Env:   ENV_FILE (default .env.prod), BACKUP_DIR (default ./backups), RETENTION_DAYS (default 14)
+# Env:   ENV_FILE (default .env.prod), BACKUP_DIR (default ./backups), RETENTION_DAYS (default 14),
+#        PROD_COMPOSE_FILE (default docker-compose.prod.yml — set to
+#        docker-compose.prod.reverse-proxy.yml if that's what you deployed with)
 
 ENV_FILE="${ENV_FILE:-.env.prod}"
-COMPOSE="docker compose -f docker-compose.prod.yml --env-file $ENV_FILE"
+PROD_COMPOSE_FILE="${PROD_COMPOSE_FILE:-docker-compose.prod.yml}"
+COMPOSE="docker compose -f $PROD_COMPOSE_FILE --env-file $ENV_FILE"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)

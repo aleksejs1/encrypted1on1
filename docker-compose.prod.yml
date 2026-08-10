@@ -19,6 +19,13 @@ services:
       MAILER_FROM: "${MAILER_FROM:?e.g. noreply@1on1.example.com}"
       REGISTRATION_MODE: "${REGISTRATION_MODE:-invite}"
       ALLOWED_EMAIL_DOMAIN: "${ALLOWED_EMAIL_DOMAIN:-}"
+      # Empty by default (this file's Caddy owns 80/443 directly and terminates
+      # its own TLS, so there's no upstream proxy to trust) — see
+      # docker-compose.prod.reverse-proxy.yml if you're running behind an
+      # existing reverse proxy instead. Still exposed here for the rarer case
+      # of a directly-facing Caddy that's itself behind something like
+      # Cloudflare, where trusting *that* is still legitimate.
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
     restart: unless-stopped
 
 volumes:
