@@ -48,8 +48,10 @@ Use this if the host is dedicated to this app, or at least has 80/443 free.
 
 1. Copy `.env.prod.example` to `.env.prod` and fill in real values — an `APP_SECRET` (`openssl rand -hex 32`), your real domain (`SERVER_NAME`/`FRONTEND_URL`), and a real SMTP DSN (`MAILER_DSN`/`MAILER_FROM`). Point DNS at the server first and make sure ports 80/443 are reachable — Caddy (bundled in the prod image via FrankenPHP) provisions its own HTTPS certificate automatically on first boot.
 2. `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build` — builds and starts a single container serving both the built frontend and the API.
-3. Run migrations (not automatic on boot, deliberately — nothing runs unattended against the database without an explicit command): `docker compose -f docker-compose.prod.yml exec app php bin/console doctrine:migrations:migrate --no-interaction`.
-4. Bootstrap the first (admin) account: `docker compose -f docker-compose.prod.yml exec app php bin/console app:create-activation-link <email> --admin`.
+3. Run migrations (not automatic on boot, deliberately — nothing runs unattended against the database without an explicit command): `docker compose -f docker-compose.prod.yml --env-file .env.prod exec app php bin/console doctrine:migrations:migrate --no-interaction`.
+4. Bootstrap the first (admin) account: `docker compose -f docker-compose.prod.yml --env-file .env.prod exec app php bin/console app:create-activation-link <email> --admin`.
+
+`--env-file .env.prod` is needed on *every* invocation against this file, not just `up` — including `exec` — since Compose re-parses the file's required-variable interpolation (`${VAR:?message}`) every time it's called, the same reason `backup.sh`/`restore.sh` need it explicitly rather than relying on already-exported shell variables.
 
 Data (the SQLite database) lives in a named Docker volume, so it survives image rebuilds/redeploys — back it up before any major upgrade (see "Backups" below).
 
