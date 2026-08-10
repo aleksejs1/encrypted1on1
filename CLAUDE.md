@@ -4,7 +4,7 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 
 ## Project
 
-encrypted1on1 — a self-hosted, end-to-end encrypted platform for 1:1 meetings between managers and employees. See [README.md](README.md) for the overview.
+encrypted1on1 — a self-hosted, end-to-end encrypted platform for 1:1 meetings between managers and employees. See [README.md](README.md) for the overview, and [`docs/`](docs/) for reader-facing documentation (encryption methodology, user flow, architecture, deployment) — this file stays development notes only; keep new user-facing explanations in `docs/`, not here.
 
 ## Current stage
 
