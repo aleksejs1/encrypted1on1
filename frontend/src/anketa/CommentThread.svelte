@@ -35,48 +35,60 @@
 </script>
 
 <div class="thread">
-  <button type="button" class="toggle" onclick={() => (expanded = !expanded)}>
+  <button type="button" class="btn btn-ghost toggle" onclick={() => (expanded = !expanded)}>
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.35 0-2.62-.32-3.73-.9L4 21l1.9-4.77A8.5 8.5 0 1 1 21 11.5z" />
+    </svg>
     {$_('commentThread.toggle', { values: { count: comments.length } })}
   </button>
 
   {#if expanded}
-    {#each comments as comment (comment.id)}
-      <div class="comment">
-        <span class="author">{authorEmails[comment.authorId] ?? comment.authorId}</span>
-        <span class="text">{comment.text}</span>
-      </div>
-    {/each}
+    <div class="comments">
+      {#each comments as comment (comment.id)}
+        <div class="comment">
+          <span class="author">{authorEmails[comment.authorId] ?? comment.authorId}:</span>
+          <span class="text">{comment.text}</span>
+        </div>
+      {/each}
+    </div>
 
     <form onsubmit={handleSubmit}>
-      <input type="text" bind:value={text} placeholder={$_('commentThread.placeholder')} />
-      <button type="submit" disabled={submitting || !text.trim()}>
+      <input type="text" class="input" bind:value={text} placeholder={$_('commentThread.placeholder')} />
+      <button type="submit" class="btn btn-secondary" disabled={submitting || !text.trim()}>
         {submitting ? $_('commentThread.posting') : $_('commentThread.post')}
       </button>
     </form>
     {#if error}
-      <p class="error">{error}</p>
+      <p class="banner-error">{error}</p>
     {/if}
   {/if}
 </div>
 
 <style>
   .thread {
-    margin: -0.5rem 0 1rem;
-    font-size: 0.85rem;
+    font-size: 13px;
   }
 
   .toggle {
-    background: none;
-    border: none;
-    color: #6b6b6b;
-    cursor: pointer;
-    padding: 0;
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+
+  .icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .comments {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
   }
 
   .comment {
     display: flex;
-    gap: 0.5rem;
-    padding: 0.25rem 0;
+    gap: 6px;
   }
 
   .author {
@@ -86,15 +98,18 @@
 
   form {
     display: flex;
-    gap: 0.5rem;
-    margin-top: 0.25rem;
+    gap: 6px;
+    margin-top: 6px;
   }
 
-  input {
+  form .input {
     flex: 1;
+    min-height: 32px;
+    font-size: 12px;
   }
 
-  .error {
-    color: #c0392b;
+  form .btn-secondary {
+    padding: 4px 10px;
+    font-size: 12px;
   }
 </style>

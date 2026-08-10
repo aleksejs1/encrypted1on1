@@ -19,15 +19,15 @@
   const activationMatch = $derived(routerState.path.match(/^\/activate\/(.+)$/));
   const anketaMatch = $derived(routerState.path.match(/^\/anketas\/([^/]+)$/));
 
-  // The redesigned header started with Login/Activate (Phase 8a) and now also
-  // covers AnketaList/CreateAnketa/Report/AdminPanel (Phase 8b) — the four
-  // routes below. Anketa.svelte (anketa detail) keeps today's bare
-  // LanguageSwitcher until Phase 8c migrates it too, same reasoning as 8a:
-  // swapping AppHeader in globally now would double up with its own
-  // still-unstyled inline layout.
-  const MIGRATED_AUTHED_PATHS = ['/', '/anketas/new', '/report', '/admin'];
+  // The redesigned header started with Login/Activate (Phase 8a), then covered
+  // AnketaList/CreateAnketa/Report/AdminPanel (Phase 8b), and now Anketa.svelte
+  // too (Phase 8c) — every authenticated page now uses AppHeader, closing out
+  // the design-system rollout. `anketaMatch` already covers both
+  // `/anketas/new` and `/anketas/:id`, so it folds into this check directly
+  // rather than needing its own entry in MIGRATED_AUTHED_PATHS.
+  const MIGRATED_AUTHED_PATHS = ['/', '/report', '/admin'];
   const showAppHeader = $derived(
-    !!activationMatch || !authState.authenticated || MIGRATED_AUTHED_PATHS.includes(routerState.path),
+    !!activationMatch || !authState.authenticated || !!anketaMatch || MIGRATED_AUTHED_PATHS.includes(routerState.path),
   );
 </script>
 

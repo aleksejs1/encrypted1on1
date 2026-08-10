@@ -81,6 +81,7 @@
   let checkpointDraftText = $state<Record<string, string>>({});
   let checkpointDraftStatusTag = $state<Record<string, CheckpointStatusTag | ''>>({});
   let addingCheckpoint = $state<Record<string, boolean>>({});
+  let goalsInfoOpen = $state(false);
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
@@ -461,10 +462,31 @@
     allCheckpoints = checkpoints;
   }
 
+  /** "You" for the current viewer's own items, otherwise the counterpart's email — used for outcome-item and goal author tags. */
+  function authorLabel(authorId: string): string {
+    return authorId === myUserId ? $_('anketa.you') : (authorEmails[authorId] ?? authorId);
+  }
+
+  const GOAL_STATUS_KEYS: Record<Goal['status'], string> = {
+    in_progress: 'anketa.goalStatusInProgress',
+    achieved: 'anketa.goalStatusAchieved',
+    cancelled: 'anketa.goalStatusCancelled',
+  };
+  const GOAL_STATUS_TAG_CLASSES: Record<Goal['status'], string> = {
+    in_progress: 'tag-accent',
+    achieved: 'tag-accent-2',
+    cancelled: 'tag-neutral',
+  };
+
   const CHECKPOINT_STATUS_TAG_KEYS: Record<CheckpointStatusTag, string> = {
     on_track: 'anketa.statusTagOnTrack',
     at_risk: 'anketa.statusTagAtRisk',
     blocked: 'anketa.statusTagBlocked',
+  };
+  const CHECKPOINT_STATUS_TAG_CLASSES: Record<CheckpointStatusTag, string> = {
+    on_track: 'tag-accent-2',
+    at_risk: 'tag-outline',
+    blocked: 'tag-neutral',
   };
 
   // Reactive autosave: fires whenever myAnswers changes (property-level mutations from AnswerField included).
@@ -474,269 +496,376 @@
   });
 </script>
 
+{#snippet lockIcon()}
+  <span class="lock-hint" title={$_('anketa.encryptedHint')} aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+    </svg>
+  </span>
+{/snippet}
+
+{#snippet openLockIcon()}
+  <span class="lock-hint" title={$_('anketa.notEncryptedHint')} aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 9.5-1.5"></path>
+    </svg>
+  </span>
+{/snippet}
+
 <main>
   {#if loadError}
-    <p class="error">{loadError}</p>
+    <p class="banner-error">{loadError}</p>
   {:else if !detail}
-    <p>{$_('anketa.loading')}</p>
+    <p class="text-muted">{$_('anketa.loading')}</p>
   {:else}
     <h1>{$_('anketa.titleWithCounterpart', { values: { email: detail.counterpartEmail } })}</h1>
     <p class="meta">
-      {$_('anketa.meetingLabel')} {new Date(detail.meetingDate).toLocaleDateString()}
-      {#if archived}<span class="badge">{$_('anketa.badgeArchived')}</span>{/if}
-      {#if missed}<span class="badge">{$_('anketa.badgeMissed')}</span>{/if}
-      {#if isOverdue}<span class="badge overdue">{$_('anketa.badgeOverdue')}</span>{/if}
+      <span class="text-muted">{$_('anketa.meetingLabel')} {new Date(detail.meetingDate).toLocaleDateString()}</span>
+      {#if archived}<span class="tag tag-neutral">{$_('anketa.badgeArchived')}</span>{/if}
+      {#if missed}<span class="tag tag-neutral">{$_('anketa.badgeMissed')}</span>{/if}
+      {#if isOverdue}<span class="tag tag-outline">{$_('anketa.badgeOverdue')}</span>{/if}
     </p>
 
     {#if isOverdue}
-      <section>
-        <h2>{$_('anketa.overdueHeading')}</h2>
-        <div class="checkpoint-form">
-          <input type="date" bind:value={rescheduleDate} disabled={rescheduling} />
-          <button type="button" onclick={handleReschedule} disabled={rescheduling || !rescheduleDate}>
+      <div class="card elev-sm overdue-card">
+        <strong>{$_('anketa.overdueHeading')}</strong>
+        <div class="reschedule-row">
+          <input type="date" class="input reschedule-input" bind:value={rescheduleDate} disabled={rescheduling} />
+          <button type="button" class="btn btn-secondary" onclick={handleReschedule} disabled={rescheduling || !rescheduleDate}>
             {rescheduling ? $_('anketa.rescheduling') : $_('anketa.reschedule')}
           </button>
         </div>
-        <p>{$_('anketa.orIfDidNotHappen')}</p>
-        <button type="button" onclick={() => handleArchive(true)} disabled={archiving}>
+        <p class="text-muted overdue-note">{$_('anketa.orIfDidNotHappen')}</p>
+        <button type="button" class="btn btn-ghost cancel-missed-btn" onclick={() => handleArchive(true)} disabled={archiving}>
           {archiving ? $_('anketa.cancelling') : $_('anketa.cancelAsMissed')}
         </button>
-      </section>
+      </div>
     {/if}
 
-    <section>
-      <h2>
-        {$_('anketa.mySideHeading', { values: { role: $_(detail.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager') } })}
-        {#if myPublished}<span class="badge">{$_('anketa.badgePublished')}</span>{/if}
-      </h2>
-      {#each QUESTIONS_BY_SIDE[detail.myRole] as question (question.id)}
-        <fieldset>
-          <legend>{$_(question.titleKey)}</legend>
-          {#each question.fields as field (field.id)}
-            <AnswerField {field} bind:value={myAnswers[field.id]} readonly={myPublished} />
-            {#if myPublished}
-              <CommentThread
-                comments={allComments.filter((c) => c.targetId === field.id)}
-                {authorEmails}
-                onSubmit={(text) => submitComment(field.id, text)}
-              />
-            {/if}
-          {/each}
-        </fieldset>
-      {/each}
+    <!-- My side -->
+    <section class="card side-card">
+      <div class="heading-row">
+        <h2>{$_('anketa.mySideHeading', { values: { role: $_(detail.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager') } })}</h2>
+        {@render lockIcon()}
+      </div>
+
+      <div class="blocks">
+        {#each QUESTIONS_BY_SIDE[detail.myRole] as question (question.id)}
+          <div class="block">
+            <h4>{$_(question.titleKey)}</h4>
+            {#each question.fields as field (field.id)}
+              <AnswerField {field} bind:value={myAnswers[field.id]} readonly={myPublished} />
+              {#if myPublished}
+                <CommentThread
+                  comments={allComments.filter((c) => c.targetId === field.id)}
+                  {authorEmails}
+                  onSubmit={(text) => submitComment(field.id, text)}
+                />
+              {/if}
+            {/each}
+          </div>
+        {/each}
+      </div>
 
       {#if !myPublished}
-        <p class="save-state">
+        <p class="text-muted save-state">
           {#if saveState === 'saving'}{$_('anketa.savingDraft')}{:else if saveState === 'saved'}{$_(
               'anketa.savedDraft',
             )}{:else if saveState === 'error'}{$_('anketa.saveError')}{/if}
         </p>
-        <button type="button" onclick={handlePublish} disabled={publishing}>
+        <button type="button" class="btn btn-primary side-publish-btn" onclick={handlePublish} disabled={publishing}>
           {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
         </button>
-      {/if}
-    </section>
-
-    <section>
-      <h2>
-        {$_('anketa.counterpartSideHeading', {
-          values: { email: detail.counterpartEmail, role: counterpartSide ? $_(counterpartSide === 'employee' ? 'common.roleEmployee' : 'common.roleManager') : '' },
-        })}
-        {#if counterpartPublished}<span class="badge">{$_('anketa.badgePublished')}</span>{/if}
-      </h2>
-      {#if !counterpartAnswers}
-        <p>{$_('anketa.notPublishedYet')}</p>
-      {:else if counterpartSide}
-        {#each QUESTIONS_BY_SIDE[counterpartSide] as question (question.id)}
-          <fieldset>
-            <legend>{$_(question.titleKey)}</legend>
-            {#each question.fields as field (field.id)}
-              <AnswerField {field} value={counterpartAnswers[field.id]} readonly />
-              <CommentThread
-                comments={allComments.filter((c) => c.targetId === field.id)}
-                {authorEmails}
-                onSubmit={(text) => submitComment(field.id, text)}
-              />
-            {/each}
-          </fieldset>
-        {/each}
-      {/if}
-    </section>
-
-    <section>
-      <h2>{$_('anketa.outcomesHeading')}</h2>
-      {#each allOutcomes as item (item.id)}
-        <fieldset>
-          <label>
-            <input
-              type="checkbox"
-              checked={item.done}
-              disabled={item.authorId !== myUserId}
-              onchange={() => handleToggleOutcome(item.id)}
-            />
-            {item.text}
-          </label>
-          <CommentThread
-            comments={allComments.filter((c) => c.targetId === item.id)}
-            {authorEmails}
-            onSubmit={(text) => submitComment(item.id, text)}
-          />
-        </fieldset>
       {:else}
-        <p>{$_('anketa.outcomesEmpty')}</p>
-      {/each}
+        <span class="tag tag-accent side-publish-btn">{$_('anketa.badgePublished')}</span>
+      {/if}
+    </section>
 
-      <form onsubmit={handleAddOutcome}>
+    <!-- Counterpart side -->
+    <section class="card side-card">
+      <div class="heading-row">
+        <h2>
+          {$_('anketa.counterpartSideHeading', {
+            values: { email: detail.counterpartEmail, role: counterpartSide ? $_(counterpartSide === 'employee' ? 'common.roleEmployee' : 'common.roleManager') : '' },
+          })}
+        </h2>
+        {@render lockIcon()}
+      </div>
+      {#if !counterpartAnswers}
+        <p class="text-muted">{$_('anketa.notPublishedYet')}</p>
+      {:else if counterpartSide}
+        <div class="blocks">
+          {#each QUESTIONS_BY_SIDE[counterpartSide] as question (question.id)}
+            <div class="block">
+              <h4>{$_(question.titleKey)}</h4>
+              {#each question.fields as field (field.id)}
+                <AnswerField {field} value={counterpartAnswers[field.id]} readonly />
+                <CommentThread
+                  comments={allComments.filter((c) => c.targetId === field.id)}
+                  {authorEmails}
+                  onSubmit={(text) => submitComment(field.id, text)}
+                />
+              {/each}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <!-- Outcomes -->
+    <section class="card">
+      <div class="heading-row heading-row-tight">
+        <h2>{$_('anketa.outcomesHeading')}</h2>
+        {@render lockIcon()}
+      </div>
+      <p class="text-muted outcomes-note">{$_('anketa.outcomesNote')}</p>
+
+      <div class="outcomes-list">
+        {#each allOutcomes as item (item.id)}
+          <div class="outcome-item">
+            <div class="entry outcome-entry">
+              <input
+                type="checkbox"
+                class="outcome-checkbox"
+                checked={item.done}
+                disabled={item.authorId !== myUserId}
+                onchange={() => handleToggleOutcome(item.id)}
+              />
+              <span class="entry-text" class:done={item.done}>{item.text}</span>
+              <span class="tag tag-neutral">{authorLabel(item.authorId)}</span>
+            </div>
+            <CommentThread
+              comments={allComments.filter((c) => c.targetId === item.id)}
+              {authorEmails}
+              onSubmit={(text) => submitComment(item.id, text)}
+            />
+          </div>
+        {:else}
+          <p class="text-muted">{$_('anketa.outcomesEmpty')}</p>
+        {/each}
+      </div>
+
+      <form class="add-row" onsubmit={handleAddOutcome}>
         <input
           type="text"
+          class="input"
           bind:value={newOutcomeText}
           placeholder={$_('anketa.outcomesPlaceholder')}
           disabled={addingOutcome}
         />
-        <button type="submit" disabled={addingOutcome || !newOutcomeText.trim()}>
+        <button type="submit" class="btn btn-secondary" disabled={addingOutcome || !newOutcomeText.trim()}>
           {addingOutcome ? $_('anketa.adding') : $_('anketa.add')}
         </button>
       </form>
     </section>
 
-    <section>
-      <h2>{$_('anketa.goalsHeading')}</h2>
-      {#each goals as goal (goal.id)}
-        {@const isMyGoal = goal.authorId === myUserId}
-        <fieldset>
-          <label>
-            {$_('anketa.goalTitleLabel')}
-            <input type="text" bind:value={goal.title} readonly={!isMyGoal} />
-          </label>
-          <label>
-            {$_('anketa.goalDescriptionLabel')}
-            <textarea
-              value={goal.description ?? ''}
-              oninput={(e) => (goal.description = e.currentTarget.value)}
-              readonly={!isMyGoal}
-            ></textarea>
-          </label>
-          <label>
-            {$_('anketa.goalTargetDateLabel')}
-            <input
-              type="date"
-              value={goal.targetDate ?? ''}
-              oninput={(e) => (goal.targetDate = e.currentTarget.value || null)}
-              disabled={!isMyGoal}
+    <!-- Goals -->
+    <section class="card">
+      <div class="heading-row">
+        <h2>{$_('anketa.goalsHeading')}</h2>
+        {@render openLockIcon()}
+        <button
+          type="button"
+          class="btn btn-icon btn-secondary goals-info-toggle"
+          onclick={() => (goalsInfoOpen = !goalsInfoOpen)}
+          aria-label={$_('anketa.moreInfo')}
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="11"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        </button>
+      </div>
+      {#if goalsInfoOpen}
+        <p class="text-muted goals-info-note">{$_('anketa.goalsUnencryptedNote')}</p>
+      {/if}
+
+      <div class="goal-list">
+        {#each goals as goal (goal.id)}
+          {@const isMyGoal = goal.authorId === myUserId}
+          <div class="goal-card">
+            <div class="goal-header">
+              {#if isMyGoal}
+                <div class="field goal-title-field">
+                  <label for="goal-title-{goal.id}">{$_('anketa.goalTitleLabel')}</label>
+                  <input id="goal-title-{goal.id}" type="text" class="input" bind:value={goal.title} />
+                </div>
+              {:else}
+                <strong class="goal-title-display">{goal.title}</strong>
+              {/if}
+              <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}">{$_(GOAL_STATUS_KEYS[goal.status])}</span>
+              <span class="tag tag-neutral">{authorLabel(goal.authorId)}</span>
+            </div>
+
+            {#if isMyGoal}
+              <div class="field">
+                <label for="goal-description-{goal.id}">{$_('anketa.goalDescriptionLabel')}</label>
+                <textarea
+                  id="goal-description-{goal.id}"
+                  class="input"
+                  value={goal.description ?? ''}
+                  oninput={(e) => (goal.description = e.currentTarget.value)}
+                ></textarea>
+              </div>
+            {:else if goal.description}
+              <p class="goal-description">{goal.description}</p>
+            {/if}
+
+            {#if isMyGoal}
+              <div class="field goal-target-date-field">
+                <label for="goal-target-date-{goal.id}">{$_('anketa.goalTargetDateLabel')}</label>
+                <input
+                  id="goal-target-date-{goal.id}"
+                  type="date"
+                  class="input"
+                  value={goal.targetDate ?? ''}
+                  oninput={(e) => (goal.targetDate = e.currentTarget.value || null)}
+                />
+              </div>
+            {:else if goal.targetDate}
+              <p class="text-muted goal-target-date-display">{$_('anketa.goalTargetDateLabel')}: {goal.targetDate}</p>
+            {/if}
+
+            {#if isMyGoal}
+              <div class="goal-actions">
+                <div class="field goal-status-field">
+                  <label for="goal-status-{goal.id}">{$_('anketa.goalStatusLabel')}</label>
+                  <select
+                    id="goal-status-{goal.id}"
+                    class="input goal-status-select"
+                    bind:value={goal.status}
+                    onchange={() => handleUpdateGoalStatus(goal)}
+                  >
+                    <option value="in_progress">{$_('anketa.goalStatusInProgress')}</option>
+                    <option value="achieved">{$_('anketa.goalStatusAchieved')}</option>
+                    <option value="cancelled">{$_('anketa.goalStatusCancelled')}</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-secondary goal-save-btn"
+                  onclick={() => handleSaveGoal(goal)}
+                  disabled={goalSaving[goal.id]}
+                >
+                  {goalSaving[goal.id] ? $_('anketa.saving') : $_('anketa.save')}
+                </button>
+              </div>
+            {/if}
+
+            <CommentThread
+              comments={allComments.filter((c) => c.targetId === goal.id)}
+              {authorEmails}
+              onSubmit={(text) => submitComment(goal.id, text)}
             />
-          </label>
-          <label>
-            {$_('anketa.goalStatusLabel')}
-            <select bind:value={goal.status} disabled={!isMyGoal} onchange={() => handleUpdateGoalStatus(goal)}>
-              <option value="in_progress">{$_('anketa.goalStatusInProgress')}</option>
-              <option value="achieved">{$_('anketa.goalStatusAchieved')}</option>
-              <option value="cancelled">{$_('anketa.goalStatusCancelled')}</option>
-            </select>
-          </label>
-          {#if isMyGoal}
-            <button type="button" onclick={() => handleSaveGoal(goal)} disabled={goalSaving[goal.id]}>
-              {goalSaving[goal.id] ? $_('anketa.saving') : $_('anketa.save')}
-            </button>
-          {/if}
 
-          <CommentThread
-            comments={allComments.filter((c) => c.targetId === goal.id)}
-            {authorEmails}
-            onSubmit={(text) => submitComment(goal.id, text)}
-          />
-
-          <h3>{$_('anketa.checkpointsHeading')}</h3>
-          {#each allCheckpoints.filter((c) => c.goalId === goal.goalUuid) as checkpoint (checkpoint.id)}
-            <div class="checkpoint">
-              {#if checkpoint.statusTag}<span class="badge">{$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}</span>{/if}
-              {#if checkpoint.text}<p>{checkpoint.text}</p>{/if}
-              <CommentThread
-                comments={allComments.filter((c) => c.targetId === checkpoint.id)}
-                {authorEmails}
-                onSubmit={(text) => submitComment(checkpoint.id, text)}
-              />
+            <h4 class="checkpoints-heading">{$_('anketa.checkpointsHeading')}</h4>
+            <div class="checkpoints">
+              {#each allCheckpoints.filter((c) => c.goalId === goal.goalUuid) as checkpoint (checkpoint.id)}
+                <div class="checkpoint-row">
+                  <span class="text-muted checkpoint-date">{new Date(checkpoint.createdAt).toLocaleDateString()}</span>
+                  {#if checkpoint.text}<span class="checkpoint-text">{checkpoint.text}</span>{/if}
+                  {#if checkpoint.statusTag}
+                    <span class="tag {CHECKPOINT_STATUS_TAG_CLASSES[checkpoint.statusTag]}">
+                      {$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}
+                    </span>
+                  {/if}
+                  <CommentThread
+                    comments={allComments.filter((c) => c.targetId === checkpoint.id)}
+                    {authorEmails}
+                    onSubmit={(text) => submitComment(checkpoint.id, text)}
+                  />
+                </div>
+              {:else}
+                <p class="text-muted">{$_('anketa.noCheckpointsYet')}</p>
+              {/each}
             </div>
-          {:else}
-            <p>{$_('anketa.noCheckpointsYet')}</p>
-          {/each}
 
-          {#if isMyGoal}
-            <div class="checkpoint-form">
-              <input
-                type="text"
-                placeholder={$_('anketa.checkpointPlaceholder')}
-                value={checkpointDraftText[goal.goalUuid] ?? ''}
-                oninput={(e) =>
-                  (checkpointDraftText = { ...checkpointDraftText, [goal.goalUuid]: e.currentTarget.value })}
-                disabled={addingCheckpoint[goal.goalUuid]}
-              />
-              <select
-                value={checkpointDraftStatusTag[goal.goalUuid] ?? ''}
-                onchange={(e) =>
-                  (checkpointDraftStatusTag = {
-                    ...checkpointDraftStatusTag,
-                    [goal.goalUuid]: e.currentTarget.value as CheckpointStatusTag | '',
-                  })}
-                disabled={addingCheckpoint[goal.goalUuid]}
-              >
-                <option value="">{$_('anketa.noStatusTag')}</option>
-                <option value="on_track">{$_('anketa.statusTagOnTrack')}</option>
-                <option value="at_risk">{$_('anketa.statusTagAtRisk')}</option>
-                <option value="blocked">{$_('anketa.statusTagBlocked')}</option>
-              </select>
-              <button
-                type="button"
-                onclick={() => handleAddCheckpoint(goal.goalUuid)}
-                disabled={addingCheckpoint[goal.goalUuid] ||
-                  (!checkpointDraftText[goal.goalUuid]?.trim() && !checkpointDraftStatusTag[goal.goalUuid])}
-              >
-                {addingCheckpoint[goal.goalUuid] ? $_('anketa.addingCheckpoint') : $_('anketa.addCheckpoint')}
-              </button>
-            </div>
-          {/if}
-        </fieldset>
-      {:else}
-        <p>{$_('anketa.noGoalsYet')}</p>
-      {/each}
+            {#if isMyGoal}
+              <div class="checkpoint-form">
+                <input
+                  type="text"
+                  class="input"
+                  placeholder={$_('anketa.checkpointPlaceholder')}
+                  value={checkpointDraftText[goal.goalUuid] ?? ''}
+                  oninput={(e) =>
+                    (checkpointDraftText = { ...checkpointDraftText, [goal.goalUuid]: e.currentTarget.value })}
+                  disabled={addingCheckpoint[goal.goalUuid]}
+                />
+                <select
+                  class="input"
+                  value={checkpointDraftStatusTag[goal.goalUuid] ?? ''}
+                  onchange={(e) =>
+                    (checkpointDraftStatusTag = {
+                      ...checkpointDraftStatusTag,
+                      [goal.goalUuid]: e.currentTarget.value as CheckpointStatusTag | '',
+                    })}
+                  disabled={addingCheckpoint[goal.goalUuid]}
+                >
+                  <option value="">{$_('anketa.noStatusTag')}</option>
+                  <option value="on_track">{$_('anketa.statusTagOnTrack')}</option>
+                  <option value="at_risk">{$_('anketa.statusTagAtRisk')}</option>
+                  <option value="blocked">{$_('anketa.statusTagBlocked')}</option>
+                </select>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  onclick={() => handleAddCheckpoint(goal.goalUuid)}
+                  disabled={addingCheckpoint[goal.goalUuid] ||
+                    (!checkpointDraftText[goal.goalUuid]?.trim() && !checkpointDraftStatusTag[goal.goalUuid])}
+                >
+                  {addingCheckpoint[goal.goalUuid] ? $_('anketa.addingCheckpoint') : $_('anketa.addCheckpoint')}
+                </button>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <p class="text-muted">{$_('anketa.noGoalsYet')}</p>
+        {/each}
+      </div>
 
-      <form onsubmit={handleAddGoal}>
+      <form class="add-goal-row" onsubmit={handleAddGoal}>
         <input
           type="text"
+          class="input"
           bind:value={newGoalTitle}
           placeholder={$_('anketa.goalTitlePlaceholder')}
           disabled={addingGoal}
         />
         <input
           type="text"
+          class="input"
           bind:value={newGoalDescription}
           placeholder={$_('anketa.goalDescriptionPlaceholder')}
           disabled={addingGoal}
         />
-        <input type="date" bind:value={newGoalTargetDate} disabled={addingGoal} />
-        <button type="submit" disabled={addingGoal || !newGoalTitle.trim()}>
+        <input type="date" class="input" bind:value={newGoalTargetDate} disabled={addingGoal} />
+        <button type="submit" class="btn btn-secondary" disabled={addingGoal || !newGoalTitle.trim()}>
           {addingGoal ? $_('anketa.addingGoal') : $_('anketa.addGoal')}
         </button>
       </form>
     </section>
 
     {#if actionError}
-      <p class="error">{actionError}</p>
+      <p class="banner-error">{actionError}</p>
     {/if}
 
     {#if !archived}
-      <section>
+      <section class="card">
         <h2>{$_('anketa.archiveHeading')}</h2>
-        <label>
-          <input type="checkbox" bind:checked={skipNextMeeting} />
+        <label class="radio archive-skip">
+          <input type="checkbox" class="native-checkbox" bind:checked={skipNextMeeting} />
           {$_('anketa.skipNextMeeting')}
         </label>
         {#if !skipNextMeeting}
-          <label>
-            {$_('anketa.nextMeetingDateLabel')}
-            <input type="date" bind:value={nextMeetingDate} />
-          </label>
+          <div class="field archive-date-field">
+            <label for="next-meeting-date">{$_('anketa.nextMeetingDateLabel')}</label>
+            <input id="next-meeting-date" type="date" class="input" bind:value={nextMeetingDate} />
+          </div>
         {/if}
-        <button type="button" onclick={() => handleArchive(false)} disabled={archiving}>
+        <button type="button" class="btn btn-primary" onclick={() => handleArchive(false)} disabled={archiving}>
           {archiving ? $_('anketa.archiving') : $_('anketa.archive')}
         </button>
       </section>
@@ -746,50 +875,326 @@
 
 <style>
   main {
-    max-width: 40rem;
-    margin: 4rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 28px 24px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  h1 {
+    font-size: 26px;
+    margin-bottom: 4px;
   }
 
   .meta {
-    color: #6b6b6b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    margin: 0;
   }
 
-  .badge {
-    margin-left: 0.5rem;
-    font-size: 0.75rem;
-    color: #6b6b6b;
+  .overdue-card {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+    gap: 10px;
   }
 
-  .badge.overdue {
-    color: #c0392b;
+  .reschedule-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
   }
 
-  fieldset {
-    border: 1px solid #ddd;
-    border-radius: 0.25rem;
-    margin-bottom: 1rem;
+  .reschedule-input {
+    width: auto;
+  }
+
+  .overdue-note {
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .cancel-missed-btn {
+    align-self: flex-start;
+    padding: 4px 0;
+  }
+
+  .heading-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+
+  .heading-row h2 {
+    margin: 0;
+    font-size: 19px;
+  }
+
+  .heading-row-tight {
+    margin-bottom: 2px;
+  }
+
+  .lock-hint {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    flex: none;
+    color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  }
+
+  .lock-hint svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .blocks {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .block h4 {
+    margin: 0;
   }
 
   .save-state {
-    font-size: 0.8rem;
-    color: #6b6b6b;
+    font-size: 12px;
+    margin: 0;
   }
 
-  .checkpoint {
-    border-top: 1px solid #eee;
-    padding-top: 0.5rem;
-    margin-top: 0.5rem;
+  .side-publish-btn {
+    align-self: flex-start;
+  }
+
+  .outcomes-note {
+    font-size: 12px;
+    margin: 0 0 8px;
+  }
+
+  .outcomes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .outcome-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+
+  .outcome-entry {
+    align-items: center;
+  }
+
+  .outcome-checkbox {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .entry-text {
+    flex: 1;
+  }
+
+  .entry-text.done {
+    text-decoration: line-through;
+  }
+
+  .add-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .add-row .input {
+    flex: 1;
+  }
+
+  .goals-info-toggle {
+    width: 20px;
+    height: 20px;
+  }
+
+  .goals-info-note {
+    font-size: 12px;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+  }
+
+  .goal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .goal-card {
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .goal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .goal-title-field {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .goal-title-display {
+    font-size: 14px;
+  }
+
+  .goal-description {
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .goal-target-date-display {
+    font-size: 11px;
+    margin: 0;
+  }
+
+  .goal-target-date-field {
+    max-width: 220px;
+  }
+
+  .goal-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .goal-status-field {
+    min-width: 160px;
+  }
+
+  .goal-status-select {
+    width: auto;
+  }
+
+  .goal-save-btn {
+    margin-bottom: 1px;
+  }
+
+  .checkpoints-heading {
+    margin: 0;
+  }
+
+  .checkpoints {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .checkpoint-row {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .checkpoint-date {
+    width: 70px;
+    flex: none;
+  }
+
+  .checkpoint-text {
+    flex: 1;
   }
 
   .checkpoint-form {
     display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  .error {
-    color: #c0392b;
+  .checkpoint-form .input {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .add-goal-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .add-goal-row .input:first-of-type {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .add-goal-row .input:nth-of-type(2) {
+    flex: 2;
+    min-width: 160px;
+  }
+
+  .add-goal-row .input[type='date'] {
+    width: auto;
+  }
+
+  .archive-skip {
+    margin-bottom: 10px;
+  }
+
+  .native-checkbox {
+    position: static;
+    opacity: 1;
+    width: auto;
+    height: auto;
+  }
+
+  .archive-date-field {
+    max-width: 220px;
+    margin-bottom: 12px;
   }
 </style>

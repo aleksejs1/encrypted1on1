@@ -39,7 +39,7 @@
   {#if field.type === 'radio'}
     <div class="options">
       {#each field.options ?? [] as option (option.value)}
-        <label>
+        <label class="radio">
           <input
             type="radio"
             name={field.id}
@@ -47,27 +47,29 @@
             checked={value === option.value}
             disabled={readonly}
             onchange={() => (value = option.value)}
-          />
+          /><span class="dot"></span>
           {$_(option.labelKey)}
         </label>
       {/each}
     </div>
   {:else if field.type === 'checkboxes'}
-    <div class="options">
+    <div class="pills">
       {#each field.options ?? [] as option (option.value)}
-        <label>
-          <input
-            type="checkbox"
-            checked={Array.isArray(value) && (value as string[]).includes(option.value)}
-            disabled={readonly}
-            onchange={(e) => toggleCheckbox(option.value, e.currentTarget.checked)}
-          />
+        {@const checked = Array.isArray(value) && (value as string[]).includes(option.value)}
+        <button
+          type="button"
+          class="tag pill"
+          aria-pressed={checked}
+          disabled={readonly}
+          onclick={() => toggleCheckbox(option.value, !checked)}
+        >
           {$_(option.labelKey)}
-        </label>
+        </button>
       {/each}
     </div>
   {:else if field.type === 'text'}
     <textarea
+      class="input"
       value={typeof value === 'string' ? value : ''}
       disabled={readonly}
       oninput={(e) => (value = e.currentTarget.value)}
@@ -75,11 +77,13 @@
   {:else if field.type === 'list'}
     <ul class="entries">
       {#each (value as ListEntry[]) ?? [] as entry (entry.id)}
-        <li>
-          <span class="entry-date">{new Date(entry.date).toLocaleDateString()}</span>
-          <span>{entry.text}</span>
+        <li class="entry">
+          <span class="entry-text">{entry.text}</span>
+          <span class="text-muted entry-date">{new Date(entry.date).toLocaleDateString()}</span>
           {#if !readonly}
-            <button type="button" onclick={() => removeListEntry(entry.id)}>{$_('common.remove')}</button>
+            <button type="button" class="btn btn-ghost entry-remove" onclick={() => removeListEntry(entry.id)}>
+              {$_('common.remove')}
+            </button>
           {/if}
         </li>
       {/each}
@@ -88,11 +92,12 @@
       <div class="add-entry">
         <input
           type="text"
+          class="input"
           bind:value={newEntryText}
           placeholder={$_('answerField.addEntryPlaceholder')}
           onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addListEntry())}
         />
-        <button type="button" onclick={addListEntry}>{$_('common.add')}</button>
+        <button type="button" class="btn btn-secondary" onclick={addListEntry}>{$_('common.add')}</button>
       </div>
     {/if}
   {/if}
@@ -102,23 +107,46 @@
   .field {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    margin-bottom: 1rem;
+    gap: 6px;
   }
 
   .label {
-    font-weight: 600;
+    font-size: 12px;
+    color: color-mix(in srgb, var(--color-text) 70%, transparent);
   }
 
   .options {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 16px;
   }
 
-  textarea {
-    min-height: 4rem;
-    font: inherit;
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pill {
+    cursor: pointer;
+    border: 1px solid var(--color-divider);
+    background: transparent;
+    padding: 7px 14px;
+  }
+
+  .pill[aria-pressed='true'] {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border-color: var(--color-accent);
+  }
+
+  .pill:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  textarea.input {
+    width: 100%;
   }
 
   .entries {
@@ -127,23 +155,40 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 6px;
   }
 
-  .entries li {
+  .entry {
     display: flex;
-    gap: 0.5rem;
-    align-items: baseline;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+
+  .entry-text {
+    flex: 1;
   }
 
   .entry-date {
-    color: #6b6b6b;
-    font-size: 0.8rem;
+    font-size: 11px;
     white-space: nowrap;
+  }
+
+  .entry-remove {
+    font-size: 11px;
+    padding: 2px 4px;
   }
 
   .add-entry {
     display: flex;
-    gap: 0.5rem;
+    gap: 8px;
+  }
+
+  .add-entry .input {
+    flex: 1;
   }
 </style>
