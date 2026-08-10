@@ -1,6 +1,6 @@
 # User flow
 
-This describes the app from the perspective of the people using it — what each step feels like and why it works the way it does. For the cryptographic mechanism behind each step, see [encryption.md](encryption.md).
+This describes the app from the perspective of the people using it — what each step feels like and why it works the way it does. For the cryptographic mechanism behind each step, see [encryption.md](encryption.md). For *why* the 1:1 cycle is structured this way and what each question is actually for, see [methodology.md](methodology.md).
 
 ## Getting an account
 
@@ -35,7 +35,7 @@ Creating the anketa is also the moment its encryption key is generated and hande
 
 ## Filling it out
 
-Each side answers their own set of questions privately — an employee side (mood, workload, feelings, growth, friction, achievements, things to discuss) and a manager side (how the period went, feedback, support, the employee's achievements worth recognizing, things to discuss). Answers autosave as a draft every second of inactivity, encrypted with your own session key even before publishing.
+Each side answers their own set of questions privately — an employee side (mood, workload, feelings, growth, friction, achievements, things to discuss) and a manager side (how the period went, feedback, support, the employee's achievements worth recognizing, things to discuss). See [methodology.md](methodology.md#what-each-question-is-asking-and-why) for what each one is actually asking. Answers autosave as a draft every second of inactivity, encrypted with your own session key even before publishing.
 
 **Publishing is one-way.** Once you publish your side, it's visible to your counterpart and can no longer be edited. There's no draft-recall after that point — the app treats "published" as a real commitment, not a checkpoint you can walk back.
 
@@ -46,7 +46,7 @@ Each side can only see the other's answers once *that* side has published theirs
 These three live alongside the questions and work throughout the anketa's lifetime, not just before publishing:
 
 - **Comments** can be left on individual answers, outcome items, goals, or goal checkpoints — a small collapsible thread under each one, both sides can post.
-- **Outcomes** are a shared checklist ("meeting outcomes") either side can add items to — but only the person who added an item can check it off or edit it; the other side can only comment on it. This ownership rule is stated directly in the UI, not left implicit.
+- **Outcomes** are a shared checklist ("meeting outcomes") either side can add items to — but only the person who added an item can check it off or edit it; the other side can only comment on it. This ownership rule is stated directly in the UI, not left implicit. See [methodology.md](methodology.md#outcomes-vs-goals--tactical-vs-strategic) for why outcomes and goals are two different, deliberately separate lists.
 - **Goals** are the one part of the system with real plaintext-server involvement (see encryption.md's "one deliberate plaintext exception") — a goal has a title, description, target date, and status (in progress / achieved / cancelled), editable only by whoever created it, plus a series of encrypted progress checkpoints anyone can add. A small info toggle on the goals section explains exactly which fields are and aren't encrypted, right where a user would want to know.
 
 ## Wrapping up a cycle
