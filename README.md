@@ -4,6 +4,8 @@
 
 A self-hosted, end-to-end encrypted platform for running 1:1 meetings between managers and employees.
 
+<img src="docs/screenshots/anketa.png" alt="An anketa page, showing a manager's published side with feedback and achievements filled in" width="600">
+
 ## Status
 
 Feature-complete and styled: authentication and invites, end-to-end encrypted 1:1 cycles (questions, comments, shared outcomes, goals with progress checkpoints), reminder emails, an admin panel, a cross-period report view, 4-language i18n, dark mode, and a full production deployment path (including running behind an existing reverse proxy). See `CLAUDE.md`'s "Current stage" section for the exact up-to-date state of ongoing work — kept there, not duplicated here, so this file doesn't go stale the same way again.
@@ -16,7 +18,7 @@ Feature-complete and styled: authentication and invites, end-to-end encrypted 1:
 
 ## Documentation
 
-- **[docs/](docs/)** — start here: [how the encryption works](docs/encryption.md), the [user flow](docs/user-flow.md) it produces, the [application architecture](docs/architecture.md), and [how to deploy it](docs/deployment.md) (dev and both production setups).
+- **[docs/](docs/)** — start here: [how the encryption works](docs/encryption.md), the [1:1 methodology](docs/methodology.md) behind it, the [user flow](docs/user-flow.md) it produces, the [application architecture](docs/architecture.md), and [how to deploy it](docs/deployment.md) (dev and both production setups).
 - **[CLAUDE.md](CLAUDE.md)** — development notes for anyone working on the codebase itself.
 
 ## Quick start (dev)
