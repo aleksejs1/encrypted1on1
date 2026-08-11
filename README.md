@@ -6,6 +6,8 @@ A self-hosted, end-to-end encrypted platform for running 1:1 meetings between ma
 
 <img src="docs/screenshots/anketa.png" alt="An anketa page, showing a manager's published side with feedback and achievements filled in" width="600">
 
+More: [screenshots](docs/screenshots/) — login, the anketa list, a filled-in anketa, the report view, dark mode, all 4 languages, and a look at what the server's own API response actually contains.
+
 ## Status
 
 Feature-complete and styled: authentication and invites, end-to-end encrypted 1:1 cycles (questions, comments, shared outcomes, goals with progress checkpoints), reminder emails, an admin panel, a cross-period report view, 4-language i18n, dark mode, and a full production deployment path (including running behind an existing reverse proxy). See `CLAUDE.md`'s "Current stage" section for the exact up-to-date state of ongoing work — kept there, not duplicated here, so this file doesn't go stale the same way again.
