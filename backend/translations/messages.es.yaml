@@ -14,6 +14,9 @@ email:
     password_reset_requested:
         subject: 'Restablece tu contraseña'
         body: "Hemos recibido una solicitud para restablecer tu contraseña.\n\nElige una nueva contraseña: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
+    counterpart_key_changed:
+        subject: 'La clave de cifrado de un interlocutor ha cambiado'
+        body: "La cuenta de %counterpart% pasó por un restablecimiento de contraseña, lo que reemplazó su clave de cifrado.\n\nEs posible que los cuestionarios que compartes con esa persona deban compartirse de nuevo antes de que pueda leerlos — si es así, verás un aviso al respecto en tu lista de cuestionarios."
 errors:
     not_authenticated: 'No autenticado.'
     missing_or_invalid_field: 'Falta o no es válido el campo "%field%".'

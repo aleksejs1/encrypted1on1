@@ -19,6 +19,9 @@ email:
     password_reset_requested:
         subject: 'Reset your password'
         body: "We received a request to reset your password.\n\nChoose a new password: %url%\n\nIf you didn't request this, you can ignore this email."
+    counterpart_key_changed:
+        subject: "A counterpart's encryption key changed"
+        body: "%counterpart%'s account went through a password reset, which replaced their encryption key.\n\nAny anketas you share with them may need to be shared again before they can read them — you'll see a banner for this on your anketas list if so."
 # API error messages (Phase 6j) — translated into the requesting user's active
 # UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
 errors:

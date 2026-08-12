@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Anketa;
 use App\Entity\PasswordResetToken;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
@@ -19,9 +20,12 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 /**
  * Mirrors ActivationController's shape closely — same one-time-token flow —
  * but completes against an *existing* user (User::resetCredentials()) rather
- * than creating one. See the password-reset plan for why this is Part 1 only:
- * regaining access, not restoring access to anketas sealed under the
- * discarded keypair (that's re-sharing, a separate later phase).
+ * than creating one. The actual re-sharing mechanism (a counterpart re-sealing
+ * an anketa's key to this user's new public key) lives in
+ * AnketaController::reshareKey() instead — it's anketa-scoped, not
+ * password-reset-scoped — but the "your counterpart's key changed" email that
+ * tells them to go do that fires from right here, at the moment the key
+ * actually changes.
  */
 class PasswordResetController
 {
@@ -122,6 +126,13 @@ class PasswordResetController
 
         $this->authSession->logIn($request, $user);
 
+        // Best-effort (see PasswordResetNotifier) — never blocks the response on a mail
+        // failure, same as every other notification fired from a successful request in
+        // this app.
+        foreach ($this->findCounterparts($user) as $counterpart) {
+            $this->notifier->notifyCounterpartKeyChanged($counterpart, $user);
+        }
+
         return new JsonResponse(['id' => $user->getId(), 'email' => $user->getEmail(), 'isAdmin' => $user->isAdmin()]);
     }
 
@@ -136,5 +147,33 @@ class PasswordResetController
         }
 
         return $resetToken;
+    }
+
+    /**
+     * Every distinct user $target shares at least one anketa with, deduped by id —
+     * same "unordered pair" query shape AnketaController already uses elsewhere, just
+     * collecting the *other* side across every anketa rather than looking for one
+     * specific pair.
+     *
+     * @return User[]
+     */
+    private function findCounterparts(User $target): array
+    {
+        /** @var Anketa[] $anketas */
+        $anketas = $this->entityManager->createQueryBuilder()
+            ->select('a')
+            ->from(Anketa::class, 'a')
+            ->where('a.employee = :user OR a.manager = :user')
+            ->setParameter('user', $target)
+            ->getQuery()
+            ->getResult();
+
+        $counterparts = [];
+        foreach ($anketas as $anketa) {
+            $counterpart = $anketa->isEmployee($target) ? $anketa->getManager() : $anketa->getEmployee();
+            $counterparts[$counterpart->getId()] = $counterpart;
+        }
+
+        return array_values($counterparts);
     }
 }

@@ -330,6 +330,104 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame('in_progress', $carried['status']);
     }
 
+    public function testListShowsNoCounterpartKeyOutdatedByDefault(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('key-outdated-default');
+        $created = $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+
+        $fromEmployee = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        $row = self::findById($fromEmployee['json'], $created['json']['id']);
+
+        self::assertFalse($row['counterpartKeyOutdated']);
+    }
+
+    public function testListShowsCounterpartKeyOutdatedAfterAPasswordResetAndClearsAfterReshare(): void
+    {
+        [$employeeClient, $employee, $managerClient, $manager] = $this->makePair('key-outdated-cycle');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        // Backdate the anketa's sealedKeyUpdatedAt columns by an hour — the stored
+        // datetime_immutable columns are only second-precision (same known limitation
+        // as Goal::createdAt, see CLAUDE.md's Phase 6f notes), so without a real gap the
+        // reset below and the anketa's creation could tie within the same second and the
+        // ">" staleness comparison would never trip.
+        $past = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        $this->entityManager()->getConnection()->executeStatement(
+            'UPDATE anketas SET employeeSealedKeyUpdatedAt = ?, managerSealedKeyUpdatedAt = ? WHERE id = ?',
+            [$past, $past, $anketaId],
+        );
+        $this->entityManager()->clear();
+
+        // The manager resets their credentials — their public key changes.
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
+        $managerEntity->resetCredentials(str_repeat('x', 44), str_repeat('y', 44), str_repeat('z', 44));
+        $this->entityManager()->flush();
+
+        // From the employee's side, the manager (their counterpart) now looks outdated.
+        $afterReset = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        self::assertTrue(self::findById($afterReset['json'], $anketaId)['counterpartKeyOutdated']);
+
+        // From the manager's own side, nothing looks outdated — it's their own key that changed, not their counterpart's.
+        $managerView = $this->jsonRequest($managerClient, 'GET', '/api/anketas');
+        self::assertFalse(self::findById($managerView['json'], $anketaId)['counterpartKeyOutdated']);
+
+        // The employee re-shares the anketa key, resealed to the manager's new public key.
+        $reshare = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/reshare-key", [
+            'sealedKey' => str_repeat('r', 44),
+        ]);
+        self::assertSame(200, $reshare['status']);
+
+        $afterReshare = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        self::assertFalse(self::findById($afterReshare['json'], $anketaId)['counterpartKeyOutdated']);
+    }
+
+    public function testReshareKeyRejectsANonParticipant(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('reshare-non-participant');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $stranger = $this->secondClient();
+        $this->activateUser($stranger, $this->uniqueEmail('reshare-stranger'));
+
+        $result = $this->jsonRequest($stranger, 'PUT', "/api/anketas/{$anketaId}/reshare-key", [
+            'sealedKey' => str_repeat('r', 44),
+        ]);
+
+        self::assertSame(403, $result['status']);
+    }
+
+    public function testReshareKeyRejectsAMissingSealedKey(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('reshare-missing-key');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/reshare-key", []);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testReshareKeyOnlyTouchesTheCounterpartsSide(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('reshare-only-counterpart');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        // The employee reshares — that updates the *manager's* (counterpart's) sealed key.
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/reshare-key", [
+            'sealedKey' => str_repeat('r', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $anketa = $this->entityManager()->find(\App\Entity\Anketa::class, $anketaId);
+        \assert($anketa instanceof \App\Entity\Anketa);
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
+
+        self::assertSame(str_repeat('r', 44), $anketa->sealedKeyFor($managerEntity));
+        // The employee's own side is untouched.
+        self::assertSame(str_repeat('e', 44), $anketa->sealedKeyFor($anketa->getEmployee()));
+    }
+
     /**
      * @return array{0: KernelBrowser, 1: array{id: string, email: string, isAdmin: bool},
      *     2: KernelBrowser, 3: array{id: string, email: string, isAdmin: bool}}

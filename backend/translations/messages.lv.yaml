@@ -14,6 +14,9 @@ email:
     password_reset_requested:
         subject: 'Paroles atiestatīšana'
         body: "Mēs saņēmām pieprasījumu atiestatīt jūsu paroli.\n\nIzvēlieties jaunu paroli: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
+    counterpart_key_changed:
+        subject: 'Sarunu biedra šifrēšanas atslēga ir mainījusies'
+        body: "%counterpart% konts ir veicis paroles atiestatīšanu, kas nomainīja viņa šifrēšanas atslēgu.\n\nIespējams, ka anketas, kas jums ir kopīgas ar viņu, būs jāpiešķir vēlreiz, pirms viņš tās varēs izlasīt — ja tas tā ir, jūs redzēsiet par to baneri savā anketu sarakstā."
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'

@@ -88,7 +88,12 @@
     "errorLoad": "No se pudieron cargar los cuestionarios.",
     "viewToggleDate": "Por fecha",
     "viewToggleCounterpart": "Por persona",
-    "nextMeetingLabel": "Próxima reunión: {date}"
+    "nextMeetingLabel": "Próxima reunión: {date}",
+    "reshareBannerText": "Uno o más interlocutores restablecieron su contraseña, lo que cambió su clave de cifrado. Es posible que los cuestionarios que compartes con ellos deban compartirse de nuevo antes de que puedan leerlos.",
+    "reshareButton": "Compartir de nuevo",
+    "reshareInProgress": "Compartiendo de nuevo…",
+    "reshareSuccess": "Se compartió de nuevo correctamente.",
+    "reshareFailure": "No se pudieron volver a compartir algunos cuestionarios. Inténtalo de nuevo más tarde."
   },
   "createAnketa": {
     "title": "Nuevo cuestionario",

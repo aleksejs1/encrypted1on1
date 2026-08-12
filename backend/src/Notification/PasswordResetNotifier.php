@@ -40,4 +40,28 @@ class PasswordResetNotifier
             error_log(sprintf('Failed to send password reset email to %s: %s', $recipient->getEmail(), $e->getMessage()));
         }
     }
+
+    /**
+     * Sent to every current counterpart of $changedUser once their password reset
+     * completes (password-reset plan, part 2) — never contains anketa content, only
+     * the fact that a key changed, same "metadata only" discipline every other
+     * notification in this app already follows.
+     */
+    public function notifyCounterpartKeyChanged(User $recipient, User $changedUser): void
+    {
+        $locale = $recipient->getLocale();
+        $params = ['%counterpart%' => $changedUser->getEmail()];
+
+        $email = (new Email())
+            ->from($this->mailerFrom)
+            ->to($recipient->getEmail())
+            ->subject($this->translator->trans('email.counterpart_key_changed.subject', $params, null, $locale))
+            ->text($this->translator->trans('email.counterpart_key_changed.body', $params, null, $locale));
+
+        try {
+            $this->mailer->send($email);
+        } catch (TransportExceptionInterface $e) {
+            error_log(sprintf('Failed to send key-changed notification to %s: %s', $recipient->getEmail(), $e->getMessage()));
+        }
+    }
 }

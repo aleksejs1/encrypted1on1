@@ -58,6 +58,15 @@ class User
     #[ORM\Column(type: 'text')]
     private string $encryptedPrivateKey;
 
+    /**
+     * Null until the first password reset — see resetCredentials(). Compared against
+     * each Anketa's per-side sealedKeyUpdatedAt (password-reset plan, part 2) to compute
+     * whether a counterpart's copy of an anketa's key still matches this user's current
+     * public key. Not user-facing, no serialization group needed.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $publicKeyUpdatedAt = null;
+
     #[ORM\Column(type: 'datetime_immutable')]
     #[Groups(['user:read'])]
     private \DateTimeImmutable $createdAt;
@@ -154,14 +163,20 @@ class User
      * mutation path outside the constructor for these three, used only by
      * password reset (PasswordResetController). A fresh keypair means every
      * anketa sealed under the old public key becomes unreadable until
-     * re-shared (see the password-reset plan) — that's a client-side
-     * consequence, not something this method needs to know about.
+     * re-shared — see Anketa::resealKeyFor() and publicKeyUpdatedAt below,
+     * which this method sets so that consequence can actually be detected.
      */
     public function resetCredentials(string $authHash, string $publicKey, string $encryptedPrivateKey): void
     {
         $this->authHash = $authHash;
         $this->publicKey = $publicKey;
         $this->encryptedPrivateKey = $encryptedPrivateKey;
+        $this->publicKeyUpdatedAt = new \DateTimeImmutable();
+    }
+
+    public function getPublicKeyUpdatedAt(): ?\DateTimeImmutable
+    {
+        return $this->publicKeyUpdatedAt;
     }
 
     public function getLocale(): string

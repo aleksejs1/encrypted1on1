@@ -39,6 +39,19 @@ class Anketa
     private string $managerSealedKey;
 
     /**
+     * When employeeSealedKey/managerSealedKey were last set — initialized to createdAt,
+     * bumped by resealKeyFor() on a re-share. Compared against User::$publicKeyUpdatedAt
+     * (password-reset plan, part 2) to compute whether a side's sealed key still matches
+     * that participant's current public key, without the server ever needing to look at
+     * the sealed key's own (opaque) contents.
+     */
+    #[ORM\Column(type: 'datetime_immutable')]
+    private \DateTimeImmutable $employeeSealedKeyUpdatedAt;
+
+    #[ORM\Column(type: 'datetime_immutable')]
+    private \DateTimeImmutable $managerSealedKeyUpdatedAt;
+
+    /**
      * Master-key-encrypted (draft) or anketa-key-encrypted (published) — the
      * server can't tell which; only publishedAt distinguishes them. See the
      * Phase 5 plan.
@@ -119,6 +132,8 @@ class Anketa
         $this->managerSealedKey = $managerSealedKey;
         $this->periodicityDays = $periodicityDays;
         $this->createdAt = new \DateTimeImmutable();
+        $this->employeeSealedKeyUpdatedAt = $this->createdAt;
+        $this->managerSealedKeyUpdatedAt = $this->createdAt;
     }
 
     public function getId(): string
@@ -149,6 +164,31 @@ class Anketa
     public function sealedKeyFor(User $user): string
     {
         return $user->getId() === $this->employee->getId() ? $this->employeeSealedKey : $this->managerSealedKey;
+    }
+
+    public function sealedKeyUpdatedAtFor(User $user): \DateTimeImmutable
+    {
+        return $user->getId() === $this->employee->getId() ? $this->employeeSealedKeyUpdatedAt : $this->managerSealedKeyUpdatedAt;
+    }
+
+    /**
+     * Re-seals this anketa's key for $recipient (a participant, but never the caller
+     * themselves — see AnketaController::reshareKey()) to their current public key,
+     * after their old one stopped matching (most commonly: they went through a
+     * password reset). The caller already did the actual crypto client-side — this
+     * just stores the result and records when, so a future staleness check
+     * ($recipient's User::$publicKeyUpdatedAt vs. this timestamp) reads as current.
+     */
+    public function resealKeyFor(User $recipient, string $newSealedKey): void
+    {
+        $now = new \DateTimeImmutable();
+        if ($recipient->getId() === $this->employee->getId()) {
+            $this->employeeSealedKey = $newSealedKey;
+            $this->employeeSealedKeyUpdatedAt = $now;
+        } else {
+            $this->managerSealedKey = $newSealedKey;
+            $this->managerSealedKeyUpdatedAt = $now;
+        }
     }
 
     public function isEmployee(User $user): bool

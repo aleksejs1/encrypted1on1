@@ -1,7 +1,9 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { apiGet } from '../api/client';
+  import { apiGet, apiPut } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity';
+  import { fromBase64 } from '../crypto/encoding';
+  import { sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
   import InviteForm from '../admin/InviteForm.svelte';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
 
@@ -15,6 +17,12 @@
     counterpartPublishedAt: string | null;
     archivedAt: string | null;
     missed: boolean;
+    counterpartKeyOutdated: boolean;
+  }
+
+  interface AnketaDetail {
+    mySealedKey: string;
+    counterpartPublicKey: string;
   }
 
   interface BadgeMeta {
@@ -42,16 +50,45 @@
     return list;
   }
 
-  const anketas = apiGet<AnketaSummary[]>('/api/anketas');
+  let anketas = $state(apiGet<AnketaSummary[]>('/api/anketas'));
 
   let showInvite = $state(false);
   let groupBy = $state<'date' | 'counterpart'>('date');
+  let resharing = $state(false);
+  let reshareResult = $state<'success' | 'partial' | null>(null);
 
   $effect(() => {
     ensureUnlocked().then((identity) => {
       showInvite = identity.registrationMode === 'invite';
     });
   });
+
+  async function reshareOne(anketaId: string): Promise<void> {
+    const identity = await ensureUnlocked();
+    const detail = await apiGet<AnketaDetail>(`/api/anketas/${anketaId}`);
+    const anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
+    const sealedKey = await sealAnketaKey(anketaKey, await fromBase64(detail.counterpartPublicKey));
+    await apiPut(`/api/anketas/${anketaId}/reshare-key`, { sealedKey });
+  }
+
+  async function reshareAll(outdated: AnketaSummary[]): Promise<void> {
+    resharing = true;
+    reshareResult = null;
+    let failures = 0;
+
+    for (const anketa of outdated) {
+      try {
+        await reshareOne(anketa.id);
+      } catch {
+        // Keep going — one bad entry shouldn't block reshares that would otherwise succeed.
+        failures++;
+      }
+    }
+
+    reshareResult = failures === 0 ? 'success' : 'partial';
+    resharing = false;
+    anketas = apiGet<AnketaSummary[]>('/api/anketas');
+  }
 </script>
 
 <main>
@@ -84,6 +121,20 @@
   {#await anketas}
     <p class="text-muted">{$_('common.loading')}</p>
   {:then list}
+    {@const outdated = list.filter((anketa) => anketa.counterpartKeyOutdated)}
+    {#if outdated.length > 0}
+      <div class="card elev-sm banner-reshare">
+        <p>{$_('anketaList.reshareBannerText')}</p>
+        {#if reshareResult === 'success'}
+          <p class="banner-success">{$_('anketaList.reshareSuccess')}</p>
+        {:else if reshareResult === 'partial'}
+          <p class="banner-error">{$_('anketaList.reshareFailure')}</p>
+        {/if}
+        <button type="button" class="btn btn-secondary" disabled={resharing} onclick={() => reshareAll(outdated)}>
+          {resharing ? $_('anketaList.reshareInProgress') : $_('anketaList.reshareButton')}
+        </button>
+      </div>
+    {/if}
     {#if list.length === 0}
       <div class="card elev-sm empty-state">
         <p class="text-muted">{$_('anketaList.empty')}</p>
@@ -159,6 +210,14 @@
   .invite-wrap {
     margin-bottom: 24px;
     max-width: 26rem;
+  }
+
+  .banner-reshare {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 20px;
   }
 
   .view-toggle {

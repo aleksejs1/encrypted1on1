@@ -88,7 +88,12 @@
     "errorLoad": "Neizdevās ielādēt anketas.",
     "viewToggleDate": "Pēc datuma",
     "viewToggleCounterpart": "Pēc personas",
-    "nextMeetingLabel": "Nākamā tikšanās: {date}"
+    "nextMeetingLabel": "Nākamā tikšanās: {date}",
+    "reshareBannerText": "Vienam vai vairākiem sarunu biedriem ir veikta paroles atiestatīšana, kas nomainīja viņu šifrēšanas atslēgu. Iespējams, ka anketas, kas jums ir kopīgas ar viņiem, būs jāpiešķir vēlreiz, pirms viņi tās varēs izlasīt.",
+    "reshareButton": "Piešķirt piekļuvi vēlreiz",
+    "reshareInProgress": "Piešķiršana…",
+    "reshareSuccess": "Piekļuve veiksmīgi piešķirta vēlreiz.",
+    "reshareFailure": "Dažām anketām neizdevās piešķirt piekļuvi. Mēģiniet vēlāk."
   },
   "createAnketa": {
     "title": "Jauna anketa",

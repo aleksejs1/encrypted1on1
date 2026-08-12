@@ -131,4 +131,28 @@ class AnketaTest extends TestCase
 
         self::assertFalse($anketa->isParticipant($stranger));
     }
+
+    public function testSealedKeyUpdatedAtForStartsAtCreatedAtForBothSides(): void
+    {
+        $anketa = $this->makeAnketa();
+
+        self::assertEquals($anketa->getCreatedAt(), $anketa->sealedKeyUpdatedAtFor($anketa->getEmployee()));
+        self::assertEquals($anketa->getCreatedAt(), $anketa->sealedKeyUpdatedAtFor($anketa->getManager()));
+    }
+
+    public function testResealKeyForUpdatesOnlyTheTargetedSide(): void
+    {
+        $anketa = $this->makeAnketa();
+        $employee = $anketa->getEmployee();
+        $manager = $anketa->getManager();
+        $managerUpdatedAtBefore = $anketa->sealedKeyUpdatedAtFor($manager);
+
+        $anketa->resealKeyFor($employee, 'resealed-e');
+
+        self::assertSame('resealed-e', $anketa->sealedKeyFor($employee));
+        self::assertGreaterThan($anketa->getCreatedAt(), $anketa->sealedKeyUpdatedAtFor($employee));
+        // The manager's side is untouched — same sealed key, same timestamp.
+        self::assertSame('sealed-m', $anketa->sealedKeyFor($manager));
+        self::assertEquals($managerUpdatedAtBefore, $anketa->sealedKeyUpdatedAtFor($manager));
+    }
 }

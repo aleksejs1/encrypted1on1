@@ -493,6 +493,31 @@ class AnketaController
         return new JsonResponse(['meetingDate' => $anketa->getMeetingDate()->format(\DATE_ATOM)]);
     }
 
+    /**
+     * Restores a counterpart's access after their public key changed (most commonly a
+     * password reset — password-reset plan, part 2). The caller must already have a
+     * working copy of the anketa key (their own side is unaffected) and does the actual
+     * unseal/reseal client-side; this just stores the result for the *other*
+     * participant's side, never the caller's own.
+     */
+    #[Route('/api/anketas/{id}/reshare-key', name: 'anketa_reshare_key', methods: ['PUT'])]
+    public function reshareKey(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        $sealedKey = $request->toArray()['sealedKey'] ?? null;
+        if (!\is_string($sealedKey) || '' === $sealedKey) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'sealedKey'])], 400);
+        }
+
+        $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
+        $anketa->resealKeyFor($counterpart, $sealedKey);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['ok' => true]);
+    }
+
     private function requireUser(Request $request): User
     {
         $user = $this->authSession->getCurrentUser($request);
@@ -618,7 +643,7 @@ class AnketaController
     /**
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
-     *     archivedAt: string|null, missed: bool, periodicityDays: int|null}
+     *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool}
      */
     private function summarize(Anketa $anketa, User $user): array
     {
@@ -636,6 +661,22 @@ class AnketaController
             'archivedAt' => $anketa->getArchivedAt()?->format(\DATE_ATOM),
             'missed' => $anketa->isMissed(),
             'periodicityDays' => $anketa->getPeriodicityDays(),
+            'counterpartKeyOutdated' => $this->isKeyOutdated($anketa, $counterpart),
         ];
+    }
+
+    /**
+     * True when $participant's public key has changed (password-reset plan, part 2)
+     * since their side of $anketa's sealed key was last set — i.e. their copy of the
+     * anketa key was sealed to a public key that's no longer current, so whoever's
+     * looking at this (the *other* participant, whose own key is unaffected) can offer
+     * to re-seal it. Self-correcting: resealKeyFor() bumps the anketa-side timestamp
+     * past the reset, a later reset moves publicKeyUpdatedAt forward again.
+     */
+    private function isKeyOutdated(Anketa $anketa, User $participant): bool
+    {
+        $publicKeyUpdatedAt = $participant->getPublicKeyUpdatedAt();
+
+        return null !== $publicKeyUpdatedAt && $publicKeyUpdatedAt > $anketa->sealedKeyUpdatedAtFor($participant);
     }
 }
