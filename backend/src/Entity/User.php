@@ -149,6 +149,21 @@ class User
         $this->isBlocked = $isBlocked;
     }
 
+    /**
+     * Replaces the auth verifier and both key-related fields at once — the one
+     * mutation path outside the constructor for these three, used only by
+     * password reset (PasswordResetController). A fresh keypair means every
+     * anketa sealed under the old public key becomes unreadable until
+     * re-shared (see the password-reset plan) — that's a client-side
+     * consequence, not something this method needs to know about.
+     */
+    public function resetCredentials(string $authHash, string $publicKey, string $encryptedPrivateKey): void
+    {
+        $this->authHash = $authHash;
+        $this->publicKey = $publicKey;
+        $this->encryptedPrivateKey = $encryptedPrivateKey;
+    }
+
     public function getLocale(): string
     {
         return $this->locale;

@@ -6,6 +6,7 @@ use ApiPlatform\Metadata\ApiResource;
 use App\Entity\ActivationToken;
 use App\Entity\Anketa;
 use App\Entity\Goal;
+use App\Entity\PasswordResetToken;
 use App\Entity\User;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -56,6 +57,7 @@ class SerializationBoundaryTest extends TestCase
         self::assertFalse(self::hasApiResourceAttribute(Anketa::class), 'Anketa holds encrypted blobs — it must stay a plain controller, not generic API Platform CRUD.');
         self::assertFalse(self::hasApiResourceAttribute(Goal::class));
         self::assertFalse(self::hasApiResourceAttribute(ActivationToken::class));
+        self::assertFalse(self::hasApiResourceAttribute(PasswordResetToken::class));
     }
 
     /** @param class-string $class */

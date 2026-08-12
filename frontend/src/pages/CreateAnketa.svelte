@@ -77,9 +77,18 @@
       // here, client-side, before the new anketa exists.
       let outcomesBlob: string | undefined;
       if (previousAnketa) {
-        const previousDetail = await apiGet<AnketaDetailForCarry>(`/api/anketas/${previousAnketa.id}`);
-        const previousKey = await unsealAnketaKey(previousDetail.mySealedKey, identity.publicKey, identity.privateKey);
-        outcomesBlob = await carryForwardOutcomes(previousDetail.outcomesBlob, previousKey, anketaKey);
+        try {
+          const previousDetail = await apiGet<AnketaDetailForCarry>(`/api/anketas/${previousAnketa.id}`);
+          const previousKey = await unsealAnketaKey(previousDetail.mySealedKey, identity.publicKey, identity.privateKey);
+          outcomesBlob = await carryForwardOutcomes(previousDetail.outcomesBlob, previousKey, anketaKey);
+        } catch {
+          // The previous anketa's key may no longer unseal (e.g. after a password
+          // reset — see ResetPassword.svelte). Forgetting a password shouldn't also
+          // block starting a fresh anketa with the same counterpart, so this is
+          // treated the same as having no previous anketa to carry forward from —
+          // periodicity inheritance below is unaffected, since it only depends on
+          // previousAnketa existing, not on successfully reading its key.
+        }
       }
 
       const result = await apiPost<{ id: string }>('/api/anketas', {

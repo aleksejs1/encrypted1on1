@@ -114,7 +114,19 @@
         nextMeetingDate = defaultNext.toISOString().slice(0, 10);
       }
 
-      const key = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
+      let key: Uint8Array;
+      try {
+        key = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
+      } catch {
+        // Wrong-key AEAD failure — this anketa was sealed under a keypair that no
+        // longer matches identity.privateKey, most likely because the account went
+        // through a password reset (a fresh keypair, see ResetPassword.svelte) since
+        // this anketa was created. Nothing else in `detail` is usable without the
+        // anketa key, so this is a distinct, terminal state for the page, not just
+        // one field failing.
+        loadError = $_('anketa.errorStaleKey');
+        return;
+      }
       anketaKey = key;
 
       if (anketa.commentsBlob) {

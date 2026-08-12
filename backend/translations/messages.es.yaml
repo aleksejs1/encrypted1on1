@@ -11,6 +11,9 @@ email:
     invited:
         subject: 'Te han invitado a encrypted1on1'
         body: "%inviter% te ha invitado a encrypted1on1.\n\nActiva tu cuenta: %url%"
+    password_reset_requested:
+        subject: 'Restablece tu contraseña'
+        body: "Hemos recibido una solicitud para restablecer tu contraseña.\n\nElige una nueva contraseña: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
 errors:
     not_authenticated: 'No autenticado.'
     missing_or_invalid_field: 'Falta o no es válido el campo "%field%".'
@@ -23,6 +26,7 @@ errors:
     meeting_date_must_be_valid_date: '"meetingDate" debe ser una fecha válida.'
     outcomes_blob_must_be_string: '"outcomesBlob" debe ser una cadena de texto.'
     invalid_or_expired_activation_link: 'Enlace de activación no válido o caducado.'
+    invalid_or_expired_reset_link: 'Enlace de restablecimiento de contraseña no válido o caducado.'
     missing_email_or_auth_key: 'Falta "email" o "authKey".'
     invalid_email_or_password: 'Email o contraseña incorrectos.'
     account_blocked: 'Esta cuenta ha sido bloqueada.'

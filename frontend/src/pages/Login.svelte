@@ -87,6 +87,8 @@
           <span aria-hidden="true">⏳</span> {$_('login.cryptoNote')}
         </p>
       {/if}
+
+      <a href="/forgot-password" class="forgot-link">{$_('login.forgotPassword')}</a>
     </form>
 
     <div class="hr"></div>
@@ -135,5 +137,9 @@
   .session-note {
     font-size: 12px;
     margin: 0;
+  }
+
+  .forgot-link {
+    font-size: 13px;
   }
 </style>

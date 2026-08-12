@@ -11,6 +11,9 @@ email:
     invited:
         subject: 'Вас пригласили в encrypted1on1'
         body: "%inviter% пригласил(а) вас в encrypted1on1.\n\nАктивируйте аккаунт: %url%"
+    password_reset_requested:
+        subject: 'Сброс пароля'
+        body: "Мы получили запрос на сброс пароля.\n\nВыберите новый пароль: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
 errors:
     not_authenticated: 'Вы не авторизованы.'
     missing_or_invalid_field: 'Отсутствует или некорректно поле «%field%».'
@@ -23,6 +26,7 @@ errors:
     meeting_date_must_be_valid_date: '«meetingDate» должно быть корректной датой.'
     outcomes_blob_must_be_string: '«outcomesBlob» должно быть строкой.'
     invalid_or_expired_activation_link: 'Недействительная или истёкшая ссылка активации.'
+    invalid_or_expired_reset_link: 'Недействительная или истёкшая ссылка для сброса пароля.'
     missing_email_or_auth_key: 'Отсутствует «email» или «authKey».'
     invalid_email_or_password: 'Неверный email или пароль.'
     account_blocked: 'Эта учётная запись заблокирована.'

@@ -3,11 +3,14 @@
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 /**
- * Three named limiters (Phase 7f) — see CLAUDE.md for why these three
- * endpoints specifically and why GET /api/activation-tokens/{token} isn't
- * limited. sliding_window smooths out the "burst right at the window
- * boundary" gap a plain fixed_window policy has. Each auto-registers as a
- * `limiter.<name>` service, injected into controllers via #[Autowire(service: ...)].
+ * Named limiters (three from Phase 7f, two more for password reset) — see
+ * CLAUDE.md for why the original three endpoints specifically, and why
+ * neither GET /api/activation-tokens/{token} nor
+ * GET /api/password-reset-tokens/{token} is limited (read-only, side-effect-free,
+ * same 256-bit token-entropy argument). sliding_window smooths out the
+ * "burst right at the window boundary" gap a plain fixed_window policy has.
+ * Each auto-registers as a `limiter.<name>` service, injected into
+ * controllers via #[Autowire(service: ...)].
  */
 return static function (ContainerConfigurator $container): void {
     $container->extension('framework', [
@@ -23,6 +26,16 @@ return static function (ContainerConfigurator $container): void {
                 'interval' => '1 hour',
             ],
             'activation_complete' => [
+                'policy' => 'sliding_window',
+                'limit' => 10,
+                'interval' => '1 minute',
+            ],
+            'password_reset_request' => [
+                'policy' => 'sliding_window',
+                'limit' => 5,
+                'interval' => '1 hour',
+            ],
+            'password_reset_complete' => [
                 'policy' => 'sliding_window',
                 'limit' => 10,
                 'interval' => '1 minute',

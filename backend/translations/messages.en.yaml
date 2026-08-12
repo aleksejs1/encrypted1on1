@@ -16,6 +16,9 @@ email:
     invited:
         subject: "You've been invited to encrypted1on1"
         body: "%inviter% has invited you to encrypted1on1.\n\nActivate your account: %url%"
+    password_reset_requested:
+        subject: 'Reset your password'
+        body: "We received a request to reset your password.\n\nChoose a new password: %url%\n\nIf you didn't request this, you can ignore this email."
 # API error messages (Phase 6j) — translated into the requesting user's active
 # UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
 errors:
@@ -30,6 +33,7 @@ errors:
     meeting_date_must_be_valid_date: '"meetingDate" must be a valid date.'
     outcomes_blob_must_be_string: '"outcomesBlob" must be a string.'
     invalid_or_expired_activation_link: 'Invalid or expired activation link.'
+    invalid_or_expired_reset_link: 'Invalid or expired password reset link.'
     missing_email_or_auth_key: 'Missing "email" or "authKey".'
     invalid_email_or_password: 'Invalid email or password.'
     account_blocked: 'This account has been blocked.'

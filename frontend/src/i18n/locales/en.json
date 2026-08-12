@@ -17,6 +17,39 @@
     "submitting": "Logging in…",
     "cryptoNote": "Unlocking your data — this can take a few seconds.",
     "sessionNote": "You'll need to log in again next time you open a new tab. Your key is kept only in this tab's memory, never stored.",
+    "forgotPassword": "Forgot password?",
+    "genericError": "Something went wrong."
+  },
+  "forgotPassword": {
+    "title": "Reset your password",
+    "subtitle": "We'll email you a link to choose a new password.",
+    "emailLabel": "Email",
+    "submit": "Send reset link",
+    "submitting": "Sending…",
+    "sentConfirmation": "If that email has an account, we've sent a link to reset the password.",
+    "backToLogin": "Back to login",
+    "genericError": "Something went wrong."
+  },
+  "resetPassword": {
+    "title": "Choose a new password",
+    "emailLabel": "Email:",
+    "warningHeading": "This will replace your encryption key",
+    "warningText": "Your password is also the root of your encryption key. Resetting it creates a new key — anketas encrypted under your old key will become unreadable until access is restored by your counterparts.",
+    "passwordLabel": "New password",
+    "passwordHint": "At least {min} characters.",
+    "confirmPasswordLabel": "Confirm new password",
+    "passwordMismatch": "Passwords don't match.",
+    "riskAcknowledgeLabel": "I understand my existing anketas will be unreadable until access is restored.",
+    "submit": "Reset password",
+    "submitting": "Resetting…",
+    "lookupError": "Could not load this reset link.",
+    "strength": {
+      "tooWeak": "Too weak",
+      "weak": "Weak",
+      "okay": "Okay",
+      "good": "Good",
+      "strong": "Strong"
+    },
     "genericError": "Something went wrong."
   },
   "activate": {
@@ -138,6 +171,7 @@
     "archive": "Archive",
     "archiving": "Archiving…",
     "errorLoad": "Could not load this anketa.",
+    "errorStaleKey": "This anketa can't be decrypted with your current key — this can happen after a password reset.",
     "errorNotLoggedIn": "Not logged in.",
     "errorNotReadyToArchive": "Not ready to archive yet.",
     "errorArchive": "Could not archive.",

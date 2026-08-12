@@ -11,6 +11,9 @@ email:
     invited:
         subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
         body: "%inviter% jūs uzaicināja pievienoties encrypted1on1.\n\nAktivizējiet savu kontu: %url%"
+    password_reset_requested:
+        subject: 'Paroles atiestatīšana'
+        body: "Mēs saņēmām pieprasījumu atiestatīt jūsu paroli.\n\nIzvēlieties jaunu paroli: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
@@ -23,6 +26,7 @@ errors:
     meeting_date_must_be_valid_date: '"meetingDate" jābūt derīgam datumam.'
     outcomes_blob_must_be_string: '"outcomesBlob" jābūt virknei.'
     invalid_or_expired_activation_link: 'Nederīga vai beigusies aktivizācijas saite.'
+    invalid_or_expired_reset_link: 'Nederīga vai beigusies paroles atiestatīšanas saite.'
     missing_email_or_auth_key: 'Trūkst "email" vai "authKey".'
     invalid_email_or_password: 'Nepareizs e-pasts vai parole.'
     account_blocked: 'Šis konts ir bloķēts.'

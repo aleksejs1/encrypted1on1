@@ -105,7 +105,18 @@
       const decrypted: DecryptedAnketaForReport[] = [];
       for (const summary of matching) {
         const detail = await apiGet<AnketaDetailForReport>(`/api/anketas/${summary.id}`);
-        const anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
+
+        // A wrong-key AEAD failure here means this anketa was sealed under a keypair
+        // that no longer matches identity.privateKey (most likely a password reset
+        // since this anketa was created, see ResetPassword.svelte) — skip just this
+        // one anketa rather than failing the whole report over a single unreadable
+        // entry in a potentially long list.
+        let anketaKey: Uint8Array;
+        try {
+          anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
+        } catch {
+          continue;
+        }
 
         const employeeAnswers =
           detail.employeePublishedAt && detail.employeeBlob

@@ -17,6 +17,39 @@
     "submitting": "Notiek pieslēgšanās…",
     "cryptoNote": "Atšifrējam jūsu datus — tas var aizņemt dažas sekundes.",
     "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
+    "forgotPassword": "Aizmirsāt paroli?",
+    "genericError": "Kaut kas nogāja greizi."
+  },
+  "forgotPassword": {
+    "title": "Atiestatīt paroli",
+    "subtitle": "Mēs jums nosūtīsim saiti, lai izvēlētos jaunu paroli.",
+    "emailLabel": "E-pasts",
+    "submit": "Nosūtīt saiti",
+    "submitting": "Sūta…",
+    "sentConfirmation": "Ja šim e-pastam ir konts, mēs nosūtījām saiti paroles atiestatīšanai.",
+    "backToLogin": "Atpakaļ uz pieslēgšanos",
+    "genericError": "Kaut kas nogāja greizi."
+  },
+  "resetPassword": {
+    "title": "Izvēlieties jaunu paroli",
+    "emailLabel": "E-pasts:",
+    "warningHeading": "Tas aizstās jūsu šifrēšanas atslēgu",
+    "warningText": "Jūsu parole ir arī jūsu šifrēšanas atslēgas pamatā. To atiestatot, tiek izveidota jauna atslēga — anketas, kas šifrētas ar veco atslēgu, kļūs nelasāmas, kamēr piekļuvi neatjaunos jūsu sarunu biedri.",
+    "passwordLabel": "Jaunā parole",
+    "passwordHint": "Vismaz {min} rakstzīmes.",
+    "confirmPasswordLabel": "Apstipriniet jauno paroli",
+    "passwordMismatch": "Paroles nesakrīt.",
+    "riskAcknowledgeLabel": "Es saprotu, ka manas esošās anketas būs nelasāmas, kamēr piekļuve netiks atjaunota.",
+    "submit": "Atiestatīt paroli",
+    "submitting": "Atiestata…",
+    "lookupError": "Neizdevās ielādēt šo atiestatīšanas saiti.",
+    "strength": {
+      "tooWeak": "Pārāk vāja",
+      "weak": "Vāja",
+      "okay": "Pieņemama",
+      "good": "Laba",
+      "strong": "Stipra"
+    },
     "genericError": "Kaut kas nogāja greizi."
   },
   "activate": {
@@ -138,6 +171,7 @@
     "archive": "Arhivēt",
     "archiving": "Arhivē…",
     "errorLoad": "Neizdevās ielādēt šo anketu.",
+    "errorStaleKey": "Šo anketu nevar atšifrēt ar jūsu pašreizējo atslēgu — tas var notikt pēc paroles atiestatīšanas.",
     "errorNotLoggedIn": "Neesat pieslēdzies.",
     "errorNotReadyToArchive": "Vēl nav gatavs arhivēšanai.",
     "errorArchive": "Neizdevās arhivēt.",
