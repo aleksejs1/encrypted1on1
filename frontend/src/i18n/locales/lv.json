@@ -6,7 +6,8 @@
     "roleEmployee": "Darbinieks",
     "roleManager": "Vadītājs",
     "backToAnketas": "← Anketas",
-    "logout": "Izrakstīties"
+    "logout": "Izrakstīties",
+    "accountSettings": "Konta iestatījumi"
   },
   "login": {
     "title": "Pieslēgties",
@@ -43,6 +44,26 @@
     "submit": "Atiestatīt paroli",
     "submitting": "Atiestata…",
     "lookupError": "Neizdevās ielādēt šo atiestatīšanas saiti.",
+    "strength": {
+      "tooWeak": "Pārāk vāja",
+      "weak": "Vāja",
+      "okay": "Pieņemama",
+      "good": "Laba",
+      "strong": "Stipra"
+    },
+    "genericError": "Kaut kas nogāja greizi."
+  },
+  "accountSettings": {
+    "title": "Konta iestatījumi",
+    "subtitle": "Mainiet savu paroli. Jūsu esošās anketas paliks lasāmas — pati atslēga nemainās.",
+    "currentPasswordLabel": "Pašreizējā parole",
+    "newPasswordLabel": "Jaunā parole",
+    "passwordHint": "Vismaz {min} rakstzīmes.",
+    "confirmPasswordLabel": "Apstipriniet jauno paroli",
+    "passwordMismatch": "Paroles nesakrīt.",
+    "submit": "Mainīt paroli",
+    "submitting": "Maina…",
+    "successMessage": "Parole nomainīta.",
     "strength": {
       "tooWeak": "Pārāk vāja",
       "weak": "Vāja",

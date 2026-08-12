@@ -39,6 +39,7 @@ errors:
     invalid_or_expired_reset_link: 'Invalid or expired password reset link.'
     missing_email_or_auth_key: 'Missing "email" or "authKey".'
     invalid_email_or_password: 'Invalid email or password.'
+    invalid_current_password: 'Incorrect current password.'
     account_blocked: 'This account has been blocked.'
     locale_must_be_one_of: '"locale" must be one of: %locales%.'
     cannot_block_own_account: 'You cannot block your own account.'

@@ -52,6 +52,9 @@
   <ThemeToggle />
   {#if email}<span class="user-email text-muted">{email}</span>{/if}
   {#if authState.authenticated}
+    <a href="/account" class="account-link text-muted">{$_('common.accountSettings')}</a>
+  {/if}
+  {#if authState.authenticated}
     <button type="button" class="btn btn-ghost logout-btn" onclick={handleLogout} disabled={loggingOut}>
       {$_('common.logout')}
     </button>
@@ -99,6 +102,15 @@
 
   .user-email {
     font-size: 13px;
+  }
+
+  .account-link {
+    font-size: 13px;
+    text-decoration: none;
+  }
+
+  .account-link:hover {
+    color: var(--color-accent-ink);
   }
 
   .logout-btn {

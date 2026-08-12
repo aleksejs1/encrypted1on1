@@ -6,7 +6,8 @@
     "roleEmployee": "Empleado",
     "roleManager": "Responsable",
     "backToAnketas": "← Cuestionarios",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "accountSettings": "Configuración de la cuenta"
   },
   "login": {
     "title": "Iniciar sesión",
@@ -43,6 +44,26 @@
     "submit": "Restablecer contraseña",
     "submitting": "Restableciendo…",
     "lookupError": "No se pudo cargar este enlace de restablecimiento.",
+    "strength": {
+      "tooWeak": "Muy débil",
+      "weak": "Débil",
+      "okay": "Aceptable",
+      "good": "Buena",
+      "strong": "Fuerte"
+    },
+    "genericError": "Algo salió mal."
+  },
+  "accountSettings": {
+    "title": "Configuración de la cuenta",
+    "subtitle": "Cambia tu contraseña. Tus cuestionarios existentes seguirán siendo legibles — la clave en sí no cambia.",
+    "currentPasswordLabel": "Contraseña actual",
+    "newPasswordLabel": "Nueva contraseña",
+    "passwordHint": "Al menos {min} caracteres.",
+    "confirmPasswordLabel": "Confirma la nueva contraseña",
+    "passwordMismatch": "Las contraseñas no coinciden.",
+    "submit": "Cambiar contraseña",
+    "submitting": "Cambiando…",
+    "successMessage": "Contraseña cambiada.",
     "strength": {
       "tooWeak": "Muy débil",
       "weak": "Débil",

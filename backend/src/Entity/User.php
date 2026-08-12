@@ -179,6 +179,19 @@ class User
         return $this->publicKeyUpdatedAt;
     }
 
+    /**
+     * The in-app "change password while still logged in" mutation (AuthController's
+     * PUT /api/me/password) — unlike resetCredentials(), the underlying keypair (and
+     * therefore publicKey) doesn't change: the caller already has their current master
+     * key, so this is just a re-wrap of the same private key under a new one. No
+     * publicKeyUpdatedAt bump, since there's no anketa re-sharing consequence here.
+     */
+    public function changePassword(string $authHash, string $encryptedPrivateKey): void
+    {
+        $this->authHash = $authHash;
+        $this->encryptedPrivateKey = $encryptedPrivateKey;
+    }
+
     public function getLocale(): string
     {
         return $this->locale;

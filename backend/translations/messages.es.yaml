@@ -32,6 +32,7 @@ errors:
     invalid_or_expired_reset_link: 'Enlace de restablecimiento de contraseña no válido o caducado.'
     missing_email_or_auth_key: 'Falta "email" o "authKey".'
     invalid_email_or_password: 'Email o contraseña incorrectos.'
+    invalid_current_password: 'Contraseña actual incorrecta.'
     account_blocked: 'Esta cuenta ha sido bloqueada.'
     locale_must_be_one_of: '"locale" debe ser uno de: %locales%.'
     cannot_block_own_account: 'No puedes bloquear tu propia cuenta.'

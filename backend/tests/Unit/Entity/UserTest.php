@@ -44,4 +44,17 @@ class UserTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $user->setLocale('fr');
     }
+
+    public function testChangePasswordUpdatesAuthHashAndEncryptedPrivateKeyOnly(): void
+    {
+        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+
+        $user->changePassword('new-hash', 'new-enc');
+
+        self::assertSame('new-hash', $user->getAuthHash());
+        self::assertSame('new-enc', $user->getEncryptedPrivateKey());
+        // The keypair itself is untouched — no anketa re-sharing consequence.
+        self::assertSame('pub', $user->getPublicKey());
+        self::assertNull($user->getPublicKeyUpdatedAt());
+    }
 }

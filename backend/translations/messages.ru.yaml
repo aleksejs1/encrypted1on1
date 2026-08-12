@@ -32,6 +32,7 @@ errors:
     invalid_or_expired_reset_link: 'Недействительная или истёкшая ссылка для сброса пароля.'
     missing_email_or_auth_key: 'Отсутствует «email» или «authKey».'
     invalid_email_or_password: 'Неверный email или пароль.'
+    invalid_current_password: 'Неверный текущий пароль.'
     account_blocked: 'Эта учётная запись заблокирована.'
     locale_must_be_one_of: '«locale» должно быть одним из: %locales%.'
     cannot_block_own_account: 'Вы не можете заблокировать свою собственную учётную запись.'

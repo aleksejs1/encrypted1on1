@@ -6,7 +6,8 @@
     "roleEmployee": "Employee",
     "roleManager": "Manager",
     "backToAnketas": "← Anketas",
-    "logout": "Log out"
+    "logout": "Log out",
+    "accountSettings": "Account settings"
   },
   "login": {
     "title": "Log in",
@@ -43,6 +44,26 @@
     "submit": "Reset password",
     "submitting": "Resetting…",
     "lookupError": "Could not load this reset link.",
+    "strength": {
+      "tooWeak": "Too weak",
+      "weak": "Weak",
+      "okay": "Okay",
+      "good": "Good",
+      "strong": "Strong"
+    },
+    "genericError": "Something went wrong."
+  },
+  "accountSettings": {
+    "title": "Account settings",
+    "subtitle": "Change your password. Your existing anketas stay readable — the key itself doesn't change.",
+    "currentPasswordLabel": "Current password",
+    "newPasswordLabel": "New password",
+    "passwordHint": "At least {min} characters.",
+    "confirmPasswordLabel": "Confirm new password",
+    "passwordMismatch": "Passwords don't match.",
+    "submit": "Change password",
+    "submitting": "Changing…",
+    "successMessage": "Password changed.",
     "strength": {
       "tooWeak": "Too weak",
       "weak": "Weak",

@@ -172,4 +172,103 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame('Too many requests. Please try again later.', $limited['json']['error']);
         self::assertTrue($client->getResponse()->headers->has('Retry-After'));
     }
+
+    public function testChangePasswordRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+            'currentAuthKey' => str_repeat('a', 44),
+            'newAuthKey' => str_repeat('x', 44),
+            'newEncryptedPrivateKey' => str_repeat('y', 44),
+        ]);
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testChangePasswordRejectsMissingFields(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('change-password-missing'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+            'currentAuthKey' => str_repeat('a', 44),
+        ]);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testChangePasswordRejectsTheWrongCurrentPassword(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('change-password-wrong-current'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+            'currentAuthKey' => str_repeat('z', 44), // activateUser() sets it to "a" x 44
+            'newAuthKey' => str_repeat('x', 44),
+            'newEncryptedPrivateKey' => str_repeat('y', 44),
+        ]);
+
+        self::assertSame(401, $result['status']);
+        self::assertSame('Incorrect current password.', $result['json']['error']);
+    }
+
+    public function testChangePasswordSucceedsAndSwapsWhichAuthKeyLogsIn(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('change-password-ok');
+        $this->activateUser($client, $email);
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+            'currentAuthKey' => str_repeat('a', 44),
+            'newAuthKey' => str_repeat('x', 44),
+            'newEncryptedPrivateKey' => str_repeat('y', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        // publicKey is untouched — no anketa re-sharing consequence for this flow.
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+        self::assertSame(str_repeat('y', 44), $me['json']['encryptedPrivateKey']);
+
+        $this->jsonRequest($client, 'POST', '/api/logout');
+
+        $oldLogin = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+        ]);
+        self::assertSame(401, $oldLogin['status']);
+
+        $newLogin = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('x', 44),
+        ]);
+        self::assertSame(200, $newLogin['status']);
+    }
+
+    public function testChangePasswordIsRateLimitedAfterTooManyAttempts(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('change-password-rate-limit'));
+
+        // Configured limit: 5/hour (config/packages/rate_limiter.php). Wrong current
+        // password each time — rate-limit consumption happens before that check, so a
+        // 401 here still counts as "not yet rate-limited."
+        for ($i = 0; $i < 5; ++$i) {
+            $result = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+                'currentAuthKey' => str_repeat('z', 44),
+                'newAuthKey' => str_repeat('x', 44),
+                'newEncryptedPrivateKey' => str_repeat('y', 44),
+            ]);
+            self::assertSame(401, $result['status'], "attempt {$i} should not be rate-limited yet");
+        }
+
+        $limited = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+            'currentAuthKey' => str_repeat('z', 44),
+            'newAuthKey' => str_repeat('x', 44),
+            'newEncryptedPrivateKey' => str_repeat('y', 44),
+        ]);
+
+        self::assertSame(429, $limited['status']);
+        self::assertTrue($client->getResponse()->headers->has('Retry-After'));
+    }
 }

@@ -32,6 +32,7 @@ errors:
     invalid_or_expired_reset_link: 'Nederīga vai beigusies paroles atiestatīšanas saite.'
     missing_email_or_auth_key: 'Trūkst "email" vai "authKey".'
     invalid_email_or_password: 'Nepareizs e-pasts vai parole.'
+    invalid_current_password: 'Nepareiza pašreizējā parole.'
     account_blocked: 'Šis konts ir bloķēts.'
     locale_must_be_one_of: '"locale" jābūt vienam no: %locales%.'
     cannot_block_own_account: 'Jūs nevarat bloķēt savu paša kontu.'

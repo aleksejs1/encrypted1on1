@@ -3,7 +3,8 @@
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 /**
- * Named limiters (three from Phase 7f, two more for password reset) — see
+ * Named limiters (three from Phase 7f, two more for password reset, one more for
+ * the in-app change-password flow) — see
  * CLAUDE.md for why the original three endpoints specifically, and why
  * neither GET /api/activation-tokens/{token} nor
  * GET /api/password-reset-tokens/{token} is limited (read-only, side-effect-free,
@@ -39,6 +40,11 @@ return static function (ContainerConfigurator $container): void {
                 'policy' => 'sliding_window',
                 'limit' => 10,
                 'interval' => '1 minute',
+            ],
+            'change_password' => [
+                'policy' => 'sliding_window',
+                'limit' => 5,
+                'interval' => '1 hour',
             ],
         ],
     ]);

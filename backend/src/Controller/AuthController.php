@@ -27,6 +27,8 @@ class AuthController
         private readonly string $registrationMode,
         #[Autowire(service: 'limiter.login')]
         private readonly RateLimiterFactory $loginLimiter,
+        #[Autowire(service: 'limiter.change_password')]
+        private readonly RateLimiterFactory $changePasswordLimiter,
     ) {
     }
 
@@ -130,5 +132,46 @@ class AuthController
         $this->entityManager->flush();
 
         return new JsonResponse(['locale' => $user->getLocale()]);
+    }
+
+    /**
+     * In-app "change password" for a still-logged-in user who remembers their current
+     * password — distinct from PasswordResetController's forgot-password flow: the
+     * keypair itself doesn't change, only the password wrapping the (unchanged) private
+     * key, so there's no anketa re-sharing consequence. See User::changePassword().
+     */
+    #[Route('/api/me/password', name: 'me_change_password', methods: ['PUT'])]
+    public function changePassword(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+
+        $user = $this->authSession->getCurrentUser($request);
+        if (null === $user) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
+        }
+
+        // Keyed by the account itself, not IP — same reasoning as the invite limiter:
+        // this is a per-user action, and IP-keying would collectively throttle a shared
+        // office network.
+        $limit = $this->changePasswordLimiter->create($user->getId())->consume();
+        if (!$limit->isAccepted()) {
+            return RateLimitResponse::create($limit, $this->translator);
+        }
+
+        $body = $request->toArray();
+        foreach (['currentAuthKey', 'newAuthKey', 'newEncryptedPrivateKey'] as $field) {
+            if (!\is_string($body[$field] ?? null) || '' === $body[$field]) {
+                return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
+            }
+        }
+
+        if (!hash_equals($user->getAuthHash(), $body['currentAuthKey'])) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_current_password')], 401);
+        }
+
+        $user->changePassword($body['newAuthKey'], $body['newEncryptedPrivateKey']);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['ok' => true]);
     }
 }

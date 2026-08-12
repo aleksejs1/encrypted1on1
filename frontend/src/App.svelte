@@ -7,6 +7,7 @@
   import ForgotPassword from './pages/ForgotPassword.svelte';
   import ResetPassword from './pages/ResetPassword.svelte';
   import Report from './pages/Report.svelte';
+  import AccountSettings from './pages/AccountSettings.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
@@ -30,7 +31,7 @@
   // rather than needing its own entry in MIGRATED_AUTHED_PATHS. Password reset
   // (forgot-password/reset-password) is unauthenticated the same way
   // Login/Activate are, and gets the same treatment as activationMatch.
-  const MIGRATED_AUTHED_PATHS = ['/', '/report', '/admin'];
+  const MIGRATED_AUTHED_PATHS = ['/', '/report', '/admin', '/account'];
   const showAppHeader = $derived(
     !!activationMatch ||
       !!resetPasswordMatch ||
@@ -64,6 +65,8 @@
     <AnketaPage id={anketaMatch[1]} />
   {:else if routerState.path === '/report'}
     <Report />
+  {:else if routerState.path === '/account'}
+    <AccountSettings />
   {:else if routerState.path === '/admin'}
     <AdminPanel />
   {:else}

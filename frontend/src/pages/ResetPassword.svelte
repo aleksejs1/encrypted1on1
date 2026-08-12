@@ -8,12 +8,9 @@
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { navigate } from '../router.svelte';
+  import { MIN_PASSWORD_LENGTH, STRENGTH_COLORS, STRENGTH_LABEL_KEYS, scoreOf } from '../passwordStrength';
 
   const { token }: { token: string } = $props();
-
-  const MIN_PASSWORD_LENGTH = 12;
-  const STRENGTH_COLORS = ['#c0574a', '#d68a3f', '#c9a23f', '#8fa073'];
-  const STRENGTH_LABEL_KEYS = ['tooWeak', 'weak', 'okay', 'good', 'strong'] as const;
 
   let email = $state<string | null>(null);
   let lookupError = $state<string | null>(null);
@@ -32,18 +29,6 @@
         lookupError = error instanceof ApiError ? error.message : $_('resetPassword.lookupError');
       });
   });
-
-  // Same visual scoring as Activate.svelte — a read on the MIN_PASSWORD_LENGTH check
-  // below, not new validation.
-  function scoreOf(pw: string): number {
-    if (!pw) return 0;
-    let score = 0;
-    if (pw.length >= 8) score++;
-    if (pw.length >= 12) score++;
-    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw) || /[^A-Za-z0-9]/.test(pw)) score++;
-    return Math.min(score, 4);
-  }
 
   const passwordScore = $derived(scoreOf(password));
   const passwordTooShort = $derived(password.length > 0 && password.length < MIN_PASSWORD_LENGTH);

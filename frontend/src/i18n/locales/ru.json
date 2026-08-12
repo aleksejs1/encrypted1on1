@@ -6,7 +6,8 @@
     "roleEmployee": "Сотрудник",
     "roleManager": "Менеджер",
     "backToAnketas": "← Анкеты",
-    "logout": "Выйти"
+    "logout": "Выйти",
+    "accountSettings": "Настройки аккаунта"
   },
   "login": {
     "title": "Вход",
@@ -43,6 +44,26 @@
     "submit": "Сбросить пароль",
     "submitting": "Сброс…",
     "lookupError": "Не удалось загрузить эту ссылку для сброса.",
+    "strength": {
+      "tooWeak": "Слишком слабый",
+      "weak": "Слабый",
+      "okay": "Нормальный",
+      "good": "Хороший",
+      "strong": "Надёжный"
+    },
+    "genericError": "Что-то пошло не так."
+  },
+  "accountSettings": {
+    "title": "Настройки аккаунта",
+    "subtitle": "Смените пароль. Ваши текущие анкеты останутся читаемыми — сам ключ не меняется.",
+    "currentPasswordLabel": "Текущий пароль",
+    "newPasswordLabel": "Новый пароль",
+    "passwordHint": "Минимум {min} символов.",
+    "confirmPasswordLabel": "Подтвердите новый пароль",
+    "passwordMismatch": "Пароли не совпадают.",
+    "submit": "Сменить пароль",
+    "submitting": "Смена пароля…",
+    "successMessage": "Пароль изменён.",
     "strength": {
       "tooWeak": "Слишком слабый",
       "weak": "Слабый",
