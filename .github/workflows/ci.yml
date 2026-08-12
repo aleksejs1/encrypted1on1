@@ -39,6 +39,9 @@ jobs:
       - name: Run static analysis
         run: composer stan
 
+      - name: Audit dependencies for known vulnerabilities
+        run: composer audit
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -64,3 +67,15 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # --audit-level=high, not the default (any severity): svelte-i18n@4.0.1 (the latest
+      # published version) depends on an old esbuild with a known moderate advisory
+      # (GHSA-67mh-4wv8-2f99) that only affects esbuild's own local dev server accepting
+      # cross-origin requests — irrelevant to the built production bundle this app ships,
+      # and there's currently no upstream fix (confirmed: `npm audit fix --force` only
+      # offers a breaking downgrade to svelte-i18n@3.7.1, not a real fix). Blocking CI on
+      # an unfixable, inapplicable finding would just train everyone to ignore red CI, so
+      # this gate blocks on high/critical (a real, actionable class of finding) and
+      # accepts this one specific moderate issue until svelte-i18n bumps esbuild upstream.
+      - name: Audit dependencies for known vulnerabilities
+        run: npm audit --audit-level=high

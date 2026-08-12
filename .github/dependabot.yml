@@ -1,0 +1,24 @@
+# Complements the `composer audit`/`npm audit` CI gates (.github/workflows/ci.yml):
+# those block a PR that introduces a *known* vulnerability; this proactively opens
+# PRs to keep dependencies current before an advisory even gets filed against them.
+# Covers every ecosystem this repo actually has dependency manifests for.
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directories:
+      - /docker/dev
+      - /docker/prod
+    schedule:
+      interval: weekly
