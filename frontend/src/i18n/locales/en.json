@@ -19,6 +19,7 @@
     "cryptoNote": "Unlocking your data — this can take a few seconds.",
     "sessionNote": "You'll need to log in again next time you open a new tab. Your key is kept only in this tab's memory, never stored.",
     "forgotPassword": "Forgot password?",
+    "signUpLink": "Sign up",
     "genericError": "Something went wrong."
   },
   "forgotPassword": {
@@ -28,6 +29,18 @@
     "submit": "Send reset link",
     "submitting": "Sending…",
     "sentConfirmation": "If that email has an account, we've sent a link to reset the password.",
+    "backToLogin": "Back to login",
+    "genericError": "Something went wrong."
+  },
+  "signup": {
+    "title": "Sign up",
+    "subtitle": "We'll email you a link to activate your account.",
+    "emailLabel": "Email",
+    "domainHint": "Only @{domain} email addresses are allowed.",
+    "submit": "Sign up",
+    "submitting": "Sending…",
+    "sentConfirmation": "If that email is allowed to sign up, we've sent a link to activate the account.",
+    "notOpenMessage": "Self-registration isn't currently open. Ask someone at your organization for an invite.",
     "backToLogin": "Back to login",
     "genericError": "Something went wrong."
   },

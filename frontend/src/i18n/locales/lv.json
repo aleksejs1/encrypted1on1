@@ -19,6 +19,7 @@
     "cryptoNote": "Atšifrējam jūsu datus — tas var aizņemt dažas sekundes.",
     "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
     "forgotPassword": "Aizmirsāt paroli?",
+    "signUpLink": "Reģistrēties",
     "genericError": "Kaut kas nogāja greizi."
   },
   "forgotPassword": {
@@ -28,6 +29,18 @@
     "submit": "Nosūtīt saiti",
     "submitting": "Sūta…",
     "sentConfirmation": "Ja šim e-pastam ir konts, mēs nosūtījām saiti paroles atiestatīšanai.",
+    "backToLogin": "Atpakaļ uz pieslēgšanos",
+    "genericError": "Kaut kas nogāja greizi."
+  },
+  "signup": {
+    "title": "Reģistrēties",
+    "subtitle": "Mēs jums nosūtīsim saiti, lai aktivizētu kontu.",
+    "emailLabel": "E-pasts",
+    "domainHint": "Atļautas tikai adreses ar @{domain}.",
+    "submit": "Reģistrēties",
+    "submitting": "Sūta…",
+    "sentConfirmation": "Ja šim e-pastam ir atļauts reģistrēties, mēs nosūtījām saiti konta aktivizēšanai.",
+    "notOpenMessage": "Pašreģistrācija pašlaik nav pieejama. Palūdziet ielūgumu kādam no jūsu organizācijas.",
     "backToLogin": "Atpakaļ uz pieslēgšanos",
     "genericError": "Kaut kas nogāja greizi."
   },

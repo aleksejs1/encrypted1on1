@@ -17,6 +17,9 @@ email:
     counterpart_key_changed:
         subject: 'Sarunu biedra šifrēšanas atslēga ir mainījusies'
         body: "%counterpart% konts ir veicis paroles atiestatīšanu, kas nomainīja viņa šifrēšanas atslēgu.\n\nIespējams, ka anketas, kas jums ir kopīgas ar viņu, būs jāpiešķir vēlreiz, pirms viņš tās varēs izlasīt — ja tas tā ir, jūs redzēsiet par to baneri savā anketu sarakstā."
+    signup:
+        subject: 'Apstipriniet savu e-pastu encrypted1on1'
+        body: "Mēs saņēmām pieprasījumu izveidot encrypted1on1 kontu ar šo e-pasta adresi.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
@@ -42,7 +45,7 @@ errors:
     user_not_found: 'Lietotājs nav atrasts.'
     admin_only_invite: 'Kamēr reģistrācija ir pieejama tikai ar administratora ielūgumu, jaunus lietotājus var uzaicināt tikai administratori.'
     missing_email: 'Trūkst "email".'
-    email_domain_restricted: 'Uzaicināt var tikai adreses ar "@%domain%".'
+    email_domain_restricted: 'Atļautas tikai adreses ar "@%domain%".'
     email_already_registered: 'Šim e-pastam jau ir konts.'
     invalid_role: '"myRole" jābūt "employee" vai "manager".'
     counterpart_not_found: 'Otra puse nav atrasta.'
@@ -66,3 +69,4 @@ errors:
     missing_meeting_date: 'Trūkst "meetingDate".'
     invalid_csrf_token: 'Nederīgs CSRF marķieris.'
     too_many_requests: 'Pārāk daudz pieprasījumu. Lūdzu, mēģiniet vēlreiz vēlāk.'
+    registration_not_open: 'Pašreģistrācija pašlaik nav pieejama.'

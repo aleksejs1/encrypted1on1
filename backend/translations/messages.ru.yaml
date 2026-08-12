@@ -17,6 +17,9 @@ email:
     counterpart_key_changed:
         subject: 'У собеседника изменился ключ шифрования'
         body: "Аккаунт %counterpart% прошёл через сброс пароля, из-за чего изменился его ключ шифрования.\n\nВозможно, анкеты, которые у вас с ним общие, нужно будет предоставить заново, прежде чем он сможет их прочитать — если это так, вы увидите баннер об этом в списке анкет."
+    signup:
+        subject: 'Подтвердите email для encrypted1on1'
+        body: "Мы получили запрос на создание аккаунта encrypted1on1 с этим email.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
 errors:
     not_authenticated: 'Вы не авторизованы.'
     missing_or_invalid_field: 'Отсутствует или некорректно поле «%field%».'
@@ -42,7 +45,7 @@ errors:
     user_not_found: 'Пользователь не найден.'
     admin_only_invite: 'Пока регистрация доступна только по приглашению администратора, приглашать новых пользователей могут только администраторы.'
     missing_email: 'Отсутствует «email».'
-    email_domain_restricted: 'Приглашать можно только адреса вида «@%domain%».'
+    email_domain_restricted: 'Разрешены только адреса вида «@%domain%».'
     email_already_registered: 'Для этого email уже есть учётная запись.'
     invalid_role: '«myRole» должно быть «employee» или «manager».'
     counterpart_not_found: 'Собеседник не найден.'
@@ -66,3 +69,4 @@ errors:
     missing_meeting_date: 'Отсутствует «meetingDate».'
     invalid_csrf_token: 'Недействительный CSRF-токен.'
     too_many_requests: 'Слишком много запросов. Попробуйте снова позже.'
+    registration_not_open: 'Самостоятельная регистрация сейчас недоступна.'

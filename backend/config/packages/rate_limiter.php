@@ -4,7 +4,8 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 
 /**
  * Named limiters (three from Phase 7f, two more for password reset, one more for
- * the in-app change-password flow, one more for account deletion) — see
+ * the in-app change-password flow, one more for account deletion, one more for
+ * REGISTRATION_MODE=domain self-signup) — see
  * CLAUDE.md for why the original three endpoints specifically, and why
  * neither GET /api/activation-tokens/{token} nor
  * GET /api/password-reset-tokens/{token} is limited (read-only, side-effect-free,
@@ -47,6 +48,11 @@ return static function (ContainerConfigurator $container): void {
                 'interval' => '1 hour',
             ],
             'delete_account' => [
+                'policy' => 'sliding_window',
+                'limit' => 5,
+                'interval' => '1 hour',
+            ],
+            'signup' => [
                 'policy' => 'sliding_window',
                 'limit' => 5,
                 'interval' => '1 hour',

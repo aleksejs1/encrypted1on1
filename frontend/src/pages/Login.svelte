@@ -1,12 +1,22 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { apiPost, ApiError } from '../api/client';
+  import { apiGet, apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
   import { unpackWrappedPrivateKey, unwrapPrivateKey } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
+
+  let signupOpen = $state(false);
+
+  $effect(() => {
+    apiGet<{ registrationMode: string }>('/api/registration-info')
+      .then((info) => {
+        signupOpen = info.registrationMode === 'domain';
+      })
+      .catch(() => {});
+  });
 
   let email = $state('');
   let password = $state('');
@@ -89,6 +99,9 @@
       {/if}
 
       <a href="/forgot-password" class="forgot-link">{$_('login.forgotPassword')}</a>
+      {#if signupOpen}
+        <a href="/signup" class="signup-link">{$_('login.signUpLink')}</a>
+      {/if}
     </form>
 
     <div class="hr"></div>
@@ -139,7 +152,8 @@
     margin: 0;
   }
 
-  .forgot-link {
+  .forgot-link,
+  .signup-link {
     font-size: 13px;
   }
 </style>

@@ -23,7 +23,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * and `admin_only` (admin-only) — the spec's two invite-based modes differ
  * only in *who* may call this, not in the mechanism itself (see the Phase
  * 6g plan). `domain` mode (open self-registration) is a different flow
- * entirely and isn't built here.
+ * entirely — see SignupController — but the email-domain restriction
+ * (`allowedEmailDomain`) applies here too, regardless of mode.
  */
 class InviteController
 {

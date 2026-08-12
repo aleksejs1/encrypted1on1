@@ -45,4 +45,22 @@ class InvitationNotifier
             error_log(sprintf('Failed to send invitation email to %s: %s', $email, $e->getMessage()));
         }
     }
+
+    /** REGISTRATION_MODE=domain's self-service signup (SignupController) — same shape as notifyInvited(), no %inviter% since nobody invited this person. */
+    public function notifySignup(string $email, string $rawToken): void
+    {
+        $params = ['%url%' => sprintf('%s/activate/%s', rtrim($this->frontendBaseUrl, '/'), $rawToken)];
+
+        $message = (new Email())
+            ->from($this->mailerFrom)
+            ->to($email)
+            ->subject($this->translator->trans('email.signup.subject', $params))
+            ->text($this->translator->trans('email.signup.body', $params));
+
+        try {
+            $this->mailer->send($message);
+        } catch (TransportExceptionInterface $e) {
+            error_log(sprintf('Failed to send signup confirmation email to %s: %s', $email, $e->getMessage()));
+        }
+    }
 }

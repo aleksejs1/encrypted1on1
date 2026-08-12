@@ -19,6 +19,7 @@
     "cryptoNote": "Descifrando tus datos — esto puede tardar unos segundos.",
     "sessionNote": "Tendrás que iniciar sesión de nuevo la próxima vez que abras una pestaña nueva. Tu clave se guarda solo en la memoria de esta pestaña y nunca se almacena.",
     "forgotPassword": "¿Olvidaste tu contraseña?",
+    "signUpLink": "Regístrate",
     "genericError": "Algo salió mal."
   },
   "forgotPassword": {
@@ -28,6 +29,18 @@
     "submit": "Enviar enlace",
     "submitting": "Enviando…",
     "sentConfirmation": "Si ese correo tiene una cuenta, hemos enviado un enlace para restablecer la contraseña.",
+    "backToLogin": "Volver al inicio de sesión",
+    "genericError": "Algo salió mal."
+  },
+  "signup": {
+    "title": "Regístrate",
+    "subtitle": "Te enviaremos un enlace para activar tu cuenta.",
+    "emailLabel": "Correo electrónico",
+    "domainHint": "Solo se permiten direcciones @{domain}.",
+    "submit": "Registrarse",
+    "submitting": "Enviando…",
+    "sentConfirmation": "Si ese correo puede registrarse, hemos enviado un enlace para activar la cuenta.",
+    "notOpenMessage": "El autorregistro no está disponible actualmente. Pide una invitación a alguien de tu organización.",
     "backToLogin": "Volver al inicio de sesión",
     "genericError": "Algo salió mal."
   },

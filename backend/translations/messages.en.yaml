@@ -22,6 +22,9 @@ email:
     counterpart_key_changed:
         subject: "A counterpart's encryption key changed"
         body: "%counterpart%'s account went through a password reset, which replaced their encryption key.\n\nAny anketas you share with them may need to be shared again before they can read them — you'll see a banner for this on your anketas list if so."
+    signup:
+        subject: 'Confirm your email for encrypted1on1'
+        body: "We received a request to create an encrypted1on1 account with this email address.\n\nActivate your account: %url%\n\nIf you didn't request this, you can ignore this email."
 # API error messages (Phase 6j) — translated into the requesting user's active
 # UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
 errors:
@@ -49,7 +52,7 @@ errors:
     user_not_found: 'User not found.'
     admin_only_invite: 'Only admins can invite new users while registration is admin-only.'
     missing_email: 'Missing "email".'
-    email_domain_restricted: 'Only "@%domain%" email addresses can be invited.'
+    email_domain_restricted: 'Only "@%domain%" email addresses are allowed.'
     email_already_registered: 'That email already has an account.'
     invalid_role: '"myRole" must be "employee" or "manager".'
     counterpart_not_found: 'Counterpart not found.'
@@ -73,3 +76,4 @@ errors:
     missing_meeting_date: 'Missing "meetingDate".'
     invalid_csrf_token: 'Invalid CSRF token.'
     too_many_requests: 'Too many requests. Please try again later.'
+    registration_not_open: 'Self-registration is not currently open.'
