@@ -105,6 +105,7 @@ class AuthController
             // Every authenticated user needs this to decide whether to show the general
             // "Invite" UI (Phase 6g) — not admin-only information.
             'registrationMode' => $this->registrationMode,
+            'meetingRemindersEnabled' => $user->wantsMeetingReminders(),
         ]);
     }
 
@@ -132,6 +133,32 @@ class AuthController
         $this->entityManager->flush();
 
         return new JsonResponse(['locale' => $user->getLocale()]);
+    }
+
+    /**
+     * Gates only the day-before/not-filled-out reminder emails (AnketaNotifier::
+     * notifyMeetingTomorrow()/notifyNotFilledOut()) — the "new anketa scheduled" email
+     * stays mandatory regardless, per the Account Settings plan.
+     */
+    #[Route('/api/me/notification-preferences', name: 'me_set_notification_preferences', methods: ['PUT'])]
+    public function setNotificationPreferences(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+
+        $user = $this->authSession->getCurrentUser($request);
+        if (null === $user) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
+        }
+
+        $enabled = $request->toArray()['meetingRemindersEnabled'] ?? null;
+        if (!\is_bool($enabled)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'meetingRemindersEnabled'])], 400);
+        }
+
+        $user->setMeetingRemindersEnabled($enabled);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['meetingRemindersEnabled' => $user->wantsMeetingReminders()]);
     }
 
     /**

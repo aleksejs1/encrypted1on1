@@ -39,8 +39,12 @@ class AnketaNotifier
         ]);
     }
 
+    /** Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated(), which is always mandatory. */
     public function notifyMeetingTomorrow(Anketa $anketa, User $recipient, User $counterpart): void
     {
+        if (!$recipient->wantsMeetingReminders()) {
+            return;
+        }
         $this->send($recipient, 'email.meeting_tomorrow', [
             '%counterpart%' => $counterpart->getEmail(),
             '%date%' => $this->formatDate($anketa),
@@ -48,8 +52,12 @@ class AnketaNotifier
         ]);
     }
 
+    /** Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated(), which is always mandatory. */
     public function notifyNotFilledOut(Anketa $anketa, User $recipient, User $counterpart): void
     {
+        if (!$recipient->wantsMeetingReminders()) {
+            return;
+        }
         $this->send($recipient, 'email.not_filled_out', [
             '%counterpart%' => $counterpart->getEmail(),
             '%date%' => $this->formatDate($anketa),

@@ -71,7 +71,10 @@
       "good": "Good",
       "strong": "Strong"
     },
-    "genericError": "Something went wrong."
+    "genericError": "Something went wrong.",
+    "notificationsTitle": "Email notifications",
+    "meetingRemindersLabel": "Meeting reminder emails",
+    "meetingRemindersHint": "Day-before reminders and \"not filled out yet\" nudges. You'll still always get an email when a new anketa is scheduled with you."
   },
   "activate": {
     "title": "Activate account",

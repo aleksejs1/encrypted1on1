@@ -245,6 +245,49 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(200, $newLogin['status']);
     }
 
+    public function testMeIncludesMeetingRemindersEnabledDefaultingToTrue(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-me-reminders-default'));
+
+        $result = $this->jsonRequest($client, 'GET', '/api/me');
+
+        self::assertSame(200, $result['status']);
+        self::assertTrue($result['json']['meetingRemindersEnabled']);
+    }
+
+    public function testSetNotificationPreferencesRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/notification-preferences', ['meetingRemindersEnabled' => false]);
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testSetNotificationPreferencesRejectsANonBooleanValue(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-notif-prefs-bad'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/notification-preferences', ['meetingRemindersEnabled' => 'nope']);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testSetNotificationPreferencesUpdatesTheStoredValue(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-notif-prefs-ok'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/notification-preferences', ['meetingRemindersEnabled' => false]);
+        self::assertSame(200, $result['status']);
+        self::assertFalse($result['json']['meetingRemindersEnabled']);
+
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+        self::assertFalse($me['json']['meetingRemindersEnabled']);
+    }
+
     public function testChangePasswordIsRateLimitedAfterTooManyAttempts(): void
     {
         $client = static::createClient();

@@ -57,4 +57,20 @@ class UserTest extends TestCase
         self::assertSame('pub', $user->getPublicKey());
         self::assertNull($user->getPublicKeyUpdatedAt());
     }
+
+    public function testMeetingRemindersDefaultToEnabled(): void
+    {
+        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+
+        self::assertTrue($user->wantsMeetingReminders());
+    }
+
+    public function testSetMeetingRemindersEnabledRoundTrips(): void
+    {
+        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+
+        $user->setMeetingRemindersEnabled(false);
+
+        self::assertFalse($user->wantsMeetingReminders());
+    }
 }

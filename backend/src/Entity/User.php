@@ -90,6 +90,15 @@ class User
     #[ORM\Column(type: 'string', length: 5)]
     private string $locale = 'en';
 
+    /**
+     * Gates AnketaNotifier::notifyMeetingTomorrow()/notifyNotFilledOut() only — the
+     * "new anketa scheduled" email (notifyAnketaCreated()) stays mandatory regardless,
+     * per the account-settings plan. Defaults true so nobody's reminders silently stop
+     * without an explicit opt-out.
+     */
+    #[ORM\Column(type: 'boolean')]
+    private bool $meetingRemindersEnabled = true;
+
     public function __construct(
         string $email,
         string $authHash,
@@ -204,5 +213,15 @@ class User
             throw new \InvalidArgumentException(sprintf('Unsupported locale "%s".', $locale));
         }
         $this->locale = $locale;
+    }
+
+    public function wantsMeetingReminders(): bool
+    {
+        return $this->meetingRemindersEnabled;
+    }
+
+    public function setMeetingRemindersEnabled(bool $enabled): void
+    {
+        $this->meetingRemindersEnabled = $enabled;
     }
 }

@@ -71,7 +71,10 @@
       "good": "Laba",
       "strong": "Stipra"
     },
-    "genericError": "Kaut kas nogāja greizi."
+    "genericError": "Kaut kas nogāja greizi.",
+    "notificationsTitle": "E-pasta paziņojumi",
+    "meetingRemindersLabel": "Atgādinājumu e-pasti par tikšanās",
+    "meetingRemindersHint": "Atgādinājumi dienu iepriekš un mudinājumi \"vēl nav aizpildīts\". Vēstuli par jaunas anketas izveidi jūs joprojām saņemsiet vienmēr."
   },
   "activate": {
     "title": "Aktivizēt kontu",

@@ -71,7 +71,10 @@
       "good": "Buena",
       "strong": "Fuerte"
     },
-    "genericError": "Algo salió mal."
+    "genericError": "Algo salió mal.",
+    "notificationsTitle": "Notificaciones por email",
+    "meetingRemindersLabel": "Correos de recordatorio de reuniones",
+    "meetingRemindersHint": "Recordatorios el día antes y avisos de \"aún no completado\". Seguirás recibiendo siempre el correo de creación de un nuevo cuestionario."
   },
   "activate": {
     "title": "Activar cuenta",
