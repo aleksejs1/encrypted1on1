@@ -45,6 +45,8 @@ On account activation, the browser generates a fresh X25519 keypair (`crypto_box
 
 A page refresh doesn't require re-entering the password: the master key lives in `sessionStorage` (tab-scoped — gone when the tab closes, present across a refresh) for the rest of that session, and the private key is cheaply re-unwrapped from it plus the server's `encryptedPrivateKey` on demand.
 
+The only other time a fresh keypair gets generated is a forgotten-password reset — the old master key that could unwrap the old private key is gone along with the forgotten password, so there's nothing to re-wrap; see [user-flow.md](user-flow.md#getting-an-account) for what that means for existing anketas. Changing a *remembered* password (Account Settings) is the opposite case: the same private key is re-wrapped under a new master key, no fresh keypair involved.
+
 ## Per-anketa keys
 
 Each anketa (a single 1:1 meeting cycle between one manager and one employee) gets its own symmetric key, generated fresh in the browser of whoever creates it:
@@ -90,6 +92,6 @@ Assume the worst case: an attacker has read access to the entire database, every
 - Any user's password, or anything that lets one be recovered.
 - Any user's master key or private key (only wrapped/sealed forms are ever stored).
 
-**A caveat worth stating plainly:** an attacker who compromises the server *and* can intercept or tamper with a specific user's live session (not just read the database at rest) could, in principle, serve that one user malicious client-side code and capture their password as they type it — no purely server-side encryption scheme can defend against a compromised or dishonest client, and this app doesn't claim to. The guarantee is about what a passive database/backup compromise reveals, not about defending against an actively malicious server operator serving different code to a targeted user.
+**A caveat worth stating plainly:** an attacker who compromises the server *and* can intercept or tamper with a specific user's live session (not just read the database at rest) could, in principle, serve that one user malicious client-side code and capture their password as they type it — no purely server-side encryption scheme can defend against a compromised or dishonest client, and this app doesn't claim to. The guarantee is about what a passive database/backup compromise reveals, not about defending against an actively malicious server operator serving different code to a targeted user. A strict Content-Security-Policy plus Subresource Integrity on the built JS/CSS (see [architecture.md](architecture.md)) narrows this a little — a compromised build pipeline or tampered static assets get caught by the browser refusing to execute them — but neither defends against a live server actively colluding to serve a specific victim different, self-consistent, matching-hash content; that's the same fundamental limit stated above, not something CSP/SRI can close.
 
 **A second real, non-cryptographic caveat:** an admin can *block* or *unblock* accounts and *promote/revoke* admin status (`AdminController`), and can generate account-activation links — none of that requires or grants access to anketa content, since none of it involves any key material. It's an authorization boundary, not a cryptographic one, and is enforced entirely server-side.

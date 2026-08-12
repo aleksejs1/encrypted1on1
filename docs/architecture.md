@@ -74,7 +74,7 @@ This is the boundary the whole design sits on top of, so it's worth stating expl
 
 - **Backend**: PHPUnit (`composer test` — functional tests drive the real HTTP layer via `symfony/browser-kit`, unit tests cover entity logic with no kernel boot), PHPStan at max level for `src/`, level 8 for `tests/` (`composer stan`).
 - **Frontend**: Vitest for pure logic (crypto primitives, report aggregation, locale key-parity), `svelte-check` + `tsc` for types, no component-rendering tests (this app has no browser-automation tooling wired in at all — every UI change during development has been verified by careful code review and manual `npm run dev` passes, not automated screenshots).
-- **CI**: GitHub Actions, two independent jobs (`backend`, `frontend`) on every push/PR, running the exact commands above natively (no Docker-in-CI) — see `.github/workflows/ci.yml`.
+- **CI**: GitHub Actions, two independent jobs (`backend`, `frontend`) on every push/PR, running the exact commands above natively (no Docker-in-CI) — see `.github/workflows/ci.yml`. Each job ends with a dependency-vulnerability scan (`composer audit`, `npm audit --audit-level=high`) that blocks the build on a known CVE; `.github/dependabot.yml` complements this by proactively opening update PRs (composer, npm, GitHub Actions, and both Dockerfiles) before an advisory even gets filed.
 
 ## What's deliberately not here
 

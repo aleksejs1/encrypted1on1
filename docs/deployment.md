@@ -38,6 +38,47 @@ Bootstrapping the very first account (needed once, on a fresh database — see [
 docker compose -f docker-compose.dev.yml exec backend php bin/console app:create-activation-link <email> --admin
 ```
 
+## Configuration
+
+Everything the app reads from the environment. `backend/.env` (committed, dev-only placeholder values) and `.env.prod.example` (copy to `.env.prod`, gitignored, real values) carry the same information as inline comments — this is the narrative version, in one place.
+
+### Core (every production deployment)
+
+| Variable | Required | What it does |
+|---|---|---|
+| `APP_SECRET` | Yes | Random, unique to this deployment (`openssl rand -hex 32`). Never reuse the dev placeholder. |
+| `SERVER_NAME` | Yes | The real public domain this instance is reachable at. With `docker-compose.prod.yml`, Caddy uses this to provision an automatic HTTPS certificate — ports 80/443 must be open and DNS must already point here. With the reverse-proxy setup, it's just used for routing/links; your existing proxy handles TLS. Never `localhost` or a bare IP. |
+| `FRONTEND_URL` | Yes | Same domain as `SERVER_NAME`, with scheme (`https://...`) — used to build the links inside notification/activation/reset emails. |
+| `MAILER_DSN` | Yes | A real SMTP DSN ([Symfony Mailer's DSN format](https://symfony.com/doc/current/mailer.html#using-built-in-transports)). The dev/test `smtp://mailpit:1025` placeholder only works against the dev Mailpit container. |
+| `MAILER_FROM` | Yes | The `From:` address on every outbound email. |
+| `REGISTRATION_MODE` | No (`invite`) | `invite` (any authenticated user can invite), `admin_only` (only admins can invite), or `domain` (open self-registration, double opt-in — see [user-flow.md](user-flow.md#getting-an-account)). |
+| `ALLOWED_EMAIL_DOMAIN` | No (empty = unrestricted) | Restricts which email domain can be invited *or* self-registered, e.g. `company.com`. Applies regardless of `REGISTRATION_MODE`. |
+
+### Reverse-proxy mode only (`docker-compose.prod.reverse-proxy.yml`)
+
+| Variable | Required | What it does |
+|---|---|---|
+| `APP_INTERNAL_BIND` | Yes | Where Caddy listens for the reverse proxy to connect (e.g. `127.0.0.1:8090`) — bind to loopback, not `0.0.0.0`, since this is an internal implementation detail, not meant to be reachable directly. Must match the proxy's `proxy_pass`/upstream target. |
+| `TRUSTED_PROXIES` | No (`127.0.0.1,::1`) | Told to Symfony (`backend/config/packages/framework.php`) — which upstream IPs to trust `X-Forwarded-*` headers from. Without this, the session cookie silently loses its `Secure` flag even on real HTTPS traffic, since Caddy only ever sees the internal plain-HTTP hop from the proxy. Widen if the proxy runs elsewhere (a different container, a separate host). |
+| `CADDY_TRUSTED_PROXIES` | No (`127.0.0.1 ::1`) | The same trust decision, told to Caddy itself — space-separated (Caddyfile syntax, not comma-separated like `TRUSTED_PROXIES`). Both need to agree independently; setting only one is a real, documented FrankenPHP footgun. |
+
+The direct-facing `docker-compose.prod.yml` also accepts `TRUSTED_PROXIES` (defaults to empty, since its own Caddy terminates TLS directly) — only relevant if that directly-facing Caddy is itself behind something like Cloudflare.
+
+### Backup/restore scripts
+
+Not `.env.prod` values — plain shell environment variables read by `docker/prod/backup.sh`/`restore.sh` themselves, e.g. set inline on the cron line:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `ENV_FILE` | `.env.prod` | Passed to `docker compose --env-file` — every invocation against a prod compose file needs this, including `backup.sh`'s own. |
+| `PROD_COMPOSE_FILE` | `docker-compose.prod.yml` | Set to `docker-compose.prod.reverse-proxy.yml` if that's how you deployed. |
+| `BACKUP_DIR` | `./backups` | Where snapshots land on the host. |
+| `RETENTION_DAYS` | `14` | Snapshots older than this are pruned on every `backup.sh` run. |
+
+### Dev-only (`backend/.env`, already committed with working defaults)
+
+`APP_ENV`/`APP_DEBUG`/`DATABASE_URL` are fixed for local dev and shouldn't need touching. `MAILER_DSN` already points at the bundled Mailpit container. `REGISTRATION_MODE`/`ALLOWED_EMAIL_DOMAIN` default to `invite`/unrestricted, same meaning as in prod — edit this file directly to test a different mode locally (see the "real domain-mode verification" pattern `CLAUDE.md` documents: edit, `docker compose up -d --force-recreate backend`, test, then revert).
+
 ## Production
 
 There are two deployment topologies, depending on whether this host already has something else listening on ports 80/443.

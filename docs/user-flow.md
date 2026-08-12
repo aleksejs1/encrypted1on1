@@ -11,7 +11,7 @@ Either way, activation works the same: the link is single-use and expires after 
 
 **This password is not "an account password" in the usual sense — choosing it is the moment your encryption key is created.** The app says so directly on the activation screen, because it's the single most consequential thing a new user does: that password, run through the derivation described in [encryption.md](encryption.md), is what everything else depends on.
 
-> **There is no password reset.** If a user forgets their password, there is no "reset link" that can restore access to that account's existing anketas — the server has never had anything that could decrypt them, so it has nothing to hand back. (An admin can still deactivate the old account and issue a fresh invite under the same email if needed to start over; the old encrypted history simply can't be recovered into it.)
+> **Forgetting your password is recoverable, but not free.** "Forgot password?" on the login screen emails a reset link — but since the server has never had anything that could decrypt your old anketas, resetting genuinely can't hand that access back either. Instead, completing the reset generates a **fresh** encryption keypair, so the account itself is usable again immediately, but every anketa sealed under the old keypair becomes unreadable until each counterpart re-shares it: the app detects this automatically, shows a counterpart a "re-share access" banner on their anketa list, and one click re-seals the affected anketas' keys to the new keypair — no plaintext ever crosses the server to make that happen. New anketas and anything a counterpart already re-shared are unaffected either way. (If you still remember your current password and just want to change it, do that from Account Settings instead — see below — since it re-wraps your *existing* key rather than generating a new one, so nothing needs re-sharing at all.)
 
 ## Logging in
 
@@ -20,6 +20,15 @@ Email and password, same as anywhere. Behind that simple form: the password gets
 Once logged in, the session lives in two places with two different lifetimes:
 - A regular httpOnly session cookie (server-side, like any web app) keeps you *authenticated*.
 - The unwrapped encryption key lives only in that browser tab's memory/`sessionStorage` — it survives a page refresh, but closing the tab clears it. Opening the app again in a new tab means logging in again. This is a deliberate trade-off explained on the login screen itself, not a hidden limitation: convenience (no re-typing on every refresh) without persisting key material anywhere durable.
+
+## Account settings
+
+A few self-service account controls, reachable from a link in the header once logged in:
+
+- **Change password.** Unlike the forgot-password flow above, this is for someone who still remembers their current password and just wants a new one — it re-wraps the *same* existing keypair rather than generating a fresh one, so nothing becomes unreadable and no counterpart ever needs to re-share anything. Requires entering the current password first, the same way any sensitive account action does.
+- **Meeting reminder emails** can be turned off per-account — the day-before reminder and the "you haven't filled this out yet" nudge specifically. The email announcing a *new* anketa is not covered by this toggle and always goes out, since it's the one notification that's actually load-bearing (it's how the other participant learns a cycle started at all).
+- **Export your data** downloads everything currently visible to you — your own answers (including an unpublished draft, if you have one), any counterpart's published answers, comments, outcomes, and goals — as a single JSON file, decrypted entirely in the browser. Nothing new is computed on the server for this; it's the same per-anketa data the app already fetches, just gathered into one file instead of displayed.
+- **Delete your account** is permanent and, unlike the two actions above, does affect other people — but narrowly: your own profile and encryption keypair are removed, and any of your own still-unpublished drafts are lost, but every anketa you're part of stays exactly as your counterparts already see it. Nothing is cascaded or torn down on their side.
 
 ## Starting a new 1:1 cycle ("anketa")
 
