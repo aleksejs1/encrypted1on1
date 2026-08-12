@@ -105,6 +105,32 @@ class AnketaTest extends TestCase
         self::assertFalse($anketa->isPublished($employee));
     }
 
+    public function testClearUnpublishedDraftForClearsOnlyTheTargetedUnpublishedSide(): void
+    {
+        $anketa = $this->makeAnketa();
+        $employee = $anketa->getEmployee();
+        $manager = $anketa->getManager();
+        $anketa->saveDraft($employee, 'employee-draft');
+        $anketa->saveDraft($manager, 'manager-draft');
+
+        $anketa->clearUnpublishedDraftFor($employee);
+
+        self::assertNull($anketa->getEmployeeBlob());
+        // The manager's own (also unpublished) side is untouched — only the targeted user's.
+        self::assertSame('manager-draft', $anketa->getManagerBlob());
+    }
+
+    public function testClearUnpublishedDraftForIsANoOpOncePublished(): void
+    {
+        $anketa = $this->makeAnketa();
+        $employee = $anketa->getEmployee();
+        $anketa->publish($employee, 'employee-published');
+
+        $anketa->clearUnpublishedDraftFor($employee);
+
+        self::assertSame('employee-published', $anketa->getEmployeeBlob());
+    }
+
     public function testArchiveSetsArchivedAtAndMissedFlag(): void
     {
         $anketa = $this->makeAnketa();

@@ -74,7 +74,19 @@
     "genericError": "Kaut kas nogāja greizi.",
     "notificationsTitle": "E-pasta paziņojumi",
     "meetingRemindersLabel": "Atgādinājumu e-pasti par tikšanās",
-    "meetingRemindersHint": "Atgādinājumi dienu iepriekš un mudinājumi \"vēl nav aizpildīts\". Vēstuli par jaunas anketas izveidi jūs joprojām saņemsiet vienmēr."
+    "meetingRemindersHint": "Atgādinājumi dienu iepriekš un mudinājumi \"vēl nav aizpildīts\". Vēstuli par jaunas anketas izveidi jūs joprojām saņemsiet vienmēr.",
+    "exportTitle": "Eksportēt savus datus",
+    "exportHint": "Lejupielādējiet visu, ko šobrīd varat redzēt — savas atbildes (ieskaitot nepublicētos melnrakstus), sarunu biedru publicētās atbildes, komentārus, tikšanās rezultātus un mērķus — kā JSON failu.",
+    "exportButton": "Eksportēt kā JSON",
+    "exporting": "Sagatavo eksportu…",
+    "exportGenericError": "Neizdevās eksportēt datus.",
+    "deleteTitle": "Konta dzēšana",
+    "deleteWarningHeading": "To nevar atsaukt",
+    "deleteWarningText": "Jūsu anketas paliek neskartas jūsu sarunu biedriem — konta dzēšana neietekmē kopīgo vēsturi. Jūsu pašu nepublicētie melnraksti tiks neatgriezeniski zaudēti, un jūsu profils un šifrēšanas atslēgas tiks dzēstas.",
+    "deleteRiskAcknowledgeLabel": "Es saprotu, ka to nevar atsaukt.",
+    "deleteButton": "Dzēst manu kontu",
+    "deleting": "Dzēš…",
+    "deleteGenericError": "Neizdevās dzēst kontu."
   },
   "activate": {
     "title": "Aktivizēt kontu",
@@ -117,7 +129,8 @@
     "reshareButton": "Piešķirt piekļuvi vēlreiz",
     "reshareInProgress": "Piešķiršana…",
     "reshareSuccess": "Piekļuve veiksmīgi piešķirta vēlreiz.",
-    "reshareFailure": "Dažām anketām neizdevās piešķirt piekļuvi. Mēģiniet vēlāk."
+    "reshareFailure": "Dažām anketām neizdevās piešķirt piekļuvi. Mēģiniet vēlāk.",
+    "deletedCounterpart": "Dzēsts lietotājs"
   },
   "createAnketa": {
     "title": "Jauna anketa",

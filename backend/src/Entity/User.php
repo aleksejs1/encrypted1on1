@@ -99,6 +99,17 @@ class User
     #[ORM\Column(type: 'boolean')]
     private bool $meetingRemindersEnabled = true;
 
+    /**
+     * Null unless this account has been deleted (AuthController::deleteAccount()) — set
+     * by delete() below. Not a real row deletion: Anketa.employee/manager and Goal.author
+     * are non-nullable FKs to User, and "no cascade to the pair's anketas" rules out
+     * cascading a real delete anyway, so this row stays and gets anonymized in place
+     * instead. ExcludeDeletedUsersExtension filters these out of the public
+     * GET /api/users listing (the counterpart-picker).
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $deletedAt = null;
+
     public function __construct(
         string $email,
         string $authHash,
@@ -223,5 +234,38 @@ class User
     public function setMeetingRemindersEnabled(bool $enabled): void
     {
         $this->meetingRemindersEnabled = $enabled;
+    }
+
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
+    /**
+     * Self-service account deletion (AuthController::deleteAccount()) — anonymizes this
+     * row in place rather than removing it (see $deletedAt's docblock for why). Scrubs
+     * every identifying/sensitive field: email (rewritten to a non-identifying,
+     * collision-free placeholder using this account's own id), authHash (a fresh value
+     * nothing will ever match), encryptedPrivateKey (only ever read by this account's own
+     * login/`/api/me`, which is now permanently blocked). isBlocked/isAdmin are forced for
+     * defense-in-depth. meetingRemindersEnabled is forced off so SendRemindersCommand
+     * never emails the now-fake address — reusing that toggle rather than adding new
+     * gating logic elsewhere.
+     *
+     * publicKey is deliberately left UNCHANGED: Anketa.svelte's handleArchive() seals a
+     * next-anketa key to a counterpart's publicKey client-side *before* the server's own
+     * isBlocked skip-check runs (that check only decides whether the server keeps the
+     * result) — an empty/invalid publicKey would make that seal throw and crash a live
+     * counterpart's archive flow. A stale-but-well-formed key is inert instead.
+     */
+    public function delete(): void
+    {
+        $this->email = sprintf('deleted-%s@deleted.invalid', $this->id);
+        $this->authHash = bin2hex(random_bytes(32));
+        $this->encryptedPrivateKey = '';
+        $this->isAdmin = false;
+        $this->isBlocked = true;
+        $this->meetingRemindersEnabled = false;
+        $this->deletedAt = new \DateTimeImmutable();
     }
 }

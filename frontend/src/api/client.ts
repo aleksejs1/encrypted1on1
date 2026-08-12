@@ -43,7 +43,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 /** CSRF-protected, per the spec — the token is fetched once and cached for the tab's lifetime. */
-async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {
+async function send<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body: unknown): Promise<T> {
   const token = await getCsrfToken();
   const response = await fetch(path, {
     method,
@@ -69,4 +69,8 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export function apiPut<T>(path: string, body: unknown): Promise<T> {
   return send<T>('PUT', path, body);
+}
+
+export function apiDelete<T>(path: string, body: unknown): Promise<T> {
+  return send<T>('DELETE', path, body);
 }

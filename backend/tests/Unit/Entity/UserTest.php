@@ -73,4 +73,23 @@ class UserTest extends TestCase
 
         self::assertFalse($user->wantsMeetingReminders());
     }
+
+    public function testDeleteScrubsIdentifyingFieldsAndForcesSafeDefaults(): void
+    {
+        $user = new User('a@example.com', 'original-hash', 'pub', 'original-enc', isAdmin: true);
+        $id = $user->getId();
+
+        $user->delete();
+
+        self::assertSame(sprintf('deleted-%s@deleted.invalid', $id), $user->getEmail());
+        self::assertNotSame('original-hash', $user->getAuthHash());
+        self::assertSame('', $user->getEncryptedPrivateKey());
+        self::assertFalse($user->isAdmin());
+        self::assertTrue($user->isBlocked());
+        self::assertFalse($user->wantsMeetingReminders());
+        self::assertNotNull($user->getDeletedAt());
+        // Deliberately untouched — see User::delete()'s docblock for why (would crash a
+        // live counterpart's client-side archive/reseal flow otherwise).
+        self::assertSame('pub', $user->getPublicKey());
+    }
 }

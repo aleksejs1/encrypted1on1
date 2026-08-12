@@ -240,6 +240,25 @@ class Anketa
         }
     }
 
+    /**
+     * Account deletion (AuthController::deleteAccount()) — an unpublished side is
+     * encrypted with its author's own master key and never seen by anyone else, exactly
+     * what "delete my drafts" means. A *published* side is shared history the counterpart
+     * already has access to, so it's left untouched — no-op here if $user is published,
+     * matching "no cascade to the pair's anketas."
+     */
+    public function clearUnpublishedDraftFor(User $user): void
+    {
+        if ($this->isPublished($user)) {
+            return;
+        }
+        if ($this->isEmployee($user)) {
+            $this->employeeBlob = null;
+        } else {
+            $this->managerBlob = null;
+        }
+    }
+
     public function publish(User $user, string $blob): void
     {
         if ($this->isEmployee($user)) {

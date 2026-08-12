@@ -643,7 +643,8 @@ class AnketaController
     /**
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
-     *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool}
+     *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
+     *     counterpartDeleted: bool}
      */
     private function summarize(Anketa $anketa, User $user): array
     {
@@ -662,6 +663,7 @@ class AnketaController
             'missed' => $anketa->isMissed(),
             'periodicityDays' => $anketa->getPeriodicityDays(),
             'counterpartKeyOutdated' => $this->isKeyOutdated($anketa, $counterpart),
+            'counterpartDeleted' => null !== $counterpart->getDeletedAt(),
         ];
     }
 

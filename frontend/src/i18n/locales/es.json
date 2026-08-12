@@ -74,7 +74,19 @@
     "genericError": "Algo salió mal.",
     "notificationsTitle": "Notificaciones por email",
     "meetingRemindersLabel": "Correos de recordatorio de reuniones",
-    "meetingRemindersHint": "Recordatorios el día antes y avisos de \"aún no completado\". Seguirás recibiendo siempre el correo de creación de un nuevo cuestionario."
+    "meetingRemindersHint": "Recordatorios el día antes y avisos de \"aún no completado\". Seguirás recibiendo siempre el correo de creación de un nuevo cuestionario.",
+    "exportTitle": "Exporta tus datos",
+    "exportHint": "Descarga todo lo que puedes ver actualmente — tus propias respuestas (incluidos los borradores no publicados), las respuestas publicadas de tus interlocutores, comentarios, resultados y objetivos — como un archivo JSON.",
+    "exportButton": "Exportar como JSON",
+    "exporting": "Preparando exportación…",
+    "exportGenericError": "No se pudieron exportar tus datos.",
+    "deleteTitle": "Eliminar cuenta",
+    "deleteWarningHeading": "Esto no se puede deshacer",
+    "deleteWarningText": "Tus cuestionarios permanecen intactos para tus interlocutores — eliminar tu cuenta nunca afecta al historial compartido. Tus propios borradores no publicados se perderán de forma permanente, y tu perfil y claves de cifrado serán eliminados.",
+    "deleteRiskAcknowledgeLabel": "Entiendo que esto no se puede deshacer.",
+    "deleteButton": "Eliminar mi cuenta",
+    "deleting": "Eliminando…",
+    "deleteGenericError": "No se pudo eliminar tu cuenta."
   },
   "activate": {
     "title": "Activar cuenta",
@@ -117,7 +129,8 @@
     "reshareButton": "Compartir de nuevo",
     "reshareInProgress": "Compartiendo de nuevo…",
     "reshareSuccess": "Se compartió de nuevo correctamente.",
-    "reshareFailure": "No se pudieron volver a compartir algunos cuestionarios. Inténtalo de nuevo más tarde."
+    "reshareFailure": "No se pudieron volver a compartir algunos cuestionarios. Inténtalo de nuevo más tarde.",
+    "deletedCounterpart": "Usuario eliminado"
   },
   "createAnketa": {
     "title": "Nuevo cuestionario",

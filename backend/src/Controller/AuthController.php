@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Anketa;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
@@ -29,6 +30,8 @@ class AuthController
         private readonly RateLimiterFactory $loginLimiter,
         #[Autowire(service: 'limiter.change_password')]
         private readonly RateLimiterFactory $changePasswordLimiter,
+        #[Autowire(service: 'limiter.delete_account')]
+        private readonly RateLimiterFactory $deleteAccountLimiter,
     ) {
     }
 
@@ -197,6 +200,57 @@ class AuthController
         }
 
         $user->changePassword($body['newAuthKey'], $body['newEncryptedPrivateKey']);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    /**
+     * Self-service account deletion — deletes the caller's own account only (see
+     * User::delete()'s docblock for why this is anonymization-in-place, not a real row
+     * delete, and why the pair's anketas are never touched). Requires the current
+     * password, same reasoning as changePassword(): an unattended-but-open session
+     * shouldn't be able to destroy the account without proving the password is known.
+     */
+    #[Route('/api/me', name: 'me_delete', methods: ['DELETE'])]
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+
+        $user = $this->authSession->getCurrentUser($request);
+        if (null === $user) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
+        }
+
+        $limit = $this->deleteAccountLimiter->create($user->getId())->consume();
+        if (!$limit->isAccepted()) {
+            return RateLimitResponse::create($limit, $this->translator);
+        }
+
+        $currentAuthKey = $request->toArray()['currentAuthKey'] ?? null;
+        if (!\is_string($currentAuthKey) || '' === $currentAuthKey) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'currentAuthKey'])], 400);
+        }
+
+        if (!hash_equals($user->getAuthHash(), $currentAuthKey)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_current_password')], 401);
+        }
+
+        /** @var Anketa[] $anketas */
+        $anketas = $this->entityManager->createQueryBuilder()
+            ->select('a')
+            ->from(Anketa::class, 'a')
+            ->where('a.employee = :user OR a.manager = :user')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getResult();
+
+        foreach ($anketas as $anketa) {
+            $anketa->clearUnpublishedDraftFor($user);
+        }
+
+        $user->delete();
+        $this->authSession->logOut($request);
         $this->entityManager->flush();
 
         return new JsonResponse(['ok' => true]);

@@ -74,7 +74,19 @@
     "genericError": "Something went wrong.",
     "notificationsTitle": "Email notifications",
     "meetingRemindersLabel": "Meeting reminder emails",
-    "meetingRemindersHint": "Day-before reminders and \"not filled out yet\" nudges. You'll still always get an email when a new anketa is scheduled with you."
+    "meetingRemindersHint": "Day-before reminders and \"not filled out yet\" nudges. You'll still always get an email when a new anketa is scheduled with you.",
+    "exportTitle": "Export your data",
+    "exportHint": "Download everything you can currently see — your own answers (including unpublished drafts), your counterparts' published answers, comments, outcomes, and goals — as a JSON file.",
+    "exportButton": "Export as JSON",
+    "exporting": "Preparing export…",
+    "exportGenericError": "Could not export your data.",
+    "deleteTitle": "Delete account",
+    "deleteWarningHeading": "This cannot be undone",
+    "deleteWarningText": "Your anketas stay intact for your counterparts — deleting your account never touches shared history. Your own unpublished drafts are permanently lost, and your profile and encryption keys are removed.",
+    "deleteRiskAcknowledgeLabel": "I understand this cannot be undone.",
+    "deleteButton": "Delete my account",
+    "deleting": "Deleting…",
+    "deleteGenericError": "Could not delete your account."
   },
   "activate": {
     "title": "Activate account",
@@ -117,7 +129,8 @@
     "reshareButton": "Re-share now",
     "reshareInProgress": "Re-sharing…",
     "reshareSuccess": "Re-shared successfully.",
-    "reshareFailure": "Some anketas could not be re-shared. Try again later."
+    "reshareFailure": "Some anketas could not be re-shared. Try again later.",
+    "deletedCounterpart": "Deleted user"
   },
   "createAnketa": {
     "title": "New anketa",

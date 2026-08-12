@@ -43,6 +43,10 @@ class AdminController
             'isAdmin' => $user->isAdmin(),
             'isBlocked' => $user->isBlocked(),
             'createdAt' => $user->getCreatedAt()->format(\DATE_ATOM),
+            // Deletion is irreversible (unlike isBlocked), so this is read-only audit
+            // visibility, not a toggle — deleted rows still show up here on purpose,
+            // unlike GET /api/users (see ExcludeDeletedUsersExtension).
+            'deletedAt' => $user->getDeletedAt()?->format(\DATE_ATOM),
         ], $users));
     }
 

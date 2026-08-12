@@ -314,4 +314,73 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(429, $limited['status']);
         self::assertTrue($client->getResponse()->headers->has('Retry-After'));
     }
+
+    public function testDeleteAccountRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testDeleteAccountRejectsAMissingCurrentAuthKey(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('delete-account-missing'));
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', []);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testDeleteAccountRejectsTheWrongCurrentPassword(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('delete-account-wrong-password'));
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('z', 44)]);
+
+        self::assertSame(401, $result['status']);
+        self::assertSame('Incorrect current password.', $result['json']['error']);
+    }
+
+    public function testDeleteAccountSucceedsAndTheOldAuthKeyStopsWorking(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('delete-account-ok');
+        $this->activateUser($client, $email);
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+        self::assertSame(200, $result['status']);
+
+        // Logged out as a side effect of deletion.
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+        self::assertSame(401, $me['status']);
+
+        $login = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+        ]);
+        self::assertSame(401, $login['status']);
+    }
+
+    public function testDeleteAccountIsRateLimitedAfterTooManyAttempts(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('delete-account-rate-limit'));
+
+        // Configured limit: 5/hour. Wrong current password each time — rate-limit
+        // consumption happens before that check, so a 401 here still counts as
+        // "not yet rate-limited."
+        for ($i = 0; $i < 5; ++$i) {
+            $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('z', 44)]);
+            self::assertSame(401, $result['status'], "attempt {$i} should not be rate-limited yet");
+        }
+
+        $limited = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('z', 44)]);
+
+        self::assertSame(429, $limited['status']);
+        self::assertTrue($client->getResponse()->headers->has('Retry-After'));
+    }
 }

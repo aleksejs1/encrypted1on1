@@ -18,6 +18,7 @@
     archivedAt: string | null;
     missed: boolean;
     counterpartKeyOutdated: boolean;
+    counterpartDeleted: boolean;
   }
 
   interface AnketaDetail {
@@ -36,6 +37,10 @@
 
   function initials(email: string): string {
     return email.slice(0, 2).toUpperCase();
+  }
+
+  function counterpartLabel(email: string, deleted: boolean): string {
+    return deleted ? $_('anketaList.deletedCounterpart') : email;
   }
 
   function badgesFor(anketa: AnketaSummary): BadgeMeta[] {
@@ -102,9 +107,9 @@
 
   {#snippet anketaRow(anketa: AnketaSummary)}
     <a href="/anketas/{anketa.id}" class="card elev-sm anketa-row">
-      <div class="avatar">{initials(anketa.counterpartEmail)}</div>
+      <div class="avatar">{initials(counterpartLabel(anketa.counterpartEmail, anketa.counterpartDeleted))}</div>
       <div class="anketa-info">
-        <div class="anketa-email">{anketa.counterpartEmail}</div>
+        <div class="anketa-email">{counterpartLabel(anketa.counterpartEmail, anketa.counterpartDeleted)}</div>
         <div class="text-muted anketa-meta">
           {$_(anketa.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager')} —
           {new Date(anketa.meetingDate).toLocaleDateString()}
@@ -155,11 +160,12 @@
       {#if groupBy === 'counterpart'}
         <div class="groups">
           {#each groupByCounterpart(list) as group (group.counterpartId)}
+            {@const groupDeleted = group.anketas[0]?.counterpartDeleted ?? false}
             <div class="card group-card">
               <div class="group-header">
-                <div class="avatar avatar-accent-2">{initials(group.counterpartEmail)}</div>
+                <div class="avatar avatar-accent-2">{initials(counterpartLabel(group.counterpartEmail, groupDeleted))}</div>
                 <div class="anketa-info">
-                  <div class="anketa-email">{group.counterpartEmail}</div>
+                  <div class="anketa-email">{counterpartLabel(group.counterpartEmail, groupDeleted)}</div>
                   <div class="text-muted anketa-meta">
                     {$_('anketaList.nextMeetingLabel', {
                       values: { date: new Date(group.anketas[0].meetingDate).toLocaleDateString() },

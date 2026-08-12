@@ -1,13 +1,20 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { apiGet, apiPut, ApiError } from '../api/client';
+  import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
   import { packWrappedPrivateKey, wrapPrivateKey } from '../crypto/keypair';
+  import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { toBase64 } from '../crypto/encoding';
-  import { storeMasterKey } from '../crypto/session';
+  import { storeMasterKey, loadMasterKey } from '../crypto/session';
   import { ensureUnlocked } from '../crypto/identity';
   import { MIN_PASSWORD_LENGTH, STRENGTH_COLORS, STRENGTH_LABEL_KEYS, scoreOf } from '../passwordStrength';
+  import { logOut } from '../auth.svelte';
+  import { navigate } from '../router.svelte';
+  import type { Answers } from '../anketa/questions';
+  import type { Comment } from '../anketa/comments';
+  import type { OutcomeItem } from '../anketa/outcomes';
+  import type { Goal, GoalCheckpoint } from '../anketa/goals';
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
@@ -73,6 +80,148 @@
       submitError = error instanceof ApiError ? error.message : $_('accountSettings.genericError');
     } finally {
       submitting = false;
+    }
+  }
+
+  interface AnketaSummaryForExport {
+    id: string;
+    myRole: 'employee' | 'manager';
+    counterpartEmail: string;
+    meetingDate: string;
+    archivedAt: string | null;
+  }
+
+  interface AnketaDetailForExport {
+    mySealedKey: string;
+    employeeBlob: string | null;
+    employeePublishedAt: string | null;
+    managerBlob: string | null;
+    managerPublishedAt: string | null;
+    commentsBlob: string | null;
+    outcomesBlob: string | null;
+    goals: Goal[];
+    goalCheckpointsBlob: string | null;
+  }
+
+  let exporting = $state(false);
+  let exportError = $state<string | null>(null);
+
+  function downloadJson(filename: string, data: unknown): void {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleExport(): Promise<void> {
+    exporting = true;
+    exportError = null;
+    try {
+      const identity = await ensureUnlocked();
+      const masterKey = await loadMasterKey();
+      const list = await apiGet<AnketaSummaryForExport[]>('/api/anketas');
+
+      const exportedAnketas = [];
+      for (const summary of list) {
+        const detail = await apiGet<AnketaDetailForExport>(`/api/anketas/${summary.id}`);
+
+        // A wrong-key AEAD failure here means this anketa was sealed under a keypair
+        // that no longer matches identity.privateKey (most likely a password reset
+        // since this anketa was created) — skip just this one, same discipline
+        // Report.svelte/CreateAnketa.svelte already established.
+        let anketaKey: Uint8Array;
+        try {
+          anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
+        } catch {
+          continue;
+        }
+
+        const myPublishedAt = summary.myRole === 'employee' ? detail.employeePublishedAt : detail.managerPublishedAt;
+        const myBlob = summary.myRole === 'employee' ? detail.employeeBlob : detail.managerBlob;
+        const counterpartBlob = summary.myRole === 'employee' ? detail.managerBlob : detail.employeeBlob;
+        const counterpartPublishedAt =
+          summary.myRole === 'employee' ? detail.managerPublishedAt : detail.employeePublishedAt;
+
+        // My own side: a draft (never published) is encrypted with my *master* key, not
+        // the anketa key — mirrors Anketa.svelte's own load() exactly.
+        let myAnswers: Answers | null = null;
+        if (myBlob && (myPublishedAt ? true : masterKey !== null)) {
+          myAnswers = (await decryptBlob<Answers>(myBlob, myPublishedAt ? anketaKey : masterKey!)).data;
+        }
+
+        // The counterpart's side is only ever readable once published — an unpublished
+        // draft of theirs is encrypted with a master key I never have, by design.
+        let counterpartAnswers: Answers | null = null;
+        if (counterpartBlob && counterpartPublishedAt) {
+          counterpartAnswers = (await decryptBlob<Answers>(counterpartBlob, anketaKey)).data;
+        }
+
+        const comments = detail.commentsBlob ? (await decryptBlob<Comment[]>(detail.commentsBlob, anketaKey)).data : [];
+        const outcomes = detail.outcomesBlob
+          ? (await decryptBlob<OutcomeItem[]>(detail.outcomesBlob, anketaKey)).data
+          : [];
+        const goalCheckpoints = detail.goalCheckpointsBlob
+          ? (await decryptBlob<GoalCheckpoint[]>(detail.goalCheckpointsBlob, anketaKey)).data
+          : [];
+
+        exportedAnketas.push({
+          id: summary.id,
+          counterpartEmail: summary.counterpartEmail,
+          myRole: summary.myRole,
+          meetingDate: summary.meetingDate,
+          archivedAt: summary.archivedAt,
+          myAnswers,
+          counterpartAnswers,
+          comments,
+          outcomes,
+          goals: detail.goals,
+          goalCheckpoints,
+        });
+      }
+
+      downloadJson(`encrypted1on1-export-${new Date().toISOString().slice(0, 10)}.json`, {
+        exportedAt: new Date().toISOString(),
+        email: identity.email,
+        anketas: exportedAnketas,
+      });
+    } catch (error) {
+      exportError = error instanceof ApiError ? error.message : $_('accountSettings.exportGenericError');
+    } finally {
+      exporting = false;
+    }
+  }
+
+  let deleteCurrentPassword = $state('');
+  let deleteRiskAcknowledged = $state(false);
+  let deleting = $state(false);
+  let deleteError = $state<string | null>(null);
+
+  const canDelete = $derived(deleteCurrentPassword.length > 0 && deleteRiskAcknowledged && !deleting);
+
+  async function handleDelete(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (!canDelete) return;
+
+    deleting = true;
+    deleteError = null;
+    try {
+      const identity = await ensureUnlocked();
+      const salt = await deriveArgon2idSalt(identity.email);
+      const { authKey: currentAuthKey } = await deriveKeysFromPassword(deleteCurrentPassword, salt);
+
+      await apiDelete('/api/me', { currentAuthKey: await toBase64(currentAuthKey) });
+
+      // The server already invalidated the session — logOut() is still safe to call
+      // (best-effort, wrapped in its own try/catch) and is what clears the client-side
+      // master key + cached identity, same as a normal logout.
+      await logOut();
+      navigate('/');
+    } catch (error) {
+      deleteError = error instanceof ApiError ? error.message : $_('accountSettings.deleteGenericError');
+      deleting = false;
     }
   }
 </script>
@@ -166,6 +315,53 @@
       </label>
       <p class="text-muted hint">{$_('accountSettings.meetingRemindersHint')}</p>
     </div>
+
+    <div class="card elev-md">
+      <h2>{$_('accountSettings.exportTitle')}</h2>
+      <p class="text-muted subtitle">{$_('accountSettings.exportHint')}</p>
+      {#if exportError}
+        <div role="alert" class="banner-error">{exportError}</div>
+      {/if}
+      <button type="button" class="btn btn-secondary btn-block" onclick={handleExport} disabled={exporting}>
+        {exporting ? $_('accountSettings.exporting') : $_('accountSettings.exportButton')}
+      </button>
+    </div>
+
+    <div class="card elev-md">
+      <h2>{$_('accountSettings.deleteTitle')}</h2>
+
+      <div class="warning-block" role="alert">
+        <p class="warning-heading">{$_('accountSettings.deleteWarningHeading')}</p>
+        <p class="warning-text">{$_('accountSettings.deleteWarningText')}</p>
+      </div>
+
+      <form onsubmit={handleDelete}>
+        <div class="field">
+          <label for="delete-current-password">{$_('accountSettings.currentPasswordLabel')}</label>
+          <input
+            id="delete-current-password"
+            class="input"
+            type="password"
+            bind:value={deleteCurrentPassword}
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <label class="radio ack-checkbox">
+          <input type="checkbox" class="native-checkbox" bind:checked={deleteRiskAcknowledged} />
+          {$_('accountSettings.deleteRiskAcknowledgeLabel')}
+        </label>
+
+        {#if deleteError}
+          <div role="alert" class="banner-error">{deleteError}</div>
+        {/if}
+
+        <button type="submit" class="btn btn-secondary btn-block" disabled={!canDelete}>
+          {deleting ? $_('accountSettings.deleting') : $_('accountSettings.deleteButton')}
+        </button>
+      </form>
+    </div>
   </div>
 </main>
 
@@ -243,5 +439,27 @@
     font-size: 0.875rem;
     color: var(--color-text);
     opacity: 0.7;
+  }
+
+  .warning-block {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 18px;
+  }
+
+  .warning-heading {
+    font-weight: 700;
+    font-size: 13px;
+    margin: 0 0 4px;
+  }
+
+  .warning-text {
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .ack-checkbox {
+    font-size: 13px;
   }
 </style>

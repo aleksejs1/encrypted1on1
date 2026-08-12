@@ -428,6 +428,43 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(str_repeat('e', 44), $anketa->sealedKeyFor($anketa->getEmployee()));
     }
 
+    public function testDeletingAUserClearsTheirUnpublishedDraftButLeavesAPublishedSideUntouched(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('delete-consequence');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        // Employee saves a private draft (never published); manager publishes theirs.
+        $anketa = $this->entityManager()->find(\App\Entity\Anketa::class, $anketaId);
+        \assert($anketa instanceof \App\Entity\Anketa);
+        $anketa->saveDraft($anketa->getEmployee(), 'employee-draft-blob');
+        $anketa->publish($anketa->getManager(), 'manager-published-blob');
+        $this->entityManager()->flush();
+        $this->entityManager()->clear();
+
+        // The employee deletes their own account for real, through the real endpoint.
+        $result = $this->jsonRequest($employeeClient, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+        self::assertSame(200, $result['status']);
+
+        $afterDeletion = $this->entityManager()->find(\App\Entity\Anketa::class, $anketaId);
+        \assert($afterDeletion instanceof \App\Entity\Anketa);
+        self::assertNull($afterDeletion->getEmployeeBlob(), 'the unpublished draft must be cleared');
+        self::assertSame('manager-published-blob', $afterDeletion->getManagerBlob(), 'a published side is shared history — no cascade');
+
+        // The manager (counterpart) now sees this anketa's counterpart as deleted.
+        $listAsManager = $this->jsonRequest($managerClient, 'GET', '/api/anketas');
+        self::assertTrue(self::findById($listAsManager['json'], $anketaId)['counterpartDeleted']);
+    }
+
+    public function testCounterpartDeletedIsFalseByDefault(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('counterpart-deleted-default');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+
+        self::assertFalse(self::findById($list['json'], $anketaId)['counterpartDeleted']);
+    }
+
     /**
      * @return array{0: KernelBrowser, 1: array{id: string, email: string, isAdmin: bool},
      *     2: KernelBrowser, 3: array{id: string, email: string, isAdmin: bool}}
