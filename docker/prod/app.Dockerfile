@@ -4,7 +4,7 @@
 # container needed for a self-hosted single-tenant app). Named "app", not
 # "backend" like the dev image, since it now serves the frontend too.
 
-FROM node:22-alpine AS frontend-build
+FROM node:26-alpine AS frontend-build
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
