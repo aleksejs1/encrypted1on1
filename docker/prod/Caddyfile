@@ -11,6 +11,20 @@
 	root * /app/public
 	encode zstd br gzip
 
+	# Browser-side backstop matching this app's own trust model: if the server
+	# or its build pipeline is ever compromised, this is what stops it from
+	# silently swapping the crypto code that runs in the browser. Applies
+	# uniformly to both the API (pure JSON, harmless) and the static SPA.
+	# 'wasm-unsafe-eval' is required, not optional — libsodium-wrappers-sumo's
+	# crypto core is real WebAssembly (confirmed against the actual built
+	# bundle, not assumed), and WebAssembly.instantiate() is blocked by CSP
+	# without it. No 'unsafe-eval', no 'unsafe-inline' — confirmed via the
+	# same real-bundle check that neither is needed.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+	}
+
 	# Only the real API surface goes to PHP.
 	@backend path /api/* /health
 	handle @backend {

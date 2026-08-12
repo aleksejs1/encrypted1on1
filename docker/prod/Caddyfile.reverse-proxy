@@ -31,6 +31,15 @@
 	root * /app/public
 	encode zstd br gzip
 
+	# Browser-side backstop matching this app's own trust model — see the
+	# direct-facing Caddyfile for the full reasoning (identical here).
+	# 'wasm-unsafe-eval' is required, not optional — libsodium-wrappers-sumo's
+	# crypto core is real WebAssembly, confirmed against the actual built bundle.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+	}
+
 	# Only the real API surface goes to PHP.
 	@backend path /api/* /health
 	handle @backend {

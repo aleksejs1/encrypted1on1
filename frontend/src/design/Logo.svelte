@@ -2,7 +2,7 @@
   const { size = 24 }: { size?: number } = $props();
 </script>
 
-<div class="logo-mark" style="width:{size}px; height:{size}px;">
+<div class="logo-mark" style:width="{size}px" style:height="{size}px">
   <div class="logo-circle logo-circle-accent"></div>
   <div class="logo-circle logo-circle-accent-2"></div>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="logo-lock">
