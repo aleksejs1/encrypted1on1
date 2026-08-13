@@ -1,4 +1,4 @@
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e build test-backend-isolated lint-backend-isolated coverage-backend-isolated
+.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite
 
 up:
 	docker compose -f docker-compose.dev.yml up --build -d
@@ -61,3 +61,9 @@ lint-backend-isolated:
 
 coverage-backend-isolated:
 	docker compose -f docker-compose.test.yml run --rm backend composer test-coverage
+
+# One-off measurement, not a CI gate (see docs/adr/0003-sqlite-default-database.md) — always
+# against a genuinely fresh database in the isolated stack, same wipe-then-migrate steps
+# composer test itself uses, so repeated runs never accumulate leftover seeded rows.
+load-test-sqlite:
+	docker compose -f docker-compose.test.yml run --rm backend sh -c "rm -f var/test.db && rm -rf var/cache/test && php bin/console doctrine:migrations:migrate --env=test --no-interaction && php bin/console app:load-test-sqlite --env=test"
