@@ -16,6 +16,14 @@
         <include>
             <directory>src</directory>
         </include>
+        <exclude>
+            <!-- A one-off manual measurement tool (private/todo.md item 26), deliberately
+                 not wired into CI or exercised by this suite — it spawns real concurrent
+                 child processes against a real SQLite file, not something a fast unit/
+                 functional suite should attempt. Verified for real, by hand, extensively
+                 (see CLAUDE.md) instead of via automated coverage. -->
+            <file>src/Command/LoadTestSqliteCommand.php</file>
+        </exclude>
     </source>
 
     <php>
