@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { apiGet, apiPost, ApiError } from '../api/client';
+  import { apiGet, apiGetAllPages, apiPost, ApiError } from '../api/client';
   import { generateAnketaKey, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity';
@@ -46,7 +46,7 @@
   const canSubmit = $derived(counterpartId !== '' && meetingDate !== '' && !submitting);
 
   $effect(() => {
-    Promise.all([ensureUnlocked(), apiGet<UserSummary[]>('/api/users'), apiGet<AnketaSummary[]>('/api/anketas')])
+    Promise.all([ensureUnlocked(), apiGetAllPages<UserSummary>('/api/users'), apiGet<AnketaSummary[]>('/api/anketas')])
       .then(([identity, allUsers, allAnketas]) => {
         users = allUsers.filter((u) => u.id !== identity.userId);
         priorAnketas = allAnketas;

@@ -1,8 +1,12 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
     environment: 'node',
+    // The Playwright e2e suite (frontend/e2e/) lives outside Vitest's world
+    // entirely — its own *.spec.ts files, run via `npm run test:e2e`, not
+    // this default include pattern.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     coverage: {
       provider: 'v8',
       // `all: true` so untested files count in the denominator, not just

@@ -42,6 +42,25 @@ export async function apiGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/**
+ * Walks every page of an API Platform GetCollection resource (this app doesn't
+ * configure client-controllable pagination, so every such resource uses the
+ * default 30-item page size and the plain `?page=N` convention, not Hydra
+ * pagination metadata — matches backend/tests/Functional/UserResourceTest.php's
+ * own `fetchAllUserEmails()`). A single unpaginated `apiGet` silently truncates
+ * at 30 items once a resource has more rows than that.
+ */
+export async function apiGetAllPages<T>(path: string): Promise<T[]> {
+  const separator = path.includes('?') ? '&' : '?';
+  const results: T[] = [];
+  for (let page = 1; ; page += 1) {
+    const rows = await apiGet<T[]>(`${path}${separator}page=${page}`);
+    if (rows.length === 0) break;
+    results.push(...rows);
+  }
+  return results;
+}
+
 /** CSRF-protected, per the spec — the token is fetched once and cached for the tab's lifetime. */
 async function send<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body: unknown): Promise<T> {
   const token = await getCsrfToken();
