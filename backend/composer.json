@@ -59,6 +59,13 @@
             "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
             "vendor/bin/phpunit"
         ],
+        "test-coverage": [
+            "rm -f var/test.db",
+            "rm -rf var/cache/test",
+            "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
+            "vendor/bin/phpunit --coverage-clover var/coverage/clover.xml",
+            "php bin/check-coverage.php var/coverage/clover.xml 75"
+        ],
         "stan": [
             "vendor/bin/phpstan analyse --memory-limit=512M",
             "vendor/bin/phpstan analyse --configuration=phpstan.tests.neon.dist --memory-limit=512M"

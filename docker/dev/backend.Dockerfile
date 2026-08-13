@@ -6,7 +6,9 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install --no-install-recommends -y unzip libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install pdo_sqlite
+    && docker-php-ext-install pdo_sqlite \
+    && pecl install pcov \
+    && docker-php-ext-enable pcov
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
