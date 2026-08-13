@@ -1,0 +1,34 @@
+# A genuinely isolated backend test environment — separate from docker-compose.dev.yml,
+# with its own database, never overlapping with dev's. Meant for one-shot runs
+# (`docker compose -f docker-compose.test.yml run --rm backend composer test`), not a
+# persistent stack — no `up -d`/`exec` needed, and no Mailpit: backend/.env.test already
+# points MAILER_DSN at Symfony's null transport.
+#
+# Reuses docker/dev/backend.Dockerfile (already has PHPUnit + pcov) and bind-mounts the
+# same source tree as dev, for the same reason dev does: run against current code with no
+# rebuild step. The isolation comes from the `test_var` named volume mounted on top of
+# /app/var specifically — Docker resolves the longest matching mount path per subtree, so
+# this volume shadows the bind mount for /app/var only, while /app itself still reflects
+# host source. That's what keeps this stack's var/test.db and var/cache/test genuinely
+# separate from dev's own bind-mounted backend/var/ on the host, even though both stacks
+# read the same source tree.
+#
+# Explicit project name so this never shares Compose's default (directory-name-based)
+# project namespace with docker-compose.dev.yml — without it, `docker compose ps`/`down`
+# here would see dev's own containers as "orphans" of this project, which is confusing at
+# best and risky at worst.
+name: encrypted1on1-test
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/dev/backend.Dockerfile
+    volumes:
+      - ./backend:/app
+      - test_var:/app/var
+    environment:
+      APP_ENV: test
+
+volumes:
+  test_var:

@@ -1,4 +1,4 @@
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e build
+.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e build test-backend-isolated lint-backend-isolated coverage-backend-isolated
 
 up:
 	docker compose -f docker-compose.dev.yml up --build -d
@@ -42,3 +42,18 @@ e2e:
 
 build:
 	cd frontend && npm run build
+
+# Genuinely isolated backend test environment (docker-compose.test.yml) — its own
+# database (a dedicated named volume, never the dev stack's bind-mounted backend/var/),
+# no Mailpit, no dev stack required to be up at all. Slower (builds/starts a fresh
+# container per invocation) than the test-backend/etc. targets above, which reuse an
+# already-running dev container for fast iteration — reach for these instead when you
+# want a clean-room check with nothing shared between test and dev.
+test-backend-isolated:
+	docker compose -f docker-compose.test.yml run --rm backend composer test
+
+lint-backend-isolated:
+	docker compose -f docker-compose.test.yml run --rm backend composer stan
+
+coverage-backend-isolated:
+	docker compose -f docker-compose.test.yml run --rm backend composer test-coverage
