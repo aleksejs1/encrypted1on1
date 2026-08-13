@@ -5,6 +5,11 @@
   import CommentThread from '../anketa/CommentThread.svelte';
   import { addComment, type Comment } from '../anketa/comments';
   import {
+    clearDraftBackup,
+    loadDraftBackup,
+    saveDraftBackup,
+  } from '../anketa/draftBackup';
+  import {
     addOutcome,
     carryForwardOutcomes,
     toggleDone,
@@ -198,6 +203,13 @@
         );
         myAnswers = envelope.data;
       }
+      if (!myPublished) {
+        // A present local backup is always at least as fresh as the last
+        // confirmed server save (written on every edit, not debounced) —
+        // safe to prefer unconditionally. See anketa/draftBackup.ts.
+        const localBackup = await loadDraftBackup(id, mk);
+        if (localBackup) myAnswers = localBackup;
+      }
 
       const counterpartBlob =
         anketa.myRole === 'employee' ? anketa.managerBlob : anketa.employeeBlob;
@@ -245,6 +257,7 @@
       const blob = await encryptBlob(myAnswers, anketaKey);
       await apiPost(`/api/anketas/${id}/publish`, { blob });
       myPublished = true;
+      clearDraftBackup(id);
     } catch (error) {
       actionError =
         error instanceof ApiError ? error.message : $_('anketa.errorPublish');
@@ -649,6 +662,12 @@
   $effect(() => {
     void JSON.stringify(myAnswers);
     scheduleSave();
+    // Local backup, written immediately (not debounced like the server sync) —
+    // protects against a silent server-sync failure within the debounce
+    // window, not just its timing. See anketa/draftBackup.ts.
+    if (loaded && !myPublished && masterKey) {
+      void saveDraftBackup(id, myAnswers, masterKey);
+    }
   });
 </script>
 
