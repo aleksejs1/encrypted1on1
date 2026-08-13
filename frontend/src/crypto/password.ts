@@ -1,4 +1,5 @@
 import { getSodium } from './sodium';
+import { resolveArgon2Profile, type Argon2idProfile } from './argon2Profile';
 
 export interface DerivedKeys {
   /** Sent to the server to verify login. Never the password, never the master-key. */
@@ -8,6 +9,24 @@ export interface DerivedKeys {
 }
 
 const KEY_LENGTH = 32;
+
+/**
+ * VITE_ARGON2ID_PROFILE is a build-time value baked into the static bundle
+ * (see docker/prod/app.Dockerfile) — resolved once at module load, not
+ * per-call, since it can never change without a rebuild anyway.
+ */
+const ARGON2ID_PROFILE = resolveArgon2Profile(import.meta.env.VITE_ARGON2ID_PROFILE);
+
+function argon2idLimits(sodium: Awaited<ReturnType<typeof getSodium>>, profile: Argon2idProfile) {
+  switch (profile) {
+    case 'moderate':
+      return { opslimit: sodium.crypto_pwhash_OPSLIMIT_MODERATE, memlimit: sodium.crypto_pwhash_MEMLIMIT_MODERATE };
+    case 'sensitive':
+      return { opslimit: sodium.crypto_pwhash_OPSLIMIT_SENSITIVE, memlimit: sodium.crypto_pwhash_MEMLIMIT_SENSITIVE };
+    case 'interactive':
+      return { opslimit: sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE, memlimit: sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE };
+  }
+}
 
 /**
  * argon2id → HKDF-SHA256 split into two independent branches ("auth" /
@@ -26,13 +45,14 @@ export async function deriveKeysFromPassword(
   salt: Uint8Array,
 ): Promise<DerivedKeys> {
   const sodium = await getSodium();
+  const { opslimit, memlimit } = argon2idLimits(sodium, ARGON2ID_PROFILE);
 
   const intermediateKey = sodium.crypto_pwhash(
     KEY_LENGTH,
     password,
     salt,
-    sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-    sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
+    opslimit,
+    memlimit,
     sodium.crypto_pwhash_ALG_ARGON2ID13,
   );
 

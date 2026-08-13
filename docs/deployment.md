@@ -54,6 +54,16 @@ Everything the app reads from the environment. `backend/.env` (committed, dev-on
 | `REGISTRATION_MODE` | No (`invite`) | `invite` (any authenticated user can invite), `admin_only` (only admins can invite), or `domain` (open self-registration, double opt-in — see [user-flow.md](user-flow.md#getting-an-account)). |
 | `ALLOWED_EMAIL_DOMAIN` | No (empty = unrestricted) | Restricts which email domain can be invited *or* self-registered, e.g. `company.com`. Applies regardless of `REGISTRATION_MODE`. |
 
+### Frontend build-time (baked into the static bundle)
+
+Unlike everything above — which Symfony reads at runtime, so a plain `docker compose up -d` (no rebuild) picks up a changed value — this one is compiled into the SPA's JavaScript when the image is *built*. Changing it needs `--build`, not just a restart.
+
+| Variable | Required | What it does |
+|---|---|---|
+| `ARGON2ID_PROFILE` | No (`interactive`) | The argon2id cost profile the browser uses to derive a user's login/master keys from their password: `interactive` (64MiB), `moderate` (256MiB), or `sensitive` (1GiB). Passed as a Docker build arg (`docker/prod/app.Dockerfile`), which Vite bakes into the bundle as `import.meta.env.VITE_ARGON2ID_PROFILE` (see `frontend/src/crypto/argon2Profile.ts`). |
+
+**Pick this once, before any real user registers, and never change it on a running instance afterwards.** The password never reaches the server — both the login auth key *and* the master key that unwraps a user's stored private key are derived entirely client-side from this profile. Changing it makes every subsequent login recompute different keys: the auth key no longer matches what the server has on file (login fails outright), and even if it somehow did, the master key would no longer unwrap the stored encrypted private key. This locks out every existing account irrecoverably — not something the password-reset flow cleanly fixes either, since a reset still needs the account to log in first to prove ownership before issuing a fresh keypair.
+
 ### Reverse-proxy mode only (`docker-compose.prod.reverse-proxy.yml`)
 
 | Variable | Required | What it does |

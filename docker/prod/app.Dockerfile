@@ -9,6 +9,13 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# argon2id cost profile baked into the static bundle — see
+# docs/deployment.md's "Frontend build-time" section. Must be picked once,
+# before any real user registers, and never changed afterwards: it's what
+# both the login auth key and the private-key-unwrapping master key are
+# derived from, so changing it locks every existing account out.
+ARG ARGON2ID_PROFILE=interactive
+ENV VITE_ARGON2ID_PROFILE=$ARGON2ID_PROFILE
 RUN npm run build
 
 FROM dunglas/frankenphp:php8.4

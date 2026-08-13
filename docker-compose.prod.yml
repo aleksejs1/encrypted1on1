@@ -3,6 +3,12 @@ services:
     build:
       context: .
       dockerfile: docker/prod/app.Dockerfile
+      args:
+        # Baked into the static bundle at build time — see docs/deployment.md's
+        # "Frontend build-time" section. Pick once, before any real user
+        # registers; changing it later on a running instance locks every
+        # existing account out irrecoverably.
+        ARGON2ID_PROFILE: "${ARGON2ID_PROFILE:-interactive}"
     ports:
       - "80:80"
       - "443:443"
