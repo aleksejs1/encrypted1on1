@@ -310,6 +310,7 @@
     "nothingInRange": "No hay nada en este rango.",
     "noGoalsInRange": "No se ha tocado ningún objetivo en este rango.",
     "noCheckpointsInRange": "No hay puntos de control en este rango.",
+    "goalProgressTrendLabel": "Tendencia de progreso del objetivo en el tiempo",
     "errorLoad": "No se pudieron cargar los cuestionarios.",
     "errorGenerate": "No se pudo generar el informe."
   },

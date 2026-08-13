@@ -11,6 +11,11 @@
   } from '../anketa/report';
   import type { Answers } from '../anketa/questions';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
+  import {
+    extractGoalProgressValues,
+    GOAL_PROGRESS_MAX_INDEX,
+  } from '../anketa/goalProgressTrend';
+  import TrendSparkline from '../anketa/TrendSparkline.svelte';
 
   interface AnketaBulkRow {
     id: string;
@@ -272,6 +277,11 @@
                     <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}"
                       >{$_(GOAL_STATUS_KEYS[goal.status])}</span
                     >
+                    <TrendSparkline
+                      values={extractGoalProgressValues(goal.checkpoints)}
+                      maxIndex={GOAL_PROGRESS_MAX_INDEX}
+                      label={$_('report.goalProgressTrendLabel')}
+                    />
                   </div>
                   {#if goal.description}<p class="text-muted goal-description">
                       {goal.description}

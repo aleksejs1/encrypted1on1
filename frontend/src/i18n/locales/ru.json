@@ -310,6 +310,7 @@
     "nothingInRange": "За этот период ничего нет.",
     "noGoalsInRange": "За этот период не затронуто ни одной цели.",
     "noCheckpointsInRange": "За этот период нет чекпоинтов.",
+    "goalProgressTrendLabel": "Динамика прогресса цели",
     "errorLoad": "Не удалось загрузить анкеты.",
     "errorGenerate": "Не удалось сформировать отчёт."
   },

@@ -310,6 +310,7 @@
     "nothingInRange": "Šajā periodā nekā nav.",
     "noGoalsInRange": "Šajā periodā nav skarts neviens mērķis.",
     "noCheckpointsInRange": "Šajā periodā nav kontrolpunktu.",
+    "goalProgressTrendLabel": "Mērķa progresa tendence laika gaitā",
     "errorLoad": "Neizdevās ielādēt anketas.",
     "errorGenerate": "Neizdevās izveidot pārskatu."
   },

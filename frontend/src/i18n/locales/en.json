@@ -310,6 +310,7 @@
     "nothingInRange": "Nothing in this range.",
     "noGoalsInRange": "No goals touched in this range.",
     "noCheckpointsInRange": "No checkpoints in this range.",
+    "goalProgressTrendLabel": "Goal progress trend over time",
     "errorLoad": "Could not load anketas.",
     "errorGenerate": "Could not generate the report."
   },
