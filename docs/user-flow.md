@@ -27,13 +27,23 @@ A few self-service account controls, reachable from a link in the header once lo
 
 - **Change password.** Unlike the forgot-password flow above, this is for someone who still remembers their current password and just wants a new one — it re-wraps the *same* existing keypair rather than generating a fresh one, so nothing becomes unreadable and no counterpart ever needs to re-share anything. Requires entering the current password first, the same way any sensitive account action does.
 - **Meeting reminder emails** can be turned off per-account — the day-before reminder and the "you haven't filled this out yet" nudge specifically. The email announcing a *new* anketa is not covered by this toggle and always goes out, since it's the one notification that's actually load-bearing (it's how the other participant learns a cycle started at all).
-- **Export your data** downloads everything currently visible to you — your own answers (including an unpublished draft, if you have one), any counterpart's published answers, comments, outcomes, and goals — as a single JSON file, decrypted entirely in the browser. Nothing new is computed on the server for this; it's the same per-anketa data the app already fetches, just gathered into one file instead of displayed.
+- **Export your data** downloads everything currently visible to you — your own answers (including an unpublished draft, if you have one), any counterpart's published answers, comments, outcomes, and goals — as a single JSON file, decrypted entirely in the browser. Nothing new is computed on the server for this; it's the same data the app already lets you see, fetched in one batch and gathered into a file instead of being displayed.
 - **Delete your account** is permanent and, unlike the two actions above, does affect other people — but narrowly: your own profile and encryption keypair are removed, and any of your own still-unpublished drafts are lost, but every anketa you're part of stays exactly as your counterparts already see it. Nothing is cascaded or torn down on their side.
+
+## Your anketa list
+
+Once logged in, this is the home screen: every counterpart you have anketas with, sorted by next meeting date (soonest first) — there's no separate "manager dashboard"; someone with several direct reports just sees a longer list, sorted the same way as everyone else's.
+
+A toggle switches between two views:
+- **By date** — a flat, chronological list across every counterpart.
+- **By person** — grouped by counterpart, each group showing that pair's full archived history plus two small trend sparklines (mood, workload) built from your own past answers with them, so a shift over many meetings is visible at a glance instead of buried inside individual anketas. Both are computed entirely in the browser from anketas you can already see — nothing new happens on the server for this.
+
+If any of your anketas were sealed under a counterpart's now-outdated encryption key (see "forgetting your password" above), a banner appears at the top with a one-click "re-share access" action. An overdue anketa — meeting date passed, not yet archived — gets a visible badge here regardless of which view you're in.
 
 ## Starting a new 1:1 cycle ("anketa")
 
 Either the manager or the employee can start one:
-1. Pick the counterpart by typing their email (a live-filtered list of existing accounts).
+1. Pick the counterpart by typing their email (a live-filtered list of existing accounts) — people you've already had anketas with show up first, so you're not scrolling the full company list every time.
 2. Pick which role you're filling in this anketa — employee or manager. (The app doesn't enforce that the two participants pick complementary roles; it trusts them to coordinate this themselves, the same way it trusts them not to share their own password with each other.)
 3. Set a meeting date.
 4. The first time a given pair meets, they also set how often they'll repeat this (weekly / every two weeks / monthly). Every anketa after the first for that same pair inherits the periodicity automatically — the form explains this rather than just silently hiding the field.
@@ -67,7 +77,7 @@ The day before a scheduled meeting, both participants get a reminder email; if o
 
 ## Reports
 
-Either side can generate a report across a date range — every achievement and growth-log entry from that period, and every goal touched in it with its full checkpoint history, decrypted and assembled entirely in the browser from anketas already accessible through the normal per-anketa endpoints. The server never sees this aggregation; it just serves the same encrypted anketas it always would.
+Either side can generate a report across a date range — every achievement and growth-log entry from that period, and every goal touched in it with its full checkpoint history, decrypted and assembled entirely in the browser from anketas already accessible to you. The server never sees this aggregation; it just serves the same encrypted anketas it always would, fetched in one batch rather than one request per anketa.
 
 ## Admin
 
