@@ -53,6 +53,7 @@ Everything the app reads from the environment. `backend/.env` (committed, dev-on
 | `MAILER_FROM` | Yes | The `From:` address on every outbound email. |
 | `REGISTRATION_MODE` | No (`invite`) | `invite` (any authenticated user can invite), `admin_only` (only admins can invite), or `domain` (open self-registration, double opt-in — see [user-flow.md](user-flow.md#getting-an-account)). |
 | `ALLOWED_EMAIL_DOMAIN` | No (empty = unrestricted) | Restricts which email domain can be invited *or* self-registered, e.g. `company.com`. Applies regardless of `REGISTRATION_MODE`. |
+| `TZ` | No (`UTC`) | Timezone for container-level tools (the `date` command, log timestamps) — display/log-only. PHP's own date handling (including the daily reminder job's "is the meeting tomorrow" check) hardcodes UTC explicitly and never reads this, confirmed directly — changing it doesn't affect when reminders fire. |
 
 ### Frontend build-time (baked into the static bundle)
 
@@ -105,6 +106,8 @@ Use this if the host is dedicated to this app, or at least has 80/443 free.
 Steps 1–4 are first-time setup only. **Updating an existing instance to newer code is not just steps 2–3 again** — see "Redeploying" below, or the app will keep serving a stale compiled container and throw `ArgumentCountError`/similar on the first request that touches whatever changed.
 
 `--env-file .env.prod` is needed on *every* invocation against this file, not just `up` — including `exec` — since Compose re-parses the file's required-variable interpolation (`${VAR:?message}`) every time it's called, the same reason `backup.sh`/`restore.sh` need it explicitly rather than relying on already-exported shell variables.
+
+The image has a built-in `HEALTHCHECK` (`docker ps`/`docker inspect` show it) that hits `/health` on port 80 without following redirects — deliberately: once Caddy has a real certificate, port 80 replies with a redirect to HTTPS, which `curl -f` still treats as a passing check, so this catches the failure that actually matters for a container healthcheck (FrankenPHP/Caddy crashed or hung) without flapping unhealthy during the brief window before a fresh deployment's certificate is issued. It proves Caddy itself is responsive; it doesn't specifically prove the PHP backend behind it is, once HTTPS is up and redirecting.
 
 Data (the SQLite database) lives in a named Docker volume, so it survives image rebuilds/redeploys — back it up before any major upgrade (see "Backups" below). Caddy's own TLS certificates/ACME account state get the same treatment (`caddy_data`/`caddy_config` volumes) — without it, every redeploy would force Caddy to re-provision a brand-new Let's Encrypt certificate from scratch, risking both downtime and Let's Encrypt's rate limits on frequent redeploys.
 

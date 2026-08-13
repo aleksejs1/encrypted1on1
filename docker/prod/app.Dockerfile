@@ -59,3 +59,20 @@ RUN groupadd --gid 10001 app \
     && mkdir -p /app/var /data /config \
     && chown -R app:app /app /data /config
 USER app
+
+# curl is already present in the base image. Deliberately not following
+# redirects (-L) or skipping cert checks (-k): in direct mode (auto_https
+# on), port 80 replies with a 308 to HTTPS once a real domain is
+# configured — curl -f treats that as success (confirmed: exit 0), so this
+# still correctly fails on what actually matters for a container
+# healthcheck (FrankenPHP/Caddy crashed or hung — connection refused or a
+# timeout), without incorrectly reporting "unhealthy" during the brief
+# window before a fresh deployment's certificate is provisioned (confirmed
+# that failure mode is real too: -L -k against a domain ACME hasn't issued
+# for yet can't complete a TLS handshake at all). Known, accepted trade-off:
+# in direct mode this proves Caddy itself is alive, not that the PHP
+# backend specifically is — not solved by special-casing /health to skip
+# the HTTPS redirect, since that would undermine this app's own "HTTPS
+# mandatory, no exceptions" principle just for a healthcheck.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1/health

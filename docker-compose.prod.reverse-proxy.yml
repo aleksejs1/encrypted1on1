@@ -39,6 +39,12 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: "0"
+      # Display/log-only — confirmed PHP's own date_default_timezone_get()
+      # stays UTC regardless (this app's date math, e.g. SendRemindersCommand,
+      # already hardcodes UTC explicitly and doesn't read this). Only affects
+      # what timezone container-level tools (the `date` command, log
+      # timestamps if you inspect them directly) display in.
+      TZ: "${TZ:-UTC}"
       APP_SECRET: "${APP_SECRET:?generate one with 'openssl rand -hex 32'}"
       DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
       SERVER_NAME: "${SERVER_NAME:?set a real public domain, e.g. 1on1.example.com}"
