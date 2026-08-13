@@ -143,7 +143,9 @@
     "reshareInProgress": "Предоставление доступа…",
     "reshareSuccess": "Доступ успешно предоставлен заново.",
     "reshareFailure": "Не удалось предоставить доступ к некоторым анкетам. Попробуйте позже.",
-    "deletedCounterpart": "Удалённый пользователь"
+    "deletedCounterpart": "Удалённый пользователь",
+    "moodTrendLabel": "Динамика настроения по времени",
+    "workloadTrendLabel": "Динамика нагрузки по времени"
   },
   "createAnketa": {
     "title": "Новая анкета",

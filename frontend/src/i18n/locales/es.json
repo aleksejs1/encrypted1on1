@@ -143,7 +143,9 @@
     "reshareInProgress": "Compartiendo de nuevo…",
     "reshareSuccess": "Se compartió de nuevo correctamente.",
     "reshareFailure": "No se pudieron volver a compartir algunos cuestionarios. Inténtalo de nuevo más tarde.",
-    "deletedCounterpart": "Usuario eliminado"
+    "deletedCounterpart": "Usuario eliminado",
+    "moodTrendLabel": "Tendencia del estado de ánimo a lo largo del tiempo",
+    "workloadTrendLabel": "Tendencia de la carga de trabajo a lo largo del tiempo"
   },
   "createAnketa": {
     "title": "Nuevo cuestionario",

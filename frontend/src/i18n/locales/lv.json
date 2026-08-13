@@ -143,7 +143,9 @@
     "reshareInProgress": "Piešķiršana…",
     "reshareSuccess": "Piekļuve veiksmīgi piešķirta vēlreiz.",
     "reshareFailure": "Dažām anketām neizdevās piešķirt piekļuvi. Mēģiniet vēlāk.",
-    "deletedCounterpart": "Dzēsts lietotājs"
+    "deletedCounterpart": "Dzēsts lietotājs",
+    "moodTrendLabel": "Noskaņojuma tendence laika gaitā",
+    "workloadTrendLabel": "Darba slodzes tendence laika gaitā"
   },
   "createAnketa": {
     "title": "Jauna anketa",

@@ -143,7 +143,9 @@
     "reshareInProgress": "Re-sharing…",
     "reshareSuccess": "Re-shared successfully.",
     "reshareFailure": "Some anketas could not be re-shared. Try again later.",
-    "deletedCounterpart": "Deleted user"
+    "deletedCounterpart": "Deleted user",
+    "moodTrendLabel": "Mood trend over time",
+    "workloadTrendLabel": "Workload trend over time"
   },
   "createAnketa": {
     "title": "New anketa",

@@ -3,9 +3,12 @@
   import { apiGet, apiPut } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity';
   import { fromBase64 } from '../crypto/encoding';
-  import { sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
+  import { decryptBlob, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
   import InviteForm from '../admin/InviteForm.svelte';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
+  import { extractTrendValues } from '../anketa/moodWorkloadTrend';
+  import TrendSparkline from '../anketa/TrendSparkline.svelte';
+  import { QUESTIONS_BY_SIDE, type Answers } from '../anketa/questions';
 
   interface AnketaSummary {
     id: string;
@@ -30,6 +33,33 @@
     cls: string;
     label: string;
   }
+
+  interface BulkAnketaForTrend {
+    counterpartId: string;
+    counterpartEmail: string;
+    meetingDate: string;
+    archivedAt: string | null;
+    employeeBlob: string | null;
+    employeePublishedAt: string | null;
+    mySealedKey: string;
+  }
+
+  interface TrendRow {
+    counterpartId: string;
+    counterpartEmail: string;
+    meetingDate: string;
+    moodNow: string | undefined;
+    workloadNow: string | undefined;
+  }
+
+  // The mood/workload radio fields' own already-defined options *are* the
+  // trend scale (private/init.txt: "график трендов по radio-полям") — no
+  // separate chart library, per the same spec section (hand-rolled SVG only).
+  const MOOD_OPTIONS = QUESTIONS_BY_SIDE.employee.find((q) => q.id === 'mood')!.fields.find((f) => f.id === 'moodNow')!
+    .options!;
+  const WORKLOAD_OPTIONS = QUESTIONS_BY_SIDE.employee.find((q) => q.id === 'workload')!.fields.find(
+    (f) => f.id === 'workloadNow',
+  )!.options!;
 
   function isOverdue(anketa: AnketaSummary): boolean {
     return anketa.archivedAt === null && new Date(anketa.meetingDate).getTime() < Date.now();
@@ -67,6 +97,60 @@
       showInvite = identity.registrationMode === 'invite';
     });
   });
+
+  // Lazy: only fetched/decrypted the first time the grouped view is actually
+  // opened, not on every page load — most visits use the flat date view.
+  let trendRows = $state<TrendRow[]>([]);
+  let trendLoaded = false;
+
+  $effect(() => {
+    if (groupBy === 'counterpart') void loadTrendData();
+  });
+
+  async function loadTrendData(): Promise<void> {
+    if (trendLoaded) return;
+    trendLoaded = true;
+    try {
+      const identity = await ensureUnlocked();
+      const bulk = await apiGet<BulkAnketaForTrend[]>('/api/anketas/bulk');
+      const rows: TrendRow[] = [];
+
+      for (const anketa of bulk) {
+        if (anketa.archivedAt === null || anketa.employeePublishedAt === null || !anketa.employeeBlob) continue;
+
+        // A wrong-key AEAD failure here means this anketa was sealed under a keypair
+        // that no longer matches identity.privateKey (most likely a password reset),
+        // same discipline as Report.svelte/AccountSettings.svelte — skip just this one.
+        let anketaKey: Uint8Array;
+        try {
+          anketaKey = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
+        } catch {
+          continue;
+        }
+
+        const answers = (await decryptBlob<Answers>(anketa.employeeBlob, anketaKey)).data;
+        rows.push({
+          counterpartId: anketa.counterpartId,
+          counterpartEmail: anketa.counterpartEmail,
+          meetingDate: anketa.meetingDate,
+          moodNow: typeof answers.moodNow === 'string' ? answers.moodNow : undefined,
+          workloadNow: typeof answers.workloadNow === 'string' ? answers.workloadNow : undefined,
+        });
+      }
+
+      rows.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+      trendRows = rows;
+    } catch {
+      // A decorative enhancement on an already-working list — a failed
+      // fetch/decrypt just means no sparklines, not a page-level error.
+    }
+  }
+
+  const trendGroups = $derived(groupByCounterpart(trendRows));
+
+  function trendFor(counterpartId: string): TrendRow[] {
+    return trendGroups.find((g) => g.counterpartId === counterpartId)?.anketas ?? [];
+  }
 
   async function reshareOne(anketaId: string): Promise<void> {
     const identity = await ensureUnlocked();
@@ -161,6 +245,12 @@
         <div class="groups">
           {#each groupByCounterpart(list) as group (group.counterpartId)}
             {@const groupDeleted = group.anketas[0]?.counterpartDeleted ?? false}
+            {@const groupTrend = trendFor(group.counterpartId)}
+            {@const moodValues = extractTrendValues(groupTrend.map((t) => ({ value: t.moodNow })), MOOD_OPTIONS)}
+            {@const workloadValues = extractTrendValues(
+              groupTrend.map((t) => ({ value: t.workloadNow })),
+              WORKLOAD_OPTIONS,
+            )}
             <div class="card group-card">
               <div class="group-header">
                 <div class="avatar avatar-accent-2">{initials(counterpartLabel(group.counterpartEmail, groupDeleted))}</div>
@@ -171,6 +261,14 @@
                       values: { date: new Date(group.anketas[0].meetingDate).toLocaleDateString() },
                     })}
                   </div>
+                </div>
+                <div class="trend-sparklines">
+                  <TrendSparkline values={moodValues} maxIndex={MOOD_OPTIONS.length - 1} label={$_('anketaList.moodTrendLabel')} />
+                  <TrendSparkline
+                    values={workloadValues}
+                    maxIndex={WORKLOAD_OPTIONS.length - 1}
+                    label={$_('anketaList.workloadTrendLabel')}
+                  />
                 </div>
               </div>
               <div class="group-anketas">
@@ -295,6 +393,13 @@
     gap: 14px;
     padding: 14px 16px;
     flex-wrap: wrap;
+  }
+
+  .trend-sparklines {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
   }
 
   .group-anketas {
