@@ -3,7 +3,12 @@ import { addCheckpoint } from './goals';
 
 describe('addCheckpoint', () => {
   it('appends a checkpoint with text only', () => {
-    const result = addCheckpoint([], 'goal-1', 'user-1', 'made good progress this week');
+    const result = addCheckpoint(
+      [],
+      'goal-1',
+      'user-1',
+      'made good progress this week',
+    );
 
     expect(result).toHaveLength(1);
     expect(result[0].goalId).toBe('goal-1');

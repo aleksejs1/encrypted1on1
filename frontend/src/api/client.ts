@@ -25,7 +25,11 @@ async function getCsrfToken(): Promise<string> {
 async function toApiError(response: Response): Promise<ApiError> {
   try {
     const data = (await response.json()) as { error?: string };
-    return new ApiError(response.status, data.error ?? response.statusText, data);
+    return new ApiError(
+      response.status,
+      data.error ?? response.statusText,
+      data,
+    );
   } catch {
     return new ApiError(response.status, response.statusText);
   }
@@ -62,7 +66,11 @@ export async function apiGetAllPages<T>(path: string): Promise<T[]> {
 }
 
 /** CSRF-protected, per the spec — the token is fetched once and cached for the tab's lifetime. */
-async function send<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body: unknown): Promise<T> {
+async function send<T>(
+  method: 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body: unknown,
+): Promise<T> {
   const token = await getCsrfToken();
   const response = await fetch(path, {
     method,

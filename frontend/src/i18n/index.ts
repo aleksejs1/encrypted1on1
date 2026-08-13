@@ -23,7 +23,9 @@ addMessages('lv', lv);
 addMessages('es', es);
 
 function isSupported(code: string | null | undefined): code is SupportedLocale {
-  return null != code && (SUPPORTED_LOCALES as readonly string[]).includes(code);
+  return (
+    null != code && (SUPPORTED_LOCALES as readonly string[]).includes(code)
+  );
 }
 
 function detectInitialLocale(): SupportedLocale {

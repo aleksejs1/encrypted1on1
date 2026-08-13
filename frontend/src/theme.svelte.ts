@@ -20,7 +20,9 @@ function apply(theme: Theme): void {
   document.documentElement.setAttribute('data-theme', theme);
 }
 
-export const themeState = $state<{ theme: Theme }>({ theme: detectInitialTheme() });
+export const themeState = $state<{ theme: Theme }>({
+  theme: detectInitialTheme(),
+});
 apply(themeState.theme);
 
 export function setTheme(theme: Theme): void {

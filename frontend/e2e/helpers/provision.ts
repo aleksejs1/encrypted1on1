@@ -2,7 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../..',
+);
 const COMPOSE_FILE = path.join(REPO_ROOT, 'docker-compose.e2e.yml');
 
 /**
@@ -19,13 +22,27 @@ const COMPOSE_FILE = path.join(REPO_ROOT, 'docker-compose.e2e.yml');
 export function createActivationLink(email: string): string {
   const output = execFileSync(
     'docker',
-    ['compose', '-f', COMPOSE_FILE, 'exec', '-T', 'backend', 'php', 'bin/console', 'app:create-activation-link', email, '--no-ansi'],
+    [
+      'compose',
+      '-f',
+      COMPOSE_FILE,
+      'exec',
+      '-T',
+      'backend',
+      'php',
+      'bin/console',
+      'app:create-activation-link',
+      email,
+      '--no-ansi',
+    ],
     { encoding: 'utf-8' },
   );
 
   const match = output.match(/\/activate\/([a-f0-9]{64})/);
   if (!match) {
-    throw new Error(`Could not find an activation token in CLI output:\n${output}`);
+    throw new Error(
+      `Could not find an activation token in CLI output:\n${output}`,
+    );
   }
   return match[1];
 }

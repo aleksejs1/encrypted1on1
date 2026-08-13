@@ -17,7 +17,11 @@ export interface OutcomeItem {
   createdAt: string;
 }
 
-export function addOutcome(existing: OutcomeItem[], authorId: string, text: string): OutcomeItem[] {
+export function addOutcome(
+  existing: OutcomeItem[],
+  authorId: string,
+  text: string,
+): OutcomeItem[] {
   const item: OutcomeItem = {
     id: crypto.randomUUID(),
     authorId,
@@ -29,7 +33,9 @@ export function addOutcome(existing: OutcomeItem[], authorId: string, text: stri
 }
 
 export function toggleDone(existing: OutcomeItem[], id: string): OutcomeItem[] {
-  return existing.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
+  return existing.map((item) =>
+    item.id === id ? { ...item, done: !item.done } : item,
+  );
 }
 
 /**

@@ -10,8 +10,14 @@ async function testSalt(fill: number): Promise<Uint8Array> {
 describe('deriveKeysFromPassword', () => {
   it('is deterministic for the same password and salt', async () => {
     const salt = await testSalt(1);
-    const a = await deriveKeysFromPassword('correct horse battery staple', salt);
-    const b = await deriveKeysFromPassword('correct horse battery staple', salt);
+    const a = await deriveKeysFromPassword(
+      'correct horse battery staple',
+      salt,
+    );
+    const b = await deriveKeysFromPassword(
+      'correct horse battery staple',
+      salt,
+    );
 
     expect(a.authKey).toEqual(b.authKey);
     expect(a.masterKey).toEqual(b.masterKey);
@@ -19,7 +25,10 @@ describe('deriveKeysFromPassword', () => {
 
   it('produces independent authKey and masterKey', async () => {
     const salt = await testSalt(2);
-    const { authKey, masterKey } = await deriveKeysFromPassword('hunter2', salt);
+    const { authKey, masterKey } = await deriveKeysFromPassword(
+      'hunter2',
+      salt,
+    );
 
     expect(authKey).toHaveLength(32);
     expect(masterKey).toHaveLength(32);

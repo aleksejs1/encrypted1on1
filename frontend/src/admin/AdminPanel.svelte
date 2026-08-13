@@ -30,7 +30,8 @@
         });
       })
       .catch((error: unknown) => {
-        loadError = error instanceof ApiError ? error.message : $_('admin.errorLoad');
+        loadError =
+          error instanceof ApiError ? error.message : $_('admin.errorLoad');
       });
   });
 
@@ -38,12 +39,18 @@
     pending = { ...pending, [user.id]: true };
     actionError = null;
     try {
-      const result = await apiPut<{ isBlocked: boolean }>(`/api/admin/users/${user.id}/blocked`, {
-        blocked: !user.isBlocked,
-      });
-      users = users.map((u) => (u.id === user.id ? { ...u, isBlocked: result.isBlocked } : u));
+      const result = await apiPut<{ isBlocked: boolean }>(
+        `/api/admin/users/${user.id}/blocked`,
+        {
+          blocked: !user.isBlocked,
+        },
+      );
+      users = users.map((u) =>
+        u.id === user.id ? { ...u, isBlocked: result.isBlocked } : u,
+      );
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('admin.errorUpdate');
+      actionError =
+        error instanceof ApiError ? error.message : $_('admin.errorUpdate');
     } finally {
       pending = { ...pending, [user.id]: false };
     }
@@ -53,12 +60,18 @@
     pending = { ...pending, [user.id]: true };
     actionError = null;
     try {
-      const result = await apiPut<{ isAdmin: boolean }>(`/api/admin/users/${user.id}/admin`, {
-        isAdmin: !user.isAdmin,
-      });
-      users = users.map((u) => (u.id === user.id ? { ...u, isAdmin: result.isAdmin } : u));
+      const result = await apiPut<{ isAdmin: boolean }>(
+        `/api/admin/users/${user.id}/admin`,
+        {
+          isAdmin: !user.isAdmin,
+        },
+      );
+      users = users.map((u) =>
+        u.id === user.id ? { ...u, isAdmin: result.isAdmin } : u,
+      );
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('admin.errorUpdate');
+      actionError =
+        error instanceof ApiError ? error.message : $_('admin.errorUpdate');
     } finally {
       pending = { ...pending, [user.id]: false };
     }
@@ -99,11 +112,19 @@
             <tr>
               <td>{user.email}</td>
               <td>
-                <span class="tag {user.isBlocked ? 'tag-neutral' : 'tag-accent-2'}">
-                  {user.isBlocked ? $_('admin.statusBlocked') : $_('admin.statusActive')}
+                <span
+                  class="tag {user.isBlocked ? 'tag-neutral' : 'tag-accent-2'}"
+                >
+                  {user.isBlocked
+                    ? $_('admin.statusBlocked')
+                    : $_('admin.statusActive')}
                 </span>
               </td>
-              <td>{user.isAdmin ? $_('admin.roleAdmin') : $_('admin.roleUser')}</td>
+              <td
+                >{user.isAdmin
+                  ? $_('admin.roleAdmin')
+                  : $_('admin.roleUser')}</td
+              >
               <td>{new Date(user.createdAt).toLocaleDateString()}</td>
               <td class="actions">
                 <button
@@ -120,7 +141,9 @@
                   onclick={() => toggleAdmin(user)}
                   disabled={pending[user.id]}
                 >
-                  {user.isAdmin ? $_('admin.revokeAdmin') : $_('admin.makeAdmin')}
+                  {user.isAdmin
+                    ? $_('admin.revokeAdmin')
+                    : $_('admin.makeAdmin')}
                 </button>
               </td>
             </tr>

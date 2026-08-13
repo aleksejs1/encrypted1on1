@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
-import { svelte } from '@sveltejs/vite-plugin-svelte'
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 // Used only by the isolated e2e stack (docker-compose.e2e.yml, playwright.config.ts) —
 // same as vite.config.ts but proxies to the e2e backend's own port (8001, not dev's
@@ -15,4 +15,4 @@ export default defineConfig({
       '/api': 'http://localhost:8001',
     },
   },
-})
+});

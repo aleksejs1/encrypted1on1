@@ -3,12 +3,21 @@
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
-  import { generateKeyPair, packWrappedPrivateKey, wrapPrivateKey } from '../crypto/keypair';
+  import {
+    generateKeyPair,
+    packWrappedPrivateKey,
+    wrapPrivateKey,
+  } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { navigate } from '../router.svelte';
-  import { MIN_PASSWORD_LENGTH, STRENGTH_COLORS, STRENGTH_LABEL_KEYS, scoreOf } from '../passwordStrength';
+  import {
+    MIN_PASSWORD_LENGTH,
+    STRENGTH_COLORS,
+    STRENGTH_LABEL_KEYS,
+    scoreOf,
+  } from '../passwordStrength';
 
   const { token }: { token: string } = $props();
 
@@ -26,13 +35,20 @@
         email = result.email;
       })
       .catch((error: unknown) => {
-        lookupError = error instanceof ApiError ? error.message : $_('activate.lookupError');
+        lookupError =
+          error instanceof ApiError
+            ? error.message
+            : $_('activate.lookupError');
       });
   });
 
   const passwordScore = $derived(scoreOf(password));
-  const passwordTooShort = $derived(password.length > 0 && password.length < MIN_PASSWORD_LENGTH);
-  const passwordsMismatch = $derived(confirmPassword.length > 0 && password !== confirmPassword);
+  const passwordTooShort = $derived(
+    password.length > 0 && password.length < MIN_PASSWORD_LENGTH,
+  );
+  const passwordsMismatch = $derived(
+    confirmPassword.length > 0 && password !== confirmPassword,
+  );
   const canSubmit = $derived(
     email !== null &&
       password.length >= MIN_PASSWORD_LENGTH &&
@@ -48,7 +64,10 @@
     submitError = null;
     try {
       const salt = await deriveArgon2idSalt(email);
-      const { authKey, masterKey } = await deriveKeysFromPassword(password, salt);
+      const { authKey, masterKey } = await deriveKeysFromPassword(
+        password,
+        salt,
+      );
       const { publicKey, privateKey } = await generateKeyPair();
       const wrapped = await wrapPrivateKey(privateKey, masterKey);
 
@@ -66,7 +85,8 @@
       markAuthenticated();
       navigate('/');
     } catch (error) {
-      submitError = error instanceof ApiError ? error.message : $_('activate.genericError');
+      submitError =
+        error instanceof ApiError ? error.message : $_('activate.genericError');
     } finally {
       submitting = false;
     }
@@ -84,7 +104,10 @@
     {:else if email === null}
       <p>{$_('common.loading')}</p>
     {:else}
-      <p class="text-muted email-line"><strong>{$_('activate.emailLabel')}</strong> {email}</p>
+      <p class="text-muted email-line">
+        <strong>{$_('activate.emailLabel')}</strong>
+        {email}
+      </p>
       <p class="text-muted key-explainer">{$_('activate.keyExplainer')}</p>
 
       <form onsubmit={handleSubmit}>
@@ -102,7 +125,9 @@
             {#each [0, 1, 2, 3] as i (i)}
               <div
                 class="strength-bar"
-                style:background={i < passwordScore ? STRENGTH_COLORS[passwordScore - 1] : 'var(--color-divider)'}
+                style:background={i < passwordScore
+                  ? STRENGTH_COLORS[passwordScore - 1]
+                  : 'var(--color-divider)'}
               ></div>
             {/each}
           </div>
@@ -112,7 +137,11 @@
             </p>
           {/if}
           {#if passwordTooShort}
-            <p class="hint">{$_('activate.passwordHint', { values: { min: MIN_PASSWORD_LENGTH } })}</p>
+            <p class="hint">
+              {$_('activate.passwordHint', {
+                values: { min: MIN_PASSWORD_LENGTH },
+              })}
+            </p>
           {/if}
         </div>
 
@@ -135,7 +164,11 @@
           <div role="alert" class="banner-error">{submitError}</div>
         {/if}
 
-        <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          disabled={!canSubmit}
+        >
           {submitting ? $_('activate.submitting') : $_('activate.submit')}
         </button>
       </form>

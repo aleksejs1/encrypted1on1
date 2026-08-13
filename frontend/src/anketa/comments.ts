@@ -17,7 +17,12 @@ export interface Comment {
   createdAt: string;
 }
 
-export function addComment(existing: Comment[], targetId: string, authorId: string, text: string): Comment[] {
+export function addComment(
+  existing: Comment[],
+  targetId: string,
+  authorId: string,
+  text: string,
+): Comment[] {
   const comment: Comment = {
     id: crypto.randomUUID(),
     targetId,

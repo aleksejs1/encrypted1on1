@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { aggregateReport, dateRangeForQuarterPreset, type DecryptedAnketaForReport } from './report';
+import {
+  aggregateReport,
+  dateRangeForQuarterPreset,
+  type DecryptedAnketaForReport,
+} from './report';
 import type { Goal } from './goals';
 
 function makeGoal(overrides: Partial<Goal> = {}): Goal {
@@ -33,11 +37,21 @@ describe('aggregateReport', () => {
         anketaId: 'a1',
         meetingDate: '2026-01-10T00:00:00.000Z',
         employeeAnswers: {
-          achievementEntries: [{ id: 'e1', date: '2026-01-05', text: 'Shipped feature X' }],
-          growthEntries: [{ id: 'e2', date: '2026-01-06', text: 'Learned TypeScript generics' }],
+          achievementEntries: [
+            { id: 'e1', date: '2026-01-05', text: 'Shipped feature X' },
+          ],
+          growthEntries: [
+            {
+              id: 'e2',
+              date: '2026-01-06',
+              text: 'Learned TypeScript generics',
+            },
+          ],
         },
         managerAnswers: {
-          employeeAchievementEntries: [{ id: 'e3', date: '2026-01-07', text: 'Great incident response' }],
+          employeeAchievementEntries: [
+            { id: 'e3', date: '2026-01-07', text: 'Great incident response' },
+          ],
         },
         goals: [],
         checkpoints: [],
@@ -46,16 +60,32 @@ describe('aggregateReport', () => {
 
     const result = aggregateReport(anketas);
 
-    expect(result.achievements.map((e) => e.text)).toEqual(['Shipped feature X', 'Great incident response']);
-    expect(result.growth.map((e) => e.text)).toEqual(['Learned TypeScript generics']);
+    expect(result.achievements.map((e) => e.text)).toEqual([
+      'Shipped feature X',
+      'Great incident response',
+    ]);
+    expect(result.growth.map((e) => e.text)).toEqual([
+      'Learned TypeScript generics',
+    ]);
   });
 
   it('skips unpublished sides (null answers) without erroring', () => {
     const anketas: DecryptedAnketaForReport[] = [
-      { anketaId: 'a1', meetingDate: '2026-01-10T00:00:00.000Z', employeeAnswers: null, managerAnswers: null, goals: [], checkpoints: [] },
+      {
+        anketaId: 'a1',
+        meetingDate: '2026-01-10T00:00:00.000Z',
+        employeeAnswers: null,
+        managerAnswers: null,
+        goals: [],
+        checkpoints: [],
+      },
     ];
 
-    expect(aggregateReport(anketas)).toEqual({ achievements: [], growth: [], goals: [] });
+    expect(aggregateReport(anketas)).toEqual({
+      achievements: [],
+      growth: [],
+      goals: [],
+    });
   });
 
   it('sorts achievements and growth chronologically regardless of anketa order', () => {
@@ -63,7 +93,11 @@ describe('aggregateReport', () => {
       {
         anketaId: 'a2',
         meetingDate: '2026-03-10T00:00:00.000Z',
-        employeeAnswers: { achievementEntries: [{ id: 'later', date: '2026-03-01', text: 'later' }] },
+        employeeAnswers: {
+          achievementEntries: [
+            { id: 'later', date: '2026-03-01', text: 'later' },
+          ],
+        },
         managerAnswers: null,
         goals: [],
         checkpoints: [],
@@ -71,14 +105,21 @@ describe('aggregateReport', () => {
       {
         anketaId: 'a1',
         meetingDate: '2026-01-10T00:00:00.000Z',
-        employeeAnswers: { achievementEntries: [{ id: 'earlier', date: '2026-01-01', text: 'earlier' }] },
+        employeeAnswers: {
+          achievementEntries: [
+            { id: 'earlier', date: '2026-01-01', text: 'earlier' },
+          ],
+        },
         managerAnswers: null,
         goals: [],
         checkpoints: [],
       },
     ];
 
-    expect(aggregateReport(anketas).achievements.map((e) => e.text)).toEqual(['earlier', 'later']);
+    expect(aggregateReport(anketas).achievements.map((e) => e.text)).toEqual([
+      'earlier',
+      'later',
+    ]);
   });
 
   it('unions checkpoints for the same goalUuid across two anketas, keeping the latest snapshot', () => {
@@ -88,9 +129,21 @@ describe('aggregateReport', () => {
         meetingDate: '2026-01-10T00:00:00.000Z',
         employeeAnswers: null,
         managerAnswers: null,
-        goals: [makeGoal({ id: 'row-1', title: 'Original title', createdAt: '2026-01-01T00:00:00.000Z' })],
+        goals: [
+          makeGoal({
+            id: 'row-1',
+            title: 'Original title',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          }),
+        ],
         checkpoints: [
-          { id: 'c1', goalId: 'goal-uuid-1', authorId: 'user-1', text: 'first checkpoint', createdAt: '2026-01-10T00:00:00.000Z' },
+          {
+            id: 'c1',
+            goalId: 'goal-uuid-1',
+            authorId: 'user-1',
+            text: 'first checkpoint',
+            createdAt: '2026-01-10T00:00:00.000Z',
+          },
         ],
       },
       {
@@ -99,9 +152,21 @@ describe('aggregateReport', () => {
         employeeAnswers: null,
         managerAnswers: null,
         // Carried forward: new row id, same goalUuid, updated title, later meetingDate.
-        goals: [makeGoal({ id: 'row-2', title: 'Updated title', createdAt: '2026-02-01T00:00:00.000Z' })],
+        goals: [
+          makeGoal({
+            id: 'row-2',
+            title: 'Updated title',
+            createdAt: '2026-02-01T00:00:00.000Z',
+          }),
+        ],
         checkpoints: [
-          { id: 'c2', goalId: 'goal-uuid-1', authorId: 'user-1', text: 'second checkpoint', createdAt: '2026-02-10T00:00:00.000Z' },
+          {
+            id: 'c2',
+            goalId: 'goal-uuid-1',
+            authorId: 'user-1',
+            text: 'second checkpoint',
+            createdAt: '2026-02-10T00:00:00.000Z',
+          },
         ],
       },
     ];
@@ -112,7 +177,10 @@ describe('aggregateReport', () => {
     const [goal] = result.goals;
     expect(goal.goalUuid).toBe('goal-uuid-1');
     expect(goal.title).toBe('Updated title'); // latest snapshot wins
-    expect(goal.checkpoints.map((c) => c.text)).toEqual(['first checkpoint', 'second checkpoint']); // both survive, in order
+    expect(goal.checkpoints.map((c) => c.text)).toEqual([
+      'first checkpoint',
+      'second checkpoint',
+    ]); // both survive, in order
   });
 
   it('picks the latest snapshot by anketa meetingDate even when both goal rows share the same createdAt second', () => {
@@ -127,7 +195,13 @@ describe('aggregateReport', () => {
         meetingDate: '2026-01-10T00:00:00.000Z',
         employeeAnswers: null,
         managerAnswers: null,
-        goals: [makeGoal({ id: 'row-1', title: 'Original title', createdAt: tiedTimestamp })],
+        goals: [
+          makeGoal({
+            id: 'row-1',
+            title: 'Original title',
+            createdAt: tiedTimestamp,
+          }),
+        ],
         checkpoints: [],
       },
       {
@@ -135,7 +209,13 @@ describe('aggregateReport', () => {
         meetingDate: '2026-02-10T00:00:00.000Z',
         employeeAnswers: null,
         managerAnswers: null,
-        goals: [makeGoal({ id: 'row-2', title: 'Updated title', createdAt: tiedTimestamp })],
+        goals: [
+          makeGoal({
+            id: 'row-2',
+            title: 'Updated title',
+            createdAt: tiedTimestamp,
+          }),
+        ],
         checkpoints: [],
       },
     ];
@@ -151,7 +231,15 @@ describe('aggregateReport', () => {
         employeeAnswers: null,
         managerAnswers: null,
         goals: [],
-        checkpoints: [{ id: 'c1', goalId: 'orphan-uuid', authorId: 'user-1', text: 'orphan', createdAt: '2026-01-01T00:00:00.000Z' }],
+        checkpoints: [
+          {
+            id: 'c1',
+            goalId: 'orphan-uuid',
+            authorId: 'user-1',
+            text: 'orphan',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
       },
     ];
 

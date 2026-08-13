@@ -23,7 +23,9 @@
   const filtered = $derived(
     query.trim() === ''
       ? users
-      : users.filter((u) => u.email.toLowerCase().includes(query.trim().toLowerCase())),
+      : users.filter((u) =>
+          u.email.toLowerCase().includes(query.trim().toLowerCase()),
+        ),
   );
 
   function selectUser(user: UserOption): void {

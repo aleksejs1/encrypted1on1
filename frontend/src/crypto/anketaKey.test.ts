@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { decryptBlob, encryptBlob, generateAnketaKey, sealAnketaKey, unsealAnketaKey } from './anketaKey';
+import {
+  decryptBlob,
+  encryptBlob,
+  generateAnketaKey,
+  sealAnketaKey,
+  unsealAnketaKey,
+} from './anketaKey';
 import { generateKeyPair } from './keypair';
 
 describe('anketa key sealing', () => {
@@ -20,7 +26,9 @@ describe('anketa key sealing', () => {
 
     const sealed = await sealAnketaKey(anketaKey, publicKey);
 
-    await expect(unsealAnketaKey(sealed, publicKey, wrongKeyPair.privateKey)).rejects.toThrow();
+    await expect(
+      unsealAnketaKey(sealed, publicKey, wrongKeyPair.privateKey),
+    ).rejects.toThrow();
   });
 });
 

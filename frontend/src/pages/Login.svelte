@@ -23,7 +23,9 @@
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
-  const canSubmit = $derived(email.length > 0 && password.length > 0 && !submitting);
+  const canSubmit = $derived(
+    email.length > 0 && password.length > 0 && !submitting,
+  );
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
@@ -33,15 +35,20 @@
     error = null;
     try {
       const salt = await deriveArgon2idSalt(email);
-      const { authKey, masterKey } = await deriveKeysFromPassword(password, salt);
-
-      const response = await apiPost<{ publicKey: string; encryptedPrivateKey: string }>(
-        '/api/login',
-        { email, authKey: await toBase64(authKey) },
+      const { authKey, masterKey } = await deriveKeysFromPassword(
+        password,
+        salt,
       );
 
+      const response = await apiPost<{
+        publicKey: string;
+        encryptedPrivateKey: string;
+      }>('/api/login', { email, authKey: await toBase64(authKey) });
+
       // Unwrapping is also a correctness check: a wrong master-key throws (see keypair.ts).
-      const wrapped = await unpackWrappedPrivateKey(response.encryptedPrivateKey);
+      const wrapped = await unpackWrappedPrivateKey(
+        response.encryptedPrivateKey,
+      );
       await unwrapPrivateKey(wrapped, masterKey);
 
       await storeMasterKey(masterKey);
@@ -88,17 +95,24 @@
         <div role="alert" class="banner-error">{error}</div>
       {/if}
 
-      <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
+      <button
+        type="submit"
+        class="btn btn-primary btn-block"
+        disabled={!canSubmit}
+      >
         {submitting ? $_('login.submitting') : $_('login.submit')}
       </button>
 
       {#if submitting}
         <p class="text-muted crypto-note">
-          <span aria-hidden="true">⏳</span> {$_('login.cryptoNote')}
+          <span aria-hidden="true">⏳</span>
+          {$_('login.cryptoNote')}
         </p>
       {/if}
 
-      <a href="/forgot-password" class="forgot-link">{$_('login.forgotPassword')}</a>
+      <a href="/forgot-password" class="forgot-link"
+        >{$_('login.forgotPassword')}</a
+      >
       {#if signupOpen}
         <a href="/signup" class="signup-link">{$_('login.signUpLink')}</a>
       {/if}

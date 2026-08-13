@@ -23,7 +23,9 @@ export async function wrapPrivateKey(
   masterKey: Uint8Array,
 ): Promise<WrappedPrivateKey> {
   const sodium = await getSodium();
-  const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const nonce = sodium.randombytes_buf(
+    sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES,
+  );
   const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
     privateKey,
     null,
@@ -55,14 +57,20 @@ export async function unwrapPrivateKey(
  * column/field, not two. The nonce is fixed-length, so unpacking is a plain
  * slice, not a delimiter-based format that could be ambiguous.
  */
-export async function packWrappedPrivateKey(wrapped: WrappedPrivateKey): Promise<string> {
-  const combined = new Uint8Array(wrapped.nonce.length + wrapped.ciphertext.length);
+export async function packWrappedPrivateKey(
+  wrapped: WrappedPrivateKey,
+): Promise<string> {
+  const combined = new Uint8Array(
+    wrapped.nonce.length + wrapped.ciphertext.length,
+  );
   combined.set(wrapped.nonce, 0);
   combined.set(wrapped.ciphertext, wrapped.nonce.length);
   return toBase64(combined);
 }
 
-export async function unpackWrappedPrivateKey(packed: string): Promise<WrappedPrivateKey> {
+export async function unpackWrappedPrivateKey(
+  packed: string,
+): Promise<WrappedPrivateKey> {
   const sodium = await getSodium();
   const combined = await fromBase64(packed);
   const nonceLength = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;

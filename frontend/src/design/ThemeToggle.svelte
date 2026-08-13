@@ -7,7 +7,9 @@
   type="button"
   class="btn btn-secondary btn-icon"
   onclick={toggleTheme}
-  aria-label={themeState.theme === 'dark' ? $_('theme.switchToLight') : $_('theme.switchToDark')}
+  aria-label={themeState.theme === 'dark'
+    ? $_('theme.switchToLight')
+    : $_('theme.switchToDark')}
 >
   {themeState.theme === 'dark' ? '☀' : '☾'}
 </button>

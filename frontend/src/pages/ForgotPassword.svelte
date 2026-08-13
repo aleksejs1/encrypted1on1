@@ -23,7 +23,10 @@
       // by branching on the response.
       submitted = true;
     } catch (err) {
-      error = err instanceof ApiError ? err.message : $_('forgotPassword.genericError');
+      error =
+        err instanceof ApiError
+          ? err.message
+          : $_('forgotPassword.genericError');
     } finally {
       submitting = false;
     }
@@ -36,7 +39,9 @@
 
     {#if submitted}
       <p class="text-muted">{$_('forgotPassword.sentConfirmation')}</p>
-      <a href="/" class="btn btn-secondary btn-block">{$_('forgotPassword.backToLogin')}</a>
+      <a href="/" class="btn btn-secondary btn-block"
+        >{$_('forgotPassword.backToLogin')}</a
+      >
     {:else}
       <p class="text-muted subtitle">{$_('forgotPassword.subtitle')}</p>
 
@@ -57,8 +62,14 @@
           <div role="alert" class="banner-error">{error}</div>
         {/if}
 
-        <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
-          {submitting ? $_('forgotPassword.submitting') : $_('forgotPassword.submit')}
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          disabled={!canSubmit}
+        >
+          {submitting
+            ? $_('forgotPassword.submitting')
+            : $_('forgotPassword.submit')}
         </button>
 
         <a href="/" class="back-link">{$_('forgotPassword.backToLogin')}</a>

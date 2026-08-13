@@ -3,7 +3,11 @@
   import { apiGet, apiPut } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity';
   import { fromBase64 } from '../crypto/encoding';
-  import { decryptBlob, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
+  import {
+    decryptBlob,
+    sealAnketaKey,
+    unsealAnketaKey,
+  } from '../crypto/anketaKey';
   import InviteForm from '../admin/InviteForm.svelte';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
   import { extractTrendValues } from '../anketa/moodWorkloadTrend';
@@ -55,14 +59,18 @@
   // The mood/workload radio fields' own already-defined options *are* the
   // trend scale (private/init.txt: "график трендов по radio-полям") — no
   // separate chart library, per the same spec section (hand-rolled SVG only).
-  const MOOD_OPTIONS = QUESTIONS_BY_SIDE.employee.find((q) => q.id === 'mood')!.fields.find((f) => f.id === 'moodNow')!
-    .options!;
-  const WORKLOAD_OPTIONS = QUESTIONS_BY_SIDE.employee.find((q) => q.id === 'workload')!.fields.find(
-    (f) => f.id === 'workloadNow',
-  )!.options!;
+  const MOOD_OPTIONS = QUESTIONS_BY_SIDE.employee
+    .find((q) => q.id === 'mood')!
+    .fields.find((f) => f.id === 'moodNow')!.options!;
+  const WORKLOAD_OPTIONS = QUESTIONS_BY_SIDE.employee
+    .find((q) => q.id === 'workload')!
+    .fields.find((f) => f.id === 'workloadNow')!.options!;
 
   function isOverdue(anketa: AnketaSummary): boolean {
-    return anketa.archivedAt === null && new Date(anketa.meetingDate).getTime() < Date.now();
+    return (
+      anketa.archivedAt === null &&
+      new Date(anketa.meetingDate).getTime() < Date.now()
+    );
   }
 
   function initials(email: string): string {
@@ -75,12 +83,22 @@
 
   function badgesFor(anketa: AnketaSummary): BadgeMeta[] {
     const list: BadgeMeta[] = [];
-    if (isOverdue(anketa)) list.push({ cls: 'tag-outline', label: $_('anketaList.badgeOverdue') });
-    if (anketa.archivedAt) list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeArchived') });
-    if (anketa.missed) list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeMissed') });
-    if (anketa.myPublishedAt) list.push({ cls: 'tag-accent', label: $_('anketaList.badgePublishedByMe') });
+    if (isOverdue(anketa))
+      list.push({ cls: 'tag-outline', label: $_('anketaList.badgeOverdue') });
+    if (anketa.archivedAt)
+      list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeArchived') });
+    if (anketa.missed)
+      list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeMissed') });
+    if (anketa.myPublishedAt)
+      list.push({
+        cls: 'tag-accent',
+        label: $_('anketaList.badgePublishedByMe'),
+      });
     if (anketa.counterpartPublishedAt) {
-      list.push({ cls: 'tag-accent-2', label: $_('anketaList.badgePublishedByCounterpart') });
+      list.push({
+        cls: 'tag-accent-2',
+        label: $_('anketaList.badgePublishedByCounterpart'),
+      });
     }
     return list;
   }
@@ -116,29 +134,47 @@
       const rows: TrendRow[] = [];
 
       for (const anketa of bulk) {
-        if (anketa.archivedAt === null || anketa.employeePublishedAt === null || !anketa.employeeBlob) continue;
+        if (
+          anketa.archivedAt === null ||
+          anketa.employeePublishedAt === null ||
+          !anketa.employeeBlob
+        )
+          continue;
 
         // A wrong-key AEAD failure here means this anketa was sealed under a keypair
         // that no longer matches identity.privateKey (most likely a password reset),
         // same discipline as Report.svelte/AccountSettings.svelte — skip just this one.
         let anketaKey: Uint8Array;
         try {
-          anketaKey = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
+          anketaKey = await unsealAnketaKey(
+            anketa.mySealedKey,
+            identity.publicKey,
+            identity.privateKey,
+          );
         } catch {
           continue;
         }
 
-        const answers = (await decryptBlob<Answers>(anketa.employeeBlob, anketaKey)).data;
+        const answers = (
+          await decryptBlob<Answers>(anketa.employeeBlob, anketaKey)
+        ).data;
         rows.push({
           counterpartId: anketa.counterpartId,
           counterpartEmail: anketa.counterpartEmail,
           meetingDate: anketa.meetingDate,
-          moodNow: typeof answers.moodNow === 'string' ? answers.moodNow : undefined,
-          workloadNow: typeof answers.workloadNow === 'string' ? answers.workloadNow : undefined,
+          moodNow:
+            typeof answers.moodNow === 'string' ? answers.moodNow : undefined,
+          workloadNow:
+            typeof answers.workloadNow === 'string'
+              ? answers.workloadNow
+              : undefined,
         });
       }
 
-      rows.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+      rows.sort(
+        (a, b) =>
+          new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime(),
+      );
       trendRows = rows;
     } catch {
       // A decorative enhancement on an already-working list — a failed
@@ -149,14 +185,23 @@
   const trendGroups = $derived(groupByCounterpart(trendRows));
 
   function trendFor(counterpartId: string): TrendRow[] {
-    return trendGroups.find((g) => g.counterpartId === counterpartId)?.anketas ?? [];
+    return (
+      trendGroups.find((g) => g.counterpartId === counterpartId)?.anketas ?? []
+    );
   }
 
   async function reshareOne(anketaId: string): Promise<void> {
     const identity = await ensureUnlocked();
     const detail = await apiGet<AnketaDetail>(`/api/anketas/${anketaId}`);
-    const anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
-    const sealedKey = await sealAnketaKey(anketaKey, await fromBase64(detail.counterpartPublicKey));
+    const anketaKey = await unsealAnketaKey(
+      detail.mySealedKey,
+      identity.publicKey,
+      identity.privateKey,
+    );
+    const sealedKey = await sealAnketaKey(
+      anketaKey,
+      await fromBase64(detail.counterpartPublicKey),
+    );
     await apiPut(`/api/anketas/${anketaId}/reshare-key`, { sealedKey });
   }
 
@@ -191,11 +236,21 @@
 
   {#snippet anketaRow(anketa: AnketaSummary)}
     <a href="/anketas/{anketa.id}" class="card elev-sm anketa-row">
-      <div class="avatar">{initials(counterpartLabel(anketa.counterpartEmail, anketa.counterpartDeleted))}</div>
+      <div class="avatar">
+        {initials(
+          counterpartLabel(anketa.counterpartEmail, anketa.counterpartDeleted),
+        )}
+      </div>
       <div class="anketa-info">
-        <div class="anketa-email">{counterpartLabel(anketa.counterpartEmail, anketa.counterpartDeleted)}</div>
+        <div class="anketa-email">
+          {counterpartLabel(anketa.counterpartEmail, anketa.counterpartDeleted)}
+        </div>
         <div class="text-muted anketa-meta">
-          {$_(anketa.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager')} —
+          {$_(
+            anketa.myRole === 'employee'
+              ? 'common.roleEmployee'
+              : 'common.roleManager',
+          )} —
           {new Date(anketa.meetingDate).toLocaleDateString()}
         </div>
       </div>
@@ -219,15 +274,24 @@
         {:else if reshareResult === 'partial'}
           <p class="banner-error">{$_('anketaList.reshareFailure')}</p>
         {/if}
-        <button type="button" class="btn btn-secondary" disabled={resharing} onclick={() => reshareAll(outdated)}>
-          {resharing ? $_('anketaList.reshareInProgress') : $_('anketaList.reshareButton')}
+        <button
+          type="button"
+          class="btn btn-secondary"
+          disabled={resharing}
+          onclick={() => reshareAll(outdated)}
+        >
+          {resharing
+            ? $_('anketaList.reshareInProgress')
+            : $_('anketaList.reshareButton')}
         </button>
       </div>
     {/if}
     {#if list.length === 0}
       <div class="card elev-sm empty-state">
         <p class="text-muted">{$_('anketaList.empty')}</p>
-        <a href="/anketas/new" class="btn btn-primary">{$_('anketaList.newAnketa')}</a>
+        <a href="/anketas/new" class="btn btn-primary"
+          >{$_('anketaList.newAnketa')}</a
+        >
       </div>
     {:else}
       <div class="seg view-toggle">
@@ -236,7 +300,12 @@
           {$_('anketaList.viewToggleDate')}
         </label>
         <label class="seg-opt">
-          <input type="radio" name="view" bind:group={groupBy} value="counterpart" />
+          <input
+            type="radio"
+            name="view"
+            bind:group={groupBy}
+            value="counterpart"
+          />
           {$_('anketaList.viewToggleCounterpart')}
         </label>
       </div>
@@ -244,26 +313,44 @@
       {#if groupBy === 'counterpart'}
         <div class="groups">
           {#each groupByCounterpart(list) as group (group.counterpartId)}
-            {@const groupDeleted = group.anketas[0]?.counterpartDeleted ?? false}
+            {@const groupDeleted =
+              group.anketas[0]?.counterpartDeleted ?? false}
             {@const groupTrend = trendFor(group.counterpartId)}
-            {@const moodValues = extractTrendValues(groupTrend.map((t) => ({ value: t.moodNow })), MOOD_OPTIONS)}
+            {@const moodValues = extractTrendValues(
+              groupTrend.map((t) => ({ value: t.moodNow })),
+              MOOD_OPTIONS,
+            )}
             {@const workloadValues = extractTrendValues(
               groupTrend.map((t) => ({ value: t.workloadNow })),
               WORKLOAD_OPTIONS,
             )}
             <div class="card group-card">
               <div class="group-header">
-                <div class="avatar avatar-accent-2">{initials(counterpartLabel(group.counterpartEmail, groupDeleted))}</div>
+                <div class="avatar avatar-accent-2">
+                  {initials(
+                    counterpartLabel(group.counterpartEmail, groupDeleted),
+                  )}
+                </div>
                 <div class="anketa-info">
-                  <div class="anketa-email">{counterpartLabel(group.counterpartEmail, groupDeleted)}</div>
+                  <div class="anketa-email">
+                    {counterpartLabel(group.counterpartEmail, groupDeleted)}
+                  </div>
                   <div class="text-muted anketa-meta">
                     {$_('anketaList.nextMeetingLabel', {
-                      values: { date: new Date(group.anketas[0].meetingDate).toLocaleDateString() },
+                      values: {
+                        date: new Date(
+                          group.anketas[0].meetingDate,
+                        ).toLocaleDateString(),
+                      },
                     })}
                   </div>
                 </div>
                 <div class="trend-sparklines">
-                  <TrendSparkline values={moodValues} maxIndex={MOOD_OPTIONS.length - 1} label={$_('anketaList.moodTrendLabel')} />
+                  <TrendSparkline
+                    values={moodValues}
+                    maxIndex={MOOD_OPTIONS.length - 1}
+                    label={$_('anketaList.moodTrendLabel')}
+                  />
                   <TrendSparkline
                     values={workloadValues}
                     maxIndex={WORKLOAD_OPTIONS.length - 1}
@@ -274,7 +361,9 @@
               <div class="group-anketas">
                 {#each group.anketas as anketa (anketa.id)}
                   <a href="/anketas/{anketa.id}" class="group-anketa-row">
-                    <span class="group-anketa-date">{new Date(anketa.meetingDate).toLocaleDateString()}</span>
+                    <span class="group-anketa-date"
+                      >{new Date(anketa.meetingDate).toLocaleDateString()}</span
+                    >
                     <div class="badges">
                       {#each badgesFor(anketa) as badge (badge.cls + badge.label)}
                         <span class="tag {badge.cls}">{badge.label}</span>

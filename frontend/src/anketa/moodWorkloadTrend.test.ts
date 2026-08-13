@@ -11,13 +11,24 @@ const MOOD_OPTIONS: FieldOption[] = [
 describe('extractTrendValues', () => {
   it('maps known option values to their index', () => {
     expect(
-      extractTrendValues([{ value: 'bad' }, { value: 'neutral' }, { value: 'good' }], MOOD_OPTIONS),
+      extractTrendValues(
+        [{ value: 'bad' }, { value: 'neutral' }, { value: 'good' }],
+        MOOD_OPTIONS,
+      ),
     ).toEqual([0, 1, 2]);
   });
 
   it('skips missing or unrecognized values rather than zero-filling', () => {
     expect(
-      extractTrendValues([{ value: 'good' }, { value: undefined }, { value: 'unknown' }, { value: 'bad' }], MOOD_OPTIONS),
+      extractTrendValues(
+        [
+          { value: 'good' },
+          { value: undefined },
+          { value: 'unknown' },
+          { value: 'bad' },
+        ],
+        MOOD_OPTIONS,
+      ),
     ).toEqual([2, 0]);
   });
 

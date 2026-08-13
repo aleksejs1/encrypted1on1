@@ -11,7 +11,9 @@ import es from './locales/es.json';
  */
 function flattenKeys(obj: unknown, prefix = ''): string[] {
   if (typeof obj !== 'object' || obj === null) return [prefix];
-  return Object.entries(obj).flatMap(([key, value]) => flattenKeys(value, prefix ? `${prefix}.${key}` : key));
+  return Object.entries(obj).flatMap(([key, value]) =>
+    flattenKeys(value, prefix ? `${prefix}.${key}` : key),
+  );
 }
 
 const locales: Record<string, unknown> = { en, ru, lv, es };
@@ -25,7 +27,12 @@ describe('locale files', () => {
 
     it(`${code}.json has no empty string values`, () => {
       const empties = flattenKeys(messages).filter((key) => {
-        const value = key.split('.').reduce<unknown>((obj, part) => (obj as Record<string, unknown>)?.[part], messages);
+        const value = key
+          .split('.')
+          .reduce<unknown>(
+            (obj, part) => (obj as Record<string, unknown>)?.[part],
+            messages,
+          );
         return value === '';
       });
       expect(empties).toEqual([]);

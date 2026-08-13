@@ -21,9 +21,13 @@
     checkAuth();
   });
 
-  const activationMatch = $derived(routerState.path.match(/^\/activate\/(.+)$/));
+  const activationMatch = $derived(
+    routerState.path.match(/^\/activate\/(.+)$/),
+  );
   const anketaMatch = $derived(routerState.path.match(/^\/anketas\/([^/]+)$/));
-  const resetPasswordMatch = $derived(routerState.path.match(/^\/reset-password\/(.+)$/));
+  const resetPasswordMatch = $derived(
+    routerState.path.match(/^\/reset-password\/(.+)$/),
+  );
 
   // The redesigned header started with Login/Activate (Phase 8a), then covered
   // AnketaList/CreateAnketa/Report/AdminPanel (Phase 8b), and now Anketa.svelte

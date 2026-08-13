@@ -1,4 +1,8 @@
-export const ARGON2ID_PROFILES = ['interactive', 'moderate', 'sensitive'] as const;
+export const ARGON2ID_PROFILES = [
+  'interactive',
+  'moderate',
+  'sensitive',
+] as const;
 export type Argon2idProfile = (typeof ARGON2ID_PROFILES)[number];
 
 /**
@@ -16,5 +20,7 @@ export type Argon2idProfile = (typeof ARGON2ID_PROFILES)[number];
  * no longer unwraps even after a successful login).
  */
 export function resolveArgon2Profile(raw: string | undefined): Argon2idProfile {
-  return (ARGON2ID_PROFILES as readonly string[]).includes(raw ?? '') ? (raw as Argon2idProfile) : 'interactive';
+  return (ARGON2ID_PROFILES as readonly string[]).includes(raw ?? '')
+    ? (raw as Argon2idProfile)
+    : 'interactive';
 }

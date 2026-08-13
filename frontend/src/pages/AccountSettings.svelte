@@ -8,7 +8,12 @@
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey, loadMasterKey } from '../crypto/session';
   import { ensureUnlocked } from '../crypto/identity';
-  import { MIN_PASSWORD_LENGTH, STRENGTH_COLORS, STRENGTH_LABEL_KEYS, scoreOf } from '../passwordStrength';
+  import {
+    MIN_PASSWORD_LENGTH,
+    STRENGTH_COLORS,
+    STRENGTH_LABEL_KEYS,
+    scoreOf,
+  } from '../passwordStrength';
   import { logOut } from '../auth.svelte';
   import { navigate } from '../router.svelte';
   import type { Answers } from '../anketa/questions';
@@ -29,7 +34,9 @@
     // Best-effort background sync, same pattern as LanguageSwitcher.svelte's
     // /api/me/locale — a single low-stakes preference toggle doesn't need a
     // blocking spinner or its own error banner.
-    apiPut('/api/me/notification-preferences', { meetingRemindersEnabled: enabled }).catch(() => {});
+    apiPut('/api/me/notification-preferences', {
+      meetingRemindersEnabled: enabled,
+    }).catch(() => {});
   }
 
   let currentPassword = $state('');
@@ -40,8 +47,12 @@
   let success = $state(false);
 
   const passwordScore = $derived(scoreOf(newPassword));
-  const passwordTooShort = $derived(newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH);
-  const passwordsMismatch = $derived(confirmPassword.length > 0 && newPassword !== confirmPassword);
+  const passwordTooShort = $derived(
+    newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH,
+  );
+  const passwordsMismatch = $derived(
+    confirmPassword.length > 0 && newPassword !== confirmPassword,
+  );
   const canSubmit = $derived(
     currentPassword.length > 0 &&
       newPassword.length >= MIN_PASSWORD_LENGTH &&
@@ -59,8 +70,12 @@
     try {
       const identity = await ensureUnlocked();
       const salt = await deriveArgon2idSalt(identity.email);
-      const { authKey: currentAuthKey } = await deriveKeysFromPassword(currentPassword, salt);
-      const { authKey: newAuthKey, masterKey: newMasterKey } = await deriveKeysFromPassword(newPassword, salt);
+      const { authKey: currentAuthKey } = await deriveKeysFromPassword(
+        currentPassword,
+        salt,
+      );
+      const { authKey: newAuthKey, masterKey: newMasterKey } =
+        await deriveKeysFromPassword(newPassword, salt);
       // Re-wraps the *same* private key — unlike a forgotten-password reset, the
       // keypair itself never changes here, so no anketa is ever affected.
       const wrapped = await wrapPrivateKey(identity.privateKey, newMasterKey);
@@ -77,7 +92,10 @@
       confirmPassword = '';
       success = true;
     } catch (error) {
-      submitError = error instanceof ApiError ? error.message : $_('accountSettings.genericError');
+      submitError =
+        error instanceof ApiError
+          ? error.message
+          : $_('accountSettings.genericError');
     } finally {
       submitting = false;
     }
@@ -104,7 +122,9 @@
   let exportError = $state<string | null>(null);
 
   function downloadJson(filename: string, data: unknown): void {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -129,37 +149,67 @@
         // Report.svelte/CreateAnketa.svelte already established.
         let anketaKey: Uint8Array;
         try {
-          anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
+          anketaKey = await unsealAnketaKey(
+            detail.mySealedKey,
+            identity.publicKey,
+            identity.privateKey,
+          );
         } catch {
           continue;
         }
 
-        const myPublishedAt = detail.myRole === 'employee' ? detail.employeePublishedAt : detail.managerPublishedAt;
-        const myBlob = detail.myRole === 'employee' ? detail.employeeBlob : detail.managerBlob;
-        const counterpartBlob = detail.myRole === 'employee' ? detail.managerBlob : detail.employeeBlob;
+        const myPublishedAt =
+          detail.myRole === 'employee'
+            ? detail.employeePublishedAt
+            : detail.managerPublishedAt;
+        const myBlob =
+          detail.myRole === 'employee'
+            ? detail.employeeBlob
+            : detail.managerBlob;
+        const counterpartBlob =
+          detail.myRole === 'employee'
+            ? detail.managerBlob
+            : detail.employeeBlob;
         const counterpartPublishedAt =
-          detail.myRole === 'employee' ? detail.managerPublishedAt : detail.employeePublishedAt;
+          detail.myRole === 'employee'
+            ? detail.managerPublishedAt
+            : detail.employeePublishedAt;
 
         // My own side: a draft (never published) is encrypted with my *master* key, not
         // the anketa key — mirrors Anketa.svelte's own load() exactly.
         let myAnswers: Answers | null = null;
         if (myBlob && (myPublishedAt ? true : masterKey !== null)) {
-          myAnswers = (await decryptBlob<Answers>(myBlob, myPublishedAt ? anketaKey : masterKey!)).data;
+          myAnswers = (
+            await decryptBlob<Answers>(
+              myBlob,
+              myPublishedAt ? anketaKey : masterKey!,
+            )
+          ).data;
         }
 
         // The counterpart's side is only ever readable once published — an unpublished
         // draft of theirs is encrypted with a master key I never have, by design.
         let counterpartAnswers: Answers | null = null;
         if (counterpartBlob && counterpartPublishedAt) {
-          counterpartAnswers = (await decryptBlob<Answers>(counterpartBlob, anketaKey)).data;
+          counterpartAnswers = (
+            await decryptBlob<Answers>(counterpartBlob, anketaKey)
+          ).data;
         }
 
-        const comments = detail.commentsBlob ? (await decryptBlob<Comment[]>(detail.commentsBlob, anketaKey)).data : [];
+        const comments = detail.commentsBlob
+          ? (await decryptBlob<Comment[]>(detail.commentsBlob, anketaKey)).data
+          : [];
         const outcomes = detail.outcomesBlob
-          ? (await decryptBlob<OutcomeItem[]>(detail.outcomesBlob, anketaKey)).data
+          ? (await decryptBlob<OutcomeItem[]>(detail.outcomesBlob, anketaKey))
+              .data
           : [];
         const goalCheckpoints = detail.goalCheckpointsBlob
-          ? (await decryptBlob<GoalCheckpoint[]>(detail.goalCheckpointsBlob, anketaKey)).data
+          ? (
+              await decryptBlob<GoalCheckpoint[]>(
+                detail.goalCheckpointsBlob,
+                anketaKey,
+              )
+            ).data
           : [];
 
         exportedAnketas.push({
@@ -177,13 +227,19 @@
         });
       }
 
-      downloadJson(`encrypted1on1-export-${new Date().toISOString().slice(0, 10)}.json`, {
-        exportedAt: new Date().toISOString(),
-        email: identity.email,
-        anketas: exportedAnketas,
-      });
+      downloadJson(
+        `encrypted1on1-export-${new Date().toISOString().slice(0, 10)}.json`,
+        {
+          exportedAt: new Date().toISOString(),
+          email: identity.email,
+          anketas: exportedAnketas,
+        },
+      );
     } catch (error) {
-      exportError = error instanceof ApiError ? error.message : $_('accountSettings.exportGenericError');
+      exportError =
+        error instanceof ApiError
+          ? error.message
+          : $_('accountSettings.exportGenericError');
     } finally {
       exporting = false;
     }
@@ -194,7 +250,9 @@
   let deleting = $state(false);
   let deleteError = $state<string | null>(null);
 
-  const canDelete = $derived(deleteCurrentPassword.length > 0 && deleteRiskAcknowledged && !deleting);
+  const canDelete = $derived(
+    deleteCurrentPassword.length > 0 && deleteRiskAcknowledged && !deleting,
+  );
 
   async function handleDelete(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -205,9 +263,14 @@
     try {
       const identity = await ensureUnlocked();
       const salt = await deriveArgon2idSalt(identity.email);
-      const { authKey: currentAuthKey } = await deriveKeysFromPassword(deleteCurrentPassword, salt);
+      const { authKey: currentAuthKey } = await deriveKeysFromPassword(
+        deleteCurrentPassword,
+        salt,
+      );
 
-      await apiDelete('/api/me', { currentAuthKey: await toBase64(currentAuthKey) });
+      await apiDelete('/api/me', {
+        currentAuthKey: await toBase64(currentAuthKey),
+      });
 
       // The server already invalidated the session — logOut() is still safe to call
       // (best-effort, wrapped in its own try/catch) and is what clears the client-side
@@ -215,7 +278,10 @@
       await logOut();
       navigate('/');
     } catch (error) {
-      deleteError = error instanceof ApiError ? error.message : $_('accountSettings.deleteGenericError');
+      deleteError =
+        error instanceof ApiError
+          ? error.message
+          : $_('accountSettings.deleteGenericError');
       deleting = false;
     }
   }
@@ -229,7 +295,9 @@
 
       <form onsubmit={handleSubmit}>
         <div class="field">
-          <label for="current-password">{$_('accountSettings.currentPasswordLabel')}</label>
+          <label for="current-password"
+            >{$_('accountSettings.currentPasswordLabel')}</label
+          >
           <input
             id="current-password"
             class="input"
@@ -241,7 +309,9 @@
         </div>
 
         <div class="field">
-          <label for="new-password">{$_('accountSettings.newPasswordLabel')}</label>
+          <label for="new-password"
+            >{$_('accountSettings.newPasswordLabel')}</label
+          >
           <input
             id="new-password"
             class="input"
@@ -254,22 +324,32 @@
             {#each [0, 1, 2, 3] as i (i)}
               <div
                 class="strength-bar"
-                style:background={i < passwordScore ? STRENGTH_COLORS[passwordScore - 1] : 'var(--color-divider)'}
+                style:background={i < passwordScore
+                  ? STRENGTH_COLORS[passwordScore - 1]
+                  : 'var(--color-divider)'}
               ></div>
             {/each}
           </div>
           {#if newPassword.length > 0}
             <p class="text-muted strength-label">
-              {$_(`accountSettings.strength.${STRENGTH_LABEL_KEYS[passwordScore]}`)}
+              {$_(
+                `accountSettings.strength.${STRENGTH_LABEL_KEYS[passwordScore]}`,
+              )}
             </p>
           {/if}
           {#if passwordTooShort}
-            <p class="hint">{$_('accountSettings.passwordHint', { values: { min: MIN_PASSWORD_LENGTH } })}</p>
+            <p class="hint">
+              {$_('accountSettings.passwordHint', {
+                values: { min: MIN_PASSWORD_LENGTH },
+              })}
+            </p>
           {/if}
         </div>
 
         <div class="field">
-          <label for="confirm-password">{$_('accountSettings.confirmPasswordLabel')}</label>
+          <label for="confirm-password"
+            >{$_('accountSettings.confirmPasswordLabel')}</label
+          >
           <input
             id="confirm-password"
             class="input"
@@ -290,8 +370,14 @@
           <div role="alert" class="banner-error">{submitError}</div>
         {/if}
 
-        <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
-          {submitting ? $_('accountSettings.submitting') : $_('accountSettings.submit')}
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          disabled={!canSubmit}
+        >
+          {submitting
+            ? $_('accountSettings.submitting')
+            : $_('accountSettings.submit')}
         </button>
       </form>
     </div>
@@ -308,7 +394,9 @@
         />
         {$_('accountSettings.meetingRemindersLabel')}
       </label>
-      <p class="text-muted hint">{$_('accountSettings.meetingRemindersHint')}</p>
+      <p class="text-muted hint">
+        {$_('accountSettings.meetingRemindersHint')}
+      </p>
     </div>
 
     <div class="card elev-md">
@@ -317,8 +405,15 @@
       {#if exportError}
         <div role="alert" class="banner-error">{exportError}</div>
       {/if}
-      <button type="button" class="btn btn-secondary btn-block" onclick={handleExport} disabled={exporting}>
-        {exporting ? $_('accountSettings.exporting') : $_('accountSettings.exportButton')}
+      <button
+        type="button"
+        class="btn btn-secondary btn-block"
+        onclick={handleExport}
+        disabled={exporting}
+      >
+        {exporting
+          ? $_('accountSettings.exporting')
+          : $_('accountSettings.exportButton')}
       </button>
     </div>
 
@@ -326,13 +421,17 @@
       <h2>{$_('accountSettings.deleteTitle')}</h2>
 
       <div class="warning-block" role="alert">
-        <p class="warning-heading">{$_('accountSettings.deleteWarningHeading')}</p>
+        <p class="warning-heading">
+          {$_('accountSettings.deleteWarningHeading')}
+        </p>
         <p class="warning-text">{$_('accountSettings.deleteWarningText')}</p>
       </div>
 
       <form onsubmit={handleDelete}>
         <div class="field">
-          <label for="delete-current-password">{$_('accountSettings.currentPasswordLabel')}</label>
+          <label for="delete-current-password"
+            >{$_('accountSettings.currentPasswordLabel')}</label
+          >
           <input
             id="delete-current-password"
             class="input"
@@ -344,7 +443,11 @@
         </div>
 
         <label class="radio ack-checkbox">
-          <input type="checkbox" class="native-checkbox" bind:checked={deleteRiskAcknowledged} />
+          <input
+            type="checkbox"
+            class="native-checkbox"
+            bind:checked={deleteRiskAcknowledged}
+          />
           {$_('accountSettings.deleteRiskAcknowledgeLabel')}
         </label>
 
@@ -352,8 +455,14 @@
           <div role="alert" class="banner-error">{deleteError}</div>
         {/if}
 
-        <button type="submit" class="btn btn-secondary btn-block" disabled={!canDelete}>
-          {deleting ? $_('accountSettings.deleting') : $_('accountSettings.deleteButton')}
+        <button
+          type="submit"
+          class="btn btn-secondary btn-block"
+          disabled={!canDelete}
+        >
+          {deleting
+            ? $_('accountSettings.deleting')
+            : $_('accountSettings.deleteButton')}
         </button>
       </form>
     </div>

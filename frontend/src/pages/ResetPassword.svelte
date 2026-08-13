@@ -3,12 +3,21 @@
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
-  import { generateKeyPair, packWrappedPrivateKey, wrapPrivateKey } from '../crypto/keypair';
+  import {
+    generateKeyPair,
+    packWrappedPrivateKey,
+    wrapPrivateKey,
+  } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { navigate } from '../router.svelte';
-  import { MIN_PASSWORD_LENGTH, STRENGTH_COLORS, STRENGTH_LABEL_KEYS, scoreOf } from '../passwordStrength';
+  import {
+    MIN_PASSWORD_LENGTH,
+    STRENGTH_COLORS,
+    STRENGTH_LABEL_KEYS,
+    scoreOf,
+  } from '../passwordStrength';
 
   const { token }: { token: string } = $props();
 
@@ -26,13 +35,20 @@
         email = result.email;
       })
       .catch((error: unknown) => {
-        lookupError = error instanceof ApiError ? error.message : $_('resetPassword.lookupError');
+        lookupError =
+          error instanceof ApiError
+            ? error.message
+            : $_('resetPassword.lookupError');
       });
   });
 
   const passwordScore = $derived(scoreOf(password));
-  const passwordTooShort = $derived(password.length > 0 && password.length < MIN_PASSWORD_LENGTH);
-  const passwordsMismatch = $derived(confirmPassword.length > 0 && password !== confirmPassword);
+  const passwordTooShort = $derived(
+    password.length > 0 && password.length < MIN_PASSWORD_LENGTH,
+  );
+  const passwordsMismatch = $derived(
+    confirmPassword.length > 0 && password !== confirmPassword,
+  );
   const canSubmit = $derived(
     email !== null &&
       password.length >= MIN_PASSWORD_LENGTH &&
@@ -49,7 +65,10 @@
     submitError = null;
     try {
       const salt = await deriveArgon2idSalt(email);
-      const { authKey, masterKey } = await deriveKeysFromPassword(password, salt);
+      const { authKey, masterKey } = await deriveKeysFromPassword(
+        password,
+        salt,
+      );
       // A fresh keypair, not a re-wrap of the old one — the old private key is
       // exactly what's inaccessible right now (it was wrapped with the master
       // key derived from the forgotten password). This is *why* every anketa
@@ -67,7 +86,10 @@
       markAuthenticated();
       navigate('/');
     } catch (error) {
-      submitError = error instanceof ApiError ? error.message : $_('resetPassword.genericError');
+      submitError =
+        error instanceof ApiError
+          ? error.message
+          : $_('resetPassword.genericError');
     } finally {
       submitting = false;
     }
@@ -83,7 +105,10 @@
     {:else if email === null}
       <p class="text-muted">{$_('common.loading')}</p>
     {:else}
-      <p class="text-muted email-line"><strong>{$_('resetPassword.emailLabel')}</strong> {email}</p>
+      <p class="text-muted email-line">
+        <strong>{$_('resetPassword.emailLabel')}</strong>
+        {email}
+      </p>
 
       <div class="warning-block" role="alert">
         <p class="warning-heading">{$_('resetPassword.warningHeading')}</p>
@@ -92,7 +117,8 @@
 
       <form onsubmit={handleSubmit}>
         <div class="field">
-          <label for="reset-password">{$_('resetPassword.passwordLabel')}</label>
+          <label for="reset-password">{$_('resetPassword.passwordLabel')}</label
+          >
           <input
             id="reset-password"
             class="input"
@@ -105,22 +131,32 @@
             {#each [0, 1, 2, 3] as i (i)}
               <div
                 class="strength-bar"
-                style:background={i < passwordScore ? STRENGTH_COLORS[passwordScore - 1] : 'var(--color-divider)'}
+                style:background={i < passwordScore
+                  ? STRENGTH_COLORS[passwordScore - 1]
+                  : 'var(--color-divider)'}
               ></div>
             {/each}
           </div>
           {#if password.length > 0}
             <p class="text-muted strength-label">
-              {$_(`resetPassword.strength.${STRENGTH_LABEL_KEYS[passwordScore]}`)}
+              {$_(
+                `resetPassword.strength.${STRENGTH_LABEL_KEYS[passwordScore]}`,
+              )}
             </p>
           {/if}
           {#if passwordTooShort}
-            <p class="hint">{$_('resetPassword.passwordHint', { values: { min: MIN_PASSWORD_LENGTH } })}</p>
+            <p class="hint">
+              {$_('resetPassword.passwordHint', {
+                values: { min: MIN_PASSWORD_LENGTH },
+              })}
+            </p>
           {/if}
         </div>
 
         <div class="field">
-          <label for="reset-confirm">{$_('resetPassword.confirmPasswordLabel')}</label>
+          <label for="reset-confirm"
+            >{$_('resetPassword.confirmPasswordLabel')}</label
+          >
           <input
             id="reset-confirm"
             class="input"
@@ -135,7 +171,11 @@
         {/if}
 
         <label class="radio ack-checkbox">
-          <input type="checkbox" class="native-checkbox" bind:checked={riskAcknowledged} />
+          <input
+            type="checkbox"
+            class="native-checkbox"
+            bind:checked={riskAcknowledged}
+          />
           {$_('resetPassword.riskAcknowledgeLabel')}
         </label>
 
@@ -143,8 +183,14 @@
           <div role="alert" class="banner-error">{submitError}</div>
         {/if}
 
-        <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
-          {submitting ? $_('resetPassword.submitting') : $_('resetPassword.submit')}
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          disabled={!canSubmit}
+        >
+          {submitting
+            ? $_('resetPassword.submitting')
+            : $_('resetPassword.submit')}
         </button>
       </form>
     {/if}

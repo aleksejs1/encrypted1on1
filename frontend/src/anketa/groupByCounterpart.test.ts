@@ -8,7 +8,12 @@ interface Row {
   meetingDate: string;
 }
 
-function row(id: string, counterpartId: string, counterpartEmail: string, meetingDate: string): Row {
+function row(
+  id: string,
+  counterpartId: string,
+  counterpartEmail: string,
+  meetingDate: string,
+): Row {
   return { id, counterpartId, counterpartEmail, meetingDate };
 }
 
@@ -26,11 +31,15 @@ describe('groupByCounterpart', () => {
     const groups = groupByCounterpart(anketas);
 
     expect(groups).toEqual([
-      { counterpartId: 'u1', counterpartEmail: 'alice@example.com', anketas: [anketas[0], anketas[1]] },
+      {
+        counterpartId: 'u1',
+        counterpartEmail: 'alice@example.com',
+        anketas: [anketas[0], anketas[1]],
+      },
     ]);
   });
 
-  it('orders groups by each counterpart\'s first (most recent) appearance in a date-DESC input', () => {
+  it("orders groups by each counterpart's first (most recent) appearance in a date-DESC input", () => {
     // Bob's most recent anketa (Feb) sorts before Alice's most recent one (Jan) in the
     // date-DESC input, even though Alice also has an even-earlier anketa mixed in later.
     const anketas = [

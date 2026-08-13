@@ -25,7 +25,9 @@ async function activate(browser: Browser, token: string): Promise<Page> {
  * is exercised as it actually runs for a real user: through real form
  * inputs, in a real Chromium tab, round-tripping through the real backend.
  */
-test('employee and manager complete an anketa across two independent sessions', async ({ browser }) => {
+test('employee and manager complete an anketa across two independent sessions', async ({
+  browser,
+}) => {
   const employeeEmail = uniqueEmail('employee');
   const managerEmail = uniqueEmail('manager');
   const employeeToken = createActivationLink(employeeEmail);
@@ -39,13 +41,17 @@ test('employee and manager complete an anketa across two independent sessions', 
   // the manager regardless of how many other accounts already exist in this
   // dev DB, not just whichever ones happen to land on page 1.
   await employee.goto('/anketas/new');
-  const counterpartInput = employee.getByPlaceholder('Type an email to search…');
+  const counterpartInput = employee.getByPlaceholder(
+    'Type an email to search…',
+  );
   await counterpartInput.fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
-  await employee.locator('#meeting-date').fill(meetingDate.toISOString().slice(0, 10));
+  await employee
+    .locator('#meeting-date')
+    .fill(meetingDate.toISOString().slice(0, 10));
   await employee.getByRole('button', { name: 'Create anketa' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
@@ -63,7 +69,9 @@ test('employee and manager complete an anketa across two independent sessions', 
   // <textarea>'s value is not exposed as rendered text content.
   await manager.goto(anketaUrl);
   const managerCounterpartSide = manager.locator('.side-card').nth(1);
-  await expect(managerCounterpartSide.locator('textarea').first()).toHaveValue(employeeMarker);
+  await expect(managerCounterpartSide.locator('textarea').first()).toHaveValue(
+    employeeMarker,
+  );
 
   // Manager publishes their own side with a second marker.
   const managerMarker = `E2E-MARKER-MANAGER-${Date.now()}`;
@@ -85,9 +93,15 @@ test('employee and manager complete an anketa across two independent sessions', 
   // encrypted shared-blob channel (commentsBlob) round-tripping for real.
   await employee.reload();
   const employeeCounterpartSide = employee.locator('.side-card').nth(1);
-  await expect(employeeCounterpartSide.locator('textarea').first()).toHaveValue(managerMarker);
+  await expect(employeeCounterpartSide.locator('textarea').first()).toHaveValue(
+    managerMarker,
+  );
 
-  const employeeThread = employee.locator('.side-card').first().locator('.thread').first();
+  const employeeThread = employee
+    .locator('.side-card')
+    .first()
+    .locator('.thread')
+    .first();
   await employeeThread.getByRole('button', { name: /comment/i }).click();
   await expect(employeeThread.getByText('looks good to me')).toBeVisible();
   await expect(employeeThread.getByText(`${managerEmail}:`)).toBeVisible();

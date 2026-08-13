@@ -28,6 +28,7 @@ lint-backend:
 
 lint-frontend:
 	cd frontend && npm run check
+	cd frontend && npm run format
 
 coverage: coverage-backend coverage-frontend
 

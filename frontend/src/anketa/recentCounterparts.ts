@@ -20,8 +20,13 @@ interface PriorAnketaSummary {
  * assumed already meetingDate DESC-sorted (matches GET /api/anketas), the
  * same assumption groupByCounterpart() already makes.
  */
-export function sortByRecentCounterparts(users: UserSummary[], priorAnketas: PriorAnketaSummary[]): UserSummary[] {
-  const recentIds = groupByCounterpart(priorAnketas).map((group) => group.counterpartId);
+export function sortByRecentCounterparts(
+  users: UserSummary[],
+  priorAnketas: PriorAnketaSummary[],
+): UserSummary[] {
+  const recentIds = groupByCounterpart(priorAnketas).map(
+    (group) => group.counterpartId,
+  );
   const recentIndex = new Map(recentIds.map((id, i) => [id, i]));
 
   return [...users].sort((a, b) => {

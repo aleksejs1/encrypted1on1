@@ -10,5 +10,9 @@ import { getSodium } from './sodium';
 export async function deriveArgon2idSalt(email: string): Promise<Uint8Array> {
   const sodium = await getSodium();
   const normalized = email.trim().toLowerCase();
-  return sodium.crypto_generichash(sodium.crypto_pwhash_SALTBYTES, normalized, null);
+  return sodium.crypto_generichash(
+    sodium.crypto_pwhash_SALTBYTES,
+    normalized,
+    null,
+  );
 }

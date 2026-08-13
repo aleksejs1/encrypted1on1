@@ -52,10 +52,17 @@
   <ThemeToggle />
   {#if email}<span class="user-email text-muted">{email}</span>{/if}
   {#if authState.authenticated}
-    <a href="/account" class="account-link text-muted">{$_('common.accountSettings')}</a>
+    <a href="/account" class="account-link text-muted"
+      >{$_('common.accountSettings')}</a
+    >
   {/if}
   {#if authState.authenticated}
-    <button type="button" class="btn btn-ghost logout-btn" onclick={handleLogout} disabled={loggingOut}>
+    <button
+      type="button"
+      class="btn btn-ghost logout-btn"
+      onclick={handleLogout}
+      disabled={loggingOut}
+    >
       {$_('common.logout')}
     </button>
   {/if}

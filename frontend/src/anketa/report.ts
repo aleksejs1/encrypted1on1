@@ -35,7 +35,10 @@ export interface ReportData {
 }
 
 /** "Quarter" preset = the last 3 months rolling from now, not a calendar-quarter boundary (see the Phase 6f plan). `now` is a parameter so this is deterministically testable. */
-export function dateRangeForQuarterPreset(now: Date = new Date()): { start: Date; end: Date } {
+export function dateRangeForQuarterPreset(now: Date = new Date()): {
+  start: Date;
+  end: Date;
+} {
   const start = new Date(now);
   start.setMonth(start.getMonth() - 3);
   return { start, end: now };
@@ -56,20 +59,28 @@ export function dateRangeForQuarterPreset(now: Date = new Date()): { start: Date
  * `meetingDate` first and then just letting each later occurrence overwrite
  * the previous one sidesteps the tie entirely instead of trying to break it.
  */
-export function aggregateReport(anketas: DecryptedAnketaForReport[]): ReportData {
+export function aggregateReport(
+  anketas: DecryptedAnketaForReport[],
+): ReportData {
   const achievements: ListEntry[] = [];
   const growth: ListEntry[] = [];
   const goalsByUuid = new Map<string, ReportGoal>();
 
-  const sorted = [...anketas].sort((a, b) => a.meetingDate.localeCompare(b.meetingDate));
+  const sorted = [...anketas].sort((a, b) =>
+    a.meetingDate.localeCompare(b.meetingDate),
+  );
 
   for (const anketa of sorted) {
     if (anketa.employeeAnswers) {
-      achievements.push(...asListEntries(anketa.employeeAnswers.achievementEntries));
+      achievements.push(
+        ...asListEntries(anketa.employeeAnswers.achievementEntries),
+      );
       growth.push(...asListEntries(anketa.employeeAnswers.growthEntries));
     }
     if (anketa.managerAnswers) {
-      achievements.push(...asListEntries(anketa.managerAnswers.employeeAchievementEntries));
+      achievements.push(
+        ...asListEntries(anketa.managerAnswers.employeeAchievementEntries),
+      );
     }
 
     // Goals before checkpoints, per anketa: a checkpoint's goal always has its own
@@ -79,7 +90,10 @@ export function aggregateReport(anketas: DecryptedAnketaForReport[]): ReportData
     // goalUuid simply overwrites the previous snapshot — no timestamp comparison.
     for (const goal of anketa.goals) {
       const existing = goalsByUuid.get(goal.goalUuid);
-      goalsByUuid.set(goal.goalUuid, { ...goal, checkpoints: existing?.checkpoints ?? [] });
+      goalsByUuid.set(goal.goalUuid, {
+        ...goal,
+        checkpoints: existing?.checkpoints ?? [],
+      });
     }
     for (const checkpoint of anketa.checkpoints) {
       goalsByUuid.get(checkpoint.goalId)?.checkpoints.push(checkpoint);
@@ -88,7 +102,9 @@ export function aggregateReport(anketas: DecryptedAnketaForReport[]): ReportData
 
   achievements.sort(byDate);
   growth.sort(byDate);
-  const goals = [...goalsByUuid.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const goals = [...goalsByUuid.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
   for (const goal of goals) {
     goal.checkpoints.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }

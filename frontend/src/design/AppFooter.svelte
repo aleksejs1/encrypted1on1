@@ -6,7 +6,9 @@
 
 {#if privacyPolicyUrl}
   <footer class="app-footer">
-    <a href={privacyPolicyUrl} target="_blank" rel="noopener noreferrer">{$_('common.privacyPolicy')}</a>
+    <a href={privacyPolicyUrl} target="_blank" rel="noopener noreferrer"
+      >{$_('common.privacyPolicy')}</a
+    >
   </footer>
 {/if}
 

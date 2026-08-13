@@ -38,7 +38,11 @@
         placeholder={$_('inviteForm.placeholder')}
         disabled={submitting}
       />
-      <button type="submit" class="btn btn-primary" disabled={submitting || !email.trim()}>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        disabled={submitting || !email.trim()}
+      >
         {submitting ? $_('inviteForm.submitting') : $_('inviteForm.submit')}
       </button>
     </div>

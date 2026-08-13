@@ -81,7 +81,11 @@ const employeeQuestions: Question[] = [
           { value: 'better', labelKey: 'questions.options.trend.better' },
         ],
       },
-      { id: 'moodNotes', type: 'text', labelKey: 'questions.fields.anythingToAdd' },
+      {
+        id: 'moodNotes',
+        type: 'text',
+        labelKey: 'questions.fields.anythingToAdd',
+      },
     ],
   },
   {
@@ -93,15 +97,37 @@ const employeeQuestions: Question[] = [
         type: 'checkboxes',
         labelKey: 'questions.fields.feelingsList',
         options: [
-          { value: 'excited', labelKey: 'questions.options.feelingsList.excited' },
-          { value: 'anxious', labelKey: 'questions.options.feelingsList.anxious' },
-          { value: 'confident', labelKey: 'questions.options.feelingsList.confident' },
-          { value: 'overwhelmed', labelKey: 'questions.options.feelingsList.overwhelmed' },
-          { value: 'motivated', labelKey: 'questions.options.feelingsList.motivated' },
-          { value: 'frustrated', labelKey: 'questions.options.feelingsList.frustrated' },
+          {
+            value: 'excited',
+            labelKey: 'questions.options.feelingsList.excited',
+          },
+          {
+            value: 'anxious',
+            labelKey: 'questions.options.feelingsList.anxious',
+          },
+          {
+            value: 'confident',
+            labelKey: 'questions.options.feelingsList.confident',
+          },
+          {
+            value: 'overwhelmed',
+            labelKey: 'questions.options.feelingsList.overwhelmed',
+          },
+          {
+            value: 'motivated',
+            labelKey: 'questions.options.feelingsList.motivated',
+          },
+          {
+            value: 'frustrated',
+            labelKey: 'questions.options.feelingsList.frustrated',
+          },
         ],
       },
-      { id: 'feelingsNotes', type: 'text', labelKey: 'questions.fields.anythingToAdd' },
+      {
+        id: 'feelingsNotes',
+        type: 'text',
+        labelKey: 'questions.fields.anythingToAdd',
+      },
     ],
   },
   {
@@ -113,9 +139,18 @@ const employeeQuestions: Question[] = [
         type: 'radio',
         labelKey: 'questions.fields.workloadNow',
         options: [
-          { value: 'too_much', labelKey: 'questions.options.workloadNow.tooMuch' },
-          { value: 'just_right', labelKey: 'questions.options.workloadNow.justRight' },
-          { value: 'too_little', labelKey: 'questions.options.workloadNow.tooLittle' },
+          {
+            value: 'too_much',
+            labelKey: 'questions.options.workloadNow.tooMuch',
+          },
+          {
+            value: 'just_right',
+            labelKey: 'questions.options.workloadNow.justRight',
+          },
+          {
+            value: 'too_little',
+            labelKey: 'questions.options.workloadNow.tooLittle',
+          },
         ],
       },
       {
@@ -128,28 +163,56 @@ const employeeQuestions: Question[] = [
           { value: 'less', labelKey: 'questions.options.workloadTrend.less' },
         ],
       },
-      { id: 'workloadNotes', type: 'text', labelKey: 'questions.fields.anythingToAdd' },
+      {
+        id: 'workloadNotes',
+        type: 'text',
+        labelKey: 'questions.fields.anythingToAdd',
+      },
     ],
   },
   {
     id: 'growth',
     titleKey: 'questions.employee.growth.title',
-    fields: [{ id: 'growthEntries', type: 'list', labelKey: 'questions.fields.entries' }],
+    fields: [
+      {
+        id: 'growthEntries',
+        type: 'list',
+        labelKey: 'questions.fields.entries',
+      },
+    ],
   },
   {
     id: 'friction',
     titleKey: 'questions.employee.friction.title',
-    fields: [{ id: 'frictionNotes', type: 'text', labelKey: 'questions.fields.details' }],
+    fields: [
+      {
+        id: 'frictionNotes',
+        type: 'text',
+        labelKey: 'questions.fields.details',
+      },
+    ],
   },
   {
     id: 'achievements',
     titleKey: 'questions.employee.achievements.title',
-    fields: [{ id: 'achievementEntries', type: 'list', labelKey: 'questions.fields.entries' }],
+    fields: [
+      {
+        id: 'achievementEntries',
+        type: 'list',
+        labelKey: 'questions.fields.entries',
+      },
+    ],
   },
   {
     id: 'discuss',
     titleKey: 'questions.employee.discuss.title',
-    fields: [{ id: 'discussEntries', type: 'list', labelKey: 'questions.fields.entries' }],
+    fields: [
+      {
+        id: 'discussEntries',
+        type: 'list',
+        labelKey: 'questions.fields.entries',
+      },
+    ],
   },
 ];
 
@@ -157,27 +220,57 @@ const managerQuestions: Question[] = [
   {
     id: 'periodSummary',
     titleKey: 'questions.manager.periodSummary.title',
-    fields: [{ id: 'periodSummaryNotes', type: 'text', labelKey: 'questions.fields.details' }],
+    fields: [
+      {
+        id: 'periodSummaryNotes',
+        type: 'text',
+        labelKey: 'questions.fields.details',
+      },
+    ],
   },
   {
     id: 'feedback',
     titleKey: 'questions.manager.feedback.title',
-    fields: [{ id: 'feedbackNotes', type: 'text', labelKey: 'questions.fields.details' }],
+    fields: [
+      {
+        id: 'feedbackNotes',
+        type: 'text',
+        labelKey: 'questions.fields.details',
+      },
+    ],
   },
   {
     id: 'support',
     titleKey: 'questions.manager.support.title',
-    fields: [{ id: 'supportNotes', type: 'text', labelKey: 'questions.fields.details' }],
+    fields: [
+      {
+        id: 'supportNotes',
+        type: 'text',
+        labelKey: 'questions.fields.details',
+      },
+    ],
   },
   {
     id: 'employeeAchievements',
     titleKey: 'questions.manager.employeeAchievements.title',
-    fields: [{ id: 'employeeAchievementEntries', type: 'list', labelKey: 'questions.fields.entries' }],
+    fields: [
+      {
+        id: 'employeeAchievementEntries',
+        type: 'list',
+        labelKey: 'questions.fields.entries',
+      },
+    ],
   },
   {
     id: 'managerDiscuss',
     titleKey: 'questions.manager.managerDiscuss.title',
-    fields: [{ id: 'managerDiscussEntries', type: 'list', labelKey: 'questions.fields.entries' }],
+    fields: [
+      {
+        id: 'managerDiscussEntries',
+        type: 'list',
+        labelKey: 'questions.fields.entries',
+      },
+    ],
   },
 ];
 

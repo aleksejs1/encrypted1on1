@@ -4,10 +4,30 @@
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
   import { addComment, type Comment } from '../anketa/comments';
-  import { addOutcome, carryForwardOutcomes, toggleDone, type OutcomeItem } from '../anketa/outcomes';
-  import { addCheckpoint, type CheckpointStatusTag, type Goal, type GoalCheckpoint } from '../anketa/goals';
-  import { QUESTIONS_BY_SIDE, type Side, type Answers } from '../anketa/questions';
-  import { decryptBlob, encryptBlob, generateAnketaKey, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
+  import {
+    addOutcome,
+    carryForwardOutcomes,
+    toggleDone,
+    type OutcomeItem,
+  } from '../anketa/outcomes';
+  import {
+    addCheckpoint,
+    type CheckpointStatusTag,
+    type Goal,
+    type GoalCheckpoint,
+  } from '../anketa/goals';
+  import {
+    QUESTIONS_BY_SIDE,
+    type Side,
+    type Answers,
+  } from '../anketa/questions';
+  import {
+    decryptBlob,
+    encryptBlob,
+    generateAnketaKey,
+    sealAnketaKey,
+    unsealAnketaKey,
+  } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity';
   import { loadMasterKey } from '../crypto/session';
@@ -62,7 +82,11 @@
   let rescheduleDate = $state('');
   let rescheduling = $state(false);
 
-  const isOverdue = $derived(detail !== null && !archived && new Date(detail.meetingDate).getTime() < Date.now());
+  const isOverdue = $derived(
+    detail !== null &&
+      !archived &&
+      new Date(detail.meetingDate).getTime() < Date.now(),
+  );
 
   let myUserId = $state('');
   let authorEmails = $state<Record<string, string>>({});
@@ -79,7 +103,9 @@
   let addingGoal = $state(false);
   let goalSaving = $state<Record<string, boolean>>({});
   let checkpointDraftText = $state<Record<string, string>>({});
-  let checkpointDraftStatusTag = $state<Record<string, CheckpointStatusTag | ''>>({});
+  let checkpointDraftStatusTag = $state<
+    Record<string, CheckpointStatusTag | ''>
+  >({});
   let addingCheckpoint = $state<Record<string, boolean>>({});
   let goalsInfoOpen = $state(false);
 
@@ -103,7 +129,10 @@
       detail = anketa;
       masterKey = mk;
       myUserId = identity.userId;
-      authorEmails = { [identity.userId]: identity.email, [anketa.counterpartId]: anketa.counterpartEmail };
+      authorEmails = {
+        [identity.userId]: identity.email,
+        [anketa.counterpartId]: anketa.counterpartEmail,
+      };
       counterpartSide = anketa.myRole === 'employee' ? 'manager' : 'employee';
       archived = anketa.archivedAt !== null;
       periodicityDays = anketa.periodicityDays;
@@ -116,7 +145,11 @@
 
       let key: Uint8Array;
       try {
-        key = await unsealAnketaKey(anketa.mySealedKey, identity.publicKey, identity.privateKey);
+        key = await unsealAnketaKey(
+          anketa.mySealedKey,
+          identity.publicKey,
+          identity.privateKey,
+        );
       } catch {
         // Wrong-key AEAD failure — this anketa was sealed under a keypair that no
         // longer matches identity.privateKey, most likely because the account went
@@ -135,29 +168,43 @@
       }
 
       if (anketa.outcomesBlob) {
-        const envelope = await decryptBlob<OutcomeItem[]>(anketa.outcomesBlob, key);
+        const envelope = await decryptBlob<OutcomeItem[]>(
+          anketa.outcomesBlob,
+          key,
+        );
         allOutcomes = envelope.data;
       }
 
       goals = anketa.goals;
       if (anketa.goalCheckpointsBlob) {
-        const envelope = await decryptBlob<GoalCheckpoint[]>(anketa.goalCheckpointsBlob, key);
+        const envelope = await decryptBlob<GoalCheckpoint[]>(
+          anketa.goalCheckpointsBlob,
+          key,
+        );
         allCheckpoints = envelope.data;
       }
 
-      const myBlob = anketa.myRole === 'employee' ? anketa.employeeBlob : anketa.managerBlob;
+      const myBlob =
+        anketa.myRole === 'employee' ? anketa.employeeBlob : anketa.managerBlob;
       const myPublishedAt =
-        anketa.myRole === 'employee' ? anketa.employeePublishedAt : anketa.managerPublishedAt;
+        anketa.myRole === 'employee'
+          ? anketa.employeePublishedAt
+          : anketa.managerPublishedAt;
       myPublished = myPublishedAt !== null;
       if (myBlob) {
-        const envelope = await decryptBlob<Answers>(myBlob, myPublished ? key : mk);
+        const envelope = await decryptBlob<Answers>(
+          myBlob,
+          myPublished ? key : mk,
+        );
         myAnswers = envelope.data;
       }
 
       const counterpartBlob =
         anketa.myRole === 'employee' ? anketa.managerBlob : anketa.employeeBlob;
       const counterpartPublishedAt =
-        anketa.myRole === 'employee' ? anketa.managerPublishedAt : anketa.employeePublishedAt;
+        anketa.myRole === 'employee'
+          ? anketa.managerPublishedAt
+          : anketa.employeePublishedAt;
       counterpartPublished = counterpartPublishedAt !== null;
       if (counterpartBlob && counterpartPublished) {
         const envelope = await decryptBlob<Answers>(counterpartBlob, key);
@@ -166,7 +213,8 @@
 
       loaded = true;
     } catch (error) {
-      loadError = error instanceof ApiError ? error.message : $_('anketa.errorLoad');
+      loadError =
+        error instanceof ApiError ? error.message : $_('anketa.errorLoad');
     }
   }
 
@@ -198,7 +246,8 @@
       await apiPost(`/api/anketas/${id}/publish`, { blob });
       myPublished = true;
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorPublish');
+      actionError =
+        error instanceof ApiError ? error.message : $_('anketa.errorPublish');
     } finally {
       publishing = false;
     }
@@ -224,9 +273,19 @@
         if (!anketaKey) throw new Error($_('anketa.errorNotReadyToArchive'));
         const identity = await ensureUnlocked();
         const nextKey = await generateAnketaKey();
-        const mySealedKeyNext = await sealAnketaKey(nextKey, identity.publicKey);
-        const counterpartSealedKeyNext = await sealAnketaKey(nextKey, await fromBase64(detail.counterpartPublicKey));
-        const outcomesBlobNext = await carryForwardOutcomes(detail.outcomesBlob, anketaKey, nextKey);
+        const mySealedKeyNext = await sealAnketaKey(
+          nextKey,
+          identity.publicKey,
+        );
+        const counterpartSealedKeyNext = await sealAnketaKey(
+          nextKey,
+          await fromBase64(detail.counterpartPublicKey),
+        );
+        const outcomesBlobNext = await carryForwardOutcomes(
+          detail.outcomesBlob,
+          anketaKey,
+          nextKey,
+        );
 
         body = {
           ...body,
@@ -241,7 +300,8 @@
       archived = true;
       missed = missedFlag;
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorArchive');
+      actionError =
+        error instanceof ApiError ? error.message : $_('anketa.errorArchive');
     } finally {
       archiving = false;
     }
@@ -257,7 +317,10 @@
       detail = { ...detail, meetingDate: isoDate };
       rescheduleDate = '';
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorReschedule');
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorReschedule');
     } finally {
       rescheduling = false;
     }
@@ -276,10 +339,14 @@
    */
   async function submitComment(targetId: string, text: string): Promise<void> {
     if (!anketaKey) return;
-    await updateComments((current) => addComment(current, targetId, myUserId, text));
+    await updateComments((current) =>
+      addComment(current, targetId, myUserId, text),
+    );
   }
 
-  async function updateComments(apply: (current: Comment[]) => Comment[]): Promise<void> {
+  async function updateComments(
+    apply: (current: Comment[]) => Comment[],
+  ): Promise<void> {
     if (!anketaKey) return;
 
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
@@ -292,7 +359,10 @@
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409) throw error;
 
-      const conflict = error.body as { commentsBlob: string | null; commentsVersion: number };
+      const conflict = error.body as {
+        commentsBlob: string | null;
+        commentsVersion: number;
+      };
       const remoteComments = conflict.commentsBlob
         ? (await decryptBlob<Comment[]>(conflict.commentsBlob, anketaKey)).data
         : [];
@@ -300,7 +370,10 @@
     }
   }
 
-  async function saveComments(comments: Comment[], expectedVersion: number): Promise<void> {
+  async function saveComments(
+    comments: Comment[],
+    expectedVersion: number,
+  ): Promise<void> {
     if (!anketaKey) return;
     const blob = await encryptBlob(comments, anketaKey);
     await apiPut<{ commentsVersion: number }>(`/api/anketas/${id}/comments`, {
@@ -317,10 +390,15 @@
     addingOutcome = true;
     actionError = null;
     try {
-      await updateOutcomes((current) => addOutcome(current, myUserId, newOutcomeText.trim()));
+      await updateOutcomes((current) =>
+        addOutcome(current, myUserId, newOutcomeText.trim()),
+      );
       newOutcomeText = '';
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorAddOutcome');
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorAddOutcome');
     } finally {
       addingOutcome = false;
     }
@@ -330,12 +408,17 @@
     try {
       await updateOutcomes((current) => toggleDone(current, itemId));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorUpdateOutcome');
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorUpdateOutcome');
     }
   }
 
   /** Same shape as updateComments — see the comment above it. */
-  async function updateOutcomes(apply: (current: OutcomeItem[]) => OutcomeItem[]): Promise<void> {
+  async function updateOutcomes(
+    apply: (current: OutcomeItem[]) => OutcomeItem[],
+  ): Promise<void> {
     if (!anketaKey) return;
 
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
@@ -348,15 +431,22 @@
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409) throw error;
 
-      const conflict = error.body as { outcomesBlob: string | null; outcomesVersion: number };
+      const conflict = error.body as {
+        outcomesBlob: string | null;
+        outcomesVersion: number;
+      };
       const remoteOutcomes = conflict.outcomesBlob
-        ? (await decryptBlob<OutcomeItem[]>(conflict.outcomesBlob, anketaKey)).data
+        ? (await decryptBlob<OutcomeItem[]>(conflict.outcomesBlob, anketaKey))
+            .data
         : [];
       await saveOutcomes(apply(remoteOutcomes), conflict.outcomesVersion);
     }
   }
 
-  async function saveOutcomes(items: OutcomeItem[], expectedVersion: number): Promise<void> {
+  async function saveOutcomes(
+    items: OutcomeItem[],
+    expectedVersion: number,
+  ): Promise<void> {
     if (!anketaKey) return;
     const blob = await encryptBlob(items, anketaKey);
     await apiPut<{ outcomesVersion: number }>(`/api/anketas/${id}/outcomes`, {
@@ -384,7 +474,8 @@
       newGoalDescription = '';
       newGoalTargetDate = '';
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorAddGoal');
+      actionError =
+        error instanceof ApiError ? error.message : $_('anketa.errorAddGoal');
     } finally {
       addingGoal = false;
     }
@@ -395,14 +486,18 @@
     goalSaving = { ...goalSaving, [goal.id]: true };
     actionError = null;
     try {
-      const updated = await apiPut<Goal>(`/api/anketas/${id}/goals/${goal.id}`, {
-        title: goal.title,
-        description: goal.description,
-        targetDate: goal.targetDate,
-      });
+      const updated = await apiPut<Goal>(
+        `/api/anketas/${id}/goals/${goal.id}`,
+        {
+          title: goal.title,
+          description: goal.description,
+          targetDate: goal.targetDate,
+        },
+      );
       goals = goals.map((g) => (g.id === goal.id ? updated : g));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorSaveGoal');
+      actionError =
+        error instanceof ApiError ? error.message : $_('anketa.errorSaveGoal');
     } finally {
       goalSaving = { ...goalSaving, [goal.id]: false };
     }
@@ -411,10 +506,16 @@
   async function handleUpdateGoalStatus(goal: Goal): Promise<void> {
     actionError = null;
     try {
-      const updated = await apiPut<Goal>(`/api/anketas/${id}/goals/${goal.id}`, { status: goal.status });
+      const updated = await apiPut<Goal>(
+        `/api/anketas/${id}/goals/${goal.id}`,
+        { status: goal.status },
+      );
       goals = goals.map((g) => (g.id === goal.id ? updated : g));
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorUpdateGoalStatus');
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorUpdateGoalStatus');
     }
   }
 
@@ -432,51 +533,94 @@
     addingCheckpoint = { ...addingCheckpoint, [goalUuid]: true };
     actionError = null;
     try {
-      await updateGoalCheckpoints((current) => addCheckpoint(current, goalUuid, myUserId, text || undefined, statusTag));
+      await updateGoalCheckpoints((current) =>
+        addCheckpoint(
+          current,
+          goalUuid,
+          myUserId,
+          text || undefined,
+          statusTag,
+        ),
+      );
       checkpointDraftText = { ...checkpointDraftText, [goalUuid]: '' };
-      checkpointDraftStatusTag = { ...checkpointDraftStatusTag, [goalUuid]: '' };
+      checkpointDraftStatusTag = {
+        ...checkpointDraftStatusTag,
+        [goalUuid]: '',
+      };
     } catch (error) {
-      actionError = error instanceof ApiError ? error.message : $_('anketa.errorAddCheckpoint');
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorAddCheckpoint');
     } finally {
       addingCheckpoint = { ...addingCheckpoint, [goalUuid]: false };
     }
   }
 
   /** Same reapply-on-conflict shape as updateComments/updateOutcomes — see the comment above updateComments. */
-  async function updateGoalCheckpoints(apply: (current: GoalCheckpoint[]) => GoalCheckpoint[]): Promise<void> {
+  async function updateGoalCheckpoints(
+    apply: (current: GoalCheckpoint[]) => GoalCheckpoint[],
+  ): Promise<void> {
     if (!anketaKey) return;
 
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
     const freshCheckpoints = fresh.goalCheckpointsBlob
-      ? (await decryptBlob<GoalCheckpoint[]>(fresh.goalCheckpointsBlob, anketaKey)).data
+      ? (
+          await decryptBlob<GoalCheckpoint[]>(
+            fresh.goalCheckpointsBlob,
+            anketaKey,
+          )
+        ).data
       : [];
 
     try {
-      await saveGoalCheckpoints(apply(freshCheckpoints), fresh.goalCheckpointsVersion);
+      await saveGoalCheckpoints(
+        apply(freshCheckpoints),
+        fresh.goalCheckpointsVersion,
+      );
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409) throw error;
 
-      const conflict = error.body as { goalCheckpointsBlob: string | null; goalCheckpointsVersion: number };
+      const conflict = error.body as {
+        goalCheckpointsBlob: string | null;
+        goalCheckpointsVersion: number;
+      };
       const remoteCheckpoints = conflict.goalCheckpointsBlob
-        ? (await decryptBlob<GoalCheckpoint[]>(conflict.goalCheckpointsBlob, anketaKey)).data
+        ? (
+            await decryptBlob<GoalCheckpoint[]>(
+              conflict.goalCheckpointsBlob,
+              anketaKey,
+            )
+          ).data
         : [];
-      await saveGoalCheckpoints(apply(remoteCheckpoints), conflict.goalCheckpointsVersion);
+      await saveGoalCheckpoints(
+        apply(remoteCheckpoints),
+        conflict.goalCheckpointsVersion,
+      );
     }
   }
 
-  async function saveGoalCheckpoints(checkpoints: GoalCheckpoint[], expectedVersion: number): Promise<void> {
+  async function saveGoalCheckpoints(
+    checkpoints: GoalCheckpoint[],
+    expectedVersion: number,
+  ): Promise<void> {
     if (!anketaKey) return;
     const blob = await encryptBlob(checkpoints, anketaKey);
-    await apiPut<{ goalCheckpointsVersion: number }>(`/api/anketas/${id}/goal-checkpoints`, {
-      blob,
-      expectedVersion,
-    });
+    await apiPut<{ goalCheckpointsVersion: number }>(
+      `/api/anketas/${id}/goal-checkpoints`,
+      {
+        blob,
+        expectedVersion,
+      },
+    );
     allCheckpoints = checkpoints;
   }
 
   /** "You" for the current viewer's own items, otherwise the counterpart's email — used for outcome-item and goal author tags. */
   function authorLabel(authorId: string): string {
-    return authorId === myUserId ? $_('anketa.you') : (authorEmails[authorId] ?? authorId);
+    return authorId === myUserId
+      ? $_('anketa.you')
+      : (authorEmails[authorId] ?? authorId);
   }
 
   const GOAL_STATUS_KEYS: Record<Goal['status'], string> = {
@@ -510,7 +654,14 @@
 
 {#snippet lockIcon()}
   <span class="lock-hint" title={$_('anketa.encryptedHint')} aria-hidden="true">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <rect x="3" y="11" width="18" height="10" rx="2"></rect>
       <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
     </svg>
@@ -518,8 +669,19 @@
 {/snippet}
 
 {#snippet openLockIcon()}
-  <span class="lock-hint" title={$_('anketa.notEncryptedHint')} aria-hidden="true">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <span
+    class="lock-hint"
+    title={$_('anketa.notEncryptedHint')}
+    aria-hidden="true"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <rect x="3" y="11" width="18" height="10" rx="2"></rect>
       <path d="M7 11V7a5 5 0 0 1 9.5-1.5"></path>
     </svg>
@@ -532,25 +694,52 @@
   {:else if !detail}
     <p class="text-muted">{$_('anketa.loading')}</p>
   {:else}
-    <h1>{$_('anketa.titleWithCounterpart', { values: { email: detail.counterpartEmail } })}</h1>
+    <h1>
+      {$_('anketa.titleWithCounterpart', {
+        values: { email: detail.counterpartEmail },
+      })}
+    </h1>
     <p class="meta">
-      <span class="text-muted">{$_('anketa.meetingLabel')} {new Date(detail.meetingDate).toLocaleDateString()}</span>
-      {#if archived}<span class="tag tag-neutral">{$_('anketa.badgeArchived')}</span>{/if}
-      {#if missed}<span class="tag tag-neutral">{$_('anketa.badgeMissed')}</span>{/if}
-      {#if isOverdue}<span class="tag tag-outline">{$_('anketa.badgeOverdue')}</span>{/if}
+      <span class="text-muted"
+        >{$_('anketa.meetingLabel')}
+        {new Date(detail.meetingDate).toLocaleDateString()}</span
+      >
+      {#if archived}<span class="tag tag-neutral"
+          >{$_('anketa.badgeArchived')}</span
+        >{/if}
+      {#if missed}<span class="tag tag-neutral">{$_('anketa.badgeMissed')}</span
+        >{/if}
+      {#if isOverdue}<span class="tag tag-outline"
+          >{$_('anketa.badgeOverdue')}</span
+        >{/if}
     </p>
 
     {#if isOverdue}
       <div class="card elev-sm overdue-card">
         <strong>{$_('anketa.overdueHeading')}</strong>
         <div class="reschedule-row">
-          <input type="date" class="input reschedule-input" bind:value={rescheduleDate} disabled={rescheduling} />
-          <button type="button" class="btn btn-secondary" onclick={handleReschedule} disabled={rescheduling || !rescheduleDate}>
+          <input
+            type="date"
+            class="input reschedule-input"
+            bind:value={rescheduleDate}
+            disabled={rescheduling}
+          />
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick={handleReschedule}
+            disabled={rescheduling || !rescheduleDate}
+          >
             {rescheduling ? $_('anketa.rescheduling') : $_('anketa.reschedule')}
           </button>
         </div>
         <p class="text-muted overdue-note">{$_('anketa.orIfDidNotHappen')}</p>
-        <button type="button" class="btn btn-ghost cancel-missed-btn" onclick={() => handleArchive(true)} disabled={archiving}>
+        <button
+          type="button"
+          class="btn btn-ghost cancel-missed-btn"
+          onclick={() => handleArchive(true)}
+          disabled={archiving}
+        >
           {archiving ? $_('anketa.cancelling') : $_('anketa.cancelAsMissed')}
         </button>
       </div>
@@ -559,7 +748,17 @@
     <!-- My side -->
     <section class="card side-card">
       <div class="heading-row">
-        <h2>{$_('anketa.mySideHeading', { values: { role: $_(detail.myRole === 'employee' ? 'common.roleEmployee' : 'common.roleManager') } })}</h2>
+        <h2>
+          {$_('anketa.mySideHeading', {
+            values: {
+              role: $_(
+                detail.myRole === 'employee'
+                  ? 'common.roleEmployee'
+                  : 'common.roleManager',
+              ),
+            },
+          })}
+        </h2>
         {@render lockIcon()}
       </div>
 
@@ -568,7 +767,11 @@
           <div class="block">
             <h4>{$_(question.titleKey)}</h4>
             {#each question.fields as field (field.id)}
-              <AnswerField {field} bind:value={myAnswers[field.id]} readonly={myPublished} />
+              <AnswerField
+                {field}
+                bind:value={myAnswers[field.id]}
+                readonly={myPublished}
+              />
               {#if myPublished}
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}
@@ -583,15 +786,24 @@
 
       {#if !myPublished}
         <p class="text-muted save-state">
-          {#if saveState === 'saving'}{$_('anketa.savingDraft')}{:else if saveState === 'saved'}{$_(
+          {#if saveState === 'saving'}{$_(
+              'anketa.savingDraft',
+            )}{:else if saveState === 'saved'}{$_(
               'anketa.savedDraft',
             )}{:else if saveState === 'error'}{$_('anketa.saveError')}{/if}
         </p>
-        <button type="button" class="btn btn-primary side-publish-btn" onclick={handlePublish} disabled={publishing}>
+        <button
+          type="button"
+          class="btn btn-primary side-publish-btn"
+          onclick={handlePublish}
+          disabled={publishing}
+        >
           {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
         </button>
       {:else}
-        <span class="tag tag-accent side-publish-btn">{$_('anketa.badgePublished')}</span>
+        <span class="tag tag-accent side-publish-btn"
+          >{$_('anketa.badgePublished')}</span
+        >
       {/if}
     </section>
 
@@ -600,7 +812,16 @@
       <div class="heading-row">
         <h2>
           {$_('anketa.counterpartSideHeading', {
-            values: { email: detail.counterpartEmail, role: counterpartSide ? $_(counterpartSide === 'employee' ? 'common.roleEmployee' : 'common.roleManager') : '' },
+            values: {
+              email: detail.counterpartEmail,
+              role: counterpartSide
+                ? $_(
+                    counterpartSide === 'employee'
+                      ? 'common.roleEmployee'
+                      : 'common.roleManager',
+                  )
+                : '',
+            },
           })}
         </h2>
         {@render lockIcon()}
@@ -613,7 +834,11 @@
             <div class="block">
               <h4>{$_(question.titleKey)}</h4>
               {#each question.fields as field (field.id)}
-                <AnswerField {field} value={counterpartAnswers[field.id]} readonly />
+                <AnswerField
+                  {field}
+                  value={counterpartAnswers[field.id]}
+                  readonly
+                />
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}
                   {authorEmails}
@@ -667,7 +892,11 @@
           placeholder={$_('anketa.outcomesPlaceholder')}
           disabled={addingOutcome}
         />
-        <button type="submit" class="btn btn-secondary" disabled={addingOutcome || !newOutcomeText.trim()}>
+        <button
+          type="submit"
+          class="btn btn-secondary"
+          disabled={addingOutcome || !newOutcomeText.trim()}
+        >
           {addingOutcome ? $_('anketa.adding') : $_('anketa.add')}
         </button>
       </form>
@@ -684,7 +913,16 @@
           onclick={() => (goalsInfoOpen = !goalsInfoOpen)}
           aria-label={$_('anketa.moreInfo')}
         >
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="12" y1="16" x2="12" y2="11"></line>
             <line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -692,7 +930,9 @@
         </button>
       </div>
       {#if goalsInfoOpen}
-        <p class="text-muted goals-info-note">{$_('anketa.goalsUnencryptedNote')}</p>
+        <p class="text-muted goals-info-note">
+          {$_('anketa.goalsUnencryptedNote')}
+        </p>
       {/if}
 
       <div class="goal-list">
@@ -702,19 +942,30 @@
             <div class="goal-header">
               {#if isMyGoal}
                 <div class="field goal-title-field">
-                  <label for="goal-title-{goal.id}">{$_('anketa.goalTitleLabel')}</label>
-                  <input id="goal-title-{goal.id}" type="text" class="input" bind:value={goal.title} />
+                  <label for="goal-title-{goal.id}"
+                    >{$_('anketa.goalTitleLabel')}</label
+                  >
+                  <input
+                    id="goal-title-{goal.id}"
+                    type="text"
+                    class="input"
+                    bind:value={goal.title}
+                  />
                 </div>
               {:else}
                 <strong class="goal-title-display">{goal.title}</strong>
               {/if}
-              <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}">{$_(GOAL_STATUS_KEYS[goal.status])}</span>
+              <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}"
+                >{$_(GOAL_STATUS_KEYS[goal.status])}</span
+              >
               <span class="tag tag-neutral">{authorLabel(goal.authorId)}</span>
             </div>
 
             {#if isMyGoal}
               <div class="field">
-                <label for="goal-description-{goal.id}">{$_('anketa.goalDescriptionLabel')}</label>
+                <label for="goal-description-{goal.id}"
+                  >{$_('anketa.goalDescriptionLabel')}</label
+                >
                 <textarea
                   id="goal-description-{goal.id}"
                   class="input"
@@ -728,32 +979,45 @@
 
             {#if isMyGoal}
               <div class="field goal-target-date-field">
-                <label for="goal-target-date-{goal.id}">{$_('anketa.goalTargetDateLabel')}</label>
+                <label for="goal-target-date-{goal.id}"
+                  >{$_('anketa.goalTargetDateLabel')}</label
+                >
                 <input
                   id="goal-target-date-{goal.id}"
                   type="date"
                   class="input"
                   value={goal.targetDate ?? ''}
-                  oninput={(e) => (goal.targetDate = e.currentTarget.value || null)}
+                  oninput={(e) =>
+                    (goal.targetDate = e.currentTarget.value || null)}
                 />
               </div>
             {:else if goal.targetDate}
-              <p class="text-muted goal-target-date-display">{$_('anketa.goalTargetDateLabel')}: {goal.targetDate}</p>
+              <p class="text-muted goal-target-date-display">
+                {$_('anketa.goalTargetDateLabel')}: {goal.targetDate}
+              </p>
             {/if}
 
             {#if isMyGoal}
               <div class="goal-actions">
                 <div class="field goal-status-field">
-                  <label for="goal-status-{goal.id}">{$_('anketa.goalStatusLabel')}</label>
+                  <label for="goal-status-{goal.id}"
+                    >{$_('anketa.goalStatusLabel')}</label
+                  >
                   <select
                     id="goal-status-{goal.id}"
                     class="input goal-status-select"
                     bind:value={goal.status}
                     onchange={() => handleUpdateGoalStatus(goal)}
                   >
-                    <option value="in_progress">{$_('anketa.goalStatusInProgress')}</option>
-                    <option value="achieved">{$_('anketa.goalStatusAchieved')}</option>
-                    <option value="cancelled">{$_('anketa.goalStatusCancelled')}</option>
+                    <option value="in_progress"
+                      >{$_('anketa.goalStatusInProgress')}</option
+                    >
+                    <option value="achieved"
+                      >{$_('anketa.goalStatusAchieved')}</option
+                    >
+                    <option value="cancelled"
+                      >{$_('anketa.goalStatusCancelled')}</option
+                    >
                   </select>
                 </div>
                 <button
@@ -762,7 +1026,9 @@
                   onclick={() => handleSaveGoal(goal)}
                   disabled={goalSaving[goal.id]}
                 >
-                  {goalSaving[goal.id] ? $_('anketa.saving') : $_('anketa.save')}
+                  {goalSaving[goal.id]
+                    ? $_('anketa.saving')
+                    : $_('anketa.save')}
                 </button>
               </div>
             {/if}
@@ -773,19 +1039,31 @@
               onSubmit={(text) => submitComment(goal.id, text)}
             />
 
-            <h4 class="checkpoints-heading">{$_('anketa.checkpointsHeading')}</h4>
+            <h4 class="checkpoints-heading">
+              {$_('anketa.checkpointsHeading')}
+            </h4>
             <div class="checkpoints">
               {#each allCheckpoints.filter((c) => c.goalId === goal.goalUuid) as checkpoint (checkpoint.id)}
                 <div class="checkpoint-row">
-                  <span class="text-muted checkpoint-date">{new Date(checkpoint.createdAt).toLocaleDateString()}</span>
-                  {#if checkpoint.text}<span class="checkpoint-text">{checkpoint.text}</span>{/if}
+                  <span class="text-muted checkpoint-date"
+                    >{new Date(checkpoint.createdAt).toLocaleDateString()}</span
+                  >
+                  {#if checkpoint.text}<span class="checkpoint-text"
+                      >{checkpoint.text}</span
+                    >{/if}
                   {#if checkpoint.statusTag}
-                    <span class="tag {CHECKPOINT_STATUS_TAG_CLASSES[checkpoint.statusTag]}">
+                    <span
+                      class="tag {CHECKPOINT_STATUS_TAG_CLASSES[
+                        checkpoint.statusTag
+                      ]}"
+                    >
                       {$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}
                     </span>
                   {/if}
                   <CommentThread
-                    comments={allComments.filter((c) => c.targetId === checkpoint.id)}
+                    comments={allComments.filter(
+                      (c) => c.targetId === checkpoint.id,
+                    )}
                     {authorEmails}
                     onSubmit={(text) => submitComment(checkpoint.id, text)}
                   />
@@ -803,7 +1081,10 @@
                   placeholder={$_('anketa.checkpointPlaceholder')}
                   value={checkpointDraftText[goal.goalUuid] ?? ''}
                   oninput={(e) =>
-                    (checkpointDraftText = { ...checkpointDraftText, [goal.goalUuid]: e.currentTarget.value })}
+                    (checkpointDraftText = {
+                      ...checkpointDraftText,
+                      [goal.goalUuid]: e.currentTarget.value,
+                    })}
                   disabled={addingCheckpoint[goal.goalUuid]}
                 />
                 <select
@@ -812,23 +1093,32 @@
                   onchange={(e) =>
                     (checkpointDraftStatusTag = {
                       ...checkpointDraftStatusTag,
-                      [goal.goalUuid]: e.currentTarget.value as CheckpointStatusTag | '',
+                      [goal.goalUuid]: e.currentTarget.value as
+                        CheckpointStatusTag | '',
                     })}
                   disabled={addingCheckpoint[goal.goalUuid]}
                 >
                   <option value="">{$_('anketa.noStatusTag')}</option>
-                  <option value="on_track">{$_('anketa.statusTagOnTrack')}</option>
-                  <option value="at_risk">{$_('anketa.statusTagAtRisk')}</option>
-                  <option value="blocked">{$_('anketa.statusTagBlocked')}</option>
+                  <option value="on_track"
+                    >{$_('anketa.statusTagOnTrack')}</option
+                  >
+                  <option value="at_risk">{$_('anketa.statusTagAtRisk')}</option
+                  >
+                  <option value="blocked"
+                    >{$_('anketa.statusTagBlocked')}</option
+                  >
                 </select>
                 <button
                   type="button"
                   class="btn btn-secondary"
                   onclick={() => handleAddCheckpoint(goal.goalUuid)}
                   disabled={addingCheckpoint[goal.goalUuid] ||
-                    (!checkpointDraftText[goal.goalUuid]?.trim() && !checkpointDraftStatusTag[goal.goalUuid])}
+                    (!checkpointDraftText[goal.goalUuid]?.trim() &&
+                      !checkpointDraftStatusTag[goal.goalUuid])}
                 >
-                  {addingCheckpoint[goal.goalUuid] ? $_('anketa.addingCheckpoint') : $_('anketa.addCheckpoint')}
+                  {addingCheckpoint[goal.goalUuid]
+                    ? $_('anketa.addingCheckpoint')
+                    : $_('anketa.addCheckpoint')}
                 </button>
               </div>
             {/if}
@@ -853,8 +1143,17 @@
           placeholder={$_('anketa.goalDescriptionPlaceholder')}
           disabled={addingGoal}
         />
-        <input type="date" class="input" bind:value={newGoalTargetDate} disabled={addingGoal} />
-        <button type="submit" class="btn btn-secondary" disabled={addingGoal || !newGoalTitle.trim()}>
+        <input
+          type="date"
+          class="input"
+          bind:value={newGoalTargetDate}
+          disabled={addingGoal}
+        />
+        <button
+          type="submit"
+          class="btn btn-secondary"
+          disabled={addingGoal || !newGoalTitle.trim()}
+        >
           {addingGoal ? $_('anketa.addingGoal') : $_('anketa.addGoal')}
         </button>
       </form>
@@ -868,16 +1167,32 @@
       <section class="card">
         <h2>{$_('anketa.archiveHeading')}</h2>
         <label class="radio archive-skip">
-          <input type="checkbox" class="native-checkbox" bind:checked={skipNextMeeting} />
+          <input
+            type="checkbox"
+            class="native-checkbox"
+            bind:checked={skipNextMeeting}
+          />
           {$_('anketa.skipNextMeeting')}
         </label>
         {#if !skipNextMeeting}
           <div class="field archive-date-field">
-            <label for="next-meeting-date">{$_('anketa.nextMeetingDateLabel')}</label>
-            <input id="next-meeting-date" type="date" class="input" bind:value={nextMeetingDate} />
+            <label for="next-meeting-date"
+              >{$_('anketa.nextMeetingDateLabel')}</label
+            >
+            <input
+              id="next-meeting-date"
+              type="date"
+              class="input"
+              bind:value={nextMeetingDate}
+            />
           </div>
         {/if}
-        <button type="button" class="btn btn-primary" onclick={() => handleArchive(false)} disabled={archiving}>
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick={() => handleArchive(false)}
+          disabled={archiving}
+        >
           {archiving ? $_('anketa.archiving') : $_('anketa.archive')}
         </button>
       </section>

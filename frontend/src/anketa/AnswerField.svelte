@@ -6,13 +6,22 @@
     field,
     value = $bindable<AnswerValue>(),
     readonly = false,
-  }: { field: QuestionField; value?: AnswerValue; readonly?: boolean } = $props();
+  }: {
+    field: QuestionField;
+    value?: AnswerValue;
+    readonly?: boolean;
+  } = $props();
 
   let newEntryText = $state('');
 
   function toggleCheckbox(optionValue: string, checked: boolean) {
-    const current = Array.isArray(value) && typeof value[0] !== 'object' ? (value as string[]) : [];
-    value = checked ? [...current, optionValue] : current.filter((v) => v !== optionValue);
+    const current =
+      Array.isArray(value) && typeof value[0] !== 'object'
+        ? (value as string[])
+        : [];
+    value = checked
+      ? [...current, optionValue]
+      : current.filter((v) => v !== optionValue);
   }
 
   function addListEntry() {
@@ -55,7 +64,8 @@
   {:else if field.type === 'checkboxes'}
     <div class="pills">
       {#each field.options ?? [] as option (option.value)}
-        {@const checked = Array.isArray(value) && (value as string[]).includes(option.value)}
+        {@const checked =
+          Array.isArray(value) && (value as string[]).includes(option.value)}
         <button
           type="button"
           class="tag pill"
@@ -72,16 +82,21 @@
       class="input"
       value={typeof value === 'string' ? value : ''}
       disabled={readonly}
-      oninput={(e) => (value = e.currentTarget.value)}
-    ></textarea>
+      oninput={(e) => (value = e.currentTarget.value)}></textarea>
   {:else if field.type === 'list'}
     <ul class="entries">
       {#each (value as ListEntry[]) ?? [] as entry (entry.id)}
         <li class="entry">
           <span class="entry-text">{entry.text}</span>
-          <span class="text-muted entry-date">{new Date(entry.date).toLocaleDateString()}</span>
+          <span class="text-muted entry-date"
+            >{new Date(entry.date).toLocaleDateString()}</span
+          >
           {#if !readonly}
-            <button type="button" class="btn btn-ghost entry-remove" onclick={() => removeListEntry(entry.id)}>
+            <button
+              type="button"
+              class="btn btn-ghost entry-remove"
+              onclick={() => removeListEntry(entry.id)}
+            >
               {$_('common.remove')}
             </button>
           {/if}
@@ -95,9 +110,12 @@
           class="input"
           bind:value={newEntryText}
           placeholder={$_('answerField.addEntryPlaceholder')}
-          onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addListEntry())}
+          onkeydown={(e) =>
+            e.key === 'Enter' && (e.preventDefault(), addListEntry())}
         />
-        <button type="button" class="btn btn-secondary" onclick={addListEntry}>{$_('common.add')}</button>
+        <button type="button" class="btn btn-secondary" onclick={addListEntry}
+          >{$_('common.add')}</button
+        >
       </div>
     {/if}
   {/if}

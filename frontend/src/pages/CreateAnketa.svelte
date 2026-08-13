@@ -1,7 +1,11 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiGetAllPages, apiPost, ApiError } from '../api/client';
-  import { generateAnketaKey, sealAnketaKey, unsealAnketaKey } from '../crypto/anketaKey';
+  import {
+    generateAnketaKey,
+    sealAnketaKey,
+    unsealAnketaKey,
+  } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity';
   import { navigate } from '../router.svelte';
@@ -43,22 +47,35 @@
   // by meetingDate DESC, so the first archived match is the most recent one. Its presence
   // decides whether periodicity needs asking (new pair) or is inherited server-side
   // (continuing pair, see AnketaController::create — Phase 6d).
-  const previousAnketa = $derived(priorAnketas.find((a) => a.counterpartId === counterpartId && a.archivedAt !== null));
+  const previousAnketa = $derived(
+    priorAnketas.find(
+      (a) => a.counterpartId === counterpartId && a.archivedAt !== null,
+    ),
+  );
 
   // Recent counterparts (from this user's own anketa history) surface at the top of the
   // typeahead's suggestion list, per the spec — no full-company-list scrolling every time.
   const sortedUsers = $derived(sortByRecentCounterparts(users, priorAnketas));
 
-  const canSubmit = $derived(counterpartId !== '' && meetingDate !== '' && !submitting);
+  const canSubmit = $derived(
+    counterpartId !== '' && meetingDate !== '' && !submitting,
+  );
 
   $effect(() => {
-    Promise.all([ensureUnlocked(), apiGetAllPages<UserSummary>('/api/users'), apiGet<AnketaSummary[]>('/api/anketas')])
+    Promise.all([
+      ensureUnlocked(),
+      apiGetAllPages<UserSummary>('/api/users'),
+      apiGet<AnketaSummary[]>('/api/anketas'),
+    ])
       .then(([identity, allUsers, allAnketas]) => {
         users = allUsers.filter((u) => u.id !== identity.userId);
         priorAnketas = allAnketas;
       })
       .catch((error: unknown) => {
-        loadError = error instanceof ApiError ? error.message : $_('createAnketa.errorLoad');
+        loadError =
+          error instanceof ApiError
+            ? error.message
+            : $_('createAnketa.errorLoad');
       });
   });
 
@@ -71,11 +88,15 @@
     try {
       const identity = await ensureUnlocked();
       const counterpart = users.find((u) => u.id === counterpartId);
-      if (!counterpart) throw new Error($_('createAnketa.errorCounterpartNotFound'));
+      if (!counterpart)
+        throw new Error($_('createAnketa.errorCounterpartNotFound'));
 
       const anketaKey = await generateAnketaKey();
       const mySealedKey = await sealAnketaKey(anketaKey, identity.publicKey);
-      const counterpartSealedKey = await sealAnketaKey(anketaKey, await fromBase64(counterpart.publicKey));
+      const counterpartSealedKey = await sealAnketaKey(
+        anketaKey,
+        await fromBase64(counterpart.publicKey),
+      );
 
       // Outcomes carry-forward (Phase 6c plan): goals carry forward server-side (plaintext,
       // no client involvement needed), but outcomes are still an encrypted blob, so unchecked
@@ -84,9 +105,19 @@
       let outcomesBlob: string | undefined;
       if (previousAnketa) {
         try {
-          const previousDetail = await apiGet<AnketaDetailForCarry>(`/api/anketas/${previousAnketa.id}`);
-          const previousKey = await unsealAnketaKey(previousDetail.mySealedKey, identity.publicKey, identity.privateKey);
-          outcomesBlob = await carryForwardOutcomes(previousDetail.outcomesBlob, previousKey, anketaKey);
+          const previousDetail = await apiGet<AnketaDetailForCarry>(
+            `/api/anketas/${previousAnketa.id}`,
+          );
+          const previousKey = await unsealAnketaKey(
+            previousDetail.mySealedKey,
+            identity.publicKey,
+            identity.privateKey,
+          );
+          outcomesBlob = await carryForwardOutcomes(
+            previousDetail.outcomesBlob,
+            previousKey,
+            anketaKey,
+          );
         } catch {
           // The previous anketa's key may no longer unseal (e.g. after a password
           // reset — see ResetPassword.svelte). Forgetting a password shouldn't also
@@ -111,7 +142,10 @@
 
       navigate(`/anketas/${result.id}`);
     } catch (error) {
-      submitError = error instanceof ApiError ? error.message : $_('createAnketa.genericError');
+      submitError =
+        error instanceof ApiError
+          ? error.message
+          : $_('createAnketa.genericError');
     } finally {
       submitting = false;
     }
@@ -139,11 +173,15 @@
         <legend>{$_('createAnketa.roleLegend')}</legend>
         <div class="radio-row">
           <label class="radio">
-            <input type="radio" bind:group={myRole} value="employee" /><span class="dot"></span>
+            <input type="radio" bind:group={myRole} value="employee" /><span
+              class="dot"
+            ></span>
             {$_('common.roleEmployee')}
           </label>
           <label class="radio">
-            <input type="radio" bind:group={myRole} value="manager" /><span class="dot"></span>
+            <input type="radio" bind:group={myRole} value="manager" /><span
+              class="dot"
+            ></span>
             {$_('common.roleManager')}
           </label>
         </div>
@@ -151,7 +189,12 @@
 
       <div class="field">
         <label for="meeting-date">{$_('createAnketa.meetingDateLabel')}</label>
-        <input id="meeting-date" class="input" type="date" bind:value={meetingDate} />
+        <input
+          id="meeting-date"
+          class="input"
+          type="date"
+          bind:value={meetingDate}
+        />
       </div>
 
       {#if counterpartId && !previousAnketa}
@@ -159,28 +202,44 @@
           <legend>{$_('createAnketa.periodicityLabel')}</legend>
           <div class="radio-row">
             <label class="radio">
-              <input type="radio" bind:group={periodicityDays} value={7} /><span class="dot"></span>
+              <input type="radio" bind:group={periodicityDays} value={7} /><span
+                class="dot"
+              ></span>
               {$_('createAnketa.periodicityWeekly')}
             </label>
             <label class="radio">
-              <input type="radio" bind:group={periodicityDays} value={14} /><span class="dot"></span>
+              <input
+                type="radio"
+                bind:group={periodicityDays}
+                value={14}
+              /><span class="dot"></span>
               {$_('createAnketa.periodicityBiweekly')}
             </label>
             <label class="radio">
-              <input type="radio" bind:group={periodicityDays} value={30} /><span class="dot"></span>
+              <input
+                type="radio"
+                bind:group={periodicityDays}
+                value={30}
+              /><span class="dot"></span>
               {$_('createAnketa.periodicityMonthly')}
             </label>
           </div>
         </fieldset>
       {:else if counterpartId && previousAnketa}
-        <p class="text-muted periodicity-note">{$_('createAnketa.periodicityInherited')}</p>
+        <p class="text-muted periodicity-note">
+          {$_('createAnketa.periodicityInherited')}
+        </p>
       {/if}
 
       {#if submitError}
         <p class="banner-error">{submitError}</p>
       {/if}
 
-      <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
+      <button
+        type="submit"
+        class="btn btn-primary btn-block"
+        disabled={!canSubmit}
+      >
         {submitting ? $_('createAnketa.submitting') : $_('createAnketa.submit')}
       </button>
     </form>

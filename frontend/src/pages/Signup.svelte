@@ -16,7 +16,8 @@
         registrationInfo = info;
       })
       .catch((err: unknown) => {
-        infoError = err instanceof ApiError ? err.message : $_('signup.genericError');
+        infoError =
+          err instanceof ApiError ? err.message : $_('signup.genericError');
       });
   });
 
@@ -58,15 +59,21 @@
       <p class="text-muted">{$_('common.loading')}</p>
     {:else if registrationInfo.registrationMode !== 'domain'}
       <p class="text-muted">{$_('signup.notOpenMessage')}</p>
-      <a href="/" class="btn btn-secondary btn-block">{$_('signup.backToLogin')}</a>
+      <a href="/" class="btn btn-secondary btn-block"
+        >{$_('signup.backToLogin')}</a
+      >
     {:else if submitted}
       <p class="text-muted">{$_('signup.sentConfirmation')}</p>
-      <a href="/" class="btn btn-secondary btn-block">{$_('signup.backToLogin')}</a>
+      <a href="/" class="btn btn-secondary btn-block"
+        >{$_('signup.backToLogin')}</a
+      >
     {:else}
       <p class="text-muted subtitle">{$_('signup.subtitle')}</p>
       {#if registrationInfo.allowedEmailDomain}
         <p class="text-muted domain-hint">
-          {$_('signup.domainHint', { values: { domain: registrationInfo.allowedEmailDomain } })}
+          {$_('signup.domainHint', {
+            values: { domain: registrationInfo.allowedEmailDomain },
+          })}
         </p>
       {/if}
 
@@ -87,7 +94,11 @@
           <div role="alert" class="banner-error">{error}</div>
         {/if}
 
-        <button type="submit" class="btn btn-primary btn-block" disabled={!canSubmit}>
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          disabled={!canSubmit}
+        >
           {submitting ? $_('signup.submitting') : $_('signup.submit')}
         </button>
 

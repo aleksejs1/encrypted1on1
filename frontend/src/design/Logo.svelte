@@ -5,7 +5,15 @@
 <div class="logo-mark" style:width="{size}px" style:height="{size}px">
   <div class="logo-circle logo-circle-accent"></div>
   <div class="logo-circle logo-circle-accent-2"></div>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="logo-lock">
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    class="logo-lock"
+  >
     <rect x="3" y="11" width="18" height="10" rx="2"></rect>
     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
   </svg>

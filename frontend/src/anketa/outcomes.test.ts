@@ -14,7 +14,11 @@ describe('addOutcome', () => {
 
 describe('toggleDone', () => {
   it('flips done for the matching item only', () => {
-    const items = addOutcome(addOutcome([], 'user-1', 'first'), 'user-1', 'second');
+    const items = addOutcome(
+      addOutcome([], 'user-1', 'first'),
+      'user-1',
+      'second',
+    );
     const toggled = toggleDone(items, items[0].id);
 
     expect(toggled[0].done).toBe(true);

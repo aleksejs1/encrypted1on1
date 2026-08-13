@@ -68,6 +68,9 @@ jobs:
       - name: Typecheck
         run: npm run check
 
+      - name: Check formatting
+        run: npm run format
+
       - name: Unit tests with coverage
         run: npm run test:coverage
 

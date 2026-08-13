@@ -15,16 +15,30 @@ const KEY_LENGTH = 32;
  * (see docker/prod/app.Dockerfile) — resolved once at module load, not
  * per-call, since it can never change without a rebuild anyway.
  */
-const ARGON2ID_PROFILE = resolveArgon2Profile(import.meta.env.VITE_ARGON2ID_PROFILE);
+const ARGON2ID_PROFILE = resolveArgon2Profile(
+  import.meta.env.VITE_ARGON2ID_PROFILE,
+);
 
-function argon2idLimits(sodium: Awaited<ReturnType<typeof getSodium>>, profile: Argon2idProfile) {
+function argon2idLimits(
+  sodium: Awaited<ReturnType<typeof getSodium>>,
+  profile: Argon2idProfile,
+) {
   switch (profile) {
     case 'moderate':
-      return { opslimit: sodium.crypto_pwhash_OPSLIMIT_MODERATE, memlimit: sodium.crypto_pwhash_MEMLIMIT_MODERATE };
+      return {
+        opslimit: sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+        memlimit: sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+      };
     case 'sensitive':
-      return { opslimit: sodium.crypto_pwhash_OPSLIMIT_SENSITIVE, memlimit: sodium.crypto_pwhash_MEMLIMIT_SENSITIVE };
+      return {
+        opslimit: sodium.crypto_pwhash_OPSLIMIT_SENSITIVE,
+        memlimit: sodium.crypto_pwhash_MEMLIMIT_SENSITIVE,
+      };
     case 'interactive':
-      return { opslimit: sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE, memlimit: sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE };
+      return {
+        opslimit: sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
+        memlimit: sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
+      };
   }
 }
 
@@ -58,9 +72,13 @@ export async function deriveKeysFromPassword(
 
   // .slice() guarantees a plain ArrayBuffer-backed view — importKey's BufferSource
   // type rejects the ArrayBufferLike type sodium.crypto_pwhash returns otherwise.
-  const ikm = await crypto.subtle.importKey('raw', intermediateKey.slice(), 'HKDF', false, [
-    'deriveBits',
-  ]);
+  const ikm = await crypto.subtle.importKey(
+    'raw',
+    intermediateKey.slice(),
+    'HKDF',
+    false,
+    ['deriveBits'],
+  );
 
   const [authBits, masterBits] = await Promise.all([
     deriveHkdfBits(ikm, 'auth'),
@@ -73,7 +91,10 @@ export async function deriveKeysFromPassword(
   };
 }
 
-async function deriveHkdfBits(ikm: CryptoKey, info: string): Promise<ArrayBuffer> {
+async function deriveHkdfBits(
+  ikm: CryptoKey,
+  info: string,
+): Promise<ArrayBuffer> {
   return crypto.subtle.deriveBits(
     {
       name: 'HKDF',

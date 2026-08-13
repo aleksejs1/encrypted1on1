@@ -3,7 +3,12 @@
   import { apiGet, ApiError } from '../api/client';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
-  import { aggregateReport, dateRangeForQuarterPreset, type DecryptedAnketaForReport, type ReportData } from '../anketa/report';
+  import {
+    aggregateReport,
+    dateRangeForQuarterPreset,
+    type DecryptedAnketaForReport,
+    type ReportData,
+  } from '../anketa/report';
   import type { Answers } from '../anketa/questions';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
 
@@ -57,9 +62,13 @@
   };
 
   const managerTargets = $derived(
-    [...new Map(anketas.filter((a) => a.myRole === 'manager').map((a) => [a.counterpartId, a.counterpartEmail]))].map(
-      ([id, email]) => ({ id, email }),
-    ),
+    [
+      ...new Map(
+        anketas
+          .filter((a) => a.myRole === 'manager')
+          .map((a) => [a.counterpartId, a.counterpartEmail]),
+      ),
+    ].map(([id, email]) => ({ id, email })),
   );
 
   $effect(() => {
@@ -68,7 +77,8 @@
         anketas = list;
       })
       .catch((error: unknown) => {
-        loadError = error instanceof ApiError ? error.message : $_('report.errorLoad');
+        loadError =
+          error instanceof ApiError ? error.message : $_('report.errorLoad');
       });
     applyQuarterPreset();
   });
@@ -96,7 +106,9 @@
         if (a.archivedAt === null) return false;
         const meetingDate = new Date(a.meetingDate);
         if (meetingDate < start || meetingDate > end) return false;
-        return target === 'me' ? a.myRole === 'employee' : a.myRole === 'manager' && a.counterpartId === target;
+        return target === 'me'
+          ? a.myRole === 'employee'
+          : a.myRole === 'manager' && a.counterpartId === target;
       });
 
       const decrypted: DecryptedAnketaForReport[] = [];
@@ -108,7 +120,11 @@
         // entry in a potentially long list.
         let anketaKey: Uint8Array;
         try {
-          anketaKey = await unsealAnketaKey(detail.mySealedKey, identity.publicKey, identity.privateKey);
+          anketaKey = await unsealAnketaKey(
+            detail.mySealedKey,
+            identity.publicKey,
+            identity.privateKey,
+          );
         } catch {
           continue;
         }
@@ -122,7 +138,12 @@
             ? (await decryptBlob<Answers>(detail.managerBlob, anketaKey)).data
             : null;
         const checkpoints = detail.goalCheckpointsBlob
-          ? (await decryptBlob<GoalCheckpoint[]>(detail.goalCheckpointsBlob, anketaKey)).data
+          ? (
+              await decryptBlob<GoalCheckpoint[]>(
+                detail.goalCheckpointsBlob,
+                anketaKey,
+              )
+            ).data
           : [];
 
         decrypted.push({
@@ -137,7 +158,8 @@
 
       report = aggregateReport(decrypted);
     } catch (error) {
-      generateError = error instanceof ApiError ? error.message : $_('report.errorGenerate');
+      generateError =
+        error instanceof ApiError ? error.message : $_('report.errorGenerate');
     } finally {
       generating = false;
     }
@@ -163,15 +185,29 @@
 
       <fieldset>
         <legend>{$_('report.dateRangeLegend')}</legend>
-        <button type="button" class="btn btn-secondary" onclick={applyQuarterPreset}>{$_('report.quarterPreset')}</button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick={applyQuarterPreset}>{$_('report.quarterPreset')}</button
+        >
         <div class="range-row">
           <div class="field">
             <label for="range-from">{$_('report.fromLabel')}</label>
-            <input id="range-from" class="input" type="date" bind:value={rangeStart} />
+            <input
+              id="range-from"
+              class="input"
+              type="date"
+              bind:value={rangeStart}
+            />
           </div>
           <div class="field">
             <label for="range-to">{$_('report.toLabel')}</label>
-            <input id="range-to" class="input" type="date" bind:value={rangeEnd} />
+            <input
+              id="range-to"
+              class="input"
+              type="date"
+              bind:value={rangeEnd}
+            />
           </div>
         </div>
       </fieldset>
@@ -180,7 +216,11 @@
         <p class="banner-error">{generateError}</p>
       {/if}
 
-      <button type="submit" class="btn btn-primary btn-block" disabled={generating || !rangeStart || !rangeEnd}>
+      <button
+        type="submit"
+        class="btn btn-primary btn-block"
+        disabled={generating || !rangeStart || !rangeEnd}
+      >
         {generating ? $_('report.generating') : $_('report.generate')}
       </button>
     </form>
@@ -194,7 +234,10 @@
           {:else}
             <ul>
               {#each report.achievements as entry (entry.id)}
-                <li>{entry.text} <span class="text-muted entry-date">— {entry.date}</span></li>
+                <li>
+                  {entry.text}
+                  <span class="text-muted entry-date">— {entry.date}</span>
+                </li>
               {/each}
             </ul>
           {/if}
@@ -207,7 +250,10 @@
           {:else}
             <ul>
               {#each report.growth as entry (entry.id)}
-                <li>{entry.text} <span class="text-muted entry-date">— {entry.date}</span></li>
+                <li>
+                  {entry.text}
+                  <span class="text-muted entry-date">— {entry.date}</span>
+                </li>
               {/each}
             </ul>
           {/if}
@@ -223,18 +269,38 @@
                 <div class="goal">
                   <div class="goal-header">
                     <strong>{goal.title}</strong>
-                    <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}">{$_(GOAL_STATUS_KEYS[goal.status])}</span>
+                    <span class="tag {GOAL_STATUS_TAG_CLASSES[goal.status]}"
+                      >{$_(GOAL_STATUS_KEYS[goal.status])}</span
+                    >
                   </div>
-                  {#if goal.description}<p class="text-muted goal-description">{goal.description}</p>{/if}
+                  {#if goal.description}<p class="text-muted goal-description">
+                      {goal.description}
+                    </p>{/if}
                   {#if goal.checkpoints.length === 0}
-                    <p class="text-muted">{$_('report.noCheckpointsInRange')}</p>
+                    <p class="text-muted">
+                      {$_('report.noCheckpointsInRange')}
+                    </p>
                   {:else}
                     <ul class="checkpoints">
                       {#each goal.checkpoints as checkpoint (checkpoint.id)}
                         <li>
-                          <span class="text-muted checkpoint-date">{new Date(checkpoint.createdAt).toLocaleDateString()}</span>
-                          {#if checkpoint.text}<span>{checkpoint.text}</span>{/if}
-                          {#if checkpoint.statusTag}<span class="tag {CHECKPOINT_STATUS_TAG_CLASSES[checkpoint.statusTag]}">{$_(CHECKPOINT_STATUS_TAG_KEYS[checkpoint.statusTag])}</span>{/if}
+                          <span class="text-muted checkpoint-date"
+                            >{new Date(
+                              checkpoint.createdAt,
+                            ).toLocaleDateString()}</span
+                          >
+                          {#if checkpoint.text}<span>{checkpoint.text}</span
+                            >{/if}
+                          {#if checkpoint.statusTag}<span
+                              class="tag {CHECKPOINT_STATUS_TAG_CLASSES[
+                                checkpoint.statusTag
+                              ]}"
+                              >{$_(
+                                CHECKPOINT_STATUS_TAG_KEYS[
+                                  checkpoint.statusTag
+                                ],
+                              )}</span
+                            >{/if}
                         </li>
                       {/each}
                     </ul>

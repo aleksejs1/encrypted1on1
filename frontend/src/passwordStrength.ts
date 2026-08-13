@@ -7,7 +7,13 @@
  */
 export const MIN_PASSWORD_LENGTH = 12;
 export const STRENGTH_COLORS = ['#c0574a', '#d68a3f', '#c9a23f', '#8fa073'];
-export const STRENGTH_LABEL_KEYS = ['tooWeak', 'weak', 'okay', 'good', 'strong'] as const;
+export const STRENGTH_LABEL_KEYS = [
+  'tooWeak',
+  'weak',
+  'okay',
+  'good',
+  'strong',
+] as const;
 
 export function scoreOf(pw: string): number {
   if (!pw) return 0;

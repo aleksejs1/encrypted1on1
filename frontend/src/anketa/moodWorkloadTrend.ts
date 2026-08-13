@@ -7,7 +7,10 @@ import type { FieldOption } from './questions';
  * Rows with a missing/unrecognized value are skipped, not zero-filled —
  * a gap in the data shouldn't silently read as "bad."
  */
-export function extractTrendValues(rows: { value: string | undefined }[], options: FieldOption[]): number[] {
+export function extractTrendValues(
+  rows: { value: string | undefined }[],
+  options: FieldOption[],
+): number[] {
   const values: number[] = [];
   for (const row of rows) {
     const index = options.findIndex((option) => option.value === row.value);
@@ -23,14 +26,20 @@ export function extractTrendValues(rows: { value: string | undefined }[], option
  * SVG y grows downward) scaled by `maxIndex`. Returns the exact string a
  * <polyline points="..."> attribute needs.
  */
-export function sparklinePoints(values: number[], maxIndex: number, width: number, height: number): string {
+export function sparklinePoints(
+  values: number[],
+  maxIndex: number,
+  width: number,
+  height: number,
+): string {
   if (values.length === 0) return '';
   const stepX = values.length > 1 ? width / (values.length - 1) : 0;
 
   return values
     .map((value, i) => {
       const x = i * stepX;
-      const y = maxIndex > 0 ? height - (value / maxIndex) * height : height / 2;
+      const y =
+        maxIndex > 0 ? height - (value / maxIndex) * height : height / 2;
       return `${x},${y}`;
     })
     .join(' ');
