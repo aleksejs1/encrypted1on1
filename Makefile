@@ -24,6 +24,7 @@ lint: lint-backend lint-frontend
 lint-backend:
 	docker compose -f docker-compose.dev.yml exec backend composer stan
 	docker compose -f docker-compose.dev.yml exec backend composer cs
+	docker compose -f docker-compose.dev.yml exec backend composer md
 
 lint-frontend:
 	cd frontend && npm run check
@@ -56,6 +57,7 @@ test-backend-isolated:
 lint-backend-isolated:
 	docker compose -f docker-compose.test.yml run --rm backend composer stan
 	docker compose -f docker-compose.test.yml run --rm backend composer cs
+	docker compose -f docker-compose.test.yml run --rm backend composer md
 
 coverage-backend-isolated:
 	docker compose -f docker-compose.test.yml run --rm backend composer test-coverage

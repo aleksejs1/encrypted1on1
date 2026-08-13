@@ -42,6 +42,9 @@ jobs:
       - name: Check code style
         run: composer cs
 
+      - name: Check code complexity
+        run: composer md
+
       - name: Audit dependencies for known vulnerabilities
         run: composer audit
 

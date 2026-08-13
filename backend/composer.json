@@ -46,6 +46,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.95",
+        "phpmetrics/phpmetrics": "^2.11",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.2",
         "phpstan/phpstan-doctrine": "^2.0",
@@ -76,6 +77,10 @@
         ],
         "cs-fix": [
             "vendor/bin/php-cs-fixer fix"
+        ],
+        "md": [
+            "vendor/bin/phpmetrics --report-violations=var/phpmetrics-violations.xml --quiet src",
+            "php bin/check-phpmetrics.php var/phpmetrics-violations.xml"
         ]
     }
 }
