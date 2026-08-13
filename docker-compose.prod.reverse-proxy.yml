@@ -30,6 +30,11 @@ services:
       - "${APP_INTERNAL_BIND:?e.g. 127.0.0.1:8090 — set in .env.prod, must match your reverse proxy's upstream/proxy_pass target}:80"
     volumes:
       - data:/app/var
+      # auto_https is off in this mode, so Caddy never provisions its own
+      # certificates here — added anyway for symmetry with the direct-facing
+      # file, in case that ever changes; it just stays empty otherwise.
+      - caddy_data:/data
+      - caddy_config:/config
       - ./docker/prod/Caddyfile.reverse-proxy:/etc/frankenphp/Caddyfile:ro
     environment:
       APP_ENV: prod
@@ -57,3 +62,5 @@ services:
 
 volumes:
   data:
+  caddy_data:
+  caddy_config:

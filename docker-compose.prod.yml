@@ -14,6 +14,16 @@ services:
       - "443:443"
     volumes:
       - data:/app/var
+      # Caddy's TLS certificates/ACME account state (XDG_DATA_HOME) and its
+      # own admin-API config snapshot (XDG_CONFIG_HOME) — without these, a
+      # redeploy that recreates the container (the normal way to ship a new
+      # image) wipes the container's writable layer and forces Caddy to
+      # re-provision a brand-new Let's Encrypt certificate from scratch,
+      # risking both downtime and Let's Encrypt's rate limits on frequent
+      # redeploys. Confirmed via a throwaway container that /data/caddy is
+      # genuinely where certificates land, not assumed.
+      - caddy_data:/data
+      - caddy_config:/config
     environment:
       APP_ENV: prod
       APP_DEBUG: "0"
@@ -36,3 +46,5 @@ services:
 
 volumes:
   data:
+  caddy_data:
+  caddy_config:

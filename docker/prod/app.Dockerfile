@@ -40,3 +40,22 @@ COPY --from=frontend-build /app/dist/ ./public/
 # Overrides the base image's default Caddyfile — confirmed via `docker inspect`
 # that the base image's default CMD reads exactly this path.
 COPY docker/prod/Caddyfile /etc/frankenphp/Caddyfile
+
+# Runs as a fixed non-root user, not root — a real reduction in blast radius
+# if this app is ever compromised via an RCE. 10001 is an arbitrary,
+# non-system UID/GID, chosen only to avoid colliding with anything else in
+# the base image. setcap grants the frankenphp binary CAP_NET_BIND_SERVICE
+# so it can still bind ports 80/443 despite not running as root — verified
+# for real that this actually works, not assumed (libcap2-bin, which
+# provides setcap, is already present in the base image). /app/var, /data
+# (Caddy's XDG_DATA_HOME — TLS certificates/ACME account state) and /config
+# (XDG_CONFIG_HOME) are chowned *before* they become volume mount points:
+# Docker seeds a brand-new named volume from whatever already exists at that
+# path in the image, which is what makes those volumes come up owned by
+# `app` on first run without any runtime chown step.
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app \
+    && setcap 'cap_net_bind_service=+ep' /usr/local/bin/frankenphp \
+    && mkdir -p /app/var /data /config \
+    && chown -R app:app /app /data /config
+USER app

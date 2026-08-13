@@ -106,7 +106,9 @@ Steps 1–4 are first-time setup only. **Updating an existing instance to newer 
 
 `--env-file .env.prod` is needed on *every* invocation against this file, not just `up` — including `exec` — since Compose re-parses the file's required-variable interpolation (`${VAR:?message}`) every time it's called, the same reason `backup.sh`/`restore.sh` need it explicitly rather than relying on already-exported shell variables.
 
-Data (the SQLite database) lives in a named Docker volume, so it survives image rebuilds/redeploys — back it up before any major upgrade (see "Backups" below).
+Data (the SQLite database) lives in a named Docker volume, so it survives image rebuilds/redeploys — back it up before any major upgrade (see "Backups" below). Caddy's own TLS certificates/ACME account state get the same treatment (`caddy_data`/`caddy_config` volumes) — without it, every redeploy would force Caddy to re-provision a brand-new Let's Encrypt certificate from scratch, risking both downtime and Let's Encrypt's rate limits on frequent redeploys.
+
+The container itself runs as a fixed non-root user (`app`, UID/GID 10001) — `setcap` on the `frankenphp` binary is what still lets it bind ports 80/443 despite not being root.
 
 ### Behind an existing reverse proxy
 

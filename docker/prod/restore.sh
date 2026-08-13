@@ -23,5 +23,11 @@ fi
 $COMPOSE stop app
 $COMPOSE cp "$BACKUP_FILE" app:/app/var/data.db
 $COMPOSE start app
+# `compose cp` writes the file owned by whatever UID ran this script on the
+# host, not the container's own non-root `app` user — confirmed for real
+# (not assumed) that this leaves the app unable to write to its own restored
+# database until fixed. `-u root` still works even though the image no
+# longer runs as root by default; root still exists in it.
+$COMPOSE exec -u root -T app chown app:app /app/var/data.db
 
 echo "Restored $BACKUP_FILE and restarted the app."
