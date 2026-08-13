@@ -22,6 +22,17 @@ async function getCsrfToken(): Promise<string> {
   return csrfToken;
 }
 
+/**
+ * AuthSession::logOut() calls $session->invalidate() server-side, which wipes
+ * the session-stored CSRF secret backing whatever token is cached here — the
+ * very next state-changing request (e.g. a re-login in the same tab) would
+ * otherwise send a now-stale token and get a genuine 403. Must be called
+ * wherever logout happens; see auth.svelte.ts's logOut().
+ */
+export function resetCsrfToken(): void {
+  csrfToken = null;
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   try {
     const data = (await response.json()) as { error?: string };
