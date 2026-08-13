@@ -86,6 +86,46 @@ Not `.env.prod` values — plain shell environment variables read by `docker/pro
 | `BACKUP_DIR` | `./backups` | Where snapshots land on the host. |
 | `RETENTION_DAYS` | `14` | Snapshots older than this are pruned on every `backup.sh` run. |
 
+### Using MySQL instead of SQLite
+
+Advanced, opt-in scenario for operators who already administer their own database infrastructure — not a separate compose file (the default SQLite path this app ships is what everything else in these docs assumes), just the pieces to adapt into your own setup.
+
+**A real, working migration path, not just a `DATABASE_URL` change.** The default `migrations/` directory is hand-written raw SQL targeting SQLite's own dialect specifically (confirmed by actually running it against real MySQL: it fails on the very first migration with a `CLOB` syntax error, and several later ones lean on SQLite's own `CREATE TEMPORARY TABLE` rebuild workaround for limited `ALTER TABLE` support — none of it is portable). A separate `migrations-mysql/` directory holds one bootstrap migration instead, generated directly from the (already platform-portable) Doctrine entity mappings against a real, empty MySQL 8.4 database — reaching the exact same schema, in genuine MySQL DDL. It's registered in its own standalone Doctrine Migrations config, `backend/migrations-mysql.php`, deliberately **not** alongside the default namespace in `config/packages/doctrine_migrations.php` — registering both together was tried first and found to genuinely break the default SQLite migration flow: Doctrine sorts a combined list of every registered namespace's migrations by fully-qualified class name when no explicit target version is given, and `App\Migrations\MySQL\...` alphabetically outranks `App\Migrations\Version...`, so a bare `doctrine:migrations:migrate` (exactly what `composer test` and the documented prod migration command already run) tried to execute the MySQL-only migration against the SQLite connection first. Keeping it in a separate, non-registered config file sidesteps this entirely — the default commands never even know it exists.
+
+```
+# .env.prod (or backend/.env for local testing)
+DATABASE_URL="mysql://user:pass@host:3306/dbname?serverVersion=8.4.0"
+```
+
+```yaml
+# docker-compose.override.yml — a local MySQL service to test against;
+# for real production use, point DATABASE_URL at your own managed MySQL instead
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: encrypted1on1
+      MYSQL_USER: encrypted1on1
+      MYSQL_PASSWORD: change-me
+      MYSQL_ROOT_PASSWORD: change-me-too
+    volumes:
+      - mysql_data:/var/lib/mysql
+volumes:
+  mysql_data:
+```
+
+`pdo_mysql` is already installed in both the dev and prod images (alongside `pdo_sqlite`, which stays installed unconditionally too) — no custom image build needed, just point `DATABASE_URL` at a real MySQL instance and run the MySQL-specific migration command instead of the default one:
+
+```
+docker compose exec app php bin/console doctrine:migrations:migrate --configuration=migrations-mysql.php 'App\Migrations\MySQL\Version20260813123830' --no-interaction
+```
+
+**Verified for real, not assumed working**: a real MySQL 8.4 container, the bootstrap migration applied cleanly to a genuinely fresh database, and the actual running app exercised against it over real HTTP — account activation, a second account, a real anketa created between them (real foreign keys), and a real publish (writing to a `LONGTEXT` ciphertext column) all worked correctly.
+
+**Real, ongoing cost, not a one-time thing**: from this point forward, any schema-changing feature needs a second migration written by hand for `migrations-mysql/` too — there's no tooling here that generates both automatically, and letting this one silently drift out of date is exactly how it would quietly stop working again.
+
+**Not currently covered**: `docker/prod/backup.sh`/`restore.sh` are SQLite-specific (`sqlite3 ... .backup`) — running against MySQL means bringing your own backup strategy (e.g. `mysqldump`/`mysqlbinlog`, or your managed MySQL provider's own snapshotting), not these scripts.
+
 ### Dev-only (`backend/.env`, already committed with working defaults)
 
 `APP_ENV`/`APP_DEBUG`/`DATABASE_URL` are fixed for local dev and shouldn't need touching. `MAILER_DSN` already points at the bundled Mailpit container. `REGISTRATION_MODE`/`ALLOWED_EMAIL_DOMAIN` default to `invite`/unrestricted, same meaning as in prod — edit this file directly to test a different mode locally (see the "real domain-mode verification" pattern `CLAUDE.md` documents: edit, `docker compose up -d --force-recreate backend`, test, then revert).
