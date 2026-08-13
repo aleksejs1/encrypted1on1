@@ -6,6 +6,7 @@
   import { ensureUnlocked } from '../crypto/identity';
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
+  import { sortByRecentCounterparts } from '../anketa/recentCounterparts';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
 
   interface UserSummary {
@@ -17,6 +18,7 @@
   interface AnketaSummary {
     id: string;
     counterpartId: string;
+    counterpartEmail: string;
     meetingDate: string;
     archivedAt: string | null;
   }
@@ -42,6 +44,10 @@
   // decides whether periodicity needs asking (new pair) or is inherited server-side
   // (continuing pair, see AnketaController::create — Phase 6d).
   const previousAnketa = $derived(priorAnketas.find((a) => a.counterpartId === counterpartId && a.archivedAt !== null));
+
+  // Recent counterparts (from this user's own anketa history) surface at the top of the
+  // typeahead's suggestion list, per the spec — no full-company-list scrolling every time.
+  const sortedUsers = $derived(sortByRecentCounterparts(users, priorAnketas));
 
   const canSubmit = $derived(counterpartId !== '' && meetingDate !== '' && !submitting);
 
@@ -122,7 +128,7 @@
       <div class="field typeahead-field">
         <label for="counterpart">{$_('createAnketa.counterpartLabel')}</label>
         <UserTypeahead
-          users={users}
+          users={sortedUsers}
           bind:value={counterpartId}
           placeholder={$_('createAnketa.counterpartPlaceholder')}
           noResultsText={$_('createAnketa.counterpartNoResults')}
