@@ -32,7 +32,7 @@ npm install
 npm run dev      # frontend dev server, proxies API calls to the backend
 ```
 
-`make down` stops the backend/Mailpit containers; `make test`/`make lint`/`make coverage`/`make e2e` run the backend+frontend test suites against the running dev stack, and `make test-backend-isolated` (plus `lint-`/`coverage-backend-isolated`) run the backend suite in a fully separate, one-shot stack with its own database instead — no dev stack required (see [docs/architecture.md](docs/architecture.md#testing-and-ci)). See [docs/deployment.md](docs/deployment.md) for the full picture, including production.
+`make down` stops the backend/Mailpit containers; `make test`/`make lint`/`make coverage` run the backend+frontend test suites against the running dev stack, `make test-backend-isolated` (plus `lint-`/`coverage-backend-isolated`) run the backend suite in a fully separate, one-shot stack with its own database instead — no dev stack required — and `make e2e` runs the dual-actor Playwright suite against its own genuinely isolated stack (`make e2e-down` to tear it down afterward) (see [docs/architecture.md](docs/architecture.md#testing-and-ci)). See [docs/deployment.md](docs/deployment.md) for the full picture, including production.
 
 ## License
 

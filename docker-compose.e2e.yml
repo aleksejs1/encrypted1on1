@@ -1,0 +1,29 @@
+# Genuinely isolated stack for the dual-actor Playwright e2e suite (frontend/e2e/) — its
+# own backend container, own SQLite file (a dedicated named volume shadowing the
+# bind-mounted backend/var/, same mechanism docker-compose.test.yml already established
+# for the PHPUnit stack), own Compose project namespace, own host ports. Never shares
+# state with dev, with the PHPUnit isolated stack, or with prod. No Mailpit: e2e doesn't
+# check email content today (provisioning goes through the real app:create-activation-link
+# CLI command directly), and MAILER_DSN=null://null in .env.e2e needs none.
+#
+# Run as a persistent service (up -d, real exposed port), not a one-shot `run --rm` like
+# docker-compose.test.yml — Playwright needs a long-lived server to hit repeatedly during
+# a run, unlike PHPUnit's single invocation.
+name: encrypted1on1-e2e
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/dev/backend.Dockerfile
+    volumes:
+      - ./backend:/app
+      - e2e_var:/app/var
+    ports:
+      - "8001:80"
+    environment:
+      SERVER_NAME: ":80"
+      APP_ENV: e2e
+
+volumes:
+  e2e_var:

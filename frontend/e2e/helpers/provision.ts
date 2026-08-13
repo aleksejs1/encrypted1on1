@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const COMPOSE_FILE = path.join(REPO_ROOT, 'docker-compose.dev.yml');
+const COMPOSE_FILE = path.join(REPO_ROOT, 'docker-compose.e2e.yml');
 
 /**
  * Creates a real account-activation link via the same CLI used to bootstrap
@@ -13,7 +13,8 @@ const COMPOSE_FILE = path.join(REPO_ROOT, 'docker-compose.dev.yml');
  * the token is issued by real backend code, but the *activation itself* is
  * still driven through the real /activate/:token UI by the test.
  *
- * Requires the dev stack (docker-compose.dev.yml) to already be running.
+ * Requires the isolated e2e stack (docker-compose.e2e.yml) to already be
+ * running — see `make e2e-up`.
  */
 export function createActivationLink(email: string): string {
   const output = execFileSync(

@@ -1,4 +1,4 @@
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite
+.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite
 
 up:
 	docker compose -f docker-compose.dev.yml up --build -d
@@ -38,9 +38,20 @@ coverage-frontend:
 	cd frontend && npm run test:coverage
 
 # Local-only, not run in CI (see docs/architecture.md's Testing and CI section) — needs
-# the dev stack up (`make up`) and, once per machine, `cd frontend && npx playwright install chromium`.
-e2e:
+# `cd frontend && npx playwright install chromium` once per machine. Genuinely isolated
+# (docker-compose.e2e.yml): own backend container, own SQLite file, own Compose project,
+# never touches dev's or the PHPUnit stack's data. Leaves the stack up afterward so
+# repeat `cd frontend && npx playwright test` runs during debugging don't need a full
+# rebuild each time — `make e2e-down` tears it down when done.
+e2e: e2e-up
 	cd frontend && npm run test:e2e
+
+e2e-up:
+	docker compose -f docker-compose.e2e.yml up --build -d
+	docker compose -f docker-compose.e2e.yml exec backend sh -c "rm -f var/e2e.db && rm -rf var/cache/e2e && php bin/console doctrine:migrations:migrate --env=e2e --no-interaction"
+
+e2e-down:
+	docker compose -f docker-compose.e2e.yml down
 
 build:
 	cd frontend && npm run build
