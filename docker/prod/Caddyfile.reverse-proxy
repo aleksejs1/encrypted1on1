@@ -38,6 +38,15 @@
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		X-Frame-Options "DENY"
+		# Set here even though this Caddy never terminates TLS itself — the
+		# external reverse proxy relays response headers through to the
+		# browser unmodified by default (nginx's proxy_pass, another Caddy,
+		# etc.), so the header still reaches the browser over the real
+		# external HTTPS connection. Per RFC 6797 browsers ignore it entirely
+		# when received over plain HTTP, so there's no downside to sending it
+		# unconditionally on this internal HTTP-only hop either. See the
+		# direct-facing Caddyfile for the full reasoning (identical here).
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
 	# Only the real API surface goes to PHP.

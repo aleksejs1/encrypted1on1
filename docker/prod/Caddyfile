@@ -23,6 +23,15 @@
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		X-Frame-Options "DENY"
+		# Caddy's automatic HTTPS does NOT send this on its own — confirmed by
+		# dumping the compiled config (frankenphp adapt) and finding nothing,
+		# not assumed. No `preload`: that's a real, semi-irreversible external
+		# commitment (submitting the operator's domain to the public preload
+		# list) this app shouldn't force on every self-hosted deployment.
+		# `includeSubDomains` is still a real trade-off worth knowing: it
+		# affects any other subdomain on the same registrable domain too, not
+		# just this one.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
 	# Only the real API surface goes to PHP.
