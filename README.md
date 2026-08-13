@@ -32,7 +32,7 @@ npm install
 npm run dev      # frontend dev server, proxies API calls to the backend
 ```
 
-`make down` stops the backend/Mailpit containers. See [docs/deployment.md](docs/deployment.md) for the full picture, including production.
+`make down` stops the backend/Mailpit containers; `make test`/`make lint`/`make coverage`/`make e2e` run the backend+frontend test suites (see [docs/architecture.md](docs/architecture.md#testing-and-ci)). See [docs/deployment.md](docs/deployment.md) for the full picture, including production.
 
 ## License
 
