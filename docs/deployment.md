@@ -158,6 +158,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod restart app
 
 (`-f docker-compose.prod.reverse-proxy.yml` instead, for that topology.) The `restart` is not optional — deleting the cache directory alone doesn't affect an already-running worker's in-memory container.
 
+**One-time step if upgrading an instance that predates the non-root container change**: the image now runs as a fixed non-root user (`app`), but that only affects a *brand-new* named volume, seeded from the image on first creation — an already-existing `data:/app/var` volume from before this change keeps whatever ownership its files already had (`root`, from the old image), and upgrading the image alone doesn't retroactively fix that. Symptom: `Permission denied` errors writing to `var/cache/prod/` (translations, the compiled container, etc.) — this actually happened on a real deployment, not a theoretical risk. Fix once, the first time you deploy past this change:
+
+```
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -u root app chown -R app:app /app/var
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -u root app rm -rf /app/var/cache/prod
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart app
+```
+
+(`-f docker-compose.prod.reverse-proxy.yml` instead, for that topology.) `-u root` works even though the image's *default* user is now `app` — root was never removed from the image, only stopped being the default. Every redeploy *after* this one-time fix is back to just the cache-clear step above — the volume stays correctly owned by `app` from here on.
+
 ### Backups
 
 `docker/prod/backup.sh` takes an online, consistent snapshot of the database (via SQLite's own `.backup` command, safe to run while the app is live) and copies it out to `./backups` on the host, pruning anything older than 14 days. Run it via cron, e.g. daily at 3am:
