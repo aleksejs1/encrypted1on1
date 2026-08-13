@@ -12,6 +12,7 @@
   import AdminPanel from './admin/AdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
+  import AppFooter from './design/AppFooter.svelte';
   import { _ } from 'svelte-i18n';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
@@ -76,6 +77,8 @@
   {:else}
     <AnketaList />
   {/if}
+
+  <AppFooter />
 </div>
 
 <style>

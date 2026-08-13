@@ -21,6 +21,10 @@ services:
         # registers; changing it later on a running instance locks every
         # existing account out irrecoverably.
         ARGON2ID_PROFILE: "${ARGON2ID_PROFILE:-interactive}"
+        # Baked into the static bundle at build time too — see docs/deployment.md's
+        # "Frontend build-time" section. Empty by default: no footer link until
+        # an operator opts in.
+        PRIVACY_POLICY_URL: "${PRIVACY_POLICY_URL:-}"
     ports:
       # Caddy only ever listens on port 80 in this mode (auto_https is off
       # in Caddyfile.reverse-proxy, so there's nothing on 443 to publish).

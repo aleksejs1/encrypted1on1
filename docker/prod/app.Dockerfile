@@ -16,6 +16,11 @@ COPY frontend/ ./
 # derived from, so changing it locks every existing account out.
 ARG ARGON2ID_PROFILE=interactive
 ENV VITE_ARGON2ID_PROFILE=$ARGON2ID_PROFILE
+# The deploying company's own privacy policy/legal notice URL, shown as a
+# footer link — see docs/deployment.md's "Frontend build-time" section.
+# Empty by default: no footer link at all until an operator opts in.
+ARG PRIVACY_POLICY_URL=""
+ENV VITE_PRIVACY_POLICY_URL=$PRIVACY_POLICY_URL
 RUN npm run build
 
 FROM dunglas/frankenphp:php8.4

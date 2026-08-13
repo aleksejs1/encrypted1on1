@@ -7,7 +7,8 @@
     "roleManager": "Manager",
     "backToAnketas": "← Anketas",
     "logout": "Log out",
-    "accountSettings": "Account settings"
+    "accountSettings": "Account settings",
+    "privacyPolicy": "Privacy Policy"
   },
   "login": {
     "title": "Log in",
