@@ -83,15 +83,12 @@
     }
   }
 
-  interface AnketaSummaryForExport {
+  interface AnketaBulkRowForExport {
     id: string;
     myRole: 'employee' | 'manager';
     counterpartEmail: string;
     meetingDate: string;
     archivedAt: string | null;
-  }
-
-  interface AnketaDetailForExport {
     mySealedKey: string;
     employeeBlob: string | null;
     employeePublishedAt: string | null;
@@ -122,12 +119,10 @@
     try {
       const identity = await ensureUnlocked();
       const masterKey = await loadMasterKey();
-      const list = await apiGet<AnketaSummaryForExport[]>('/api/anketas');
+      const list = await apiGet<AnketaBulkRowForExport[]>('/api/anketas/bulk');
 
       const exportedAnketas = [];
-      for (const summary of list) {
-        const detail = await apiGet<AnketaDetailForExport>(`/api/anketas/${summary.id}`);
-
+      for (const detail of list) {
         // A wrong-key AEAD failure here means this anketa was sealed under a keypair
         // that no longer matches identity.privateKey (most likely a password reset
         // since this anketa was created) — skip just this one, same discipline
@@ -139,11 +134,11 @@
           continue;
         }
 
-        const myPublishedAt = summary.myRole === 'employee' ? detail.employeePublishedAt : detail.managerPublishedAt;
-        const myBlob = summary.myRole === 'employee' ? detail.employeeBlob : detail.managerBlob;
-        const counterpartBlob = summary.myRole === 'employee' ? detail.managerBlob : detail.employeeBlob;
+        const myPublishedAt = detail.myRole === 'employee' ? detail.employeePublishedAt : detail.managerPublishedAt;
+        const myBlob = detail.myRole === 'employee' ? detail.employeeBlob : detail.managerBlob;
+        const counterpartBlob = detail.myRole === 'employee' ? detail.managerBlob : detail.employeeBlob;
         const counterpartPublishedAt =
-          summary.myRole === 'employee' ? detail.managerPublishedAt : detail.employeePublishedAt;
+          detail.myRole === 'employee' ? detail.managerPublishedAt : detail.employeePublishedAt;
 
         // My own side: a draft (never published) is encrypted with my *master* key, not
         // the anketa key — mirrors Anketa.svelte's own load() exactly.
@@ -168,11 +163,11 @@
           : [];
 
         exportedAnketas.push({
-          id: summary.id,
-          counterpartEmail: summary.counterpartEmail,
-          myRole: summary.myRole,
-          meetingDate: summary.meetingDate,
-          archivedAt: summary.archivedAt,
+          id: detail.id,
+          counterpartEmail: detail.counterpartEmail,
+          myRole: detail.myRole,
+          meetingDate: detail.meetingDate,
+          archivedAt: detail.archivedAt,
           myAnswers,
           counterpartAnswers,
           comments,

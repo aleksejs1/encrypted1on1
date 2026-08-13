@@ -87,6 +87,86 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(404, $result['status']);
     }
 
+    public function testBulkReturnsEveryAnketaForBothParticipantsWithCorrectRoles(): void
+    {
+        [$employeeClient, $employee, $managerClient, $manager] = $this->makePair('bulk-both-sides');
+        $first = $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+        $second = $this->createAnketaAsEmployee($employeeClient, $manager['id'], [
+            'meetingDate' => (new \DateTimeImmutable('+2 days'))->format(\DateTimeImmutable::ATOM),
+        ]);
+
+        $fromEmployee = $this->jsonRequest($employeeClient, 'GET', '/api/anketas/bulk');
+        $fromManager = $this->jsonRequest($managerClient, 'GET', '/api/anketas/bulk');
+
+        self::assertSame(200, $fromEmployee['status']);
+        self::assertCount(2, $fromEmployee['json']);
+        self::assertCount(2, $fromManager['json']);
+
+        $employeeRow = self::findById($fromEmployee['json'], $first['json']['id']);
+        $managerRow = self::findById($fromManager['json'], $first['json']['id']);
+        self::assertSame('employee', $employeeRow['myRole']);
+        self::assertSame($manager['email'], $employeeRow['counterpartEmail']);
+        self::assertSame('manager', $managerRow['myRole']);
+        self::assertSame($employee['email'], $managerRow['counterpartEmail']);
+
+        // Full detail fields (not just summary ones) are present, same shape as get().
+        self::assertArrayHasKey('mySealedKey', $employeeRow);
+        self::assertArrayHasKey('employeeBlob', $employeeRow);
+        self::assertArrayHasKey('goals', $employeeRow);
+
+        // findById() itself fails the test if the second anketa is missing from the response.
+        self::findById($fromEmployee['json'], $second['json']['id']);
+    }
+
+    public function testBulkNeverReturnsAnotherUsersAnketas(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('bulk-isolation');
+        $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+
+        $stranger = $this->secondClient();
+        $this->activateUser($stranger, $this->uniqueEmail('bulk-stranger'));
+
+        $result = $this->jsonRequest($stranger, 'GET', '/api/anketas/bulk');
+
+        self::assertSame(200, $result['status']);
+        self::assertSame([], $result['json']);
+    }
+
+    public function testBulkAttachesGoalsToTheCorrectAnketaWhenTheRequesterHasSeveral(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('bulk-goals');
+        $first = $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+        $second = $this->createAnketaAsEmployee($employeeClient, $manager['id'], [
+            'meetingDate' => (new \DateTimeImmutable('+2 days'))->format(\DateTimeImmutable::ATOM),
+        ]);
+
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$first['json']['id']}/goals", [
+            'goalUuid' => 'bulk-goal-first',
+            'title' => 'Goal on the first anketa',
+        ]);
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$second['json']['id']}/goals", [
+            'goalUuid' => 'bulk-goal-second-a',
+            'title' => 'Goal A on the second anketa',
+        ]);
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$second['json']['id']}/goals", [
+            'goalUuid' => 'bulk-goal-second-b',
+            'title' => 'Goal B on the second anketa',
+        ]);
+
+        $result = $this->jsonRequest($employeeClient, 'GET', '/api/anketas/bulk');
+
+        $firstRow = self::findById($result['json'], $first['json']['id']);
+        $secondRow = self::findById($result['json'], $second['json']['id']);
+
+        self::assertCount(1, $firstRow['goals']);
+        self::assertSame('bulk-goal-first', $firstRow['goals'][0]['goalUuid']);
+
+        self::assertCount(2, $secondRow['goals']);
+        $secondGoalUuids = array_column($secondRow['goals'], 'goalUuid');
+        self::assertContains('bulk-goal-second-a', $secondGoalUuids);
+        self::assertContains('bulk-goal-second-b', $secondGoalUuids);
+    }
+
     public function testSaveCommentsSucceedsAndIncrementsVersion(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('comments-ok');

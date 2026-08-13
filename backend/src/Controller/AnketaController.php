@@ -125,13 +125,77 @@ class AnketaController
         return new JsonResponse(array_map(fn (Anketa $anketa) => $this->summarize($anketa, $user), $anketas));
     }
 
+    /**
+     * Every anketa the requester participates in, at full detail (same shape as get()) —
+     * closes private/todo.md's "N+1 GET /api/anketas/{id} calls" item for the two pages
+     * that genuinely want all of them (Report.svelte, AccountSettings.svelte's export),
+     * neither of which filters by id server-side, so there's no request body/id-list here,
+     * just everything the user can already see (same no-filtering shape as list()).
+     *
+     * Declared before the /api/anketas/{id} route below — "bulk" would otherwise be
+     * swallowed by that route's {id} placeholder.
+     */
+    #[Route('/api/anketas/bulk', name: 'anketa_bulk', methods: ['GET'])]
+    public function bulk(Request $request): JsonResponse
+    {
+        $user = $this->requireUser($request);
+
+        /** @var Anketa[] $anketas */
+        $anketas = $this->entityManager->createQueryBuilder()
+            ->select('a')
+            ->from(Anketa::class, 'a')
+            ->where('a.employee = :user OR a.manager = :user')
+            ->setParameter('user', $user)
+            ->orderBy('a.meetingDate', 'DESC')
+            ->getQuery()
+            ->getResult();
+
+        // One query for every anketa's goals, grouped in PHP — otherwise this endpoint
+        // would just trade an HTTP-level N+1 for a SQL-level one.
+        $goalsByAnketaId = [];
+        if ([] !== $anketas) {
+            /** @var Goal[] $allGoals */
+            $allGoals = $this->goalRepository()->createQueryBuilder('g')
+                ->where('g.anketa IN (:anketas)')
+                ->setParameter('anketas', $anketas)
+                ->getQuery()
+                ->getResult();
+            foreach ($allGoals as $goal) {
+                $goalsByAnketaId[$goal->getAnketa()->getId()][] = $goal;
+            }
+        }
+
+        return new JsonResponse(array_map(
+            fn (Anketa $anketa) => $this->serializeDetail($anketa, $user, $goalsByAnketaId[$anketa->getId()] ?? []),
+            $anketas,
+        ));
+    }
+
     #[Route('/api/anketas/{id}', name: 'anketa_get', methods: ['GET'])]
     public function get(string $id, Request $request): JsonResponse
     {
         [$anketa, $user] = $this->findAccessible($id, $request);
+
+        return new JsonResponse($this->serializeDetail($anketa, $user, $this->goalRepository()->findBy(['anketa' => $anketa])));
+    }
+
+    /**
+     * @param Goal[] $goals
+     * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
+     *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
+     *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
+     *     counterpartDeleted: bool, mySealedKey: string, counterpartPublicKey: string,
+     *     employeeBlob: string|null, employeePublishedAt: string|null, managerBlob: string|null,
+     *     managerPublishedAt: string|null, commentsBlob: string|null, commentsVersion: int,
+     *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
+     *     authorId: string, title: string, description: string|null, targetDate: string|null, status: string,
+     *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int}
+     */
+    private function serializeDetail(Anketa $anketa, User $user, array $goals): array
+    {
         $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
 
-        return new JsonResponse([
+        return [
             ...$this->summarize($anketa, $user),
             'mySealedKey' => $anketa->sealedKeyFor($user),
             // Needed client-side to seal the auto-recreated next anketa's key on archive
@@ -145,13 +209,10 @@ class AnketaController
             'commentsVersion' => $anketa->getCommentsVersion(),
             'outcomesBlob' => $anketa->getOutcomesBlob(),
             'outcomesVersion' => $anketa->getOutcomesVersion(),
-            'goals' => array_map(
-                fn (Goal $goal) => $this->serializeGoal($goal),
-                $this->goalRepository()->findBy(['anketa' => $anketa]),
-            ),
+            'goals' => array_values(array_map(fn (Goal $goal) => $this->serializeGoal($goal), $goals)),
             'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
             'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
-        ]);
+        ];
     }
 
     #[Route('/api/anketas/{id}/comments', name: 'anketa_comments', methods: ['PUT'])]

@@ -7,16 +7,13 @@
   import type { Answers } from '../anketa/questions';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
 
-  interface AnketaSummary {
+  interface AnketaBulkRow {
     id: string;
     myRole: 'employee' | 'manager';
     counterpartId: string;
     counterpartEmail: string;
     meetingDate: string;
     archivedAt: string | null;
-  }
-
-  interface AnketaDetailForReport {
     mySealedKey: string;
     employeeBlob: string | null;
     employeePublishedAt: string | null;
@@ -26,7 +23,7 @@
     goalCheckpointsBlob: string | null;
   }
 
-  let anketas = $state<AnketaSummary[]>([]);
+  let anketas = $state<AnketaBulkRow[]>([]);
   let loadError = $state<string | null>(null);
 
   /** "me" or a counterpartId from an anketa where I was the manager — see the Phase 6f plan for why those are the only two valid targets. */
@@ -66,7 +63,7 @@
   );
 
   $effect(() => {
-    apiGet<AnketaSummary[]>('/api/anketas')
+    apiGet<AnketaBulkRow[]>('/api/anketas/bulk')
       .then((list) => {
         anketas = list;
       })
@@ -103,9 +100,7 @@
       });
 
       const decrypted: DecryptedAnketaForReport[] = [];
-      for (const summary of matching) {
-        const detail = await apiGet<AnketaDetailForReport>(`/api/anketas/${summary.id}`);
-
+      for (const detail of matching) {
         // A wrong-key AEAD failure here means this anketa was sealed under a keypair
         // that no longer matches identity.privateKey (most likely a password reset
         // since this anketa was created, see ResetPassword.svelte) — skip just this
@@ -131,8 +126,8 @@
           : [];
 
         decrypted.push({
-          anketaId: summary.id,
-          meetingDate: summary.meetingDate,
+          anketaId: detail.id,
+          meetingDate: detail.meetingDate,
           employeeAnswers,
           managerAnswers,
           goals: detail.goals,
