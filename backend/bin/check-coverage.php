@@ -9,10 +9,9 @@
  *
  * Usage: php bin/check-coverage.php <path-to-clover.xml> <min-percent>
  */
-
 [, $cloverPath, $minPercentArg] = $argv + [null, null, null];
 
-if ($cloverPath === null || $minPercentArg === null) {
+if (null === $cloverPath || null === $minPercentArg) {
     fwrite(STDERR, "Usage: php bin/check-coverage.php <clover.xml> <min-percent>\n");
     exit(1);
 }
@@ -20,7 +19,7 @@ if ($cloverPath === null || $minPercentArg === null) {
 $minPercent = (float) $minPercentArg;
 
 $xml = simplexml_load_file($cloverPath);
-if ($xml === false) {
+if (false === $xml) {
     fwrite(STDERR, "Could not parse Clover report at {$cloverPath}\n");
     exit(1);
 }
@@ -33,7 +32,7 @@ foreach ($xml->xpath('//metrics[@files]') as $metrics) {
     $projectMetrics = $metrics;
 }
 
-if ($projectMetrics === null) {
+if (null === $projectMetrics) {
     fwrite(STDERR, "Could not find project-level <metrics> in {$cloverPath}\n");
     exit(1);
 }
@@ -41,7 +40,7 @@ if ($projectMetrics === null) {
 $statements = (int) $projectMetrics['statements'];
 $coveredStatements = (int) $projectMetrics['coveredstatements'];
 
-if ($statements === 0) {
+if (0 === $statements) {
     fwrite(STDERR, "Clover report has zero statements — nothing was measured\n");
     exit(1);
 }

@@ -45,6 +45,7 @@
         }
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.2",
         "phpstan/phpstan-doctrine": "^2.0",
@@ -69,6 +70,12 @@
         "stan": [
             "vendor/bin/phpstan analyse --memory-limit=512M",
             "vendor/bin/phpstan analyse --configuration=phpstan.tests.neon.dist --memory-limit=512M"
+        ],
+        "cs": [
+            "vendor/bin/php-cs-fixer fix --dry-run --diff"
+        ],
+        "cs-fix": [
+            "vendor/bin/php-cs-fixer fix"
         ]
     }
 }

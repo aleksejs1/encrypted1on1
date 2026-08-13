@@ -245,7 +245,7 @@ class Anketa
      * encrypted with its author's own master key and never seen by anyone else, exactly
      * what "delete my drafts" means. A *published* side is shared history the counterpart
      * already has access to, so it's left untouched — no-op here if $user is published,
-     * matching "no cascade to the pair's anketas."
+     * matching "no cascade to the pair's anketas.".
      */
     public function clearUnpublishedDraftFor(User $user): void
     {

@@ -8,3 +8,5 @@
 # PHPUnit's own run-to-run cache (test order/defect tracking) — not source.
 /.phpunit.result.cache
 /.phpunit.cache/
+# PHP-CS-Fixer's own incremental-run cache — not source.
+/.php-cs-fixer.cache

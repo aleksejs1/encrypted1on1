@@ -48,7 +48,7 @@ class UserResourceTest extends ApiTestCase
     private function fetchAllUserEmails(KernelBrowser $client): array
     {
         $emails = [];
-        for ($page = 1; ; ++$page) {
+        for ($page = 1;; ++$page) {
             $result = $this->jsonRequest($client, 'GET', "/api/users?page={$page}");
             self::assertSame(200, $result['status']);
             /** @var array<int, array<string, mixed>> $rows */

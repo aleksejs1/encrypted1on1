@@ -181,6 +181,7 @@ class AnketaController
 
     /**
      * @param Goal[] $goals
+     *
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,

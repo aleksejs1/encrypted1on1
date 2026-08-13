@@ -50,7 +50,7 @@ class PasswordResetToken
 
     /**
      * @return array{0: self, 1: string} the entity to persist, and the raw token — the
-     *                                    latter only ever exists here and in the emailed URL, never stored
+     *                                   latter only ever exists here and in the emailed URL, never stored
      */
     public static function issue(string $email): array
     {
