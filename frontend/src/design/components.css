@@ -8,9 +8,10 @@
  * One deliberate adaptation from the source stylesheet: content headings
  * (h2-h6) use --font-body, not --font-heading — matching what every single
  * mockup already did locally for its own content areas (see e.g. "Anketa
- * Page.dc.html"'s own <style> override). Caprasimo (the display face) stays
- * reserved for the nav wordmark and top-level page <h1> titles only, never
- * for dense, sensitive content — see the Phase 8a plan for why.
+ * Page.dc.html"'s own <style> override). The display face (Caprasimo
+ * through Phase 8, Unbounded since — see tokens.css) stays reserved for
+ * the nav wordmark and top-level page <h1> titles only, never for dense,
+ * sensitive content — see the Phase 8a plan for why.
  */
 
 *,

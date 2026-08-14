@@ -5,30 +5,49 @@
  * nothing about a visit leaks to a third party, and a @import from
  * fonts.googleapis.com would do exactly that on every page load.
  *
- * Known limitation, not silently glossed over: neither Caprasimo nor
- * Figtree ship Cyrillic glyphs (checked directly against Google Fonts —
- * no `cyrillic` unicode-range exists for either family). Russian text
- * falls back per-glyph to the next font in the stack (system-ui/sans-serif
- * — the same font every locale used before this phase), which is a real,
- * accepted trade-off: no missing-glyph boxes, just no brand typeface for
- * that one locale. See CLAUDE.md for the full note.
+ * --font-heading was Caprasimo through Phase 8, but that family ships no
+ * Cyrillic glyphs at all and its Latin-Extended coverage produced a real,
+ * reported mixed-font bug in Latvian headings (diacritics falling back to
+ * a different font mid-word from their surrounding base letters).
+ * Replaced with Unbounded (also SIL OFL, self-hosted the same way) —
+ * verified directly against the downloaded font files (fontTools cmap
+ * inspection, not just Google's advertised subset list) that it has real,
+ * outlined glyphs for the full Russian Cyrillic alphabet and every
+ * Latvian diacritic (āčēģīķļņšūž, both cases), not just cmap entries
+ * pointing at .notdef. It's a single variable-weight font per subset
+ * (wght 200–900 in one file), not a family of fixed-weight statics, so
+ * only 3 files are needed total (latin/latin-ext/cyrillic) regardless of
+ * which weight --font-heading-weight picks.
+ *
+ * --font-body (Figtree) still has no Cyrillic coverage — a real,
+ * consciously separate gap, not fixed here. This pass was scoped to
+ * headings only; Russian body text still falls back to system-ui/sans-serif,
+ * same as before.
  */
 
 @font-face {
-  font-family: 'Caprasimo';
+  font-family: 'Unbounded';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 200 900;
   font-display: swap;
-  src: url('/fonts/caprasimo-400-latin.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  src: url('/fonts/unbounded-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Caprasimo';
+  font-family: 'Unbounded';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 200 900;
   font-display: swap;
-  src: url('/fonts/caprasimo-400-latin-ext.woff2') format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  src: url('/fonts/unbounded-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('/fonts/unbounded-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
 @font-face {
   font-family: 'Figtree';
@@ -133,8 +152,8 @@
   --color-accent-ink: var(--color-accent-700);
   --color-on-accent: var(--color-text);
 
-  --font-heading: 'Caprasimo', system-ui, sans-serif;
-  --font-heading-weight: 400;
+  --font-heading: 'Unbounded', system-ui, sans-serif;
+  --font-heading-weight: 700;
   --font-body: 'Figtree', system-ui, sans-serif;
 
   --space-1: 4.4px;
