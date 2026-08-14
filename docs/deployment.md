@@ -189,6 +189,12 @@ Use this if this host already runs its own nginx (or similar) that owns ports 80
 
 ### Redeploying (updating an existing instance)
 
+```sh
+./docker/prod/deploy.sh
+```
+
+Builds the new image, recreates the container, runs migrations, and clears + restarts to pick up the freshly-compiled DI container — the exact sequence explained below, automated so it can't be run out of order or partially skipped (which has happened by hand). Defaults to the reverse-proxy topology (`docker-compose.prod.reverse-proxy.yml`); set `PROD_COMPOSE_FILE=docker-compose.prod.yml` for the direct-facing one, same override convention as `backup.sh`/`restore.sh`. Assumes you've already pulled the code you want deployed — it builds and redeploys whatever's currently checked out, nothing more. Ends with a real health check (`GET /health` inside the container) and exits non-zero if it doesn't come back healthy, so a broken deploy doesn't silently look finished.
+
 **`--build` + `up -d` alone is not enough once an instance already has data.** `data:/app/var` is a named Docker volume covering all of `var/`, including Symfony's compiled DI container cache (`var/cache/prod`) — not just `var/data.db`. On a brand-new instance that volume starts empty, so this doesn't matter. On every deploy *after* the first, the volume already has the *previous* version's compiled container sitting in it, and Symfony (`APP_DEBUG=0`) doesn't re-validate its freshness — it just serves the stale one. If the new code changed any service's constructor (a new constructor argument, a new dependency), the old compiled container still calls the old signature against the new class, and every request touching that service throws `ArgumentCountError` before it can do anything — this has actually happened, not just a theoretical risk.
 
 So every redeploy — after `--build`/pulling new code, after migrations — needs one more step: clear the stale compiled container and restart, so FrankenPHP's already-running worker processes (which hold the *old* container in memory even if the cache files on disk are gone) pick up a freshly-compiled one matching the new code.
