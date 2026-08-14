@@ -28,7 +28,25 @@ function isSupported(code: string | null | undefined): code is SupportedLocale {
   );
 }
 
+/**
+ * An explicit `?lang=` in the URL wins over everything else, including a
+ * previously stored preference — a link (e.g. the landing page's demo CTAs,
+ * see e1o1-landing) should land in the language it promised, not whatever
+ * this browser last had set. Persisted the same way setLocale() does, so a
+ * later reload/navigation without the query param keeps the same choice.
+ */
+function detectUrlLocale(): SupportedLocale | null {
+  const param = new URLSearchParams(window.location.search).get('lang');
+  return isSupported(param) ? param : null;
+}
+
 function detectInitialLocale(): SupportedLocale {
+  const fromUrl = detectUrlLocale();
+  if (fromUrl) {
+    localStorage.setItem(STORAGE_KEY, fromUrl);
+    return fromUrl;
+  }
+
   const stored = localStorage.getItem(STORAGE_KEY);
   if (isSupported(stored)) return stored;
 

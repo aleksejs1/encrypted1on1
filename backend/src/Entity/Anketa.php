@@ -379,36 +379,38 @@ class Anketa
     }
 
     /**
-     * Used only by bin/console app:reset-demo-data to restore the fixed
-     * demo anketa's content back to its seeded, already-published state in
-     * one shot. Bypasses the normal one-way publish()/saveComments()/
-     * saveOutcomes()/saveGoalCheckpoints() version-guarded mutators
-     * entirely on purpose — those exist to protect real concurrent edits
-     * from clobbering each other, a real user's own doing. A scheduled
-     * reset isn't a user edit; it's meant to jump straight to a specific
-     * known-good state regardless of whatever a demo visitor left behind.
-     * Not reachable from any HTTP endpoint.
+     * Used only by bin/console app:reset-demo-data to set a freshly
+     * constructed demo anketa's content to its seeded state in one shot
+     * (each reset deletes and recreates every demo anketa from scratch —
+     * see the command's own docblock for why). Bypasses the normal one-way
+     * publish()/saveComments()/saveOutcomes()/saveGoalCheckpoints()
+     * version-guarded mutators and archive()'s "now" timestamp entirely on
+     * purpose — those exist to protect real concurrent edits and record a
+     * genuine archive moment, neither of which applies to a scheduled
+     * reset replaying fixed, already-encrypted bytes. Blob/publishedAt
+     * fields are nullable to support the demo's current (never-archived,
+     * not-yet-filled-in) cycle. Not reachable from any HTTP endpoint.
      */
     public function resetForDemo(
-        \DateTimeImmutable $meetingDate,
-        string $employeeBlob,
-        \DateTimeImmutable $employeePublishedAt,
-        string $managerBlob,
-        \DateTimeImmutable $managerPublishedAt,
+        ?string $employeeBlob,
+        ?\DateTimeImmutable $employeePublishedAt,
+        ?string $managerBlob,
+        ?\DateTimeImmutable $managerPublishedAt,
         ?string $commentsBlob,
         int $commentsVersion,
         ?string $outcomesBlob,
         int $outcomesVersion,
         ?string $goalCheckpointsBlob,
         int $goalCheckpointsVersion,
+        bool $archived,
+        bool $missed,
     ): void {
-        $this->meetingDate = $meetingDate;
         $this->employeeBlob = $employeeBlob;
         $this->employeePublishedAt = $employeePublishedAt;
         $this->managerBlob = $managerBlob;
         $this->managerPublishedAt = $managerPublishedAt;
-        $this->archivedAt = null;
-        $this->missed = false;
+        $this->archivedAt = $archived ? new \DateTimeImmutable() : null;
+        $this->missed = $missed;
         $this->reminderSentAt = null;
         $this->commentsBlob = $commentsBlob;
         $this->commentsVersion = $commentsVersion;

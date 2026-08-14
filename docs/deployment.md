@@ -226,16 +226,16 @@ This only gets the data out of the volume and onto the host's disk — getting `
 
 ### Demo mode
 
-Lets a visitor click "Try the live demo" on the login page instead of needing real credentials — logs them straight into a fixed, publicly-known demo account (employee side; the demo manager account exists too, as the counterpart) with a realistic, already-published anketa. Two independent pieces, both opt-in:
+Lets a visitor click "Try the live demo" on the login page instead of needing real credentials — logs them straight into a fixed, publicly-known demo account (employee side; the demo manager account exists too, as the counterpart) with a realistic 3-cycle anketa history (2 archived, 1 current — enough for the Report page and the group-view trend sparklines to actually show something). One employee/manager pair per supported UI locale (en/ru/lv/es), each with genuinely translated content, not just a translated UI shell — `?lang=ru` (etc.) on any URL both switches the displayed language and picks the demo login to match, so a link from the landing page's own locale-aware CTAs lands a visitor on the demo in their own language. Two independent pieces, both opt-in:
 
 1. **`DEMO_MODE=true`** (see the [Frontend build-time](#frontend-build-time-baked-into-the-static-bundle) table above) — shows the button. Needs `--build`.
-2. **The reset cron job** — restores the demo account and anketa to their seeded state on a schedule, so a visitor editing or clearing things out self-heals rather than degrading permanently:
+2. **The reset cron job** — restores every locale's demo pair and 3-cycle history to its seeded state on a schedule (deletes and recreates each pair's anketas from scratch, not an in-place update — self-heals from any vandalism, not just edited content), so a visitor editing or clearing things out self-heals rather than degrading permanently:
 
 ```
 0 * * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml exec -T app php bin/console app:reset-demo-data >> demo-reset.log 2>&1
 ```
 
-(`-f docker-compose.prod.reverse-proxy.yml` instead, for that topology.) Hourly is a reasonable default — the reset itself is a handful of `UPDATE`s, cheap to run often, and it bounds how long a defaced demo stays visible to the next visitor. `bin/console app:reset-demo-data` creates the demo account and anketa on its first run if they don't exist yet, so there's no separate one-time setup step beyond adding this cron line.
+(`-f docker-compose.prod.reverse-proxy.yml` instead, for that topology.) Hourly is a reasonable default — the reset itself is cheap to run often, and it bounds how long a defaced demo stays visible to the next visitor. `bin/console app:reset-demo-data` creates every locale's demo accounts and anketa history on its first run if they don't exist yet, so there's no separate one-time setup step beyond adding this cron line.
 
 **Turning on `DEMO_MODE` without the cron job still works** — the demo account is created the first time the button is clicked (well, the first time anyone logs into it; the account itself only exists once something creates it, so run `app:reset-demo-data` once by hand right after enabling `DEMO_MODE` if you're not also setting up the cron job) — it just never resets after a visitor changes something.
 

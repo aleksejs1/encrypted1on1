@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEMO_LOCALES, CONTENT } from './demo-fixture-content.mjs';
 
 /**
  * Regenerates backend/fixtures/demo-seed.json — the seed data behind
@@ -12,16 +13,22 @@ import { fileURLToPath } from 'node:url';
  * change the demo content/credentials; the reset command itself never
  * needs it and never runs a browser.
  *
+ * One employee/manager pair per supported UI locale (see demo-fixture-
+ * content.mjs), each with a real 3-cycle history (2 archived, 1 current) —
+ * driven entirely through the real app UI/archive flow so goal
+ * carry-forward and outcome carry-forward happen exactly as they would for
+ * a real user, not simulated. The browser UI itself always stays in
+ * English throughout generation (selectors/button text are stable that
+ * way); only the *typed* content is locale-specific — see
+ * demo-fixture-content.mjs's own docblock.
+ *
  * Drives the REAL app UI in a real browser (Playwright), with real
  * X25519/argon2id/XChaCha20-Poly1305 crypto — not hand-replicated crypto in
  * Node. Every ciphertext blob and sealed key in the resulting fixture is
- * captured directly from the real network requests the app itself sent
- * (via page.waitForResponse(), paired explicitly with the action that
- * triggers it — a plain page.on('response') listener races against
- * page.waitForURL()/script exit and silently drops the capture, confirmed
- * the hard way), so the fixture is provably correct by construction rather
- * than by a second, separately-maintained implementation of the same
- * crypto model.
+ * captured directly from the real backend via GET /api/anketas/bulk (once
+ * per participant, after all 3 cycles exist) rather than stitching
+ * together intermediate mutation responses — simpler and just as genuine,
+ * since a sealed key/blob is always re-fetchable, not a one-shot capture.
  *
  * Usage: run against a running dev stack (`make up`), from anywhere:
  *   node frontend/scripts/generate-demo-fixture.mjs
@@ -33,9 +40,16 @@ const REPO_ROOT = path.resolve(
 const FIXTURE_PATH = path.join(REPO_ROOT, 'backend/fixtures/demo-seed.json');
 
 const BASE_URL = 'http://localhost:5173';
-const EMPLOYEE_EMAIL = 'demo-employee@example.com';
-const MANAGER_EMAIL = 'demo-manager@example.com';
 const PASSWORD = 'e1o1-demo-2026';
+
+const FEELING_LABELS = {
+  excited: 'Excited',
+  anxious: 'Anxious',
+  confident: 'Confident',
+  overwhelmed: 'Overwhelmed',
+  motivated: 'Motivated',
+  frustrated: 'Frustrated',
+};
 
 function createActivationLink(email) {
   const output = execFileSync(
@@ -98,313 +112,323 @@ async function addListEntry(scope, index, text) {
   await addRow.getByRole('button', { name: 'Add' }).click();
 }
 
-console.log('Provisioning demo accounts...');
-const employeeToken = createActivationLink(EMPLOYEE_EMAIL);
-const managerToken = createActivationLink(MANAGER_EMAIL);
+async function fillEmployeeSide(scope, c) {
+  await checkRadio(scope, 'moodNow', c.moodNow);
+  await checkRadio(scope, 'moodTrend', c.moodTrend);
+  await fillTextarea(scope, 0, c.moodText);
+
+  for (const feeling of c.feelings) {
+    await scope
+      .getByRole('button', { name: FEELING_LABELS[feeling], exact: true })
+      .click();
+  }
+  await fillTextarea(scope, 1, c.feelingsText);
+
+  await checkRadio(scope, 'workloadNow', c.workloadNow);
+  await checkRadio(scope, 'workloadTrend', c.workloadTrend);
+  await fillTextarea(scope, 2, c.workloadText);
+
+  for (const entry of c.growth) await addListEntry(scope, 0, entry);
+  await fillTextarea(scope, 3, c.harder);
+  for (const entry of c.achievements) await addListEntry(scope, 1, entry);
+  for (const entry of c.whatElse) await addListEntry(scope, 2, entry);
+}
+
+async function fillManagerSide(scope, c) {
+  await fillTextarea(scope, 0, c.howWasPeriod);
+  await fillTextarea(scope, 1, c.feedback);
+  await fillTextarea(scope, 2, c.howCanIHelp);
+  for (const entry of c.achievements) await addListEntry(scope, 0, entry);
+  for (const entry of c.whatElse) await addListEntry(scope, 1, entry);
+}
+
+async function publish(page, anketaId, scope) {
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.request().method() === 'POST' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/publish`),
+    ),
+    scope.getByRole('button', { name: 'Publish' }).click(),
+  ]);
+  await page.getByText('Published').first().waitFor();
+}
+
+async function addComment(managerPage, anketaId, text) {
+  const counterpartSide = managerPage.locator('.side-card').nth(1);
+  const thread = counterpartSide.locator('.thread').first();
+  await thread.getByRole('button', { name: /comment/i }).click();
+  await thread.locator('input[type=text]').fill(text);
+  await Promise.all([
+    managerPage.waitForResponse(
+      (res) =>
+        res.request().method() === 'PUT' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/comments`),
+    ),
+    thread.getByRole('button', { name: 'Post' }).click(),
+  ]);
+}
+
+async function addOutcome(page, anketaId, text) {
+  await page.getByPlaceholder(/outcome/i).fill(text);
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.request().method() === 'PUT' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
+    ),
+    page.getByRole('button', { name: 'Add', exact: true }).click(),
+  ]);
+}
+
+async function markOutcomeDone(page, anketaId, text) {
+  const item = page.locator('.outcome-item', { hasText: text });
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.request().method() === 'PUT' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
+    ),
+    item.locator('.outcome-checkbox').check(),
+  ]);
+}
+
+async function addGoal(page, anketaId, goal) {
+  await page.getByPlaceholder(/goal title/i).fill(goal.title);
+  await page
+    .getByPlaceholder(/description/i)
+    .first()
+    .fill(goal.description);
+  const targetDate = new Date();
+  targetDate.setMonth(targetDate.getMonth() + 4);
+  await page
+    .locator('.add-goal-row input[type=date]')
+    .fill(targetDate.toISOString().slice(0, 10));
+  const [goalRes] = await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.request().method() === 'POST' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/goals`),
+    ),
+    page.getByRole('button', { name: 'Add goal', exact: false }).click(),
+  ]);
+  return JSON.parse(goalRes.request().postData()).goalUuid;
+}
+
+async function addCheckpoint(page, anketaId, checkpoint) {
+  const goalCard = page.locator('.goal-card').first();
+  await goalCard
+    .locator('.checkpoint-form input[type=text]')
+    .fill(checkpoint.text);
+  await goalCard.locator('.checkpoint-form select').selectOption(checkpoint.tag);
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.request().method() === 'PUT' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/goal-checkpoints`),
+    ),
+    goalCard.getByRole('button', { name: /add checkpoint/i }).click(),
+  ]);
+}
+
+async function archive(page, anketaId) {
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.request().method() === 'POST' &&
+        res.url().endsWith(`/api/anketas/${anketaId}/archive`),
+    ),
+    page.getByRole('button', { name: 'Archive', exact: true }).click(),
+  ]);
+}
+
+async function currentAnketaId(page, excludeIds) {
+  const res = await page.request.get(`${BASE_URL}/api/anketas`);
+  const list = await res.json();
+  const match = list.find(
+    (a) => a.archivedAt === null && !excludeIds.includes(a.id),
+  );
+  if (!match) throw new Error('Could not find the newly auto-created anketa.');
+  return match.id;
+}
+
+async function runLocale(browser, localeCode) {
+  const c = CONTENT[localeCode];
+  console.log(`\n=== ${localeCode} ===`);
+
+  const employeeToken = createActivationLink(c.employeeEmail);
+  const managerToken = createActivationLink(c.managerEmail);
+
+  const { page: employee, credentials: employeeCreds } =
+    await activateAndCapture(browser, employeeToken);
+  const { page: manager, credentials: managerCreds } =
+    await activateAndCapture(browser, managerToken);
+  console.log('Accounts activated.');
+
+  // --- Cycle 1: create ---
+  await employee.goto(`${BASE_URL}/anketas/new`);
+  await employee
+    .getByPlaceholder('Type an email to search…')
+    .fill(c.managerEmail);
+  await employee.getByRole('button', { name: c.managerEmail }).click();
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + 5);
+  await employee
+    .locator('#meeting-date')
+    .fill(meetingDate.toISOString().slice(0, 10));
+
+  const [createRes] = await Promise.all([
+    employee.waitForResponse(
+      (res) =>
+        res.request().method() === 'POST' &&
+        res.url().endsWith('/api/anketas'),
+    ),
+    employee.getByRole('button', { name: 'Create anketa' }).click(),
+  ]);
+  const cycle1Id = (await createRes.json()).id;
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  console.log('Cycle 1 anketa created:', cycle1Id);
+
+  await fillEmployeeSide(employee.locator('.side-card').first(), c.cycle1.employee);
+  await publish(employee, cycle1Id, employee.locator('.side-card').first());
+
+  await manager.goto(`${BASE_URL}/anketas/${cycle1Id}`);
+  await manager.waitForLoadState('networkidle');
+  await fillManagerSide(manager.locator('.side-card').first(), c.cycle1.manager);
+  await publish(manager, cycle1Id, manager.locator('.side-card').first());
+
+  await addComment(manager, cycle1Id, c.cycle1.comment);
+
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  await addOutcome(employee, cycle1Id, c.cycle1.outcome);
+
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  const goalUuid = await addGoal(employee, cycle1Id, c.goal);
+
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  await addCheckpoint(employee, cycle1Id, c.cycle1.checkpoint);
+  console.log('Cycle 1 content filled.');
+
+  // --- Archive cycle 1 -> auto-creates cycle 2 (carries the in-progress goal + outcome) ---
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  await archive(employee, cycle1Id);
+  const cycle2Id = await currentAnketaId(employee, [cycle1Id]);
+  console.log('Cycle 2 anketa created:', cycle2Id);
+
+  // --- Cycle 2: fill ---
+  await employee.goto(`${BASE_URL}/anketas/${cycle2Id}`);
+  await employee.waitForLoadState('networkidle');
+  await fillEmployeeSide(employee.locator('.side-card').first(), c.cycle2.employee);
+  await publish(employee, cycle2Id, employee.locator('.side-card').first());
+
+  await manager.goto(`${BASE_URL}/anketas/${cycle2Id}`);
+  await manager.waitForLoadState('networkidle');
+  await fillManagerSide(manager.locator('.side-card').first(), c.cycle2.manager);
+  await publish(manager, cycle2Id, manager.locator('.side-card').first());
+
+  await addComment(manager, cycle2Id, c.cycle2.comment);
+
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  await markOutcomeDone(employee, cycle2Id, c.cycle1.outcome);
+
+  await manager.reload();
+  await manager.waitForLoadState('networkidle');
+  await addOutcome(manager, cycle2Id, c.cycle2.outcomeNew);
+
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  await addCheckpoint(employee, cycle2Id, c.cycle2.checkpoint);
+  console.log('Cycle 2 content filled.');
+
+  // --- Archive cycle 2 -> auto-creates cycle 3 (current, left empty) ---
+  await employee.reload();
+  await employee.waitForLoadState('networkidle');
+  await archive(employee, cycle2Id);
+  const cycle3Id = await currentAnketaId(employee, [cycle1Id, cycle2Id]);
+  console.log('Cycle 3 (current) anketa created:', cycle3Id);
+
+  // --- Capture final state of all 3 cycles via the bulk endpoint ---
+  const employeeBulk = await (
+    await employee.request.get(`${BASE_URL}/api/anketas/bulk`)
+  ).json();
+  const managerBulk = await (
+    await manager.request.get(`${BASE_URL}/api/anketas/bulk`)
+  ).json();
+
+  const cycles = [cycle1Id, cycle2Id, cycle3Id].map((id) => {
+    const fromEmployee = employeeBulk.find((a) => a.id === id);
+    const fromManager = managerBulk.find((a) => a.id === id);
+    return {
+      archived: fromEmployee.archivedAt !== null,
+      missed: fromEmployee.missed,
+      employeeSealedKey: fromEmployee.mySealedKey,
+      managerSealedKey: fromManager.mySealedKey,
+      employeeBlob: fromEmployee.employeeBlob,
+      managerBlob: fromEmployee.managerBlob,
+      commentsBlob: fromEmployee.commentsBlob,
+      commentsVersion: fromEmployee.commentsVersion,
+      outcomesBlob: fromEmployee.outcomesBlob,
+      outcomesVersion: fromEmployee.outcomesVersion,
+      goalCheckpointsBlob: fromEmployee.goalCheckpointsBlob,
+      goalCheckpointsVersion: fromEmployee.goalCheckpointsVersion,
+    };
+  });
+
+  const result = {
+    employee: {
+      email: c.employeeEmail,
+      id: employeeCreds.id,
+      authHash: employeeCreds.authKey,
+      publicKey: employeeCreds.publicKey,
+      encryptedPrivateKey: employeeCreds.encryptedPrivateKey,
+    },
+    manager: {
+      email: c.managerEmail,
+      id: managerCreds.id,
+      authHash: managerCreds.authKey,
+      publicKey: managerCreds.publicKey,
+      encryptedPrivateKey: managerCreds.encryptedPrivateKey,
+    },
+    goalUuid,
+    goalTitle: c.goal.title,
+    goalDescription: c.goal.description,
+    goalTargetDateOffsetMonths: 4,
+    periodicityDays: 30,
+    cycles,
+  };
+
+  // Closed explicitly, not left open — accumulating browser contexts across
+  // locales (each with active WASM crypto/network activity) measurably slowed
+  // and eventually timed out the *next* locale's UI interactions when this
+  // wasn't here, confirmed by isolating a single locale in a fresh process.
+  await employee.context().close();
+  await manager.context().close();
+
+  return result;
+}
 
 const browser = await chromium.launch();
-const { page: employee, credentials: employeeCreds } = await activateAndCapture(
-  browser,
-  employeeToken,
-);
-const { page: manager, credentials: managerCreds } = await activateAndCapture(
-  browser,
-  managerToken,
-);
-console.log('Both demo accounts activated with real crypto.');
-
-// --- Create the anketa (employee creates, manager is the counterpart) ---
-await employee.goto(`${BASE_URL}/anketas/new`);
-await employee.getByPlaceholder('Type an email to search…').fill(MANAGER_EMAIL);
-await employee.getByRole('button', { name: MANAGER_EMAIL }).click();
-const meetingDate = new Date();
-meetingDate.setDate(meetingDate.getDate() + 5);
-await employee
-  .locator('#meeting-date')
-  .fill(meetingDate.toISOString().slice(0, 10));
-
-const [createRes] = await Promise.all([
-  employee.waitForResponse(
-    (res) =>
-      res.request().method() === 'POST' && res.url().endsWith('/api/anketas'),
-  ),
-  employee.getByRole('button', { name: 'Create anketa' }).click(),
-]);
-const createBody = JSON.parse(createRes.request().postData());
-const anketaId = (await createRes.json()).id;
-await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
-console.log('Anketa created:', anketaId);
-
-// --- Employee side: full realistic content (private/demo-anketa-data.md) ---
-const empSide = employee.locator('.side-card').first();
-
-await checkRadio(empSide, 'moodNow', 'good');
-await checkRadio(empSide, 'moodTrend', 'better');
-await fillTextarea(
-  empSide,
-  0,
-  "Shipped the billing export migration this period, which had been hanging over me for a while — feeling a lot lighter now that it's out.",
-);
-
-await empSide.getByRole('button', { name: 'Motivated', exact: true }).click();
-await empSide.getByRole('button', { name: 'Confident', exact: true }).click();
-await fillTextarea(
-  empSide,
-  1,
-  'Onboarding the new hire went well — good reminder that I actually enjoy the mentoring side of things.',
-);
-
-await checkRadio(empSide, 'workloadNow', 'just_right');
-await checkRadio(empSide, 'workloadTrend', 'less');
-await fillTextarea(
-  empSide,
-  2,
-  "Workload dropped a bit now that the migration's done. Good time to pick up something new if there's a fit.",
-);
-
-await addListEntry(
-  empSide,
-  0,
-  'Learned that short recorded walkthroughs get way more engagement than written code-review comments — switching to that for the trickier reviews.',
-);
-await addListEntry(
-  empSide,
-  0,
-  'Sat in on a postmortem for the first time — useful to see how the team traces an incident back to root cause.',
-);
-
-await fillTextarea(
-  empSide,
-  3,
-  'Cross-team dependency requests still go through a lot of back-and-forth over Slack before anyone commits to a timeline. A shared intake process would save a lot of chasing.',
-);
-
-await addListEntry(
-  empSide,
-  1,
-  'Shipped the billing export migration end to end, ahead of the original estimate.',
-);
-await addListEntry(
-  empSide,
-  1,
-  'Mentored the new hire through their first on-call rotation without a single escalation.',
-);
-
-await addListEntry(
-  empSide,
-  2,
-  'Interested in leading a cross-team project next quarter — want to talk about what that path looks like.',
-);
-
-const [employeePublishRes] = await Promise.all([
-  employee.waitForResponse(
-    (res) =>
-      res.request().method() === 'POST' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/publish`),
-  ),
-  empSide.getByRole('button', { name: 'Publish' }).click(),
-]);
-const employeeBlob = JSON.parse(employeePublishRes.request().postData()).blob;
-await employee.getByText('Published').first().waitFor();
-console.log('Employee side published.');
-
-// --- Manager side ---
-await manager.goto(`${BASE_URL}/anketas/${anketaId}`);
-await manager.waitForLoadState('networkidle');
-const mgrSide = manager.locator('.side-card').first();
-
-await fillTextarea(
-  mgrSide,
-  0,
-  'Strong period — Priya owned the billing export migration from design through rollout and it landed cleanly. Also stepped up on mentoring without being asked to.',
-);
-await fillTextarea(
-  mgrSide,
-  1,
-  "Ownership and follow-through are excellent — I don't worry about migration work once it's assigned to Priya. Would love to see more proactive updates in standup rather than waiting to be asked; the work itself is rarely the issue, it's visibility.",
-);
-await fillTextarea(
-  mgrSide,
-  2,
-  "I can help unblock the cross-team dependency process Priya raised — I'll bring it up with the platform team lead this week.",
-);
-await addListEntry(
-  mgrSide,
-  0,
-  'Owned the billing export migration from design to ship with zero rollback.',
-);
-await addListEntry(
-  mgrSide,
-  0,
-  "First-time mentor for a new hire's on-call rotation — smooth ramp-up, no incidents.",
-);
-await addListEntry(
-  mgrSide,
-  1,
-  'Ready to talk through what leading a cross-team project would actually look like for Priya next quarter.',
-);
-
-const [managerPublishRes] = await Promise.all([
-  manager.waitForResponse(
-    (res) =>
-      res.request().method() === 'POST' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/publish`),
-  ),
-  mgrSide.getByRole('button', { name: 'Publish' }).click(),
-]);
-const managerBlob = JSON.parse(managerPublishRes.request().postData()).blob;
-await manager.getByText('Published').first().waitFor();
-console.log('Manager side published.');
-
-// --- One comment, from the manager on the employee's mood field ---
-const mgrCounterpartSide = manager.locator('.side-card').nth(1);
-const firstThread = mgrCounterpartSide.locator('.thread').first();
-await firstThread.getByRole('button', { name: /comment/i }).click();
-await firstThread
-  .locator('input[type=text]')
-  .fill('Congrats on shipping this ahead of schedule!');
-const [commentsRes] = await Promise.all([
-  manager.waitForResponse(
-    (res) =>
-      res.request().method() === 'PUT' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/comments`),
-  ),
-  firstThread.getByRole('button', { name: 'Post' }).click(),
-]);
-const commentsBlob = JSON.parse(commentsRes.request().postData()).blob;
-const commentsVersion = (await commentsRes.json()).commentsVersion;
-console.log('Comment posted, version', commentsVersion);
-
-// --- Meeting outcomes: one from each side ---
-await employee.reload();
-await employee.waitForLoadState('networkidle');
-await employee
-  .getByPlaceholder(/outcome/i)
-  .fill(
-    'Priya to draft a one-page proposal for the cross-team project by next meeting.',
+const locales = {};
+for (const localeCode of DEMO_LOCALES) {
+  locales[localeCode] = await runLocale(browser, localeCode);
+  // Written after every locale, not just at the end — a later locale's
+  // failure shouldn't lose already-completed ones from a full rerun (which
+  // would also collide on now-already-registered emails).
+  fs.writeFileSync(
+    FIXTURE_PATH,
+    JSON.stringify(
+      { generatedAt: new Date().toISOString(), password: PASSWORD, locales },
+      null,
+      '\t',
+    ) + '\n',
   );
-const [outcomesRes1] = await Promise.all([
-  employee.waitForResponse(
-    (res) =>
-      res.request().method() === 'PUT' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
-  ),
-  employee.getByRole('button', { name: 'Add', exact: true }).click(),
-]);
-console.log(
-  'Employee outcome added, version',
-  (await outcomesRes1.json()).outcomesVersion,
-);
-
-await manager.reload();
-await manager.waitForLoadState('networkidle');
-await manager
-  .getByPlaceholder(/outcome/i)
-  .fill(
-    'Jordan to raise the dependency-intake process with the platform team lead.',
-  );
-const [outcomesRes2] = await Promise.all([
-  manager.waitForResponse(
-    (res) =>
-      res.request().method() === 'PUT' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
-  ),
-  manager.getByRole('button', { name: 'Add', exact: true }).click(),
-]);
-const outcomesBlob = JSON.parse(outcomesRes2.request().postData()).blob;
-const outcomesVersion = (await outcomesRes2.json()).outcomesVersion;
-console.log('Manager outcome added, version', outcomesVersion);
-
-// --- One goal (employee-authored, plaintext title/description) ---
-await employee.reload();
-await employee.waitForLoadState('networkidle');
-await employee
-  .getByPlaceholder(/goal title/i)
-  .fill('Lead one cross-team project end to end');
-await employee
-  .getByPlaceholder(/description/i)
-  .first()
-  .fill('Own scoping and delivery of a project spanning at least two teams.');
-const targetDate = new Date();
-targetDate.setMonth(targetDate.getMonth() + 3);
-await employee
-  .locator('.add-goal-row input[type=date]')
-  .fill(targetDate.toISOString().slice(0, 10));
-const [goalRes] = await Promise.all([
-  employee.waitForResponse(
-    (res) =>
-      res.request().method() === 'POST' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/goals`),
-  ),
-  employee.getByRole('button', { name: 'Add goal', exact: false }).click(),
-]);
-const goalCreateBody = JSON.parse(goalRes.request().postData());
-const goalId = (await goalRes.json()).id;
-console.log('Goal created:', goalId);
-
-// --- One checkpoint on that goal ---
-await employee.reload();
-await employee.waitForLoadState('networkidle');
-const goalCard = employee.locator('.goal-card').first();
-await goalCard
-  .locator('.checkpoint-form input[type=text]')
-  .fill('Kicked off scoping conversations with the platform team.');
-await goalCard.locator('.checkpoint-form select').selectOption('on_track');
-const [checkpointsRes] = await Promise.all([
-  employee.waitForResponse(
-    (res) =>
-      res.request().method() === 'PUT' &&
-      res.url().endsWith(`/api/anketas/${anketaId}/goal-checkpoints`),
-  ),
-  goalCard.getByRole('button', { name: /add checkpoint/i }).click(),
-]);
-const checkpointsBlob = JSON.parse(checkpointsRes.request().postData()).blob;
-const checkpointsVersion = (await checkpointsRes.json()).goalCheckpointsVersion;
-console.log('Checkpoint added, version', checkpointsVersion);
-
+  console.log(`Fixture updated with ${localeCode} (${Object.keys(locales).length}/${DEMO_LOCALES.length} locales so far).`);
+}
 await browser.close();
 
-// --- Assemble the fixture ---
-const fixture = {
-  generatedAt: new Date().toISOString(),
-  password: PASSWORD,
-  employee: {
-    email: EMPLOYEE_EMAIL,
-    id: employeeCreds.id,
-    authHash: employeeCreds.authKey,
-    publicKey: employeeCreds.publicKey,
-    encryptedPrivateKey: employeeCreds.encryptedPrivateKey,
-  },
-  manager: {
-    email: MANAGER_EMAIL,
-    id: managerCreds.id,
-    authHash: managerCreds.authKey,
-    publicKey: managerCreds.publicKey,
-    encryptedPrivateKey: managerCreds.encryptedPrivateKey,
-  },
-  anketa: {
-    employeeSealedKey: createBody.mySealedKey,
-    managerSealedKey: createBody.counterpartSealedKey,
-    periodicityDays: createBody.periodicityDays ?? 30,
-    meetingDateOffsetDays: 5,
-    employeeBlob,
-    managerBlob,
-    commentsBlob,
-    commentsVersion,
-    outcomesBlob,
-    outcomesVersion,
-    goalCheckpointsBlob: checkpointsBlob,
-    goalCheckpointsVersion: checkpointsVersion,
-  },
-  goal: {
-    // Client-generated (crypto.randomUUID() in Anketa.svelte's
-    // handleAddGoal) — captured from the real request body, not assumed.
-    goalUuid: goalCreateBody.goalUuid,
-    title: goalCreateBody.title,
-    description: goalCreateBody.description,
-    targetDateOffsetMonths: 3,
-  },
-};
-
-fs.writeFileSync(FIXTURE_PATH, JSON.stringify(fixture, null, '\t') + '\n');
-console.log('Fixture written to', FIXTURE_PATH);
+console.log('\nFixture complete:', FIXTURE_PATH);

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
+  import { _, locale } from 'svelte-i18n';
+  import { get } from 'svelte/store';
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
@@ -7,7 +8,7 @@
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
-  import { DEMO_MODE_ENABLED, DEMO_EMAIL, DEMO_PASSWORD } from '../demo';
+  import { DEMO_MODE_ENABLED, DEMO_PASSWORD, demoEmailFor } from '../demo';
 
   let signupOpen = $state(false);
 
@@ -69,7 +70,10 @@
 
   async function handleDemoLogin(): Promise<void> {
     if (submitting) return;
-    await performLogin(DEMO_EMAIL, DEMO_PASSWORD);
+    // Follows whatever locale is currently displayed (?lang= in the URL,
+    // the language switcher, or the usual browser-detected default) — see
+    // demo.ts's own docblock for why each locale has its own demo pair.
+    await performLogin(demoEmailFor(get(locale) ?? 'en'), DEMO_PASSWORD);
   }
 </script>
 
