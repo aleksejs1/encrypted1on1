@@ -12,6 +12,7 @@
   import { carryForwardOutcomes } from '../anketa/outcomes';
   import { sortByRecentCounterparts } from '../anketa/recentCounterparts';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
+  import DateInput from '../design/DateInput.svelte';
 
   interface UserSummary {
     id: string;
@@ -189,12 +190,7 @@
 
       <div class="field">
         <label for="meeting-date">{$_('createAnketa.meetingDateLabel')}</label>
-        <input
-          id="meeting-date"
-          class="input"
-          type="date"
-          bind:value={meetingDate}
-        />
+        <DateInput id="meeting-date" bind:value={meetingDate} />
       </div>
 
       {#if counterpartId && !previousAnketa}

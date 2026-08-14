@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
+  import DateInput from '../design/DateInput.svelte';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
   import {
@@ -199,21 +200,11 @@
         <div class="range-row">
           <div class="field">
             <label for="range-from">{$_('report.fromLabel')}</label>
-            <input
-              id="range-from"
-              class="input"
-              type="date"
-              bind:value={rangeStart}
-            />
+            <DateInput id="range-from" bind:value={rangeStart} />
           </div>
           <div class="field">
             <label for="range-to">{$_('report.toLabel')}</label>
-            <input
-              id="range-to"
-              class="input"
-              type="date"
-              bind:value={rangeEnd}
-            />
+            <DateInput id="range-to" bind:value={rangeEnd} />
           </div>
         </div>
       </fieldset>
@@ -242,7 +233,9 @@
               {#each report.achievements as entry (entry.id)}
                 <li>
                   {entry.text}
-                  <span class="text-muted entry-date">— {entry.date}</span>
+                  <span class="text-muted entry-date"
+                    >— {formatDisplayDate(entry.date)}</span
+                  >
                 </li>
               {/each}
             </ul>
@@ -258,7 +251,9 @@
               {#each report.growth as entry (entry.id)}
                 <li>
                   {entry.text}
-                  <span class="text-muted entry-date">— {entry.date}</span>
+                  <span class="text-muted entry-date"
+                    >— {formatDisplayDate(entry.date)}</span
+                  >
                 </li>
               {/each}
             </ul>

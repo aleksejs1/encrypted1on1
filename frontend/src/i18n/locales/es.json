@@ -9,7 +9,9 @@
     "logout": "Cerrar sesión",
     "accountSettings": "Configuración de la cuenta",
     "privacyPolicy": "Política de privacidad",
-    "demoBanner": "Estás viendo la demo compartida en vivo — los datos se reinician cada hora."
+    "demoBanner": "Estás viendo la demo compartida en vivo — los datos se reinician cada hora.",
+    "pickDate": "Elegir una fecha",
+    "invalidDate": "Fecha no válida — formato esperado: {example}"
   },
   "login": {
     "title": "Iniciar sesión",

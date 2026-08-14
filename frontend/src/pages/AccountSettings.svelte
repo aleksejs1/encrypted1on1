@@ -18,6 +18,7 @@
   import { navigate } from '../router.svelte';
   import {
     DATE_FORMAT_IDS,
+    EXAMPLE_DATE,
     formatDate,
     type DateFormatId,
   } from '../dateFormat';
@@ -26,10 +27,6 @@
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
-
-  // Day 31 can never be mistaken for a month, so this example is
-  // self-explanatory in every format without needing a translated label.
-  const DATE_FORMAT_EXAMPLE = new Date(2026, 11, 31);
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
@@ -418,7 +415,7 @@
         onchange={(e) => setDateFormat(e.currentTarget.value as DateFormatId)}
       >
         {#each DATE_FORMAT_IDS as id (id)}
-          <option value={id}>{formatDate(DATE_FORMAT_EXAMPLE, id)}</option>
+          <option value={id}>{formatDate(EXAMPLE_DATE, id)}</option>
         {/each}
       </select>
     </div>

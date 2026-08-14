@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
+  import DateInput from '../design/DateInput.svelte';
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
   import { addComment, type Comment } from '../anketa/comments';
@@ -738,12 +739,7 @@
       <div class="card elev-sm overdue-card">
         <strong>{$_('anketa.overdueHeading')}</strong>
         <div class="reschedule-row">
-          <input
-            type="date"
-            class="input reschedule-input"
-            bind:value={rescheduleDate}
-            disabled={rescheduling}
-          />
+          <DateInput bind:value={rescheduleDate} disabled={rescheduling} />
           <button
             type="button"
             class="btn btn-secondary"
@@ -1002,13 +998,12 @@
                 <label for="goal-target-date-{goal.id}"
                   >{$_('anketa.goalTargetDateLabel')}</label
                 >
-                <input
+                <DateInput
                   id="goal-target-date-{goal.id}"
-                  type="date"
-                  class="input"
-                  value={goal.targetDate ?? ''}
-                  oninput={(e) =>
-                    (goal.targetDate = e.currentTarget.value || null)}
+                  bind:value={
+                    () => goal.targetDate ?? '',
+                    (v) => (goal.targetDate = v || null)
+                  }
                 />
               </div>
             {:else if goal.targetDate}
@@ -1165,12 +1160,7 @@
           placeholder={$_('anketa.goalDescriptionPlaceholder')}
           disabled={addingGoal}
         />
-        <input
-          type="date"
-          class="input"
-          bind:value={newGoalTargetDate}
-          disabled={addingGoal}
-        />
+        <DateInput bind:value={newGoalTargetDate} disabled={addingGoal} />
         <button
           type="submit"
           class="btn btn-secondary"
@@ -1201,12 +1191,7 @@
             <label for="next-meeting-date"
               >{$_('anketa.nextMeetingDateLabel')}</label
             >
-            <input
-              id="next-meeting-date"
-              type="date"
-              class="input"
-              bind:value={nextMeetingDate}
-            />
+            <DateInput id="next-meeting-date" bind:value={nextMeetingDate} />
           </div>
         {/if}
         <button
@@ -1256,10 +1241,6 @@
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
-  }
-
-  .reschedule-input {
-    width: auto;
   }
 
   .overdue-note {
@@ -1525,10 +1506,6 @@
   .add-goal-row .input:nth-of-type(2) {
     flex: 2;
     min-width: 160px;
-  }
-
-  .add-goal-row .input[type='date'] {
-    width: auto;
   }
 
   .archive-skip {

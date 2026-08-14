@@ -9,7 +9,9 @@
     "logout": "Log out",
     "accountSettings": "Account settings",
     "privacyPolicy": "Privacy Policy",
-    "demoBanner": "You're viewing the shared live demo — data resets every hour."
+    "demoBanner": "You're viewing the shared live demo — data resets every hour.",
+    "pickDate": "Pick a date",
+    "invalidDate": "Invalid date — expected format: {example}"
   },
   "login": {
     "title": "Log in",

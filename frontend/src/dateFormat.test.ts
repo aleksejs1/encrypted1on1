@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate } from './dateFormat';
+import { formatDate, parseDate } from './dateFormat';
 
 describe('formatDate', () => {
   // Noon UTC — safely within the same calendar day across every real-world
@@ -40,5 +40,41 @@ describe('formatDate', () => {
     // all, so this must stay 2026-01-01 regardless of the viewer's timezone.
     expect(formatDate('2026-01-01', 'dmy_dot')).toBe('01.01.2026');
     expect(formatDate('2026-01-01', 'iso')).toBe('2026-01-01');
+  });
+});
+
+describe('parseDate', () => {
+  it('round-trips every format back to YYYY-MM-DD', () => {
+    expect(parseDate('31.12.2026', 'dmy_dot')).toBe('2026-12-31');
+    expect(parseDate('31/12/2026', 'dmy_slash')).toBe('2026-12-31');
+    expect(parseDate('12/31/2026', 'mdy_slash')).toBe('2026-12-31');
+    expect(parseDate('2026-12-31', 'iso')).toBe('2026-12-31');
+  });
+
+  it('is lenient about missing leading zeros', () => {
+    expect(parseDate('5.1.2026', 'dmy_dot')).toBe('2026-01-05');
+  });
+
+  it('rejects a calendar date that does not exist, not just a shape mismatch', () => {
+    // 31 February looks superficially plausible (valid day-of-month range,
+    // valid month range) but never actually exists — new Date() alone would
+    // silently roll it over to March, so this must be caught explicitly.
+    expect(parseDate('31.02.2026', 'dmy_dot')).toBeNull();
+  });
+
+  it('rejects text in the wrong format for the selected formatId', () => {
+    expect(parseDate('2026-12-31', 'dmy_dot')).toBeNull();
+    expect(parseDate('not a date', 'dmy_dot')).toBeNull();
+  });
+
+  it('rejects an empty string', () => {
+    expect(parseDate('', 'dmy_dot')).toBeNull();
+  });
+
+  it('distinguishes day and month correctly between dmy and mdy for an unambiguous date', () => {
+    // 25 can only be a day, never a month — a good check that the two
+    // slash-formats genuinely swap which group means what, not just labels.
+    expect(parseDate('25/03/2026', 'dmy_slash')).toBe('2026-03-25');
+    expect(parseDate('03/25/2026', 'mdy_slash')).toBe('2026-03-25');
   });
 });
