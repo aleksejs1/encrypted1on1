@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut } from '../api/client';
+  import { formatDisplayDate } from '../datePreference.svelte';
   import { ensureUnlocked } from '../crypto/identity';
   import { fromBase64 } from '../crypto/encoding';
   import {
@@ -251,7 +252,7 @@
               ? 'common.roleEmployee'
               : 'common.roleManager',
           )} —
-          {new Date(anketa.meetingDate).toLocaleDateString()}
+          {formatDisplayDate(anketa.meetingDate)}
         </div>
       </div>
       <div class="badges">
@@ -338,9 +339,7 @@
                   <div class="text-muted anketa-meta">
                     {$_('anketaList.nextMeetingLabel', {
                       values: {
-                        date: new Date(
-                          group.anketas[0].meetingDate,
-                        ).toLocaleDateString(),
+                        date: formatDisplayDate(group.anketas[0].meetingDate),
                       },
                     })}
                   </div>
@@ -362,7 +361,7 @@
                 {#each group.anketas as anketa (anketa.id)}
                   <a href="/anketas/{anketa.id}" class="group-anketa-row">
                     <span class="group-anketa-date"
-                      >{new Date(anketa.meetingDate).toLocaleDateString()}</span
+                      >{formatDisplayDate(anketa.meetingDate)}</span
                     >
                     <div class="badges">
                       {#each badgesFor(anketa) as badge (badge.cls + badge.label)}

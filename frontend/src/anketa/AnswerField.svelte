@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import type { QuestionField, ListEntry, AnswerValue } from './questions';
+  import { formatDisplayDate } from '../datePreference.svelte';
 
   let {
     field,
@@ -89,7 +90,7 @@
         <li class="entry">
           <span class="entry-text">{entry.text}</span>
           <span class="text-muted entry-date"
-            >{new Date(entry.date).toLocaleDateString()}</span
+            >{formatDisplayDate(entry.date)}</span
           >
           {#if !readonly}
             <button

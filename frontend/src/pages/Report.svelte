@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
+  import { formatDisplayDate } from '../datePreference.svelte';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
   import {
@@ -295,9 +296,7 @@
                       {#each goal.checkpoints as checkpoint (checkpoint.id)}
                         <li>
                           <span class="text-muted checkpoint-date"
-                            >{new Date(
-                              checkpoint.createdAt,
-                            ).toLocaleDateString()}</span
+                            >{formatDisplayDate(checkpoint.createdAt)}</span
                           >
                           {#if checkpoint.text}<span>{checkpoint.text}</span
                             >{/if}

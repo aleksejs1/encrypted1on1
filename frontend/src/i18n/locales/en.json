@@ -92,6 +92,8 @@
     "notificationsTitle": "Email notifications",
     "meetingRemindersLabel": "Meeting reminder emails",
     "meetingRemindersHint": "Day-before reminders and \"not filled out yet\" nudges. You'll still always get an email when a new anketa is scheduled with you.",
+    "dateFormatTitle": "Date format",
+    "dateFormatHint": "How dates are displayed throughout the app, on this device.",
     "exportTitle": "Export your data",
     "exportHint": "Download everything you can currently see — your own answers (including unpublished drafts), your counterparts' published answers, comments, outcomes, and goals — as a JSON file.",
     "exportButton": "Export as JSON",

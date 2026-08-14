@@ -92,6 +92,8 @@
     "notificationsTitle": "E-pasta paziņojumi",
     "meetingRemindersLabel": "Atgādinājumu e-pasti par tikšanās",
     "meetingRemindersHint": "Atgādinājumi dienu iepriekš un mudinājumi \"vēl nav aizpildīts\". Vēstuli par jaunas anketas izveidi jūs joprojām saņemsiet vienmēr.",
+    "dateFormatTitle": "Datuma formāts",
+    "dateFormatHint": "Kā datumi tiek rādīti visā lietotnē šajā ierīcē.",
     "exportTitle": "Eksportēt savus datus",
     "exportHint": "Lejupielādējiet visu, ko šobrīd varat redzēt — savas atbildes (ieskaitot nepublicētos melnrakstus), sarunu biedru publicētās atbildes, komentārus, tikšanās rezultātus un mērķus — kā JSON failu.",
     "exportButton": "Eksportēt kā JSON",

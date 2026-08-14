@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
+  import { formatDisplayDate } from '../datePreference.svelte';
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
   import { addComment, type Comment } from '../anketa/comments';
@@ -721,7 +722,7 @@
     <p class="meta">
       <span class="text-muted"
         >{$_('anketa.meetingLabel')}
-        {new Date(detail.meetingDate).toLocaleDateString()}</span
+        {formatDisplayDate(detail.meetingDate)}</span
       >
       {#if archived}<span class="tag tag-neutral"
           >{$_('anketa.badgeArchived')}</span
@@ -1012,7 +1013,9 @@
               </div>
             {:else if goal.targetDate}
               <p class="text-muted goal-target-date-display">
-                {$_('anketa.goalTargetDateLabel')}: {goal.targetDate}
+                {$_('anketa.goalTargetDateLabel')}: {formatDisplayDate(
+                  goal.targetDate,
+                )}
               </p>
             {/if}
 
@@ -1065,7 +1068,7 @@
               {#each allCheckpoints.filter((c) => c.goalId === goal.goalUuid) as checkpoint (checkpoint.id)}
                 <div class="checkpoint-row">
                   <span class="text-muted checkpoint-date"
-                    >{new Date(checkpoint.createdAt).toLocaleDateString()}</span
+                    >{formatDisplayDate(checkpoint.createdAt)}</span
                   >
                   {#if checkpoint.text}<span class="checkpoint-text"
                       >{checkpoint.text}</span

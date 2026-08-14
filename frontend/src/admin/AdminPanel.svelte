@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, ApiError } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity';
+  import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
 
   interface AdminUser {
@@ -125,7 +126,7 @@
                   ? $_('admin.roleAdmin')
                   : $_('admin.roleUser')}</td
               >
-              <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+              <td>{formatDisplayDate(user.createdAt)}</td>
               <td class="actions">
                 <button
                   type="button"

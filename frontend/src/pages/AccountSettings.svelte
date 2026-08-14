@@ -16,10 +16,20 @@
   } from '../passwordStrength';
   import { logOut } from '../auth.svelte';
   import { navigate } from '../router.svelte';
+  import {
+    DATE_FORMAT_IDS,
+    formatDate,
+    type DateFormatId,
+  } from '../dateFormat';
+  import { dateFormatState, setDateFormat } from '../datePreference.svelte';
   import type { Answers } from '../anketa/questions';
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
+
+  // Day 31 can never be mistaken for a month, so this example is
+  // self-explanatory in every format without needing a translated label.
+  const DATE_FORMAT_EXAMPLE = new Date(2026, 11, 31);
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
@@ -397,6 +407,20 @@
       <p class="text-muted hint">
         {$_('accountSettings.meetingRemindersHint')}
       </p>
+    </div>
+
+    <div class="card elev-md">
+      <h2>{$_('accountSettings.dateFormatTitle')}</h2>
+      <p class="text-muted hint">{$_('accountSettings.dateFormatHint')}</p>
+      <select
+        class="input"
+        value={dateFormatState.format}
+        onchange={(e) => setDateFormat(e.currentTarget.value as DateFormatId)}
+      >
+        {#each DATE_FORMAT_IDS as id (id)}
+          <option value={id}>{formatDate(DATE_FORMAT_EXAMPLE, id)}</option>
+        {/each}
+      </select>
     </div>
 
     <div class="card elev-md">
