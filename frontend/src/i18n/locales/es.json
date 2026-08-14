@@ -8,7 +8,8 @@
     "backToAnketas": "← Cuestionarios",
     "logout": "Cerrar sesión",
     "accountSettings": "Configuración de la cuenta",
-    "privacyPolicy": "Política de privacidad"
+    "privacyPolicy": "Política de privacidad",
+    "demoBanner": "Estás viendo la demo compartida en vivo — los datos se reinician cada hora."
   },
   "login": {
     "title": "Iniciar sesión",
@@ -21,7 +22,9 @@
     "sessionNote": "Tendrás que iniciar sesión de nuevo la próxima vez que abras una pestaña nueva. Tu clave se guarda solo en la memoria de esta pestaña y nunca se almacena.",
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "signUpLink": "Regístrate",
-    "genericError": "Algo salió mal."
+    "genericError": "Algo salió mal.",
+    "tryDemo": "Probar la demo en vivo",
+    "demoNote": "Una cuenta de demostración compartida con datos de ejemplo — se reinicia cada hora."
   },
   "forgotPassword": {
     "title": "Restablece tu contraseña",
@@ -257,15 +260,23 @@
       "mood": { "title": "Estado de ánimo" },
       "feelings": { "title": "Sentimientos" },
       "workload": { "title": "Carga de trabajo" },
-      "growth": { "title": "Crecimiento. ¿Qué aprendiste, descubriste o te llevas?" },
-      "friction": { "title": "Qué es más difícil de lo que debería en tu trabajo" },
+      "growth": {
+        "title": "Crecimiento. ¿Qué aprendiste, descubriste o te llevas?"
+      },
+      "friction": {
+        "title": "Qué es más difícil de lo que debería en tu trabajo"
+      },
       "achievements": { "title": "Logros" },
       "discuss": { "title": "Qué más comentar" }
     },
     "manager": {
-      "periodSummary": { "title": "Cómo ha ido en general el periodo desde la última reunión" },
+      "periodSummary": {
+        "title": "Cómo ha ido en general el periodo desde la última reunión"
+      },
       "feedback": { "title": "Feedback: qué va bien, qué se podría mejorar" },
-      "support": { "title": "Cómo puedo ayudar / qué dificulta trabajar de forma eficaz" },
+      "support": {
+        "title": "Cómo puedo ayudar / qué dificulta trabajar de forma eficaz"
+      },
       "employeeAchievements": { "title": "Logros que merece la pena destacar" },
       "managerDiscuss": { "title": "Qué más comentar" }
     },
@@ -281,7 +292,11 @@
     },
     "options": {
       "moodNow": { "bad": "Mal", "neutral": "Neutral", "good": "Bien" },
-      "trend": { "worse": "Peor", "same": "Más o menos igual", "better": "Mejor" },
+      "trend": {
+        "worse": "Peor",
+        "same": "Más o menos igual",
+        "better": "Mejor"
+      },
       "feelingsList": {
         "excited": "Entusiasmo",
         "anxious": "Ansiedad",
@@ -290,7 +305,11 @@
         "motivated": "Motivación",
         "frustrated": "Frustración"
       },
-      "workloadNow": { "tooMuch": "Demasiada", "justRight": "La adecuada", "tooLittle": "Muy poca" },
+      "workloadNow": {
+        "tooMuch": "Demasiada",
+        "justRight": "La adecuada",
+        "tooLittle": "Muy poca"
+      },
       "workloadTrend": { "more": "Más trabajo", "less": "Menos trabajo" }
     }
   },

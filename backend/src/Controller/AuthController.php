@@ -109,6 +109,9 @@ class AuthController
             // "Invite" UI (Phase 6g) — not admin-only information.
             'registrationMode' => $this->registrationMode,
             'meetingRemindersEnabled' => $user->wantsMeetingReminders(),
+            // Drives a persistent "you're viewing the shared demo" banner —
+            // see private/demo-mode-plan.md (not tracked in git).
+            'isDemo' => $user->isDemo(),
         ]);
     }
 

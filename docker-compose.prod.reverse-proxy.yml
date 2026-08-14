@@ -25,6 +25,9 @@ services:
         # "Frontend build-time" section. Empty by default: no footer link until
         # an operator opts in.
         PRIVACY_POLICY_URL: "${PRIVACY_POLICY_URL:-}"
+        # Shows a "Try the live demo" login button — see docs/deployment.md's
+        # "Frontend build-time" section. Off by default.
+        DEMO_MODE: "${DEMO_MODE:-false}"
     ports:
       # Caddy only ever listens on port 80 in this mode (auto_https is off
       # in Caddyfile.reverse-proxy, so there's nothing on 443 to publish).

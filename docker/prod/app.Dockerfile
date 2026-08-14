@@ -21,6 +21,12 @@ ENV VITE_ARGON2ID_PROFILE=$ARGON2ID_PROFILE
 # Empty by default: no footer link at all until an operator opts in.
 ARG PRIVACY_POLICY_URL=""
 ENV VITE_PRIVACY_POLICY_URL=$PRIVACY_POLICY_URL
+# Shows a "Try the live demo" button on the login page — see
+# docs/deployment.md's "Frontend build-time" section and
+# bin/console app:reset-demo-data. Off by default; only meaningful if the
+# operator has also set up the reset cron job (see docs/deployment.md).
+ARG DEMO_MODE="false"
+ENV VITE_DEMO_MODE=$DEMO_MODE
 RUN npm run build
 
 FROM dunglas/frankenphp:php8.4

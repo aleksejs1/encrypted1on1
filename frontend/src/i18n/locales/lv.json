@@ -8,7 +8,8 @@
     "backToAnketas": "← Anketas",
     "logout": "Izrakstīties",
     "accountSettings": "Konta iestatījumi",
-    "privacyPolicy": "Konfidencialitātes politika"
+    "privacyPolicy": "Konfidencialitātes politika",
+    "demoBanner": "Jūs skatāties kopīgo tiešsaistes demo — dati tiek atiestatīti katru stundu."
   },
   "login": {
     "title": "Pieslēgties",
@@ -21,7 +22,9 @@
     "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
     "forgotPassword": "Aizmirsāt paroli?",
     "signUpLink": "Reģistrēties",
-    "genericError": "Kaut kas nogāja greizi."
+    "genericError": "Kaut kas nogāja greizi.",
+    "tryDemo": "Izmēģināt tiešsaistes demo",
+    "demoNote": "Kopīgs demo konts ar paraugdatiem — tiek atiestatīts katru stundu."
   },
   "forgotPassword": {
     "title": "Atiestatīt paroli",
@@ -263,9 +266,15 @@
       "discuss": { "title": "Par ko vēl parunāt" }
     },
     "manager": {
-      "periodSummary": { "title": "Kā kopumā pagāja periods kopš pēdējās tikšanās" },
-      "feedback": { "title": "Atgriezeniskā saite: kas izdodas labi, ko varētu uzlabot" },
-      "support": { "title": "Kā es varu palīdzēt / kas traucē strādāt efektīvi" },
+      "periodSummary": {
+        "title": "Kā kopumā pagāja periods kopš pēdējās tikšanās"
+      },
+      "feedback": {
+        "title": "Atgriezeniskā saite: kas izdodas labi, ko varētu uzlabot"
+      },
+      "support": {
+        "title": "Kā es varu palīdzēt / kas traucē strādāt efektīvi"
+      },
       "employeeAchievements": { "title": "Sasniegumi, kas jāatzīmē" },
       "managerDiscuss": { "title": "Par ko vēl parunāt" }
     },
@@ -281,7 +290,11 @@
     },
     "options": {
       "moodNow": { "bad": "Slikti", "neutral": "Neitrāli", "good": "Labi" },
-      "trend": { "worse": "Sliktāk", "same": "Aptuveni tāpat", "better": "Labāk" },
+      "trend": {
+        "worse": "Sliktāk",
+        "same": "Aptuveni tāpat",
+        "better": "Labāk"
+      },
       "feelingsList": {
         "excited": "Sajūsma",
         "anxious": "Trauksme",
@@ -290,7 +303,11 @@
         "motivated": "Motivācija",
         "frustrated": "Neapmierinātība"
       },
-      "workloadNow": { "tooMuch": "Par daudz", "justRight": "Tieši labi", "tooLittle": "Par maz" },
+      "workloadNow": {
+        "tooMuch": "Par daudz",
+        "justRight": "Tieši labi",
+        "tooLittle": "Par maz"
+      },
       "workloadTrend": { "more": "Vairāk darba", "less": "Mazāk darba" }
     }
   },

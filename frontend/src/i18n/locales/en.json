@@ -8,7 +8,8 @@
     "backToAnketas": "← Anketas",
     "logout": "Log out",
     "accountSettings": "Account settings",
-    "privacyPolicy": "Privacy Policy"
+    "privacyPolicy": "Privacy Policy",
+    "demoBanner": "You're viewing the shared live demo — data resets every hour."
   },
   "login": {
     "title": "Log in",
@@ -21,7 +22,9 @@
     "sessionNote": "You'll need to log in again next time you open a new tab. Your key is kept only in this tab's memory, never stored.",
     "forgotPassword": "Forgot password?",
     "signUpLink": "Sign up",
-    "genericError": "Something went wrong."
+    "genericError": "Something went wrong.",
+    "tryDemo": "Try the live demo",
+    "demoNote": "A shared demo account with sample data — resets every hour."
   },
   "forgotPassword": {
     "title": "Reset your password",
@@ -263,8 +266,12 @@
       "discuss": { "title": "What else to discuss" }
     },
     "manager": {
-      "periodSummary": { "title": "How did the period go since the last meeting" },
-      "feedback": { "title": "Feedback: what's going well, what could improve" },
+      "periodSummary": {
+        "title": "How did the period go since the last meeting"
+      },
+      "feedback": {
+        "title": "Feedback: what's going well, what could improve"
+      },
       "support": { "title": "How can I help / what gets in the way" },
       "employeeAchievements": { "title": "Achievements worth recognizing" },
       "managerDiscuss": { "title": "What else to discuss" }
@@ -281,7 +288,11 @@
     },
     "options": {
       "moodNow": { "bad": "Bad", "neutral": "Neutral", "good": "Good" },
-      "trend": { "worse": "Worse", "same": "About the same", "better": "Better" },
+      "trend": {
+        "worse": "Worse",
+        "same": "About the same",
+        "better": "Better"
+      },
       "feelingsList": {
         "excited": "Excited",
         "anxious": "Anxious",
@@ -290,7 +301,11 @@
         "motivated": "Motivated",
         "frustrated": "Frustrated"
       },
-      "workloadNow": { "tooMuch": "Too much", "justRight": "Just right", "tooLittle": "Too little" },
+      "workloadNow": {
+        "tooMuch": "Too much",
+        "justRight": "Just right",
+        "tooLittle": "Too little"
+      },
       "workloadTrend": { "more": "More work", "less": "Less work" }
     }
   },

@@ -7,6 +7,7 @@
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
+  import { DEMO_MODE_ENABLED, DEMO_EMAIL, DEMO_PASSWORD } from '../demo';
 
   let signupOpen = $state(false);
 
@@ -27,23 +28,23 @@
     email.length > 0 && password.length > 0 && !submitting,
   );
 
-  async function handleSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    if (!canSubmit) return;
-
+  async function performLogin(
+    loginEmail: string,
+    loginPassword: string,
+  ): Promise<void> {
     submitting = true;
     error = null;
     try {
-      const salt = await deriveArgon2idSalt(email);
+      const salt = await deriveArgon2idSalt(loginEmail);
       const { authKey, masterKey } = await deriveKeysFromPassword(
-        password,
+        loginPassword,
         salt,
       );
 
       const response = await apiPost<{
         publicKey: string;
         encryptedPrivateKey: string;
-      }>('/api/login', { email, authKey: await toBase64(authKey) });
+      }>('/api/login', { email: loginEmail, authKey: await toBase64(authKey) });
 
       // Unwrapping is also a correctness check: a wrong master-key throws (see keypair.ts).
       const wrapped = await unpackWrappedPrivateKey(
@@ -58,6 +59,17 @@
     } finally {
       submitting = false;
     }
+  }
+
+  async function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    if (!canSubmit) return;
+    await performLogin(email, password);
+  }
+
+  async function handleDemoLogin(): Promise<void> {
+    if (submitting) return;
+    await performLogin(DEMO_EMAIL, DEMO_PASSWORD);
   }
 </script>
 
@@ -118,6 +130,19 @@
       {/if}
     </form>
 
+    {#if DEMO_MODE_ENABLED}
+      <div class="hr"></div>
+      <button
+        type="button"
+        class="btn btn-secondary btn-block"
+        onclick={handleDemoLogin}
+        disabled={submitting}
+      >
+        {$_('login.tryDemo')}
+      </button>
+      <p class="text-muted demo-note">{$_('login.demoNote')}</p>
+    {/if}
+
     <div class="hr"></div>
     <p class="text-muted session-note">{$_('login.sessionNote')}</p>
   </div>
@@ -164,6 +189,12 @@
   .session-note {
     font-size: 12px;
     margin: 0;
+  }
+
+  .demo-note {
+    font-size: 12px;
+    margin: 8px 0 0;
+    text-align: center;
   }
 
   .forgot-link,

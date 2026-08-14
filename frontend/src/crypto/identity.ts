@@ -9,6 +9,8 @@ export interface Identity {
   isAdmin: boolean;
   /** "invite" | "admin_only" (Phase 6g) — every authenticated user needs this to decide whether to show the general "Invite" UI. */
   registrationMode: string;
+  /** True only for the fixed, publicly-known demo account — drives a persistent "shared demo" banner. See private/demo-mode-plan.md (not tracked in git). */
+  isDemo: boolean;
   publicKey: Uint8Array;
   privateKey: Uint8Array;
 }
@@ -18,6 +20,7 @@ interface MeResponse {
   email: string;
   isAdmin: boolean;
   registrationMode: string;
+  isDemo: boolean;
   publicKey: string;
   encryptedPrivateKey: string;
 }
@@ -51,6 +54,7 @@ export async function ensureUnlocked(): Promise<Identity> {
       email: me.email,
       isAdmin: me.isAdmin,
       registrationMode: me.registrationMode,
+      isDemo: me.isDemo,
       publicKey: await fromBase64(me.publicKey),
       privateKey,
     };

@@ -18,4 +18,15 @@ interface ImportMetaEnv {
    * or placeholder link.
    */
   readonly VITE_PRIVACY_POLICY_URL?: string;
+
+  /**
+   * Shows a "Try the live demo" button on the login page when set to
+   * exactly "true" — baked into the bundle at build time, set via
+   * docker/prod/app.Dockerfile's DEMO_MODE build arg. See
+   * private/demo-mode-plan.md (not tracked in git) and
+   * bin/console app:reset-demo-data. Unset/anything else means the button
+   * never renders — off by default, matching every other opt-in feature
+   * in this app.
+   */
+  readonly VITE_DEMO_MODE?: string;
 }

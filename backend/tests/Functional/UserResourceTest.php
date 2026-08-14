@@ -37,6 +37,20 @@ class UserResourceTest extends ApiTestCase
         self::assertNotContains($email, $this->fetchAllUserEmails($client));
     }
 
+    public function testListExcludesADemoUser(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('users-resource-demo');
+        $user = $this->activateUser($client, $email);
+
+        $entity = $this->entityManager()->find(User::class, $user['id']);
+        \assert($entity instanceof User);
+        $entity->setDemo(true);
+        $this->entityManager()->flush();
+
+        self::assertNotContains($email, $this->fetchAllUserEmails($client));
+    }
+
     /**
      * The default 30-item page size (this app doesn't configure client-controllable
      * pagination) means a single request can't be trusted to contain any specific

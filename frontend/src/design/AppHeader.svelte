@@ -9,6 +9,7 @@
 
   let isAdmin = $state(false);
   let email = $state<string | null>(null);
+  let isDemo = $state(false);
   let loggingOut = $state(false);
 
   async function handleLogout(): Promise<void> {
@@ -21,11 +22,13 @@
   $effect(() => {
     if (!authState.authenticated) {
       email = null;
+      isDemo = false;
       return;
     }
     ensureUnlocked().then((identity) => {
       isAdmin = identity.isAdmin;
       email = identity.email;
+      isDemo = identity.isDemo;
     });
   });
 
@@ -67,6 +70,10 @@
     </button>
   {/if}
 </header>
+
+{#if isDemo}
+  <p class="demo-banner">{$_('common.demoBanner')}</p>
+{/if}
 
 <style>
   .app-header {
@@ -123,5 +130,14 @@
   .logout-btn {
     padding: 4px 10px;
     font-size: 13px;
+  }
+
+  .demo-banner {
+    margin: 0;
+    padding: 8px 20px;
+    text-align: center;
+    font-size: 13px;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
   }
 </style>

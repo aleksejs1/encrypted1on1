@@ -28,6 +28,7 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame($user['email'], $result['json']['email']);
         self::assertArrayHasKey('publicKey', $result['json']);
         self::assertArrayHasKey('encryptedPrivateKey', $result['json']);
+        self::assertFalse($result['json']['isDemo']);
     }
 
     public function testLoginSucceedsWithTheCredentialsSetAtActivation(): void
@@ -254,6 +255,22 @@ class AuthControllerTest extends ApiTestCase
 
         self::assertSame(200, $result['status']);
         self::assertTrue($result['json']['meetingRemindersEnabled']);
+    }
+
+    public function testMeReflectsIsDemoWhenSet(): void
+    {
+        $client = static::createClient();
+        $user = $this->activateUser($client, $this->uniqueEmail('auth-me-demo'));
+
+        $entity = $this->entityManager()->find(User::class, $user['id']);
+        \assert($entity instanceof User);
+        $entity->setDemo(true);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($client, 'GET', '/api/me');
+
+        self::assertSame(200, $result['status']);
+        self::assertTrue($result['json']['isDemo']);
     }
 
     public function testSetNotificationPreferencesRequiresAuthentication(): void

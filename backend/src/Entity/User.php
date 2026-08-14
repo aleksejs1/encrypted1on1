@@ -81,6 +81,24 @@ class User
     private bool $isBlocked = false;
 
     /**
+     * Marks one of the fixed, publicly-documented demo accounts (see
+     * bin/console app:reset-demo-data and private/demo-mode-plan.md, not
+     * tracked in git). Two things key off this: ExcludeDeletedUsersExtension
+     * also filters isDemo out of the public GET /api/users counterpart-picker
+     * (a real prospect's typeahead shouldn't surface "Demo Employee"), and
+     * AuthController::me() exposes it (added manually to that hand-built
+     * response, same as every other /api/me field — this column deliberately
+     * carries no serialization group, since demo accounts are filtered out of
+     * the GET /api/users ApiResource entirely and there's nothing for the
+     * group to expose there) so the frontend can show a persistent "you're
+     * viewing the shared demo" banner instead of letting a visitor believe
+     * they've created a private account. Never set via any API — only ever
+     * true for rows the reset command itself manages.
+     */
+    #[ORM\Column(type: 'boolean')]
+    private bool $isDemo = false;
+
+    /**
      * Which language outbound emails to this user are sent in (Phase 6i) — deliberately
      * *not* what drives the frontend's displayed language (that's a client-only
      * localStorage preference, Phase 6h); this only answers "what language should an
@@ -178,6 +196,16 @@ class User
         $this->isBlocked = $isBlocked;
     }
 
+    public function isDemo(): bool
+    {
+        return $this->isDemo;
+    }
+
+    public function setDemo(bool $isDemo): void
+    {
+        $this->isDemo = $isDemo;
+    }
+
     /**
      * Replaces the auth verifier and both key-related fields at once — the one
      * mutation path outside the constructor for these three, used only by
@@ -197,6 +225,23 @@ class User
     public function getPublicKeyUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->publicKeyUpdatedAt;
+    }
+
+    /**
+     * Used only by bin/console app:reset-demo-data to restore one of the
+     * fixed, publicly-known demo accounts to its seeded credentials — e.g.
+     * if a visitor used the in-app "change password" flow on it, which
+     * would otherwise lock out every other visitor until the next reset.
+     * Deliberately does *not* bump publicKeyUpdatedAt the way
+     * resetCredentials() does: a scheduled demo reset isn't a real
+     * password-reset event, and bumping it would spuriously mark the
+     * counterpart's sealed anketa key as outdated on every reset.
+     */
+    public function resetDemoCredentials(string $authHash, string $publicKey, string $encryptedPrivateKey): void
+    {
+        $this->authHash = $authHash;
+        $this->publicKey = $publicKey;
+        $this->encryptedPrivateKey = $encryptedPrivateKey;
     }
 
     /**

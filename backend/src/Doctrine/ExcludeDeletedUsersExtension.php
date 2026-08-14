@@ -16,6 +16,12 @@ use Doctrine\ORM\QueryBuilder;
  * real row delete, so this is the one place that hides those rows again. Auto-tagged for
  * free: services.php already sets autoconfigure() on the whole App\ namespace, so
  * implementing these two interfaces is all API Platform needs to pick this up.
+ *
+ * Also filters out isDemo accounts (see private/demo-mode-plan.md, not tracked in git)
+ * for the same underlying reason: a real prospect's counterpart typeahead shouldn't
+ * surface the fixed, publicly-known demo account. Kept in this one class rather than a
+ * second extension — both are the same concept ("rows that exist but shouldn't appear in
+ * the public listing"), not two unrelated ones.
  */
 class ExcludeDeletedUsersExtension implements QueryCollectionExtensionInterface, QueryItemExtensionInterface
 {
@@ -36,5 +42,6 @@ class ExcludeDeletedUsersExtension implements QueryCollectionExtensionInterface,
         }
         $rootAlias = $queryBuilder->getRootAliases()[0];
         $queryBuilder->andWhere(sprintf('%s.deletedAt IS NULL', $rootAlias));
+        $queryBuilder->andWhere(sprintf('%s.isDemo = false', $rootAlias));
     }
 }

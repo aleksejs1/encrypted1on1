@@ -377,4 +377,44 @@ class Anketa
     {
         $this->reminderSentAt = new \DateTimeImmutable();
     }
+
+    /**
+     * Used only by bin/console app:reset-demo-data to restore the fixed
+     * demo anketa's content back to its seeded, already-published state in
+     * one shot. Bypasses the normal one-way publish()/saveComments()/
+     * saveOutcomes()/saveGoalCheckpoints() version-guarded mutators
+     * entirely on purpose — those exist to protect real concurrent edits
+     * from clobbering each other, a real user's own doing. A scheduled
+     * reset isn't a user edit; it's meant to jump straight to a specific
+     * known-good state regardless of whatever a demo visitor left behind.
+     * Not reachable from any HTTP endpoint.
+     */
+    public function resetForDemo(
+        \DateTimeImmutable $meetingDate,
+        string $employeeBlob,
+        \DateTimeImmutable $employeePublishedAt,
+        string $managerBlob,
+        \DateTimeImmutable $managerPublishedAt,
+        ?string $commentsBlob,
+        int $commentsVersion,
+        ?string $outcomesBlob,
+        int $outcomesVersion,
+        ?string $goalCheckpointsBlob,
+        int $goalCheckpointsVersion,
+    ): void {
+        $this->meetingDate = $meetingDate;
+        $this->employeeBlob = $employeeBlob;
+        $this->employeePublishedAt = $employeePublishedAt;
+        $this->managerBlob = $managerBlob;
+        $this->managerPublishedAt = $managerPublishedAt;
+        $this->archivedAt = null;
+        $this->missed = false;
+        $this->reminderSentAt = null;
+        $this->commentsBlob = $commentsBlob;
+        $this->commentsVersion = $commentsVersion;
+        $this->outcomesBlob = $outcomesBlob;
+        $this->outcomesVersion = $outcomesVersion;
+        $this->goalCheckpointsBlob = $goalCheckpointsBlob;
+        $this->goalCheckpointsVersion = $goalCheckpointsVersion;
+    }
 }

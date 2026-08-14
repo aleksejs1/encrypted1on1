@@ -63,6 +63,7 @@ Unlike everything above — which Symfony reads at runtime, so a plain `docker c
 |---|---|---|
 | `ARGON2ID_PROFILE` | No (`interactive`) | The argon2id cost profile the browser uses to derive a user's login/master keys from their password: `interactive` (64MiB), `moderate` (256MiB), or `sensitive` (1GiB). Passed as a Docker build arg (`docker/prod/app.Dockerfile`), which Vite bakes into the bundle as `import.meta.env.VITE_ARGON2ID_PROFILE` (see `frontend/src/crypto/argon2Profile.ts`). |
 | `PRIVACY_POLICY_URL` | No (empty = no footer link) | Your own company's privacy policy/legal notice URL, shown as a link in the app's footer (`frontend/src/design/AppFooter.svelte`) — legal responsibility for how data is handled sits with whoever deploys this tool, not the software itself. No "pick once" hazard like `ARGON2ID_PROFILE` above — changing it later is just a normal rebuild. |
+| `DEMO_MODE` | No (`false`) | Set to `true` to show a "Try the live demo" button on the login page, which logs a visitor straight into a fixed, publicly-known demo account — see [Demo mode](#demo-mode) below. No "pick once" hazard — changing it later is just a normal rebuild. |
 
 **Pick this once, before any real user registers, and never change it on a running instance afterwards.** The password never reaches the server — both the login auth key *and* the master key that unwraps a user's stored private key are derived entirely client-side from this profile. Changing it makes every subsequent login recompute different keys: the auth key no longer matches what the server has on file (login fails outright), and even if it somehow did, the master key would no longer unwrap the stored encrypted private key. This locks out every existing account irrecoverably — not something the password-reset flow cleanly fixes either, since a reset still needs the account to log in first to prove ownership before issuing a fresh keypair.
 
@@ -222,3 +223,20 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod restart app
 To restore a backup: `./docker/prod/restore.sh backups/data-<timestamp>.db` — stops the app, swaps in the backup file, restarts it.
 
 This only gets the data out of the volume and onto the host's disk — getting `./backups` itself somewhere durable (offsite, cloud storage) is your own infrastructure's concern, not something this app manages.
+
+### Demo mode
+
+Lets a visitor click "Try the live demo" on the login page instead of needing real credentials — logs them straight into a fixed, publicly-known demo account (employee side; the demo manager account exists too, as the counterpart) with a realistic, already-published anketa. Two independent pieces, both opt-in:
+
+1. **`DEMO_MODE=true`** (see the [Frontend build-time](#frontend-build-time-baked-into-the-static-bundle) table above) — shows the button. Needs `--build`.
+2. **The reset cron job** — restores the demo account and anketa to their seeded state on a schedule, so a visitor editing or clearing things out self-heals rather than degrading permanently:
+
+```
+0 * * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml exec -T app php bin/console app:reset-demo-data >> demo-reset.log 2>&1
+```
+
+(`-f docker-compose.prod.reverse-proxy.yml` instead, for that topology.) Hourly is a reasonable default — the reset itself is a handful of `UPDATE`s, cheap to run often, and it bounds how long a defaced demo stays visible to the next visitor. `bin/console app:reset-demo-data` creates the demo account and anketa on its first run if they don't exist yet, so there's no separate one-time setup step beyond adding this cron line.
+
+**Turning on `DEMO_MODE` without the cron job still works** — the demo account is created the first time the button is clicked (well, the first time anyone logs into it; the account itself only exists once something creates it, so run `app:reset-demo-data` once by hand right after enabling `DEMO_MODE` if you're not also setting up the cron job) — it just never resets after a visitor changes something.
+
+The seed content itself (`backend/fixtures/demo-seed.json`) is committed, real end-to-end-encrypted ciphertext — generated once, offline, by actually driving the app's real UI with real crypto (`frontend/scripts/generate-demo-fixture.mjs`), not fabricated or hand-written. The demo account is excluded from the real `GET /api/users` counterpart-picker (`User.isDemo`, `ExcludeDeletedUsersExtension`), so it never shows up in a real user's typeahead search.
