@@ -9,7 +9,6 @@
     sealAnketaKey,
     unsealAnketaKey,
   } from '../crypto/anketaKey';
-  import InviteForm from '../admin/InviteForm.svelte';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
   import { extractTrendValues } from '../anketa/moodWorkloadTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
@@ -106,16 +105,9 @@
 
   let anketas = $state(apiGet<AnketaSummary[]>('/api/anketas'));
 
-  let showInvite = $state(false);
   let groupBy = $state<'date' | 'counterpart'>('date');
   let resharing = $state(false);
   let reshareResult = $state<'success' | 'partial' | null>(null);
-
-  $effect(() => {
-    ensureUnlocked().then((identity) => {
-      showInvite = identity.registrationMode === 'invite';
-    });
-  });
 
   // Lazy: only fetched/decrypted the first time the grouped view is actually
   // opened, not on every page load — most visits use the flat date view.
@@ -228,12 +220,6 @@
 
 <main>
   <h1>{$_('anketaList.title')}</h1>
-
-  {#if showInvite}
-    <div class="invite-wrap">
-      <InviteForm />
-    </div>
-  {/if}
 
   {#snippet anketaRow(anketa: AnketaSummary)}
     <a href="/anketas/{anketa.id}" class="card elev-sm anketa-row">
@@ -397,11 +383,6 @@
   h1 {
     font-size: 30px;
     margin-bottom: 20px;
-  }
-
-  .invite-wrap {
-    margin-bottom: 24px;
-    max-width: 26rem;
   }
 
   .banner-reshare {

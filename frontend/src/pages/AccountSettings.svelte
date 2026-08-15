@@ -16,6 +16,7 @@
   } from '../passwordStrength';
   import { logOut } from '../auth.svelte';
   import { navigate } from '../router.svelte';
+  import InviteForm from '../admin/InviteForm.svelte';
   import {
     DATE_FORMAT_IDS,
     EXAMPLE_DATE,
@@ -33,6 +34,17 @@
   $effect(() => {
     apiGet<{ meetingRemindersEnabled: boolean }>('/api/me').then((me) => {
       meetingRemindersEnabled = me.meetingRemindersEnabled;
+    });
+  });
+
+  // Same condition AnketaList.svelte's home-page invite block used to check —
+  // moved here so the home page stays focused on anketas. Admins always see
+  // an invite form on AdminPanel.svelte regardless of this flag.
+  let showInvite = $state(false);
+
+  $effect(() => {
+    ensureUnlocked().then((identity) => {
+      showInvite = identity.registrationMode === 'invite';
     });
   });
 
@@ -405,6 +417,10 @@
         {$_('accountSettings.meetingRemindersHint')}
       </p>
     </div>
+
+    {#if showInvite}
+      <InviteForm />
+    {/if}
 
     <div class="card elev-md">
       <h2>{$_('accountSettings.dateFormatTitle')}</h2>
