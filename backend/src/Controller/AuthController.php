@@ -25,7 +25,6 @@ class AuthController
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
-        private readonly string $registrationMode,
         #[Autowire(service: 'limiter.login')]
         private readonly RateLimiterFactory $loginLimiter,
         #[Autowire(service: 'limiter.change_password')]
@@ -106,8 +105,9 @@ class AuthController
             'publicKey' => $user->getPublicKey(),
             'encryptedPrivateKey' => $user->getEncryptedPrivateKey(),
             // Every authenticated user needs this to decide whether to show the general
-            // "Invite" UI (Phase 6g) — not admin-only information.
-            'registrationMode' => $this->registrationMode,
+            // "Invite" UI (Phase 6g) — not admin-only information. Now a per-company
+            // setting (private/cloud-service-plan.md, not tracked in git, Phase A).
+            'registrationMode' => $user->getCompany()->getRegistrationMode(),
             'meetingRemindersEnabled' => $user->wantsMeetingReminders(),
             // Drives a persistent "you're viewing the shared demo" banner —
             // see private/demo-mode-plan.md (not tracked in git).

@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Company\SingleCompanyProvider;
 use App\Entity\Anketa;
 use App\Entity\Goal;
 use App\Entity\User;
@@ -48,6 +49,7 @@ class ResetDemoDataCommand extends Command
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
+        private readonly SingleCompanyProvider $singleCompanyProvider,
     ) {
         parent::__construct();
     }
@@ -136,6 +138,7 @@ class ResetDemoDataCommand extends Command
                 authHash: $data['authHash'],
                 publicKey: $data['publicKey'],
                 encryptedPrivateKey: $data['encryptedPrivateKey'],
+                company: $this->singleCompanyProvider->get(),
             );
             $user->setDemo(true);
             $this->entityManager->persist($user);

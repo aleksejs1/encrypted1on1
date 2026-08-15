@@ -58,8 +58,6 @@ services:
       FRONTEND_URL: "${FRONTEND_URL:?e.g. https://1on1.example.com, same domain as SERVER_NAME, used to build links in emails}"
       MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
       MAILER_FROM: "${MAILER_FROM:?e.g. noreply@1on1.example.com}"
-      REGISTRATION_MODE: "${REGISTRATION_MODE:-invite}"
-      ALLOWED_EMAIL_DOMAIN: "${ALLOWED_EMAIL_DOMAIN:-}"
       # Told to Symfony (backend/config/packages/framework.php) so it trusts
       # X-Forwarded-* from the reverse proxy — without this, session cookies
       # would lose their Secure flag even on real HTTPS traffic, since Caddy

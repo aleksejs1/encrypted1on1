@@ -28,6 +28,17 @@ class ActivationToken
     #[ORM\Column(type: 'string', length: 255)]
     private string $email;
 
+    /**
+     * Which company the new account joins on completion — set once, at issue time, from
+     * whoever/whatever is doing the inviting (the current session's own company for
+     * InviteController, the single seeded company for the CLI bootstrap and
+     * SignupController — see private/cloud-service-plan.md). ActivationController::complete()
+     * always reads this rather than trusting anything client-submitted.
+     */
+    #[ORM\ManyToOne(targetEntity: Company::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private Company $company;
+
     #[ORM\Column(type: 'boolean')]
     private bool $grantsAdmin;
 
@@ -40,11 +51,12 @@ class ActivationToken
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct(string $tokenHash, string $email, bool $grantsAdmin, \DateTimeImmutable $expiresAt)
+    public function __construct(string $tokenHash, string $email, Company $company, bool $grantsAdmin, \DateTimeImmutable $expiresAt)
     {
         $this->id = Uuid::v7()->toRfc4122();
         $this->tokenHash = $tokenHash;
         $this->email = $email;
+        $this->company = $company;
         $this->grantsAdmin = $grantsAdmin;
         $this->expiresAt = $expiresAt;
         $this->createdAt = new \DateTimeImmutable();
@@ -54,18 +66,23 @@ class ActivationToken
      * @return array{0: self, 1: string} the entity to persist, and the raw token — the
      *                                   latter only ever exists here and in the emailed/printed URL, never stored
      */
-    public static function issue(string $email, bool $grantsAdmin = false): array
+    public static function issue(string $email, Company $company, bool $grantsAdmin = false): array
     {
         $rawToken = bin2hex(random_bytes(32));
         $tokenHash = hash('sha256', $rawToken);
         $expiresAt = new \DateTimeImmutable(sprintf('+%d hours', self::TOKEN_TTL_HOURS));
 
-        return [new self($tokenHash, $email, $grantsAdmin, $expiresAt), $rawToken];
+        return [new self($tokenHash, $email, $company, $grantsAdmin, $expiresAt), $rawToken];
     }
 
     public function getEmail(): string
     {
         return $this->email;
+    }
+
+    public function getCompany(): Company
+    {
+        return $this->company;
     }
 
     public function grantsAdmin(): bool

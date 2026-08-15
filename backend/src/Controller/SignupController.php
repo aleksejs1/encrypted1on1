@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Company\SingleCompanyProvider;
 use App\Entity\ActivationToken;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
@@ -32,8 +33,7 @@ class SignupController
         private readonly InvitationNotifier $notifier,
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
-        private readonly string $registrationMode,
-        private readonly string $allowedEmailDomain,
+        private readonly SingleCompanyProvider $singleCompanyProvider,
         #[Autowire(service: 'limiter.signup')]
         private readonly RateLimiterFactory $signupLimiter,
     ) {
@@ -45,13 +45,22 @@ class SignupController
      * registrationMode is already exposed via authenticated /api/me (Phase 6g), and
      * allowedEmailDomain is already echoed back in errors.email_domain_restricted's
      * message to invite-flow users.
+     *
+     * Reads the one Company row Phase A guarantees exists (private/cloud-service-plan.md,
+     * not tracked in git) — with no way yet to create a second company, there's no
+     * ambiguity about which one an unauthenticated visitor means. A later phase that adds
+     * self-service company creation must revisit this: resolving "which company" from an
+     * anonymous visitor with no session needs a real design (e.g. matching the email they
+     * type against each company's allowedEmailDomain), not this single-row shortcut.
      */
     #[Route('/api/registration-info', name: 'registration_info', methods: ['GET'])]
     public function info(): JsonResponse
     {
+        $company = $this->singleCompanyProvider->get();
+
         return new JsonResponse([
-            'registrationMode' => $this->registrationMode,
-            'allowedEmailDomain' => $this->allowedEmailDomain,
+            'registrationMode' => $company->getRegistrationMode(),
+            'allowedEmailDomain' => $company->getAllowedEmailDomain(),
         ]);
     }
 
@@ -67,7 +76,8 @@ class SignupController
             return RateLimitResponse::create($limit, $this->translator);
         }
 
-        if ('domain' !== $this->registrationMode) {
+        $company = $this->singleCompanyProvider->get();
+        if ('domain' !== $company->getRegistrationMode()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.registration_not_open')], 400);
         }
 
@@ -76,15 +86,16 @@ class SignupController
             return new JsonResponse(['error' => $this->translator->trans('errors.missing_email')], 400);
         }
 
-        if ('' !== $this->allowedEmailDomain && !str_ends_with($email, '@'.$this->allowedEmailDomain)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.email_domain_restricted', ['%domain%' => $this->allowedEmailDomain])], 400);
+        $allowedEmailDomain = $company->getAllowedEmailDomain();
+        if ('' !== $allowedEmailDomain && !str_ends_with($email, '@'.$allowedEmailDomain)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.email_domain_restricted', ['%domain%' => $allowedEmailDomain])], 400);
         }
 
         // Same enumeration-avoidance discipline as PasswordResetController::request():
         // the response never reveals whether the email already has an account.
         $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
         if (null === $existing) {
-            [$activationToken, $rawToken] = ActivationToken::issue($email);
+            [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
             $this->entityManager->persist($activationToken);
             $this->entityManager->flush();
 

@@ -3,6 +3,7 @@
 namespace App\Tests\Unit\Notification;
 
 use App\Entity\Anketa;
+use App\Entity\Company;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
 use PHPUnit\Framework\TestCase;
@@ -82,8 +83,9 @@ class AnketaNotifierTest extends TestCase
     /** @return array{0: Anketa, 1: User, 2: User} */
     private function makeAnketa(): array
     {
-        $employee = new User('employee@example.com', 'hash', 'pub', 'enc');
-        $manager = new User('manager@example.com', 'hash', 'pub', 'enc');
+        $company = new Company('Test Co');
+        $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
         $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30);
 
         return [$anketa, $employee, $manager];

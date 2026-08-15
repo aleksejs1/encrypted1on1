@@ -51,9 +51,9 @@ Everything the app reads from the environment. `backend/.env` (committed, dev-on
 | `FRONTEND_URL` | Yes | Same domain as `SERVER_NAME`, with scheme (`https://...`) — used to build the links inside notification/activation/reset emails. |
 | `MAILER_DSN` | Yes | A real SMTP DSN ([Symfony Mailer's DSN format](https://symfony.com/doc/current/mailer.html#using-built-in-transports)). The dev/test `smtp://mailpit:1025` placeholder only works against the dev Mailpit container. |
 | `MAILER_FROM` | Yes | The `From:` address on every outbound email. |
-| `REGISTRATION_MODE` | No (`invite`) | `invite` (any authenticated user can invite), `admin_only` (only admins can invite), or `domain` (open self-registration, double opt-in — see [user-flow.md](user-flow.md#getting-an-account)). |
-| `ALLOWED_EMAIL_DOMAIN` | No (empty = unrestricted) | Restricts which email domain can be invited *or* self-registered, e.g. `company.com`. Applies regardless of `REGISTRATION_MODE`. |
 | `TZ` | No (`UTC`) | Timezone for container-level tools (the `date` command, log timestamps) — display/log-only. PHP's own date handling (including the daily reminder job's "is the meeting tomorrow" check) hardcodes UTC explicitly and never reads this, confirmed directly — changing it doesn't affect when reminders fire. |
+
+Registration mode (`invite`/`admin_only`/`domain` — see [user-flow.md](user-flow.md#getting-an-account)) and the allowed email domain are no longer env vars — they're columns on the single `Company` row every deployment has (`private/cloud-service-plan.md`, not tracked in git, Phase A of a not-yet-built multi-tenant cloud offering). They default to `invite`/unrestricted, same as before. To change them, update that row directly: `docker compose exec app php bin/console dbal:run-sql "UPDATE companies SET registrationMode = 'domain', allowedEmailDomain = 'company.com'"`.
 
 ### Frontend build-time (baked into the static bundle)
 
@@ -130,7 +130,7 @@ docker compose exec app php bin/console doctrine:migrations:migrate --configurat
 
 ### Dev-only (`backend/.env`, already committed with working defaults)
 
-`APP_ENV`/`APP_DEBUG`/`DATABASE_URL` are fixed for local dev and shouldn't need touching. `MAILER_DSN` already points at the bundled Mailpit container. `REGISTRATION_MODE`/`ALLOWED_EMAIL_DOMAIN` default to `invite`/unrestricted, same meaning as in prod — edit this file directly to test a different mode locally (see the "real domain-mode verification" pattern `CLAUDE.md` documents: edit, `docker compose up -d --force-recreate backend`, test, then revert).
+`APP_ENV`/`APP_DEBUG`/`DATABASE_URL` are fixed for local dev and shouldn't need touching. `MAILER_DSN` already points at the bundled Mailpit container. The dev database's single seeded `Company` row defaults to `invite`/unrestricted, same meaning as in prod — to test a different mode locally, update that row directly (`docker compose exec backend php bin/console dbal:run-sql "UPDATE companies SET registrationMode = 'domain'"`), test, then revert the same way.
 
 ## Production
 

@@ -109,7 +109,7 @@ class ActivationControllerTest extends ApiTestCase
 
     private function issueToken(string $email): string
     {
-        [$token, $rawToken] = ActivationToken::issue($email);
+        [$token, $rawToken] = ActivationToken::issue($email, $this->singleCompanyProvider()->get());
         $this->entityManager()->persist($token);
         $this->entityManager()->flush();
 

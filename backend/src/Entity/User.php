@@ -41,6 +41,18 @@ class User
     private string $email;
 
     /**
+     * The tenant boundary (see private/cloud-service-plan.md, not tracked in git).
+     * Deliberately no serialization group — GET /api/users is already scoped to the
+     * requester's own company (ExcludeDeletedUsersExtension), so which company a listed
+     * user belongs to is never information the API needs to expose; a compromised
+     * frontend build learning company ids for free would be a real (if minor) leak this
+     * avoids for no functional cost, since the frontend never needs this value.
+     */
+    #[ORM\ManyToOne(targetEntity: Company::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private Company $company;
+
+    /**
      * The HKDF "auth" verifier — never the password, never the master-key.
      * Deliberately has no serialization group: must never be exposed via the API.
      */
@@ -133,6 +145,7 @@ class User
         string $authHash,
         string $publicKey,
         string $encryptedPrivateKey,
+        Company $company,
         bool $isAdmin = false,
         string $locale = 'en',
     ) {
@@ -141,6 +154,7 @@ class User
         $this->authHash = $authHash;
         $this->publicKey = $publicKey;
         $this->encryptedPrivateKey = $encryptedPrivateKey;
+        $this->company = $company;
         $this->createdAt = new \DateTimeImmutable();
         $this->isAdmin = $isAdmin;
         $this->locale = \in_array($locale, self::SUPPORTED_LOCALES, true) ? $locale : 'en';
@@ -154,6 +168,11 @@ class User
     public function getEmail(): string
     {
         return $this->email;
+    }
+
+    public function getCompany(): Company
+    {
+        return $this->company;
     }
 
     public function getAuthHash(): string

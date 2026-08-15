@@ -79,6 +79,7 @@ class ActivationController
             authHash: $body['authKey'],
             publicKey: $body['publicKey'],
             encryptedPrivateKey: $body['encryptedPrivateKey'],
+            company: $activationToken->getCompany(),
             isAdmin: $activationToken->grantsAdmin(),
             locale: \is_string($locale) ? $locale : 'en',
         );

@@ -2,35 +2,41 @@
 
 namespace App\Tests\Unit\Entity;
 
+use App\Entity\Company;
 use App\Entity\User;
 use PHPUnit\Framework\TestCase;
 
 class UserTest extends TestCase
 {
+    private function testCompany(): Company
+    {
+        return new Company('Test Co');
+    }
+
     public function testConstructorDefaultsToEnglishLocale(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         self::assertSame('en', $user->getLocale());
     }
 
     public function testConstructorAcceptsASupportedLocale(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc', locale: 'ru');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany(), locale: 'ru');
 
         self::assertSame('ru', $user->getLocale());
     }
 
     public function testConstructorSilentlyFallsBackToEnglishForAnUnsupportedLocale(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc', locale: 'fr');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany(), locale: 'fr');
 
         self::assertSame('en', $user->getLocale());
     }
 
     public function testSetLocaleAcceptsASupportedLocale(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         $user->setLocale('lv');
 
@@ -39,7 +45,7 @@ class UserTest extends TestCase
 
     public function testSetLocaleThrowsForAnUnsupportedLocale(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         $this->expectException(\InvalidArgumentException::class);
         $user->setLocale('fr');
@@ -47,7 +53,7 @@ class UserTest extends TestCase
 
     public function testChangePasswordUpdatesAuthHashAndEncryptedPrivateKeyOnly(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         $user->changePassword('new-hash', 'new-enc');
 
@@ -60,14 +66,14 @@ class UserTest extends TestCase
 
     public function testMeetingRemindersDefaultToEnabled(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         self::assertTrue($user->wantsMeetingReminders());
     }
 
     public function testSetMeetingRemindersEnabledRoundTrips(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         $user->setMeetingRemindersEnabled(false);
 
@@ -76,7 +82,7 @@ class UserTest extends TestCase
 
     public function testDeleteScrubsIdentifyingFieldsAndForcesSafeDefaults(): void
     {
-        $user = new User('a@example.com', 'original-hash', 'pub', 'original-enc', isAdmin: true);
+        $user = new User('a@example.com', 'original-hash', 'pub', 'original-enc', $this->testCompany(), isAdmin: true);
         $id = $user->getId();
 
         $user->delete();
