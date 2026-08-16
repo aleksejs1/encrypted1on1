@@ -11,6 +11,7 @@
   import Report from './pages/Report.svelte';
   import AccountSettings from './pages/AccountSettings.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
+  import PlatformAdminPanel from './admin/PlatformAdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
   import AppFooter from './design/AppFooter.svelte';
@@ -38,7 +39,16 @@
   // rather than needing its own entry in MIGRATED_AUTHED_PATHS. Password reset
   // (forgot-password/reset-password) is unauthenticated the same way
   // Login/Activate are, and gets the same treatment as activationMatch.
-  const MIGRATED_AUTHED_PATHS = ['/', '/report', '/admin', '/account'];
+  // /platform-admin (Phase C) is deliberately included here — same authenticated-page
+  // header treatment as every other page — but AppHeader itself never links to it
+  // (see PlatformAdminController's own docblock: reachable by URL, not discoverable).
+  const MIGRATED_AUTHED_PATHS = [
+    '/',
+    '/report',
+    '/admin',
+    '/account',
+    '/platform-admin',
+  ];
   const showAppHeader = $derived(
     !!activationMatch ||
       !!resetPasswordMatch ||
@@ -82,6 +92,8 @@
     <AccountSettings />
   {:else if routerState.path === '/admin'}
     <AdminPanel />
+  {:else if routerState.path === '/platform-admin'}
+    <PlatformAdminPanel />
   {:else}
     <AnketaList />
   {/if}

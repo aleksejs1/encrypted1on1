@@ -52,6 +52,8 @@ errors:
     missing_blocked: 'Missing "blocked".'
     missing_is_admin: 'Missing "isAdmin".'
     admin_only: 'Admin only.'
+    platform_admin_only: 'Platform admin only.'
+    missing_is_platform_admin: 'Missing "isPlatformAdmin".'
     user_not_found: 'User not found.'
     admin_only_invite: 'Only admins can invite new users while registration is admin-only.'
     missing_email: 'Missing "email".'

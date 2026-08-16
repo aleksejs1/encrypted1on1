@@ -45,6 +45,8 @@ errors:
     missing_blocked: 'Отсутствует «blocked».'
     missing_is_admin: 'Отсутствует «isAdmin».'
     admin_only: 'Только для администраторов.'
+    platform_admin_only: 'Только для администраторов платформы.'
+    missing_is_platform_admin: 'Отсутствует «isPlatformAdmin».'
     user_not_found: 'Пользователь не найден.'
     admin_only_invite: 'Пока регистрация доступна только по приглашению администратора, приглашать новых пользователей могут только администраторы.'
     missing_email: 'Отсутствует «email».'

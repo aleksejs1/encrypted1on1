@@ -45,6 +45,8 @@ errors:
     missing_blocked: 'Trūkst "blocked".'
     missing_is_admin: 'Trūkst "isAdmin".'
     admin_only: 'Tikai administratoriem.'
+    platform_admin_only: 'Tikai platformas administratoriem.'
+    missing_is_platform_admin: 'Trūkst "isPlatformAdmin".'
     user_not_found: 'Lietotājs nav atrasts.'
     admin_only_invite: 'Kamēr reģistrācija ir pieejama tikai ar administratora ielūgumu, jaunus lietotājus var uzaicināt tikai administratori.'
     missing_email: 'Trūkst "email".'

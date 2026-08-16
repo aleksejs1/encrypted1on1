@@ -112,6 +112,10 @@ class AuthController
             // Drives a persistent "you're viewing the shared demo" banner —
             // see private/demo-mode-plan.md (not tracked in git).
             'isDemo' => $user->isDemo(),
+            // Lets the frontend show real content instead of "Not authorized" on
+            // /platform-admin (Phase C, private/cloud-service-plan.md, not tracked in
+            // git) — never drives any navigation link, unlike isAdmin.
+            'isPlatformAdmin' => $user->isPlatformAdmin(),
         ]);
     }
 

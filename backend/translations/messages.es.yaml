@@ -45,6 +45,8 @@ errors:
     missing_blocked: 'Falta "blocked".'
     missing_is_admin: 'Falta "isAdmin".'
     admin_only: 'Solo para administradores.'
+    platform_admin_only: 'Solo para administradores de la plataforma.'
+    missing_is_platform_admin: 'Falta "isPlatformAdmin".'
     user_not_found: 'Usuario no encontrado.'
     admin_only_invite: 'Mientras el registro sea solo por invitación de administrador, únicamente los administradores pueden invitar nuevos usuarios.'
     missing_email: 'Falta "email".'
