@@ -11,7 +11,9 @@
     "privacyPolicy": "Política de privacidad",
     "demoBanner": "Estás viendo la demo compartida en vivo — los datos se reinician cada hora.",
     "pickDate": "Elegir una fecha",
-    "invalidDate": "Fecha no válida — formato esperado: {example}"
+    "invalidDate": "Fecha no válida — formato esperado: {example}",
+    "save": "Guardar",
+    "saving": "Guardando…"
   },
   "login": {
     "title": "Iniciar sesión",

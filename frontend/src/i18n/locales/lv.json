@@ -11,7 +11,9 @@
     "privacyPolicy": "Konfidencialitātes politika",
     "demoBanner": "Jūs skatāties kopīgo tiešsaistes demo — dati tiek atiestatīti katru stundu.",
     "pickDate": "Izvēlēties datumu",
-    "invalidDate": "Nederīgs datums — sagaidāmais formāts: {example}"
+    "invalidDate": "Nederīgs datums — sagaidāmais formāts: {example}",
+    "save": "Saglabāt",
+    "saving": "Saglabā…"
   },
   "login": {
     "title": "Pieslēgties",

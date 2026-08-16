@@ -11,7 +11,9 @@
     "privacyPolicy": "Privacy Policy",
     "demoBanner": "You're viewing the shared live demo — data resets every hour.",
     "pickDate": "Pick a date",
-    "invalidDate": "Invalid date — expected format: {example}"
+    "invalidDate": "Invalid date — expected format: {example}",
+    "save": "Save",
+    "saving": "Saving…"
   },
   "login": {
     "title": "Log in",
