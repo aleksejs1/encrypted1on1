@@ -50,6 +50,10 @@ services:
       MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
       MAILER_FROM: "${MAILER_FROM:?e.g. noreply@example.com}"
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+      # Seat count a brand-new self-service company starts on — a placeholder, not a
+      # decided pricing tier (see private/cloud-service-plan.md). Companies that
+      # predate this stay unlimited regardless of this value.
+      DEFAULT_SEAT_LIMIT: "${DEFAULT_SEAT_LIMIT:-5}"
       # Empty by default — see StripeBillingProvider's own docblock and CLAUDE.md's
       # Phase D entry: real Stripe SDK code, structurally correct, but never verified
       # against a live Stripe account. Leave these empty to run the cloud offering

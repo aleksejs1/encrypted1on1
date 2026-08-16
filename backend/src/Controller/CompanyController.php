@@ -29,24 +29,25 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  */
 class CompanyController
 {
-    /**
-     * Every self-service-created company starts on this seat count (Phase D of
-     * private/cloud-service-plan.md, not tracked in git) — a placeholder, not a decided
-     * pricing tier: no real plan/pricing structure exists yet (see the plan's own "not
-     * an engineering decision" note), so this is deliberately just "a real, enforced
-     * number, easy to change in one place" rather than an invented tier system. Every
-     * company that predates Phase D (the single self-hosted default company) stays
-     * unlimited (seatLimit stays null) — this constant only applies to brand-new
-     * companies created from here on.
-     */
-    private const int DEFAULT_SEAT_LIMIT = 5;
-
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly InvitationNotifier $notifier,
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly bool $cloudMode,
+        /**
+         * Every self-service-created company starts on this seat count (Phase D of
+         * private/cloud-service-plan.md, not tracked in git) — a placeholder, not a
+         * decided pricing tier: no real plan/pricing structure exists yet (see the
+         * plan's own "not an engineering decision" note), so this is deliberately
+         * just "a real, enforced number" rather than an invented tier system.
+         * Configurable via the DEFAULT_SEAT_LIMIT env var (default 5, see
+         * backend/.env) so an operator can change it without a code change/release.
+         * Every company that predates Phase D (the single self-hosted default
+         * company) stays unlimited (seatLimit stays null) — this only applies to
+         * brand-new companies created from here on.
+         */
+        private readonly int $defaultSeatLimit,
         #[Autowire(service: 'limiter.create_company')]
         private readonly RateLimiterFactory $createCompanyLimiter,
     ) {
@@ -87,7 +88,7 @@ class CompanyController
         // Company row is ever left behind by a no-op request either.
         $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
         if (null === $existing) {
-            $company = new Company(trim($name), seatLimit: self::DEFAULT_SEAT_LIMIT);
+            $company = new Company(trim($name), seatLimit: $this->defaultSeatLimit);
             $this->entityManager->persist($company);
 
             [$activationToken, $rawToken] = ActivationToken::issue($email, $company, grantsAdmin: true);

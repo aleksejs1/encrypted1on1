@@ -12,6 +12,7 @@ return static function (ContainerConfigurator $container): void {
             ->bind('string $frontendBaseUrl', '%env(FRONTEND_URL)%')
             ->bind('string $mailerFrom', '%env(MAILER_FROM)%')
             ->bind('bool $cloudMode', '%env(bool:CLOUD_MODE)%')
+            ->bind('int $defaultSeatLimit', '%env(int:DEFAULT_SEAT_LIMIT)%')
             ->bind('string $stripeSecretKey', '%env(STRIPE_SECRET_KEY)%')
             ->bind('string $stripeWebhookSecret', '%env(STRIPE_WEBHOOK_SECRET)%')
             ->bind('string $stripePriceId', '%env(STRIPE_PRICE_ID)%');
