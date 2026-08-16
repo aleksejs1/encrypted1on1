@@ -1,0 +1,52 @@
+name: Docker Release
+
+# Builds and publishes the prod image (docker/prod/app.Dockerfile) to GHCR on every
+# version tag push. Deliberately does not build on every push to main — only tagged
+# releases get a published image, so `docker pull` always gets something that
+# corresponds to a real release, not an arbitrary commit. Uses the Dockerfile's own
+# baked-in ARG defaults (interactive argon2id profile, no privacy-policy link, demo
+# mode off) — an operator who wants different build-time values still builds their
+# own image locally, same as before this workflow existed (see docs/deployment.md).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/encrypted1on1
+          # latest is auto-tagged for the highest non-prerelease semver match —
+          # docker/metadata-action's own default (flavor.latest=auto), not hardcoded
+          # here, so it stays correct if an old tag is ever pushed retroactively.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/prod/app.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
