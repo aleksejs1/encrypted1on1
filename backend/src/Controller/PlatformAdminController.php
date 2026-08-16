@@ -66,7 +66,41 @@ class PlatformAdminController
             'allowedEmailDomain' => $company->getAllowedEmailDomain(),
             'createdAt' => $company->getCreatedAt()->format(\DATE_ATOM),
             'userCount' => (int) ($userCountByCompanyId[$company->getId()] ?? 0),
+            // Billing fields (Phase D, private/cloud-service-plan.md, not tracked in git).
+            'planTier' => $company->getPlanTier(),
+            'seatLimit' => $company->getSeatLimit(),
+            'subscriptionStatus' => $company->getSubscriptionStatus(),
+            'isSuspended' => $company->isSuspended(),
         ], $companies));
+    }
+
+    /**
+     * The manual stand-in for what a real Stripe webhook (BillingController) will
+     * eventually automate — lets a platform admin suspend/unsuspend a company directly,
+     * independent of subscriptionStatus (see Company::suspend()'s own docblock for why
+     * that's deliberate: this is also the right tool for a non-billing reason, like abuse).
+     */
+    #[Route('/api/platform-admin/companies/{id}/suspended', name: 'platform_admin_company_set_suspended', methods: ['PUT'])]
+    public function setCompanySuspended(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        $this->requirePlatformAdmin($request);
+
+        $company = $this->findCompany($id);
+
+        $suspended = $request->toArray()['suspended'] ?? null;
+        if (!\is_bool($suspended)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_suspended')], 400);
+        }
+
+        if ($suspended) {
+            $company->suspend();
+        } else {
+            $company->unsuspend();
+        }
+        $this->entityManager->flush();
+
+        return new JsonResponse(['id' => $company->getId(), 'isSuspended' => $company->isSuspended()]);
     }
 
     /**
@@ -164,5 +198,15 @@ class PlatformAdminController
         }
 
         return $user;
+    }
+
+    private function findCompany(string $id): Company
+    {
+        $company = $this->entityManager->find(Company::class, $id);
+        if (null === $company) {
+            throw new NotFoundHttpException($this->translator->trans('errors.company_not_found'));
+        }
+
+        return $company;
     }
 }

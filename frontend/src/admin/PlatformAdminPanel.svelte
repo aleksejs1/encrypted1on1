@@ -11,6 +11,10 @@
     allowedEmailDomain: string;
     createdAt: string;
     userCount: number;
+    planTier: string;
+    seatLimit: number | null;
+    subscriptionStatus: string;
+    isSuspended: boolean;
   }
 
   interface PlatformUser {
@@ -78,6 +82,29 @@
     }
   }
 
+  async function toggleCompanySuspended(
+    company: PlatformCompany,
+  ): Promise<void> {
+    pending = { ...pending, [company.id]: true };
+    actionError = null;
+    try {
+      const result = await apiPut<{ isSuspended: boolean }>(
+        `/api/platform-admin/companies/${company.id}/suspended`,
+        { suspended: !company.isSuspended },
+      );
+      companies = companies.map((c) =>
+        c.id === company.id ? { ...c, isSuspended: result.isSuspended } : c,
+      );
+    } catch (error) {
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('platformAdmin.errorUpdate');
+    } finally {
+      pending = { ...pending, [company.id]: false };
+    }
+  }
+
   async function togglePlatformAdmin(user: PlatformUser): Promise<void> {
     pending = { ...pending, [user.id]: true };
     actionError = null;
@@ -123,8 +150,11 @@
           <tr>
             <th>{$_('platformAdmin.companyNameHeader')}</th>
             <th>{$_('platformAdmin.companyModeHeader')}</th>
-            <th>{$_('platformAdmin.companyUsersHeader')}</th>
+            <th>{$_('platformAdmin.companyPlanHeader')}</th>
+            <th>{$_('platformAdmin.companySeatsHeader')}</th>
+            <th>{$_('platformAdmin.companyStatusHeader')}</th>
             <th>{$_('platformAdmin.createdHeader')}</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -132,8 +162,35 @@
             <tr>
               <td>{company.name}</td>
               <td>{company.registrationMode}</td>
-              <td>{company.userCount}</td>
+              <td>{company.planTier}</td>
+              <td
+                >{company.userCount} / {company.seatLimit ??
+                  $_('platformAdmin.unlimited')}</td
+              >
+              <td>
+                <span
+                  class="tag {company.isSuspended
+                    ? 'tag-neutral'
+                    : 'tag-accent-2'}"
+                >
+                  {company.isSuspended
+                    ? $_('platformAdmin.companySuspended')
+                    : company.subscriptionStatus}
+                </span>
+              </td>
               <td>{formatDisplayDate(company.createdAt)}</td>
+              <td class="actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-small"
+                  onclick={() => toggleCompanySuspended(company)}
+                  disabled={pending[company.id]}
+                >
+                  {company.isSuspended
+                    ? $_('platformAdmin.unsuspend')
+                    : $_('platformAdmin.suspend')}
+                </button>
+              </td>
             </tr>
           {/each}
         </tbody>

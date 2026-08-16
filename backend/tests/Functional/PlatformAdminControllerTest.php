@@ -96,6 +96,52 @@ class PlatformAdminControllerTest extends ApiTestCase
         self::assertArrayHasKey($companyB->getId(), $byId);
         self::assertSame(1, $byId[$companyA->getId()]['userCount']);
         self::assertSame(1, $byId[$companyB->getId()]['userCount']);
+        // Billing fields (Phase D, private/cloud-service-plan.md, not tracked in git).
+        self::assertSame('free', $byId[$companyA->getId()]['planTier']);
+        self::assertNull($byId[$companyA->getId()]['seatLimit']);
+        self::assertSame('active', $byId[$companyA->getId()]['subscriptionStatus']);
+        self::assertFalse($byId[$companyA->getId()]['isSuspended']);
+    }
+
+    public function testPlatformAdminCanSuspendAndUnsuspendACompany(): void
+    {
+        $platformAdminClient = static::createClient();
+        $companyA = $this->makeCompany('Company A');
+        $companyB = $this->makeCompany('Company B');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-suspender'), company: $companyA);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $suspend = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$companyB->getId()}/suspended", ['suspended' => true]);
+        self::assertSame(200, $suspend['status']);
+        self::assertTrue($suspend['json']['isSuspended']);
+
+        $unsuspend = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$companyB->getId()}/suspended", ['suspended' => false]);
+        self::assertSame(200, $unsuspend['status']);
+        self::assertFalse($unsuspend['json']['isSuspended']);
+    }
+
+    public function testSetCompanySuspendedRejectsAMissingField(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-suspend-missing-field'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$company->getId()}/suspended", []);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testSetCompanySuspendedReturns404ForAnUnknownCompany(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-suspend-unknown'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', '/api/platform-admin/companies/00000000-0000-0000-0000-000000000000/suspended', ['suspended' => true]);
+
+        self::assertSame(404, $result['status']);
     }
 
     public function testPlatformAdminCanBlockAUserFromAnyCompany(): void

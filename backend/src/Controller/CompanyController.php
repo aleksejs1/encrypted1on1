@@ -29,6 +29,18 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  */
 class CompanyController
 {
+    /**
+     * Every self-service-created company starts on this seat count (Phase D of
+     * private/cloud-service-plan.md, not tracked in git) — a placeholder, not a decided
+     * pricing tier: no real plan/pricing structure exists yet (see the plan's own "not
+     * an engineering decision" note), so this is deliberately just "a real, enforced
+     * number, easy to change in one place" rather than an invented tier system. Every
+     * company that predates Phase D (the single self-hosted default company) stays
+     * unlimited (seatLimit stays null) — this constant only applies to brand-new
+     * companies created from here on.
+     */
+    private const int DEFAULT_SEAT_LIMIT = 5;
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly InvitationNotifier $notifier,
@@ -75,7 +87,7 @@ class CompanyController
         // Company row is ever left behind by a no-op request either.
         $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
         if (null === $existing) {
-            $company = new Company(trim($name));
+            $company = new Company(trim($name), seatLimit: self::DEFAULT_SEAT_LIMIT);
             $this->entityManager->persist($company);
 
             [$activationToken, $rawToken] = ActivationToken::issue($email, $company, grantsAdmin: true);

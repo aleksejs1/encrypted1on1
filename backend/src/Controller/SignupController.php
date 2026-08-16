@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Billing\SeatLimitChecker;
 use App\Company\SingleCompanyProvider;
 use App\Entity\ActivationToken;
 use App\Entity\User;
@@ -44,6 +45,7 @@ class SignupController
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly SingleCompanyProvider $singleCompanyProvider,
+        private readonly SeatLimitChecker $seatLimitChecker,
         private readonly bool $cloudMode,
         #[Autowire(service: 'limiter.signup')]
         private readonly RateLimiterFactory $signupLimiter,
@@ -117,6 +119,10 @@ class SignupController
         // the response never reveals whether the email already has an account.
         $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
         if (null === $existing) {
+            if ($this->seatLimitChecker->hasReachedLimit($company)) {
+                return new JsonResponse(['error' => $this->translator->trans('errors.seat_limit_reached')], 400);
+            }
+
             [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
             $this->entityManager->persist($activationToken);
             $this->entityManager->flush();

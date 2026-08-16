@@ -71,6 +71,16 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.account_blocked')], 403);
         }
 
+        // The billing-suspension gate (Phase D of private/cloud-service-plan.md, not
+        // tracked in git) — mirrors isBlocked's own reversible-gate shape and check
+        // point exactly, just at the company level instead of the account level. Every
+        // self-hosted company is never suspended (nothing sets suspendedAt outside
+        // Company::applyStripeSubscriptionUpdate()/suspend(), neither of which any
+        // self-hosted code path calls), so this is a genuine no-op there.
+        if ($user->getCompany()->isSuspended()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.company_suspended')], 403);
+        }
+
         $this->authSession->logIn($request, $user);
 
         return new JsonResponse([
