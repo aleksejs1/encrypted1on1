@@ -63,4 +63,30 @@ class InvitationNotifier
             error_log(sprintf('Failed to send signup confirmation email to %s: %s', $email, $e->getMessage()));
         }
     }
+
+    /**
+     * CLOUD_MODE's self-service company creation (CompanyController, Phase B of
+     * private/cloud-service-plan.md, not tracked in git) — same shape as notifySignup(),
+     * with the new company's own name in the message so the recipient (its first admin)
+     * has some confirmation this is the company they meant to create.
+     */
+    public function notifyCompanySignup(string $email, string $rawToken, string $companyName): void
+    {
+        $params = [
+            '%url%' => sprintf('%s/activate/%s', rtrim($this->frontendBaseUrl, '/'), $rawToken),
+            '%company%' => $companyName,
+        ];
+
+        $message = (new Email())
+            ->from($this->mailerFrom)
+            ->to($email)
+            ->subject($this->translator->trans('email.company_signup.subject', $params))
+            ->text($this->translator->trans('email.company_signup.body', $params));
+
+        try {
+            $this->mailer->send($message);
+        } catch (TransportExceptionInterface $e) {
+            error_log(sprintf('Failed to send company-signup confirmation email to %s: %s', $email, $e->getMessage()));
+        }
+    }
 }

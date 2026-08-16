@@ -3,6 +3,7 @@
 namespace App\Tests\Unit\Entity;
 
 use App\Entity\Anketa;
+use App\Entity\Company;
 use App\Entity\User;
 use PHPUnit\Framework\TestCase;
 
@@ -10,8 +11,9 @@ class AnketaTest extends TestCase
 {
     private function makeAnketa(): Anketa
     {
-        $employee = new User('employee@example.com', 'hash', 'pub', 'enc');
-        $manager = new User('manager@example.com', 'hash', 'pub', 'enc');
+        $company = new Company('Test Co');
+        $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
 
         return new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30);
     }
@@ -153,7 +155,7 @@ class AnketaTest extends TestCase
     public function testIsParticipantIsFalseForAThirdUser(): void
     {
         $anketa = $this->makeAnketa();
-        $stranger = new User('stranger@example.com', 'hash', 'pub', 'enc');
+        $stranger = new User('stranger@example.com', 'hash', 'pub', 'enc', new Company('Test Co'));
 
         self::assertFalse($anketa->isParticipant($stranger));
     }

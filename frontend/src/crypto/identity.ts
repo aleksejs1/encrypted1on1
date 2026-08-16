@@ -11,6 +11,8 @@ export interface Identity {
   registrationMode: string;
   /** True only for the fixed, publicly-known demo account — drives a persistent "shared demo" banner. See private/demo-mode-plan.md (not tracked in git). */
   isDemo: boolean;
+  /** The SaaS operator's own cross-company role (Phase C, private/cloud-service-plan.md, not tracked in git) — completely separate from isAdmin. Never drives a navigation link, only gates /platform-admin's own content. */
+  isPlatformAdmin: boolean;
   publicKey: Uint8Array;
   privateKey: Uint8Array;
 }
@@ -21,6 +23,7 @@ interface MeResponse {
   isAdmin: boolean;
   registrationMode: string;
   isDemo: boolean;
+  isPlatformAdmin: boolean;
   publicKey: string;
   encryptedPrivateKey: string;
 }
@@ -55,6 +58,7 @@ export async function ensureUnlocked(): Promise<Identity> {
       isAdmin: me.isAdmin,
       registrationMode: me.registrationMode,
       isDemo: me.isDemo,
+      isPlatformAdmin: me.isPlatformAdmin,
       publicKey: await fromBase64(me.publicKey),
       privateKey,
     };

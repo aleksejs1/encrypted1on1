@@ -20,6 +20,9 @@ email:
     signup:
         subject: 'Apstipriniet savu e-pastu encrypted1on1'
         body: "Mēs saņēmām pieprasījumu izveidot encrypted1on1 kontu ar šo e-pasta adresi.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
+    company_signup:
+        subject: 'Apstipriniet savu jauno uzņēmumu encrypted1on1'
+        body: "Mēs saņēmām pieprasījumu izveidot jaunu uzņēmumu \"%company%\" encrypted1on1, kur jūs būsiet tā pirmais administrators.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
@@ -37,16 +40,22 @@ errors:
     invalid_email_or_password: 'Nepareizs e-pasts vai parole.'
     invalid_current_password: 'Nepareiza pašreizējā parole.'
     account_blocked: 'Šis konts ir bloķēts.'
+    company_suspended: 'Uzņēmuma konts ir apturēts. Sazinieties ar atbalstu, lai to atrisinātu.'
     locale_must_be_one_of: '"locale" jābūt vienam no: %locales%.'
     cannot_block_own_account: 'Jūs nevarat bloķēt savu paša kontu.'
     missing_blocked: 'Trūkst "blocked".'
     missing_is_admin: 'Trūkst "isAdmin".'
     admin_only: 'Tikai administratoriem.'
+    platform_admin_only: 'Tikai platformas administratoriem.'
+    missing_is_platform_admin: 'Trūkst "isPlatformAdmin".'
     user_not_found: 'Lietotājs nav atrasts.'
+    company_not_found: 'Uzņēmums nav atrasts.'
+    missing_suspended: 'Trūkst "suspended".'
     admin_only_invite: 'Kamēr reģistrācija ir pieejama tikai ar administratora ielūgumu, jaunus lietotājus var uzaicināt tikai administratori.'
     missing_email: 'Trūkst "email".'
     email_domain_restricted: 'Atļautas tikai adreses ar "@%domain%".'
     email_already_registered: 'Šim e-pastam jau ir konts.'
+    seat_limit_reached: 'Uzņēmums ir sasniedzis vietu limitu pašreizējam plānam.'
     invalid_role: '"myRole" jābūt "employee" vai "manager".'
     counterpart_not_found: 'Otra puse nav atrasta.'
     periodicity_required: '"periodicityDays" jaunam pārim jābūt pozitīvam veselam skaitlim.'
@@ -70,3 +79,5 @@ errors:
     invalid_csrf_token: 'Nederīgs CSRF marķieris.'
     too_many_requests: 'Pārāk daudz pieprasījumu. Lūdzu, mēģiniet vēlreiz vēlāk.'
     registration_not_open: 'Pašreģistrācija pašlaik nav pieejama.'
+    cloud_signup_not_open: 'Jauna uzņēmuma reģistrācija šajā instancē nav pieejama.'
+    billing_not_configured: 'Norēķini šajā instancē nav konfigurēti.'

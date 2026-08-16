@@ -20,6 +20,9 @@ email:
     signup:
         subject: 'Подтвердите email для encrypted1on1'
         body: "Мы получили запрос на создание аккаунта encrypted1on1 с этим email.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
+    company_signup:
+        subject: 'Подтвердите новую компанию в encrypted1on1'
+        body: "Мы получили запрос на создание новой компании «%company%» в encrypted1on1, где вы будете первым администратором.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
 errors:
     not_authenticated: 'Вы не авторизованы.'
     missing_or_invalid_field: 'Отсутствует или некорректно поле «%field%».'
@@ -37,16 +40,22 @@ errors:
     invalid_email_or_password: 'Неверный email или пароль.'
     invalid_current_password: 'Неверный текущий пароль.'
     account_blocked: 'Эта учётная запись заблокирована.'
+    company_suspended: 'Аккаунт компании приостановлен. Обратитесь в поддержку для решения вопроса.'
     locale_must_be_one_of: '«locale» должно быть одним из: %locales%.'
     cannot_block_own_account: 'Вы не можете заблокировать свою собственную учётную запись.'
     missing_blocked: 'Отсутствует «blocked».'
     missing_is_admin: 'Отсутствует «isAdmin».'
     admin_only: 'Только для администраторов.'
+    platform_admin_only: 'Только для администраторов платформы.'
+    missing_is_platform_admin: 'Отсутствует «isPlatformAdmin».'
     user_not_found: 'Пользователь не найден.'
+    company_not_found: 'Компания не найдена.'
+    missing_suspended: 'Отсутствует «suspended».'
     admin_only_invite: 'Пока регистрация доступна только по приглашению администратора, приглашать новых пользователей могут только администраторы.'
     missing_email: 'Отсутствует «email».'
     email_domain_restricted: 'Разрешены только адреса вида «@%domain%».'
     email_already_registered: 'Для этого email уже есть учётная запись.'
+    seat_limit_reached: 'Компания достигла лимита мест по текущему тарифу.'
     invalid_role: '«myRole» должно быть «employee» или «manager».'
     counterpart_not_found: 'Собеседник не найден.'
     periodicity_required: '«periodicityDays» должно быть положительным целым числом для новой пары.'
@@ -70,3 +79,5 @@ errors:
     invalid_csrf_token: 'Недействительный CSRF-токен.'
     too_many_requests: 'Слишком много запросов. Попробуйте снова позже.'
     registration_not_open: 'Самостоятельная регистрация сейчас недоступна.'
+    cloud_signup_not_open: 'Регистрация новой компании недоступна на этом экземпляре.'
+    billing_not_configured: 'Оплата не настроена на этом экземпляре.'

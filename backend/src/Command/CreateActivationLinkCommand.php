@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Company\SingleCompanyProvider;
 use App\Entity\ActivationToken;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -16,7 +17,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * The one way to create an account right now (see the Phase 4 plan — email
  * delivery and the domain/invite registration modes are later phases). Also
  * how the very first admin gets bootstrapped: `--admin` is just a flag on
- * the same token, not a separate code path.
+ * the same token, not a separate code path. Every account created this way
+ * joins the single Company row every self-hosted deployment has (see
+ * SingleCompanyProvider) — no company argument needed, since there's
+ * nothing to choose between yet.
  */
 #[AsCommand(name: 'app:create-activation-link', description: 'Create an activation link for a new account')]
 class CreateActivationLinkCommand extends Command
@@ -24,6 +28,7 @@ class CreateActivationLinkCommand extends Command
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly string $frontendBaseUrl,
+        private readonly SingleCompanyProvider $singleCompanyProvider,
     ) {
         parent::__construct();
     }
@@ -42,7 +47,7 @@ class CreateActivationLinkCommand extends Command
         \assert(\is_string($email)); // InputArgument::REQUIRED (not ARRAY mode) — always a string.
         $grantsAdmin = (bool) $input->getOption('admin');
 
-        [$activationToken, $rawToken] = ActivationToken::issue($email, $grantsAdmin);
+        [$activationToken, $rawToken] = ActivationToken::issue($email, $this->singleCompanyProvider->get(), $grantsAdmin);
         $this->entityManager->persist($activationToken);
         $this->entityManager->flush();
 

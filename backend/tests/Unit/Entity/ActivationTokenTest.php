@@ -3,13 +3,14 @@
 namespace App\Tests\Unit\Entity;
 
 use App\Entity\ActivationToken;
+use App\Entity\Company;
 use PHPUnit\Framework\TestCase;
 
 class ActivationTokenTest extends TestCase
 {
     public function testIssueProducesAUsableTokenAndADistinctRawToken(): void
     {
-        [$token, $rawToken] = ActivationToken::issue('someone@example.com');
+        [$token, $rawToken] = ActivationToken::issue('someone@example.com', new Company('Test Co'));
 
         self::assertTrue($token->isUsable());
         self::assertSame('someone@example.com', $token->getEmail());
@@ -19,14 +20,14 @@ class ActivationTokenTest extends TestCase
 
     public function testIssueWithGrantsAdminTrue(): void
     {
-        [$token] = ActivationToken::issue('admin@example.com', true);
+        [$token] = ActivationToken::issue('admin@example.com', new Company('Test Co'), true);
 
         self::assertTrue($token->grantsAdmin());
     }
 
     public function testTokenIsNoLongerUsableAfterBeingMarkedUsed(): void
     {
-        [$token] = ActivationToken::issue('someone@example.com');
+        [$token] = ActivationToken::issue('someone@example.com', new Company('Test Co'));
         self::assertTrue($token->isUsable());
 
         $token->markUsed();
@@ -36,7 +37,7 @@ class ActivationTokenTest extends TestCase
 
     public function testTokenIsNotUsableOnceExpired(): void
     {
-        $token = new ActivationToken(hash('sha256', 'raw'), 'someone@example.com', false, new \DateTimeImmutable('-1 hour'));
+        $token = new ActivationToken(hash('sha256', 'raw'), 'someone@example.com', new Company('Test Co'), false, new \DateTimeImmutable('-1 hour'));
 
         self::assertFalse($token->isUsable());
     }

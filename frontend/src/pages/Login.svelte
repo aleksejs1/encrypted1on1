@@ -11,11 +11,15 @@
   import { DEMO_MODE_ENABLED, DEMO_PASSWORD, demoEmailFor } from '../demo';
 
   let signupOpen = $state(false);
+  let cloudMode = $state(false);
 
   $effect(() => {
-    apiGet<{ registrationMode: string }>('/api/registration-info')
+    apiGet<{ registrationMode: string; cloudMode: boolean }>(
+      '/api/registration-info',
+    )
       .then((info) => {
         signupOpen = info.registrationMode === 'domain';
+        cloudMode = info.cloudMode;
       })
       .catch(() => {});
   });
@@ -131,6 +135,11 @@
       >
       {#if signupOpen}
         <a href="/signup" class="signup-link">{$_('login.signUpLink')}</a>
+      {/if}
+      {#if cloudMode}
+        <a href="/create-company" class="signup-link"
+          >{$_('login.createCompanyLink')}</a
+        >
       {/if}
     </form>
 

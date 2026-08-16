@@ -25,7 +25,6 @@ class AuthController
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
-        private readonly string $registrationMode,
         #[Autowire(service: 'limiter.login')]
         private readonly RateLimiterFactory $loginLimiter,
         #[Autowire(service: 'limiter.change_password')]
@@ -72,6 +71,16 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.account_blocked')], 403);
         }
 
+        // The billing-suspension gate (Phase D of private/cloud-service-plan.md, not
+        // tracked in git) — mirrors isBlocked's own reversible-gate shape and check
+        // point exactly, just at the company level instead of the account level. Every
+        // self-hosted company is never suspended (nothing sets suspendedAt outside
+        // Company::applyStripeSubscriptionUpdate()/suspend(), neither of which any
+        // self-hosted code path calls), so this is a genuine no-op there.
+        if ($user->getCompany()->isSuspended()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.company_suspended')], 403);
+        }
+
         $this->authSession->logIn($request, $user);
 
         return new JsonResponse([
@@ -106,12 +115,17 @@ class AuthController
             'publicKey' => $user->getPublicKey(),
             'encryptedPrivateKey' => $user->getEncryptedPrivateKey(),
             // Every authenticated user needs this to decide whether to show the general
-            // "Invite" UI (Phase 6g) — not admin-only information.
-            'registrationMode' => $this->registrationMode,
+            // "Invite" UI (Phase 6g) — not admin-only information. Now a per-company
+            // setting (private/cloud-service-plan.md, not tracked in git, Phase A).
+            'registrationMode' => $user->getCompany()->getRegistrationMode(),
             'meetingRemindersEnabled' => $user->wantsMeetingReminders(),
             // Drives a persistent "you're viewing the shared demo" banner —
             // see private/demo-mode-plan.md (not tracked in git).
             'isDemo' => $user->isDemo(),
+            // Lets the frontend show real content instead of "Not authorized" on
+            // /platform-admin (Phase C, private/cloud-service-plan.md, not tracked in
+            // git) — never drives any navigation link, unlike isAdmin.
+            'isPlatformAdmin' => $user->isPlatformAdmin(),
         ]);
     }
 

@@ -24,6 +24,7 @@
     "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
     "forgotPassword": "Aizmirsāt paroli?",
     "signUpLink": "Reģistrēties",
+    "createCompanyLink": "Izveidot jaunu uzņēmumu",
     "genericError": "Kaut kas nogāja greizi.",
     "tryDemo": "Izmēģināt tiešsaistes demo",
     "demoNote": "Kopīgs demo konts ar paraugdatiem — tiek atiestatīts katru stundu."
@@ -48,6 +49,17 @@
     "sentConfirmation": "Ja šim e-pastam ir atļauts reģistrēties, mēs nosūtījām saiti konta aktivizēšanai.",
     "notOpenMessage": "Pašreģistrācija pašlaik nav pieejama. Palūdziet ielūgumu kādam no jūsu organizācijas.",
     "backToLogin": "Atpakaļ uz pieslēgšanos",
+    "genericError": "Kaut kas nogāja greizi."
+  },
+  "createCompany": {
+    "title": "Izveidot jaunu uzņēmumu",
+    "subtitle": "Izveidojiet sava uzņēmuma darbvietu un kļūstiet par tās pirmo administratoru.",
+    "companyNameLabel": "Uzņēmuma nosaukums",
+    "emailLabel": "Jūsu e-pasts",
+    "submit": "Izveidot uzņēmumu",
+    "submitting": "Izveido…",
+    "sentConfirmation": "Ja šis e-pasts ir pieejams, mēs nosūtījām saiti, lai aktivizētu jūsu kontu kā uzņēmuma pirmo administratoru.",
+    "notOpenMessage": "Pašapkalpošanās uzņēmuma izveide šajā instancē nav pieejama.",
     "genericError": "Kaut kas nogāja greizi."
   },
   "resetPassword": {
@@ -351,6 +363,37 @@
     "makeAdmin": "Piešķirt administratora tiesības",
     "revokeAdmin": "Atņemt administratora tiesības",
     "errorLoad": "Neizdevās ielādēt administrēšanas paneli.",
+    "errorUpdate": "Neizdevās atjaunināt lietotāju."
+  },
+  "platformAdmin": {
+    "title": "Platformas administrēšana",
+    "notAuthorized": "Nav pieejas.",
+    "companiesHeading": "Uzņēmumi",
+    "companyNameHeader": "Nosaukums",
+    "companyModeHeader": "Reģistrācijas režīms",
+    "companyPlanHeader": "Plāns",
+    "companySeatsHeader": "Vietas",
+    "companyStatusHeader": "Norēķinu statuss",
+    "unlimited": "neierobežots",
+    "companySuspended": "Apturēts",
+    "suspend": "Apturēt",
+    "unsuspend": "Atjaunot",
+    "usersHeading": "Visi lietotāji",
+    "emailHeader": "E-pasts",
+    "companyHeader": "Uzņēmums",
+    "statusHeader": "Statuss",
+    "roleHeader": "Loma",
+    "createdHeader": "Izveidots",
+    "statusActive": "Aktīvs",
+    "statusBlocked": "Bloķēts",
+    "roleCompanyAdmin": "Uzņēmuma administrators",
+    "rolePlatformAdmin": "Platformas administrators",
+    "roleUser": "Lietotājs",
+    "block": "Bloķēt",
+    "unblock": "Atbloķēt",
+    "makePlatformAdmin": "Piešķirt platformas administratora tiesības",
+    "revokePlatformAdmin": "Atņemt platformas administratora tiesības",
+    "errorLoad": "Neizdevās ielādēt platformas administrēšanas datus.",
     "errorUpdate": "Neizdevās atjaunināt lietotāju."
   },
   "inviteForm": {

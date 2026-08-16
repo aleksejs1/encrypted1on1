@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Company\SingleCompanyProvider;
 use App\Entity\Anketa;
 use App\Entity\User;
 use Doctrine\DBAL\Exception as DbalException;
@@ -32,8 +33,10 @@ class LoadTestSqliteCommand extends Command
     private const array CONCURRENCY_LEVELS = [5, 20, 50, 100, 200];
     private const int WRITES_PER_WORKER = 20;
 
-    public function __construct(private readonly EntityManagerInterface $entityManager)
-    {
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+        private readonly SingleCompanyProvider $singleCompanyProvider,
+    ) {
         parent::__construct();
     }
 
@@ -63,8 +66,9 @@ class LoadTestSqliteCommand extends Command
         // Placeholder crypto strings, same "opaque, never actually unsealed" convention
         // ApiTestCase::activateUser() already uses — this test never decrypts anything,
         // only measures how the version-guarded UPDATE itself behaves under contention.
-        $employee = new User('load-test-employee@example.invalid', 'x', 'x', 'x');
-        $manager = new User('load-test-manager@example.invalid', 'x', 'x', 'x');
+        $company = $this->singleCompanyProvider->get();
+        $employee = new User('load-test-employee@example.invalid', 'x', 'x', 'x', $company);
+        $manager = new User('load-test-manager@example.invalid', 'x', 'x', 'x', $company);
         $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+30 days'), 'x', 'x', 30);
         $this->entityManager->persist($employee);
         $this->entityManager->persist($manager);

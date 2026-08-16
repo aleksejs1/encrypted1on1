@@ -56,6 +56,15 @@ class AnketaController
         if (null === $counterpart) {
             return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
         }
+        // The tenant boundary (private/cloud-service-plan.md, not tracked in git, Phase
+        // A): a counterpart from another company is treated identically to a nonexistent
+        // one — same error, same status — rather than a distinct "wrong company" message,
+        // so this never reveals that a given id belongs to a real user elsewhere. This is
+        // the *only* place this needs enforcing: no anketa can exist cross-company if none
+        // can ever be created that way, so nothing downstream needs to re-check it.
+        if ($counterpart->getCompany() !== $user->getCompany()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
+        }
 
         try {
             // The constructor (unlike createFromFormat(DATE_ATOM, ...)) accepts the

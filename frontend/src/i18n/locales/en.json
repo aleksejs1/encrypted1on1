@@ -24,6 +24,7 @@
     "sessionNote": "You'll need to log in again next time you open a new tab. Your key is kept only in this tab's memory, never stored.",
     "forgotPassword": "Forgot password?",
     "signUpLink": "Sign up",
+    "createCompanyLink": "Start a new company",
     "genericError": "Something went wrong.",
     "tryDemo": "Try the live demo",
     "demoNote": "A shared demo account with sample data — resets every hour."
@@ -48,6 +49,17 @@
     "sentConfirmation": "If that email is allowed to sign up, we've sent a link to activate the account.",
     "notOpenMessage": "Self-registration isn't currently open. Ask someone at your organization for an invite.",
     "backToLogin": "Back to login",
+    "genericError": "Something went wrong."
+  },
+  "createCompany": {
+    "title": "Start a new company",
+    "subtitle": "Create your company's workspace and become its first admin.",
+    "companyNameLabel": "Company name",
+    "emailLabel": "Your email",
+    "submit": "Create company",
+    "submitting": "Creating…",
+    "sentConfirmation": "If that email is available, we've sent a link to activate your account as the company's first admin.",
+    "notOpenMessage": "Self-service company creation isn't available on this instance.",
     "genericError": "Something went wrong."
   },
   "resetPassword": {
@@ -349,6 +361,37 @@
     "makeAdmin": "Make admin",
     "revokeAdmin": "Revoke admin",
     "errorLoad": "Could not load the admin panel.",
+    "errorUpdate": "Could not update the user."
+  },
+  "platformAdmin": {
+    "title": "Platform admin",
+    "notAuthorized": "Not authorized.",
+    "companiesHeading": "Companies",
+    "companyNameHeader": "Name",
+    "companyModeHeader": "Registration mode",
+    "companyPlanHeader": "Plan",
+    "companySeatsHeader": "Seats",
+    "companyStatusHeader": "Billing status",
+    "unlimited": "unlimited",
+    "companySuspended": "Suspended",
+    "suspend": "Suspend",
+    "unsuspend": "Unsuspend",
+    "usersHeading": "All users",
+    "emailHeader": "Email",
+    "companyHeader": "Company",
+    "statusHeader": "Status",
+    "roleHeader": "Role",
+    "createdHeader": "Created",
+    "statusActive": "Active",
+    "statusBlocked": "Blocked",
+    "roleCompanyAdmin": "Company admin",
+    "rolePlatformAdmin": "Platform admin",
+    "roleUser": "User",
+    "block": "Block",
+    "unblock": "Unblock",
+    "makePlatformAdmin": "Make platform admin",
+    "revokePlatformAdmin": "Revoke platform admin",
+    "errorLoad": "Could not load platform admin data.",
     "errorUpdate": "Could not update the user."
   },
   "inviteForm": {

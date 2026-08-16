@@ -41,6 +41,18 @@ class User
     private string $email;
 
     /**
+     * The tenant boundary (see private/cloud-service-plan.md, not tracked in git).
+     * Deliberately no serialization group — GET /api/users is already scoped to the
+     * requester's own company (ExcludeDeletedUsersExtension), so which company a listed
+     * user belongs to is never information the API needs to expose; a compromised
+     * frontend build learning company ids for free would be a real (if minor) leak this
+     * avoids for no functional cost, since the frontend never needs this value.
+     */
+    #[ORM\ManyToOne(targetEntity: Company::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private Company $company;
+
+    /**
      * The HKDF "auth" verifier — never the password, never the master-key.
      * Deliberately has no serialization group: must never be exposed via the API.
      */
@@ -99,6 +111,20 @@ class User
     private bool $isDemo = false;
 
     /**
+     * The SaaS operator's own cross-company support/moderation role (Phase C of
+     * private/cloud-service-plan.md, not tracked in git) — entirely separate from
+     * `isAdmin`, which is scoped to this user's own company (see AdminController).
+     * Deliberately **not** grantable through any HTTP endpoint a company admin can
+     * reach — only `bin/console app:grant-platform-admin` (CLI) or an existing platform
+     * admin via `PlatformAdminController` can set this, mirroring how `isAdmin` itself
+     * is only ever granted via the CLI bootstrap or an existing (company) admin. No
+     * serialization group — not needed by GET /api/users (the counterpart picker);
+     * `AuthController::me()` exposes it manually, same as `isDemo`.
+     */
+    #[ORM\Column(type: 'boolean')]
+    private bool $isPlatformAdmin = false;
+
+    /**
      * Which language outbound emails to this user are sent in (Phase 6i) — deliberately
      * *not* what drives the frontend's displayed language (that's a client-only
      * localStorage preference, Phase 6h); this only answers "what language should an
@@ -133,6 +159,7 @@ class User
         string $authHash,
         string $publicKey,
         string $encryptedPrivateKey,
+        Company $company,
         bool $isAdmin = false,
         string $locale = 'en',
     ) {
@@ -141,6 +168,7 @@ class User
         $this->authHash = $authHash;
         $this->publicKey = $publicKey;
         $this->encryptedPrivateKey = $encryptedPrivateKey;
+        $this->company = $company;
         $this->createdAt = new \DateTimeImmutable();
         $this->isAdmin = $isAdmin;
         $this->locale = \in_array($locale, self::SUPPORTED_LOCALES, true) ? $locale : 'en';
@@ -154,6 +182,11 @@ class User
     public function getEmail(): string
     {
         return $this->email;
+    }
+
+    public function getCompany(): Company
+    {
+        return $this->company;
     }
 
     public function getAuthHash(): string
@@ -194,6 +227,16 @@ class User
     public function setBlocked(bool $isBlocked): void
     {
         $this->isBlocked = $isBlocked;
+    }
+
+    public function isPlatformAdmin(): bool
+    {
+        return $this->isPlatformAdmin;
+    }
+
+    public function setPlatformAdmin(bool $isPlatformAdmin): void
+    {
+        $this->isPlatformAdmin = $isPlatformAdmin;
     }
 
     public function isDemo(): bool
@@ -309,6 +352,7 @@ class User
         $this->authHash = bin2hex(random_bytes(32));
         $this->encryptedPrivateKey = '';
         $this->isAdmin = false;
+        $this->isPlatformAdmin = false;
         $this->isBlocked = true;
         $this->meetingRemindersEnabled = false;
         $this->deletedAt = new \DateTimeImmutable();

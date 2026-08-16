@@ -131,7 +131,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
 
     private function runCommand(): void
     {
-        $command = new ResetDemoDataCommand($this->entityManager());
+        $command = new ResetDemoDataCommand($this->entityManager(), $this->singleCompanyProvider());
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([]);
         self::assertSame(0, $exitCode, $tester->getDisplay());

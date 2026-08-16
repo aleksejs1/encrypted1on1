@@ -5,6 +5,7 @@ namespace App\Tests\Architecture;
 use ApiPlatform\Metadata\ApiResource;
 use App\Entity\ActivationToken;
 use App\Entity\Anketa;
+use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\PasswordResetToken;
 use App\Entity\User;
@@ -58,6 +59,7 @@ class SerializationBoundaryTest extends TestCase
         self::assertFalse(self::hasApiResourceAttribute(Goal::class));
         self::assertFalse(self::hasApiResourceAttribute(ActivationToken::class));
         self::assertFalse(self::hasApiResourceAttribute(PasswordResetToken::class));
+        self::assertFalse(self::hasApiResourceAttribute(Company::class), 'Company has no company-admin-settings endpoint yet (see private/cloud-service-plan.md, Phase B/C) — must stay a plain entity, not an ApiResource, until that phase deliberately adds one.');
     }
 
     /** @param class-string $class */

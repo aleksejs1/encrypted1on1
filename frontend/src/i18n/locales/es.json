@@ -24,6 +24,7 @@
     "sessionNote": "Tendrás que iniciar sesión de nuevo la próxima vez que abras una pestaña nueva. Tu clave se guarda solo en la memoria de esta pestaña y nunca se almacena.",
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "signUpLink": "Regístrate",
+    "createCompanyLink": "Crear una nueva empresa",
     "genericError": "Algo salió mal.",
     "tryDemo": "Probar la demo en vivo",
     "demoNote": "Una cuenta de demostración compartida con datos de ejemplo — se reinicia cada hora."
@@ -48,6 +49,17 @@
     "sentConfirmation": "Si ese correo puede registrarse, hemos enviado un enlace para activar la cuenta.",
     "notOpenMessage": "El autorregistro no está disponible actualmente. Pide una invitación a alguien de tu organización.",
     "backToLogin": "Volver al inicio de sesión",
+    "genericError": "Algo salió mal."
+  },
+  "createCompany": {
+    "title": "Crear una nueva empresa",
+    "subtitle": "Crea el espacio de trabajo de tu empresa y conviértete en su primer administrador.",
+    "companyNameLabel": "Nombre de la empresa",
+    "emailLabel": "Tu correo electrónico",
+    "submit": "Crear empresa",
+    "submitting": "Creando…",
+    "sentConfirmation": "Si ese correo está disponible, hemos enviado un enlace para activar tu cuenta como primer administrador de la empresa.",
+    "notOpenMessage": "La creación de empresas por autoservicio no está disponible en esta instancia.",
     "genericError": "Algo salió mal."
   },
   "resetPassword": {
@@ -353,6 +365,37 @@
     "makeAdmin": "Hacer administrador",
     "revokeAdmin": "Quitar permisos de administrador",
     "errorLoad": "No se pudo cargar el panel de administración.",
+    "errorUpdate": "No se pudo actualizar el usuario."
+  },
+  "platformAdmin": {
+    "title": "Administración de la plataforma",
+    "notAuthorized": "No autorizado.",
+    "companiesHeading": "Empresas",
+    "companyNameHeader": "Nombre",
+    "companyModeHeader": "Modo de registro",
+    "companyPlanHeader": "Plan",
+    "companySeatsHeader": "Plazas",
+    "companyStatusHeader": "Estado de facturación",
+    "unlimited": "ilimitado",
+    "companySuspended": "Suspendida",
+    "suspend": "Suspender",
+    "unsuspend": "Reactivar",
+    "usersHeading": "Todos los usuarios",
+    "emailHeader": "Correo electrónico",
+    "companyHeader": "Empresa",
+    "statusHeader": "Estado",
+    "roleHeader": "Rol",
+    "createdHeader": "Creado",
+    "statusActive": "Activo",
+    "statusBlocked": "Bloqueado",
+    "roleCompanyAdmin": "Administrador de la empresa",
+    "rolePlatformAdmin": "Administrador de la plataforma",
+    "roleUser": "Usuario",
+    "block": "Bloquear",
+    "unblock": "Desbloquear",
+    "makePlatformAdmin": "Hacer administrador de la plataforma",
+    "revokePlatformAdmin": "Quitar permisos de administrador de la plataforma",
+    "errorLoad": "No se pudieron cargar los datos de administración de la plataforma.",
     "errorUpdate": "No se pudo actualizar el usuario."
   },
   "inviteForm": {

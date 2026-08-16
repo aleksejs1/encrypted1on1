@@ -5,7 +5,7 @@ This describes the app from the perspective of the people using it — what each
 ## Getting an account
 
 - **The very first account on a fresh instance** is created from the server's own command line: `bin/console app:create-activation-link <email> --admin`. This is deliberate — it's the one bootstrap step that has to happen outside the app itself, since there's no admin yet to invite anyone.
-- **Every account after that** depends on how the instance is configured (`REGISTRATION_MODE`): an invite from any authenticated user (`invite`), an invite from an admin only (`admin_only`), or — if the instance opts into it (`REGISTRATION_MODE=domain`) — open self-registration restricted to a specific email domain (`ALLOWED_EMAIL_DOMAIN`), gated by double opt-in: submitting your email is the first opt-in, clicking the link that gets emailed to you is the second. By default, self-registration is off (`invite`), so most instances still work the invite-only way described above.
+- **Every account after that** depends on how the instance is configured (its registration mode, see [deployment.md](deployment.md#core-every-production-deployment)): an invite from any authenticated user (`invite`), an invite from an admin only (`admin_only`), or — if the instance opts into it (`domain`) — open self-registration restricted to a specific email domain, gated by double opt-in: submitting your email is the first opt-in, clicking the link that gets emailed to you is the second. By default, self-registration is off (`invite`), so most instances still work the invite-only way described above.
 
 Either way, activation works the same: the link is single-use and expires after a fixed window. Opening it prompts for a password.
 

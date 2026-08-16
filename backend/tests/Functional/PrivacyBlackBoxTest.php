@@ -202,7 +202,7 @@ class PrivacyBlackBoxTest extends ApiTestCase
      */
     private function activateUserWithRealKeypair(KernelBrowser $client, string $email, string $publicKeyRaw): array
     {
-        [$token, $rawToken] = ActivationToken::issue($email);
+        [$token, $rawToken] = ActivationToken::issue($email, $this->singleCompanyProvider()->get());
         $this->entityManager()->persist($token);
         $this->entityManager()->flush();
 

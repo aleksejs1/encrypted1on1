@@ -3,3 +3,6 @@
 
 # Real production secrets — copy .env.prod.example to this and fill it in.
 /.env.prod
+
+# Real cloud-deployment secrets — copy .env.cloud.example to this and fill it in.
+/.env.cloud

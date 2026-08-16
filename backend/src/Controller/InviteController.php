@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Billing\SeatLimitChecker;
 use App\Entity\ActivationToken;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
@@ -34,8 +35,7 @@ class InviteController
         private readonly CsrfGuard $csrfGuard,
         private readonly InvitationNotifier $notifier,
         private readonly TranslatorInterface $translator,
-        private readonly string $registrationMode,
-        private readonly string $allowedEmailDomain,
+        private readonly SeatLimitChecker $seatLimitChecker,
         #[Autowire(service: 'limiter.invite')]
         private readonly RateLimiterFactory $inviteLimiter,
     ) {
@@ -50,7 +50,8 @@ class InviteController
         if (null === $inviter) {
             throw new UnauthorizedHttpException('', $this->translator->trans('errors.not_authenticated'));
         }
-        if ('admin_only' === $this->registrationMode && !$inviter->isAdmin()) {
+        $company = $inviter->getCompany();
+        if ('admin_only' === $company->getRegistrationMode() && !$inviter->isAdmin()) {
             throw new AccessDeniedHttpException($this->translator->trans('errors.admin_only_invite'));
         }
 
@@ -67,8 +68,9 @@ class InviteController
             return new JsonResponse(['error' => $this->translator->trans('errors.missing_email')], 400);
         }
 
-        if ('' !== $this->allowedEmailDomain && !str_ends_with($email, '@'.$this->allowedEmailDomain)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.email_domain_restricted', ['%domain%' => $this->allowedEmailDomain])], 400);
+        $allowedEmailDomain = $company->getAllowedEmailDomain();
+        if ('' !== $allowedEmailDomain && !str_ends_with($email, '@'.$allowedEmailDomain)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.email_domain_restricted', ['%domain%' => $allowedEmailDomain])], 400);
         }
 
         $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
@@ -76,9 +78,13 @@ class InviteController
             return new JsonResponse(['error' => $this->translator->trans('errors.email_already_registered')], 400);
         }
 
+        if ($this->seatLimitChecker->hasReachedLimit($company)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.seat_limit_reached')], 400);
+        }
+
         // Admin status is only ever granted via the CLI bootstrap or the admin panel's
         // explicit "make admin" action (Phase 6g) — never implicitly through an invite.
-        [$activationToken, $rawToken] = ActivationToken::issue($email);
+        [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
         $this->entityManager->persist($activationToken);
         $this->entityManager->flush();
 

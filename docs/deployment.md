@@ -51,9 +51,9 @@ Everything the app reads from the environment. `backend/.env` (committed, dev-on
 | `FRONTEND_URL` | Yes | Same domain as `SERVER_NAME`, with scheme (`https://...`) — used to build the links inside notification/activation/reset emails. |
 | `MAILER_DSN` | Yes | A real SMTP DSN ([Symfony Mailer's DSN format](https://symfony.com/doc/current/mailer.html#using-built-in-transports)). The dev/test `smtp://mailpit:1025` placeholder only works against the dev Mailpit container. |
 | `MAILER_FROM` | Yes | The `From:` address on every outbound email. |
-| `REGISTRATION_MODE` | No (`invite`) | `invite` (any authenticated user can invite), `admin_only` (only admins can invite), or `domain` (open self-registration, double opt-in — see [user-flow.md](user-flow.md#getting-an-account)). |
-| `ALLOWED_EMAIL_DOMAIN` | No (empty = unrestricted) | Restricts which email domain can be invited *or* self-registered, e.g. `company.com`. Applies regardless of `REGISTRATION_MODE`. |
 | `TZ` | No (`UTC`) | Timezone for container-level tools (the `date` command, log timestamps) — display/log-only. PHP's own date handling (including the daily reminder job's "is the meeting tomorrow" check) hardcodes UTC explicitly and never reads this, confirmed directly — changing it doesn't affect when reminders fire. |
+
+Registration mode (`invite`/`admin_only`/`domain` — see [user-flow.md](user-flow.md#getting-an-account)) and the allowed email domain are no longer env vars — they're columns on the single `Company` row every deployment has (`private/cloud-service-plan.md`, not tracked in git, Phase A of a not-yet-built multi-tenant cloud offering). They default to `invite`/unrestricted, same as before. To change them, update that row directly: `docker compose exec app php bin/console dbal:run-sql "UPDATE companies SET registrationMode = 'domain', allowedEmailDomain = 'company.com'"`.
 
 ### Frontend build-time (baked into the static bundle)
 
@@ -116,21 +116,21 @@ volumes:
   mysql_data:
 ```
 
-`pdo_mysql` is already installed in both the dev and prod images (alongside `pdo_sqlite`, which stays installed unconditionally too) — no custom image build needed, just point `DATABASE_URL` at a real MySQL instance and run the MySQL-specific migration command instead of the default one:
+`pdo_mysql` is already installed in both the dev and prod images (alongside `pdo_sqlite`, which stays installed unconditionally too) — no custom image build needed, just point `DATABASE_URL` at a real MySQL instance and run the MySQL-specific migration command instead of the default one. Deliberately no explicit version argument — always migrates to the latest available migration in this namespace, so this same command stays correct as more migrations get added, rather than needing an edit here every time (see below for exactly that having gone stale once already):
 
 ```
-docker compose exec app php bin/console doctrine:migrations:migrate --configuration=migrations-mysql.php 'App\Migrations\MySQL\Version20260813123830' --no-interaction
+docker compose exec app php bin/console doctrine:migrations:migrate --configuration=migrations-mysql.php --no-interaction
 ```
 
-**Verified for real, not assumed working**: a real MySQL 8.4 container, the bootstrap migration applied cleanly to a genuinely fresh database, and the actual running app exercised against it over real HTTP — account activation, a second account, a real anketa created between them (real foreign keys), and a real publish (writing to a `LONGTEXT` ciphertext column) all worked correctly.
+**Verified for real, not assumed working**: a real MySQL 8.4 container, the migrations applied cleanly to both a genuinely fresh database and a populated one (an existing row correctly backfilled into the seeded default company, not left with a broken reference), and the actual running app exercised against it over real HTTP — account activation, a second account, a real anketa created between them (real foreign keys), a real publish (writing to a `LONGTEXT` ciphertext column), `GET /api/users` correctly scoped to one company, and — through the actual `docker-compose.cloud.yml` stack, not just a hand-built container — a real self-service company created via `CLOUD_MODE=1` all worked correctly.
 
-**Real, ongoing cost, not a one-time thing**: from this point forward, any schema-changing feature needs a second migration written by hand for `migrations-mysql/` too — there's no tooling here that generates both automatically, and letting this one silently drift out of date is exactly how it would quietly stop working again.
+**Real, ongoing cost, not a one-time thing — and it already bit once, for real, not hypothetically.** `migrations-mysql/` genuinely drifted out of sync for a while: three SQLite migrations' worth of schema (the entire multi-tenant `companies` table, `users.company_id`/`isPlatformAdmin`, and the billing columns — private/cloud-service-plan.md's Phases A/C/D, not tracked in git) shipped with no MySQL equivalent, silently, until Phase E's own cloud-infra work went looking for one and found the gap. Caught and fixed by generating a fresh `doctrine:migrations:diff` against a real MySQL 8.4 database and hand-editing the result the same way every populated-table SQLite migration in this project's history has needed — the auto-generated version added `company_id`/`isPlatformAdmin` as bare `NOT NULL` with no default, which MySQL doesn't reject the way SQLite does; it silently backfills the column type's own zero-value instead (an empty string for `company_id`, which then failed the very next statement — adding the foreign key — with a real, reproduced `SQLSTATE[23000]` error). A genuinely different, arguably worse failure mode than SQLite's loud rejection, caught only by actually testing against a populated table, not by review. There's still no tooling here that generates both `migrations/` and `migrations-mysql/` automatically — any future schema-changing feature needs the second one written by hand too.
 
 **Not currently covered**: `docker/prod/backup.sh`/`restore.sh` are SQLite-specific (`sqlite3 ... .backup`) — running against MySQL means bringing your own backup strategy (e.g. `mysqldump`/`mysqlbinlog`, or your managed MySQL provider's own snapshotting), not these scripts.
 
 ### Dev-only (`backend/.env`, already committed with working defaults)
 
-`APP_ENV`/`APP_DEBUG`/`DATABASE_URL` are fixed for local dev and shouldn't need touching. `MAILER_DSN` already points at the bundled Mailpit container. `REGISTRATION_MODE`/`ALLOWED_EMAIL_DOMAIN` default to `invite`/unrestricted, same meaning as in prod — edit this file directly to test a different mode locally (see the "real domain-mode verification" pattern `CLAUDE.md` documents: edit, `docker compose up -d --force-recreate backend`, test, then revert).
+`APP_ENV`/`APP_DEBUG`/`DATABASE_URL` are fixed for local dev and shouldn't need touching. `MAILER_DSN` already points at the bundled Mailpit container. The dev database's single seeded `Company` row defaults to `invite`/unrestricted, same meaning as in prod — to test a different mode locally, update that row directly (`docker compose exec backend php bin/console dbal:run-sql "UPDATE companies SET registrationMode = 'domain'"`), test, then revert the same way.
 
 ## Production
 
@@ -187,13 +187,41 @@ Use this if this host already runs its own nginx (or similar) that owns ports 80
 
 **HSTS is already handled — no extra config needed on your reverse proxy.** `docker/prod/Caddyfile.reverse-proxy` sends `Strict-Transport-Security` on its own internal plain-HTTP response; as long as your reverse proxy relays response headers through unmodified (the default for a plain nginx `proxy_pass` block like the one above, and for most reverse proxies generally), it reaches the browser correctly over the real external HTTPS connection. Only worth checking if your proxy config explicitly strips response headers (`proxy_hide_header`/equivalent).
 
+### Cloud deployment (multi-tenant)
+
+A third topology, alongside direct and reverse-proxy above — for running the self-service, multi-company cloud offering (`private/cloud-service-plan.md`, not tracked in git) instead of a single self-hosted company. **Still Phases A–E of that plan, not a finished, generally-available SaaS** — read `CLAUDE.md`'s own Phase D entry before relying on this for real: the Stripe checkout flow specifically has never been exercised against a live Stripe account, and there is no Terms of Service/Data Processing Agreement bundled with this repository (see "What this doesn't cover" below).
+
+1. Copy `.env.cloud.example` to `.env.cloud` and fill in real values — same core fields as `.env.prod` (`APP_SECRET`, `SERVER_NAME`/`FRONTEND_URL`, `MAILER_DSN`/`MAILER_FROM`), plus a MySQL `DATABASE_URL` (this topology hardcodes `CLOUD_MODE=1` and requires MySQL — see "Using MySQL instead of SQLite" above; SQLite's concurrency model was never validated for many companies sharing one database, only one company's realistic write volume — [ADR 3](adr/0003-sqlite-default-database.md)) and, optionally, `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`/`STRIPE_PRICE_ID` (leave empty to run without checkout capability — seat limits and company suspension both still work without Stripe configured at all).
+2. Bring the stack up. If you want the bundled MySQL container (a single self-contained deployment, no separate managed database service):
+   ```
+   docker compose -f docker-compose.cloud.yml --env-file .env.cloud --profile bundled-db up -d --build
+   ```
+   Omit `--profile bundled-db` if `DATABASE_URL` already points at your own managed MySQL instead — the bundled `mysql` service simply never starts.
+3. Run the **MySQL-specific** migration command (not the default one — see "Using MySQL instead of SQLite" above):
+   ```
+   docker compose -f docker-compose.cloud.yml --env-file .env.cloud exec app php bin/console doctrine:migrations:migrate --configuration=migrations-mysql.php --no-interaction
+   ```
+4. That's it — there's no separate admin-bootstrap command for this topology. The first company (and its first admin) is created by visiting the running instance and using the real "Start a new company" self-service flow (`/create-company`, shown on the login page once `CLOUD_MODE` is on), the same path every subsequent company goes through.
+
+Backups and the non-root-container one-time-upgrade note are the same as the direct/reverse-proxy topologies above — just substitute `-f docker-compose.cloud.yml --env-file .env.cloud` for the compose invocation. **Backups stay whole-instance** (the existing `backup.sh`/`restore.sh` pattern, once adapted for MySQL per "Not currently covered" above) — restoring a *single* company out of a shared-database backup, without touching every other company's data in the same file, is genuinely harder in this model and isn't solved here; a real, open ops gap, not glossed over.
+
+**Redeploying needs one extra variable, not just a substituted compose file** — `./docker/prod/deploy.sh`'s migration step defaults to the plain `doctrine:migrations:migrate` command (correct for SQLite, the direct/reverse-proxy topologies' database), which is the *wrong* migration namespace against this topology's MySQL database — see "Using MySQL instead of SQLite" above for why the two migration histories are separate. Set `MIGRATION_CONFIG` too:
+
+```sh
+PROD_COMPOSE_FILE=docker-compose.cloud.yml ENV_FILE=.env.cloud MIGRATION_CONFIG=--configuration=migrations-mysql.php ./docker/prod/deploy.sh
+```
+
+**A real, already-flagged future limitation, not a current one**: [ADR 4](adr/0004-session-based-auth.md) already states plainly that scaling to more than one app instance behind a load balancer would need shared session storage, which this app doesn't have. `docker-compose.cloud.yml` runs exactly one `app` container, same as the other topologies — fine for a good while on vertical scaling alone, but a real blocker the moment horizontal scaling is ever needed, flagged now rather than discovered as a surprise outage later.
+
+**What this doesn't cover, deliberately**: choosing and provisioning a real hosting provider/region, and drafting a real Terms of Service and Data Processing Agreement, are both explicitly *not* engineering tasks this repository can complete on its own — see `private/cloud-service-plan.md`'s own "not an engineering decision" framing. A real DPA is a genuine precondition to onboarding paying customers, not optional paperwork: this app being end-to-end encrypted means the operator can't read anketa content, but the operator is still the data processor for real metadata (who's registered, which companies exist, who's paired with whom, when) and needs a lawyer-reviewed agreement covering that, not a template generated without legal review.
+
 ### Redeploying (updating an existing instance)
 
 ```sh
 ./docker/prod/deploy.sh
 ```
 
-Builds the new image, recreates the container, runs migrations, and clears + restarts to pick up the freshly-compiled DI container — the exact sequence explained below, automated so it can't be run out of order or partially skipped (which has happened by hand). Defaults to the reverse-proxy topology (`docker-compose.prod.reverse-proxy.yml`); set `PROD_COMPOSE_FILE=docker-compose.prod.yml` for the direct-facing one, same override convention as `backup.sh`/`restore.sh`. Assumes you've already pulled the code you want deployed — it builds and redeploys whatever's currently checked out, nothing more. Ends with a real health check (`GET /health` inside the container) and exits non-zero if it doesn't come back healthy, so a broken deploy doesn't silently look finished.
+Builds the new image, recreates the container, runs migrations, and clears + restarts to pick up the freshly-compiled DI container — the exact sequence explained below, automated so it can't be run out of order or partially skipped (which has happened by hand). Defaults to the reverse-proxy topology (`docker-compose.prod.reverse-proxy.yml`); set `PROD_COMPOSE_FILE=docker-compose.prod.yml` for the direct-facing one, or `PROD_COMPOSE_FILE=docker-compose.cloud.yml ENV_FILE=.env.cloud MIGRATION_CONFIG=--configuration=migrations-mysql.php` for the cloud topology (see "Cloud deployment" above — that database is MySQL, so its migration history lives in a separate namespace the default command doesn't know about) — same override convention as `backup.sh`/`restore.sh`. Assumes you've already pulled the code you want deployed — it builds and redeploys whatever's currently checked out, nothing more. Ends with a real health check (`GET /health` inside the container) and exits non-zero if it doesn't come back healthy, so a broken deploy doesn't silently look finished.
 
 **`--build` + `up -d` alone is not enough once an instance already has data.** `data:/app/var` is a named Docker volume covering all of `var/`, including Symfony's compiled DI container cache (`var/cache/prod`) — not just `var/data.db`. On a brand-new instance that volume starts empty, so this doesn't matter. On every deploy *after* the first, the volume already has the *previous* version's compiled container sitting in it, and Symfony (`APP_DEBUG=0`) doesn't re-validate its freshness — it just serves the stale one. If the new code changed any service's constructor (a new constructor argument, a new dependency), the old compiled container still calls the old signature against the new class, and every request touching that service throws `ArgumentCountError` before it can do anything — this has actually happened, not just a theoretical risk.
 

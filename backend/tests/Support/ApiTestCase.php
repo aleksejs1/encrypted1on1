@@ -2,7 +2,9 @@
 
 namespace App\Tests\Support;
 
+use App\Company\SingleCompanyProvider;
 use App\Entity\ActivationToken;
+use App\Entity\Company;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -82,17 +84,42 @@ abstract class ApiTestCase extends WebTestCase
         return $entityManager;
     }
 
+    /** Same reasoning as entityManager() above — a typed accessor for the one other container service test code regularly needs directly. */
+    protected function singleCompanyProvider(): SingleCompanyProvider
+    {
+        $provider = self::getContainer()->get(SingleCompanyProvider::class);
+        \assert($provider instanceof SingleCompanyProvider);
+
+        return $provider;
+    }
+
     /**
      * Activates a brand-new user through the real activation endpoints (same
      * flow the frontend uses, opaque placeholder crypto material — the
      * backend never inspects it). Leaves $client logged in as this user,
      * exactly like a real activation completes with an immediate session.
      *
+     * $company defaults to the single seeded company every test database has (Phase A
+     * of private/cloud-service-plan.md, not tracked in git) — the vast majority of
+     * existing tests don't care about company boundaries at all and should keep working
+     * unchanged. Pass an explicit, distinct Company to set up a genuine cross-company
+     * scenario (see Functional/CompanyIsolationTest.php) — re-fetched by id here rather
+     * than used as-is, since a real HTTP request through $client (this method's own
+     * jsonRequest() call below, or any earlier one in the same test) clears the entity
+     * manager's identity map, leaving a Company object created before that request
+     * detached; re-fetching is cheap and correct whether or not a clear happened.
+     *
      * @return array{id: string, email: string, isAdmin: bool}
      */
-    protected function activateUser(KernelBrowser $client, string $email, bool $admin = false, string $locale = 'en'): array
+    protected function activateUser(KernelBrowser $client, string $email, bool $admin = false, string $locale = 'en', ?Company $company = null): array
     {
-        [$token, $rawToken] = ActivationToken::issue($email, $admin);
+        if (null !== $company) {
+            $company = $this->entityManager()->find(Company::class, $company->getId()) ?? $company;
+        } else {
+            $company = $this->singleCompanyProvider()->get();
+        }
+
+        [$token, $rawToken] = ActivationToken::issue($email, $company, $admin);
         $this->entityManager()->persist($token);
         $this->entityManager()->flush();
 

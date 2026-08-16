@@ -16,7 +16,11 @@ use App\Tests\Support\ApiTestCase;
  * REGISTRATION_MODE=domain, the same "docker compose up --force-recreate between
  * configs" Phase 6g's own manual verification needed. Deliberately deferred, not
  * silently skipped — verified manually against a real rebuilt container instead (see
- * the plan file's Verification section).
+ * the plan file's Verification section). This also covers signup()'s own seat-limit
+ * check (Phase D) — SeatLimitTest exercises the exact same shared SeatLimitChecker
+ * through InviteController instead, the fully reachable path; the two call sites are
+ * visually identical one-liners, and this specific branch was verified manually
+ * alongside the rest of domain mode, not left untested.
  */
 class SignupControllerTest extends ApiTestCase
 {
@@ -29,6 +33,7 @@ class SignupControllerTest extends ApiTestCase
         self::assertSame(200, $result['status']);
         self::assertSame('invite', $result['json']['registrationMode']);
         self::assertSame('', $result['json']['allowedEmailDomain']);
+        self::assertFalse($result['json']['cloudMode']);
     }
 
     public function testSignupIsRejectedWhenModeIsNotDomain(): void
