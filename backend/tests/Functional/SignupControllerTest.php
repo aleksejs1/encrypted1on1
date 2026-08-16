@@ -29,6 +29,7 @@ class SignupControllerTest extends ApiTestCase
         self::assertSame(200, $result['status']);
         self::assertSame('invite', $result['json']['registrationMode']);
         self::assertSame('', $result['json']['allowedEmailDomain']);
+        self::assertFalse($result['json']['cloudMode']);
     }
 
     public function testSignupIsRejectedWhenModeIsNotDomain(): void

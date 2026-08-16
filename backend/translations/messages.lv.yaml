@@ -20,6 +20,9 @@ email:
     signup:
         subject: 'Apstipriniet savu e-pastu encrypted1on1'
         body: "Mēs saņēmām pieprasījumu izveidot encrypted1on1 kontu ar šo e-pasta adresi.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
+    company_signup:
+        subject: 'Apstipriniet savu jauno uzņēmumu encrypted1on1'
+        body: "Mēs saņēmām pieprasījumu izveidot jaunu uzņēmumu \"%company%\" encrypted1on1, kur jūs būsiet tā pirmais administrators.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
@@ -70,3 +73,4 @@ errors:
     invalid_csrf_token: 'Nederīgs CSRF marķieris.'
     too_many_requests: 'Pārāk daudz pieprasījumu. Lūdzu, mēģiniet vēlreiz vēlāk.'
     registration_not_open: 'Pašreģistrācija pašlaik nav pieejama.'
+    cloud_signup_not_open: 'Jauna uzņēmuma reģistrācija šajā instancē nav pieejama.'

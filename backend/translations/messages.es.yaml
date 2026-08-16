@@ -20,6 +20,9 @@ email:
     signup:
         subject: 'Confirma tu email para encrypted1on1'
         body: "Hemos recibido una solicitud para crear una cuenta de encrypted1on1 con esta dirección de correo.\n\nActiva tu cuenta: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
+    company_signup:
+        subject: 'Confirma tu nueva empresa en encrypted1on1'
+        body: "Hemos recibido una solicitud para crear una nueva empresa, \"%company%\", en encrypted1on1, contigo como su primer administrador.\n\nActiva tu cuenta: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
 errors:
     not_authenticated: 'No autenticado.'
     missing_or_invalid_field: 'Falta o no es válido el campo "%field%".'
@@ -70,3 +73,4 @@ errors:
     invalid_csrf_token: 'Token CSRF no válido.'
     too_many_requests: 'Demasiadas solicitudes. Inténtalo de nuevo más tarde.'
     registration_not_open: 'El autorregistro no está disponible actualmente.'
+    cloud_signup_not_open: 'El registro de nuevas empresas no está disponible en esta instancia.'

@@ -24,6 +24,7 @@
     "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
     "forgotPassword": "Aizmirsāt paroli?",
     "signUpLink": "Reģistrēties",
+    "createCompanyLink": "Izveidot jaunu uzņēmumu",
     "genericError": "Kaut kas nogāja greizi.",
     "tryDemo": "Izmēģināt tiešsaistes demo",
     "demoNote": "Kopīgs demo konts ar paraugdatiem — tiek atiestatīts katru stundu."
@@ -48,6 +49,17 @@
     "sentConfirmation": "Ja šim e-pastam ir atļauts reģistrēties, mēs nosūtījām saiti konta aktivizēšanai.",
     "notOpenMessage": "Pašreģistrācija pašlaik nav pieejama. Palūdziet ielūgumu kādam no jūsu organizācijas.",
     "backToLogin": "Atpakaļ uz pieslēgšanos",
+    "genericError": "Kaut kas nogāja greizi."
+  },
+  "createCompany": {
+    "title": "Izveidot jaunu uzņēmumu",
+    "subtitle": "Izveidojiet sava uzņēmuma darbvietu un kļūstiet par tās pirmo administratoru.",
+    "companyNameLabel": "Uzņēmuma nosaukums",
+    "emailLabel": "Jūsu e-pasts",
+    "submit": "Izveidot uzņēmumu",
+    "submitting": "Izveido…",
+    "sentConfirmation": "Ja šis e-pasts ir pieejams, mēs nosūtījām saiti, lai aktivizētu jūsu kontu kā uzņēmuma pirmo administratoru.",
+    "notOpenMessage": "Pašapkalpošanās uzņēmuma izveide šajā instancē nav pieejama.",
     "genericError": "Kaut kas nogāja greizi."
   },
   "resetPassword": {

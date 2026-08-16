@@ -20,9 +20,35 @@ use App\Tests\Support\ApiTestCase;
  * (e.g. via makeCompany()) — WebTestCase's kernel can only be booted once per test, and
  * entityManager()'s getContainer() call boots it if nothing already has (see
  * ApiTestCase::secondClient()'s own docblock for the same constraint).
+ *
+ * tearDown() cleans up every company this class creates (and the users/tokens attached
+ * to them) — this test suite doesn't isolate row counts between tests (no per-test
+ * transaction rollback, by design — see ApiTestCase's own uniqueEmail()/per-test-IP
+ * conventions), and SingleCompanyProvider::get() now genuinely fails once more than one
+ * Company row exists (Phase B). Leaving these companies behind would break every other
+ * test file that relies on the single-default-company shortcut, purely by virtue of
+ * having run after this one in the same suite invocation — a real bug hit and fixed
+ * while adding Phase B, not a hypothetical one.
  */
 class CompanyIsolationTest extends ApiTestCase
 {
+    /** @var list<string> */
+    private array $createdCompanyIds = [];
+
+    protected function tearDown(): void
+    {
+        if ([] !== $this->createdCompanyIds) {
+            $connection = $this->entityManager()->getConnection();
+            $placeholders = implode(',', array_fill(0, \count($this->createdCompanyIds), '?'));
+            // FK-safe order: children (tokens, users) before the company row itself.
+            $connection->executeStatement("DELETE FROM activation_tokens WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM users WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM companies WHERE id IN ({$placeholders})", $this->createdCompanyIds);
+        }
+
+        parent::tearDown();
+    }
+
     public function testGetUsersNeverListsAnotherCompanysMembers(): void
     {
         $aClient = static::createClient();
@@ -144,6 +170,7 @@ class CompanyIsolationTest extends ApiTestCase
         $company = new Company($name);
         $this->entityManager()->persist($company);
         $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
 
         return $company;
     }

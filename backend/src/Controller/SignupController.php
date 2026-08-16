@@ -25,6 +25,16 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * token, alongside the CLI bootstrap and InviteController's inviter-issued
  * tokens. Mirrors PasswordResetController's shape: unauthenticated,
  * enumeration-sensitive, rate-limited.
+ *
+ * Disabled entirely once CLOUD_MODE is on (Phase B of private/cloud-service-plan.md,
+ * not tracked in git) — this controller's whole design assumes there's exactly one
+ * Company row to resolve via SingleCompanyProvider, which stops being true the moment
+ * CompanyController can create a second one. Growing an existing cloud-mode company
+ * still works exactly as before, just invite-only (InviteController, which reads
+ * $inviter->getCompany() directly and never had this assumption). Resolving "which
+ * company" an anonymous domain-signup visitor means — e.g. matching their email
+ * against each company's allowedEmailDomain — is real, undesigned future work, not
+ * something this phase silently guesses at.
  */
 class SignupController
 {
@@ -34,6 +44,7 @@ class SignupController
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly SingleCompanyProvider $singleCompanyProvider,
+        private readonly bool $cloudMode,
         #[Autowire(service: 'limiter.signup')]
         private readonly RateLimiterFactory $signupLimiter,
     ) {
@@ -44,23 +55,30 @@ class SignupController
      * decide whether to show a "Sign up" link at all. Neither value is sensitive:
      * registrationMode is already exposed via authenticated /api/me (Phase 6g), and
      * allowedEmailDomain is already echoed back in errors.email_domain_restricted's
-     * message to invite-flow users.
-     *
-     * Reads the one Company row Phase A guarantees exists (private/cloud-service-plan.md,
-     * not tracked in git) — with no way yet to create a second company, there's no
-     * ambiguity about which one an unauthenticated visitor means. A later phase that adds
-     * self-service company creation must revisit this: resolving "which company" from an
-     * anonymous visitor with no session needs a real design (e.g. matching the email they
-     * type against each company's allowedEmailDomain), not this single-row shortcut.
+     * message to invite-flow users. cloudMode is new (Phase B) — drives whether the
+     * frontend shows a "Start a new company" link instead/as well.
      */
     #[Route('/api/registration-info', name: 'registration_info', methods: ['GET'])]
     public function info(): JsonResponse
     {
+        if ($this->cloudMode) {
+            // See this class's own docblock: no single company's mode/domain is a
+            // correct answer anymore, so domain-based self-signup just reports as
+            // closed — 'invite' is the same safe default a brand-new company already
+            // starts with (see CompanyController).
+            return new JsonResponse([
+                'registrationMode' => 'invite',
+                'allowedEmailDomain' => '',
+                'cloudMode' => true,
+            ]);
+        }
+
         $company = $this->singleCompanyProvider->get();
 
         return new JsonResponse([
             'registrationMode' => $company->getRegistrationMode(),
             'allowedEmailDomain' => $company->getAllowedEmailDomain(),
+            'cloudMode' => false,
         ]);
     }
 
@@ -74,6 +92,10 @@ class SignupController
         $limit = $this->signupLimiter->create($request->getClientIp())->consume();
         if (!$limit->isAccepted()) {
             return RateLimitResponse::create($limit, $this->translator);
+        }
+
+        if ($this->cloudMode) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.registration_not_open')], 400);
         }
 
         $company = $this->singleCompanyProvider->get();

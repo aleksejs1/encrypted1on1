@@ -7,6 +7,7 @@
   import ForgotPassword from './pages/ForgotPassword.svelte';
   import ResetPassword from './pages/ResetPassword.svelte';
   import Signup from './pages/Signup.svelte';
+  import CreateCompany from './pages/CreateCompany.svelte';
   import Report from './pages/Report.svelte';
   import AccountSettings from './pages/AccountSettings.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
@@ -43,6 +44,7 @@
       !!resetPasswordMatch ||
       routerState.path === '/forgot-password' ||
       routerState.path === '/signup' ||
+      routerState.path === '/create-company' ||
       !authState.authenticated ||
       !!anketaMatch ||
       MIGRATED_AUTHED_PATHS.includes(routerState.path),
@@ -62,6 +64,8 @@
     <ForgotPassword />
   {:else if routerState.path === '/signup'}
     <Signup />
+  {:else if routerState.path === '/create-company'}
+    <CreateCompany />
   {:else if resetPasswordMatch}
     <ResetPassword token={resetPasswordMatch[1]} />
   {:else if !authState.checked}

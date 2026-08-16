@@ -25,6 +25,9 @@ email:
     signup:
         subject: 'Confirm your email for encrypted1on1'
         body: "We received a request to create an encrypted1on1 account with this email address.\n\nActivate your account: %url%\n\nIf you didn't request this, you can ignore this email."
+    company_signup:
+        subject: 'Confirm your new company on encrypted1on1'
+        body: "We received a request to create a new company, \"%company%\", on encrypted1on1, with you as its first admin.\n\nActivate your account: %url%\n\nIf you didn't request this, you can ignore this email."
 # API error messages (Phase 6j) — translated into the requesting user's active
 # UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
 errors:
@@ -77,3 +80,4 @@ errors:
     invalid_csrf_token: 'Invalid CSRF token.'
     too_many_requests: 'Too many requests. Please try again later.'
     registration_not_open: 'Self-registration is not currently open.'
+    cloud_signup_not_open: 'Company sign-up is not available on this instance.'
