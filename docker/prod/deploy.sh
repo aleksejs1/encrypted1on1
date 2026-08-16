@@ -19,10 +19,17 @@ set -eu
 # Usage: ./docker/prod/deploy.sh
 # Env:   ENV_FILE (default .env.prod), PROD_COMPOSE_FILE (default
 #        docker-compose.prod.reverse-proxy.yml — set to
-#        docker-compose.prod.yml for the direct-facing topology instead)
+#        docker-compose.prod.yml for the direct-facing topology, or
+#        docker-compose.cloud.yml + ENV_FILE=.env.cloud for the
+#        multi-tenant cloud topology, see docs/deployment.md), MIGRATION_CONFIG
+#        (default empty — set to "--configuration=migrations-mysql.php" when
+#        PROD_COMPOSE_FILE=docker-compose.cloud.yml; that topology's database is
+#        MySQL, not SQLite, and needs the MySQL-specific migration namespace, see
+#        docs/deployment.md's "Using MySQL instead of SQLite" section)
 
 ENV_FILE="${ENV_FILE:-.env.prod}"
 PROD_COMPOSE_FILE="${PROD_COMPOSE_FILE:-docker-compose.prod.reverse-proxy.yml}"
+MIGRATION_CONFIG="${MIGRATION_CONFIG:-}"
 COMPOSE="docker compose -f $PROD_COMPOSE_FILE --env-file $ENV_FILE"
 
 cd "$(dirname "$0")/../.."
@@ -34,7 +41,7 @@ echo "==> Recreating the app container with the new image..."
 $COMPOSE up -d app
 
 echo "==> Running database migrations..."
-$COMPOSE exec -T app php bin/console doctrine:migrations:migrate --no-interaction
+$COMPOSE exec -T app php bin/console doctrine:migrations:migrate $MIGRATION_CONFIG --no-interaction
 
 echo "==> Clearing the compiled container cache (see docs/deployment.md's Redeploying section)..."
 $COMPOSE exec -T app rm -rf var/cache/prod

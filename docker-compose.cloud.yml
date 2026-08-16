@@ -1,0 +1,94 @@
+# The cloud/multi-tenant deployment shape — Phase E of private/cloud-service-plan.md
+# (not tracked in git). A dedicated file, not a `-f docker-compose.prod.yml -f
+# override.yml` layering, for the same reason docker-compose.prod.reverse-proxy.yml
+# already is one: Compose's merge behavior for list-valued keys (ports, etc.) differs by
+# key in ways that are easy to get subtly wrong, and a real deployment mode deserves a
+# complete, independently-readable file. Same image (docker/prod/app.Dockerfile) as
+# every other prod topology — no separate build.
+#
+# Two things distinguish this from docker-compose.prod.yml, both deliberate:
+# - CLOUD_MODE is hardcoded to "1", not an operator-set env var — this file's entire
+#   purpose is running the cloud/multi-tenant offering, so there's no meaningful "off"
+#   state to default to (an operator who wants self-hosted single-company mode should
+#   use docker-compose.prod.yml instead, unchanged).
+# - DATABASE_URL must point at MySQL, not SQLite — see docs/deployment.md's "Using
+#   MySQL instead of SQLite" section (ADR 3's own reasoning: SQLite's concurrency model
+#   was validated for one company's realistic write volume, not potentially hundreds
+#   sharing one database). The `mysql` service below is bundled and optional (Compose
+#   profile `bundled-db`) for operators who want a single self-contained deployment;
+#   skip it (omit `--profile bundled-db`) and point DATABASE_URL at your own managed
+#   MySQL instead if you already run one.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/prod/app.Dockerfile
+      args:
+        ARGON2ID_PROFILE: "${ARGON2ID_PROFILE:-interactive}"
+        PRIVACY_POLICY_URL: "${PRIVACY_POLICY_URL:-}"
+        DEMO_MODE: "${DEMO_MODE:-false}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - data:/app/var
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      TZ: "${TZ:-UTC}"
+      APP_SECRET: "${APP_SECRET:?generate one with 'openssl rand -hex 32'}"
+      # Points at the bundled `mysql` service by default — override if you're using
+      # your own managed MySQL instead (in which case, don't start the bundled-db
+      # profile at all). Must run the MySQL-specific migration command, not the
+      # default one — see docs/deployment.md's cloud section.
+      DATABASE_URL: "${DATABASE_URL:?e.g. mysql://encrypted1on1:PASSWORD@mysql:3306/encrypted1on1?serverVersion=8.4.0 — see docs/deployment.md}"
+      CLOUD_MODE: "1"
+      SERVER_NAME: "${SERVER_NAME:?set a real public domain, e.g. cloud.example.com, needed for Caddy's automatic HTTPS}"
+      FRONTEND_URL: "${FRONTEND_URL:?e.g. https://cloud.example.com, same domain as SERVER_NAME, used to build links in emails}"
+      MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
+      MAILER_FROM: "${MAILER_FROM:?e.g. noreply@example.com}"
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+      # Empty by default — see StripeBillingProvider's own docblock and CLAUDE.md's
+      # Phase D entry: real Stripe SDK code, structurally correct, but never verified
+      # against a live Stripe account. Leave these empty to run the cloud offering
+      # without checkout capability (seat limits/suspension still work — a platform
+      # admin can suspend a company manually via PUT /api/platform-admin/companies/
+      # {id}/suspended in the meantime) until you've verified this for real yourself.
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+        required: false
+
+  # Optional — only starts with `docker compose -f docker-compose.cloud.yml --profile
+  # bundled-db up -d`. Skip this profile entirely if DATABASE_URL already points at
+  # your own managed MySQL (a cloud provider's managed database service, etc.).
+  mysql:
+    image: mysql:8.4
+    profiles: ["bundled-db"]
+    environment:
+      MYSQL_DATABASE: "${MYSQL_DATABASE:?e.g. encrypted1on1}"
+      MYSQL_USER: "${MYSQL_USER:?e.g. encrypted1on1}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?generate one with 'openssl rand -hex 24'}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?generate one with 'openssl rand -hex 24'}"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # Not published to the host — only `app` (same Docker network) ever needs to
+    # reach this. A managed external MySQL wouldn't be reachable this way regardless.
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:
+  mysql_data:
