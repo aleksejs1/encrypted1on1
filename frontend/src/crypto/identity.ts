@@ -7,8 +7,10 @@ export interface Identity {
   userId: string;
   email: string;
   isAdmin: boolean;
-  /** "invite" | "admin_only" (Phase 6g) — every authenticated user needs this to decide whether to show the general "Invite" UI. */
+  /** "invite" | "admin_only" | "domain" (Phase 6g) — every authenticated user needs this to decide whether to show the general "Invite" UI. */
   registrationMode: string;
+  /** Empty string = unrestricted. Non-sensitive; used by AdminPanel.svelte's invite-settings card. */
+  allowedEmailDomain: string;
   /** True only for the fixed, publicly-known demo account — drives a persistent "shared demo" banner. See private/demo-mode-plan.md (not tracked in git). */
   isDemo: boolean;
   /** The SaaS operator's own cross-company role (Phase C, private/cloud-service-plan.md, not tracked in git) — completely separate from isAdmin. Never drives a navigation link, only gates /platform-admin's own content. */
@@ -22,6 +24,7 @@ interface MeResponse {
   email: string;
   isAdmin: boolean;
   registrationMode: string;
+  allowedEmailDomain: string;
   isDemo: boolean;
   isPlatformAdmin: boolean;
   publicKey: string;
@@ -57,6 +60,7 @@ export async function ensureUnlocked(): Promise<Identity> {
       email: me.email,
       isAdmin: me.isAdmin,
       registrationMode: me.registrationMode,
+      allowedEmailDomain: me.allowedEmailDomain,
       isDemo: me.isDemo,
       isPlatformAdmin: me.isPlatformAdmin,
       publicKey: await fromBase64(me.publicKey),

@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Company;
 use App\Entity\User;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
@@ -95,6 +96,42 @@ class AdminController
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $target->getId(), 'isAdmin' => $target->isAdmin()]);
+    }
+
+    /**
+     * Lets a company admin configure who can invite/self-register and the email-domain
+     * restriction (private/cloud-service-plan.md, not tracked in git) — previously only
+     * settable via raw SQL (see Company's own former docblock). Reuses
+     * Company::REGISTRATION_MODES/InviteController's/SignupController's existing
+     * interpretation of each mode; this endpoint only ever changes the two fields, never
+     * anything billing/seat-related.
+     */
+    #[Route('/api/admin/company-settings', name: 'admin_company_settings_update', methods: ['PUT'])]
+    public function updateCompanySettings(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        $admin = $this->requireAdmin($request);
+
+        $body = $request->toArray();
+
+        $registrationMode = $body['registrationMode'] ?? null;
+        if (!\is_string($registrationMode) || !\in_array($registrationMode, Company::REGISTRATION_MODES, true)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'registrationMode'])], 400);
+        }
+
+        $allowedEmailDomain = $body['allowedEmailDomain'] ?? null;
+        if (!\is_string($allowedEmailDomain)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'allowedEmailDomain'])], 400);
+        }
+
+        $company = $admin->getCompany();
+        $company->updateSettings($registrationMode, trim($allowedEmailDomain));
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'registrationMode' => $company->getRegistrationMode(),
+            'allowedEmailDomain' => $company->getAllowedEmailDomain(),
+        ]);
     }
 
     private function requireAdmin(Request $request): User

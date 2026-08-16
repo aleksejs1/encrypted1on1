@@ -14,9 +14,12 @@ use Symfony\Component\Uid\Uuid;
  * to be global env-bound scalars (`config/services.php`) — same values, same meaning,
  * just now a per-company setting instead of a per-instance one.
  *
- * Deliberately not an ApiResource (see SerializationBoundaryTest) and has no setters for
- * registrationMode/allowedEmailDomain/name: nothing yet mutates them after creation —
- * that's a company-admin-settings endpoint, still out of scope (see the plan's phasing).
+ * Deliberately not an ApiResource (see SerializationBoundaryTest). `name` still has no
+ * setter — nothing mutates it after creation. `registrationMode`/`allowedEmailDomain` do,
+ * via updateSettings() (AdminController's `PUT /api/admin/company-settings`) — lets a
+ * company admin configure who can invite/self-register and the email-domain restriction
+ * without needing raw SQL, closing the gap this class's docblock used to flag as
+ * out of scope.
  *
  * Billing fields (Phase D) are real, but deliberately minimal — this app has no chosen
  * pricing tiers yet (see private/cloud-service-plan.md's own "not an engineering
@@ -138,6 +141,17 @@ class Company
     public function getAllowedEmailDomain(): string
     {
         return $this->allowedEmailDomain;
+    }
+
+    /** Same validation as the constructor — a company admin, not just the CLI bootstrap or CompanyController, can now set these. */
+    public function updateSettings(string $registrationMode, string $allowedEmailDomain): void
+    {
+        if (!\in_array($registrationMode, self::REGISTRATION_MODES, true)) {
+            throw new \InvalidArgumentException(sprintf('Unsupported registration mode "%s".', $registrationMode));
+        }
+
+        $this->registrationMode = $registrationMode;
+        $this->allowedEmailDomain = $allowedEmailDomain;
     }
 
     public function getPlanTier(): string

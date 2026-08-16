@@ -1,9 +1,12 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, ApiError } from '../api/client';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked, clearIdentity } from '../crypto/identity';
   import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
+
+  const REGISTRATION_MODES = ['invite', 'admin_only', 'domain'] as const;
+  type RegistrationMode = (typeof REGISTRATION_MODES)[number];
 
   interface AdminUser {
     id: string;
@@ -20,12 +23,20 @@
   let actionError = $state<string | null>(null);
   let pending = $state<Record<string, boolean>>({});
 
+  let registrationMode = $state<RegistrationMode>('invite');
+  let allowedEmailDomain = $state('');
+  let settingsSaving = $state(false);
+  let settingsSaved = $state(false);
+  let settingsError = $state<string | null>(null);
+
   $effect(() => {
     ensureUnlocked()
       .then((identity) => {
         myUserId = identity.userId;
         isAdmin = identity.isAdmin;
         if (!identity.isAdmin) return;
+        registrationMode = identity.registrationMode as RegistrationMode;
+        allowedEmailDomain = identity.allowedEmailDomain;
         return apiGet<AdminUser[]>('/api/admin/users').then((list) => {
           users = list;
         });
@@ -35,6 +46,33 @@
           error instanceof ApiError ? error.message : $_('admin.errorLoad');
       });
   });
+
+  async function saveInviteSettings(): Promise<void> {
+    settingsSaving = true;
+    settingsSaved = false;
+    settingsError = null;
+    try {
+      const result = await apiPut<{
+        registrationMode: RegistrationMode;
+        allowedEmailDomain: string;
+      }>('/api/admin/company-settings', {
+        registrationMode,
+        allowedEmailDomain,
+      });
+      registrationMode = result.registrationMode;
+      allowedEmailDomain = result.allowedEmailDomain;
+      settingsSaved = true;
+      // The cached identity (used elsewhere to decide whether to show the
+      // general "Invite" UI, e.g. AccountSettings.svelte) is now stale —
+      // clear it so the next ensureUnlocked() call re-fetches from /api/me.
+      clearIdentity();
+    } catch (error) {
+      settingsError =
+        error instanceof ApiError ? error.message : $_('admin.errorUpdate');
+    } finally {
+      settingsSaving = false;
+    }
+  }
 
   async function toggleBlocked(user: AdminUser): Promise<void> {
     pending = { ...pending, [user.id]: true };
@@ -89,6 +127,56 @@
   {:else if !isAdmin}
     <p class="text-muted">{$_('admin.notAuthorized')}</p>
   {:else}
+    <div class="card elev-md invite-settings">
+      <h2>{$_('admin.inviteSettingsTitle')}</h2>
+      <p class="text-muted hint">{$_('admin.inviteSettingsHint')}</p>
+
+      <div class="field">
+        <label for="registration-mode"
+          >{$_('admin.registrationModeLabel')}</label
+        >
+        <select
+          id="registration-mode"
+          class="input"
+          bind:value={registrationMode}
+        >
+          {#each REGISTRATION_MODES as mode (mode)}
+            <option value={mode}>{$_(`admin.registrationMode.${mode}`)}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="allowed-email-domain"
+          >{$_('admin.allowedEmailDomainLabel')}</label
+        >
+        <input
+          id="allowed-email-domain"
+          class="input"
+          type="text"
+          placeholder="company.com"
+          bind:value={allowedEmailDomain}
+        />
+        <p class="text-muted hint">{$_('admin.allowedEmailDomainHint')}</p>
+      </div>
+
+      {#if settingsSaved}
+        <p class="banner-success">{$_('admin.inviteSettingsSaved')}</p>
+      {/if}
+      {#if settingsError}
+        <p class="banner-error">{settingsError}</p>
+      {/if}
+
+      <button
+        type="button"
+        class="btn btn-primary"
+        onclick={saveInviteSettings}
+        disabled={settingsSaving}
+      >
+        {settingsSaving ? $_('common.saving') : $_('common.save')}
+      </button>
+    </div>
+
     <div class="invite-wrap">
       <InviteForm />
     </div>
@@ -165,6 +253,11 @@
   h1 {
     font-size: 28px;
     margin-bottom: 20px;
+  }
+
+  .invite-settings {
+    margin-bottom: 24px;
+    max-width: 26rem;
   }
 
   .invite-wrap {

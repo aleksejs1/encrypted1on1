@@ -365,7 +365,18 @@
     "makeAdmin": "Hacer administrador",
     "revokeAdmin": "Quitar permisos de administrador",
     "errorLoad": "No se pudo cargar el panel de administración.",
-    "errorUpdate": "No se pudo actualizar el usuario."
+    "errorUpdate": "No se pudo actualizar el usuario.",
+    "inviteSettingsTitle": "Ajustes de invitación",
+    "inviteSettingsHint": "Controla quién puede incorporar nuevas personas a la cuenta de tu empresa.",
+    "registrationModeLabel": "Quién puede invitar",
+    "registrationMode": {
+      "invite": "Cualquier miembro del equipo",
+      "admin_only": "Solo administradores",
+      "domain": "Autorregistro abierto (por el dominio de abajo)"
+    },
+    "allowedEmailDomainLabel": "Restringir a un dominio de correo",
+    "allowedEmailDomainHint": "Déjalo vacío para permitir cualquier dominio de correo. Se aplica a las invitaciones y, en el modo de autorregistro abierto, también a quién puede registrarse.",
+    "inviteSettingsSaved": "Guardado."
   },
   "platformAdmin": {
     "title": "Administración de la plataforma",

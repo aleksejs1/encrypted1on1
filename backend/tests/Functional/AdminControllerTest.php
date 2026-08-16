@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
 
 class AdminControllerTest extends ApiTestCase
@@ -87,5 +88,106 @@ class AdminControllerTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'PUT', '/api/admin/users/00000000-0000-0000-0000-000000000000/blocked', ['blocked' => true]);
 
         self::assertSame(404, $result['status']);
+    }
+
+    public function testUpdateCompanySettingsRequires401WhenNotAuthenticated(): void
+    {
+        $client = static::createClient();
+        $result = $this->jsonRequest($client, 'PUT', '/api/admin/company-settings', ['registrationMode' => 'admin_only', 'allowedEmailDomain' => '']);
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testUpdateCompanySettingsRequires403ForANonAdmin(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('settings-non-admin'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/admin/company-settings', ['registrationMode' => 'admin_only', 'allowedEmailDomain' => '']);
+
+        self::assertSame(403, $result['status']);
+    }
+
+    public function testUpdateCompanySettingsRejectsAnInvalidRegistrationMode(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('settings-invalid-mode'), admin: true);
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/admin/company-settings', ['registrationMode' => 'nonsense', 'allowedEmailDomain' => '']);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testUpdateCompanySettingsUpdatesBothFields(): void
+    {
+        $client = static::createClient();
+        // A dedicated company, not the shared default one every other test in this
+        // file/suite also resolves via SingleCompanyProvider — this test genuinely
+        // mutates registrationMode, and leaving that change on the shared default
+        // company would silently break unrelated tests later in the same run (the
+        // same class of shared-mutable-state bug CompanyIsolationTest's own tearDown()
+        // already exists to prevent, just for a field mutation instead of a row count).
+        $company = $this->makeCompany('Settings Update Co');
+        $this->activateUser($client, $this->uniqueEmail('settings-update'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/admin/company-settings', [
+            'registrationMode' => 'admin_only',
+            'allowedEmailDomain' => ' example.com ',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame('admin_only', $result['json']['registrationMode']);
+        // Trimmed server-side.
+        self::assertSame('example.com', $result['json']['allowedEmailDomain']);
+
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+        self::assertSame('admin_only', $me['json']['registrationMode']);
+        self::assertSame('example.com', $me['json']['allowedEmailDomain']);
+    }
+
+    public function testUpdateCompanySettingsOnlyAffectsTheAdminsOwnCompany(): void
+    {
+        $clientA = static::createClient();
+        $companyA = $this->makeCompany('Settings Co A');
+        $this->activateUser($clientA, $this->uniqueEmail('settings-company-a'), admin: true, company: $companyA);
+
+        $clientB = $this->secondClient();
+        $companyB = $this->makeCompany('Settings Co B');
+        $this->activateUser($clientB, $this->uniqueEmail('settings-company-b'), admin: true, company: $companyB);
+
+        $this->jsonRequest($clientA, 'PUT', '/api/admin/company-settings', ['registrationMode' => 'admin_only', 'allowedEmailDomain' => '']);
+
+        $meB = $this->jsonRequest($clientB, 'GET', '/api/me');
+        self::assertSame('invite', $meB['json']['registrationMode']);
+    }
+
+    /** @var list<string> */
+    private array $createdCompanyIds = [];
+
+    protected function tearDown(): void
+    {
+        if ([] !== $this->createdCompanyIds) {
+            $connection = $this->entityManager()->getConnection();
+            $placeholders = implode(',', array_fill(0, \count($this->createdCompanyIds), '?'));
+            // FK-safe order: children (tokens, users) before the company row itself —
+            // same cleanup shape CompanyIsolationTest already established, needed for
+            // the same reason: SingleCompanyProvider::get() fails once >1 company row
+            // exists, and this suite has no per-test transaction rollback.
+            $connection->executeStatement("DELETE FROM activation_tokens WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM users WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM companies WHERE id IN ({$placeholders})", $this->createdCompanyIds);
+        }
+
+        parent::tearDown();
+    }
+
+    private function makeCompany(string $name): Company
+    {
+        $company = new Company($name);
+        $this->entityManager()->persist($company);
+        $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
+
+        return $company;
     }
 }

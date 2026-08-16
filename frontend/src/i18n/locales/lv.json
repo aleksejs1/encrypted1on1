@@ -363,7 +363,18 @@
     "makeAdmin": "Piešķirt administratora tiesības",
     "revokeAdmin": "Atņemt administratora tiesības",
     "errorLoad": "Neizdevās ielādēt administrēšanas paneli.",
-    "errorUpdate": "Neizdevās atjaunināt lietotāju."
+    "errorUpdate": "Neizdevās atjaunināt lietotāju.",
+    "inviteSettingsTitle": "Uzaicinājumu iestatījumi",
+    "inviteSettingsHint": "Pārvaldiet, kurš var uzaicināt jaunus cilvēkus jūsu uzņēmuma kontā.",
+    "registrationModeLabel": "Kurš var uzaicināt",
+    "registrationMode": {
+      "invite": "Jebkurš komandas dalībnieks",
+      "admin_only": "Tikai administratori",
+      "domain": "Atvērta pašreģistrācija (pēc domēna zemāk)"
+    },
+    "allowedEmailDomainLabel": "Ierobežot ar e-pasta domēnu",
+    "allowedEmailDomainHint": "Atstājiet tukšu, lai atļautu jebkuru e-pasta domēnu. Attiecas uz uzaicinājumiem, bet atvērtas pašreģistrācijas režīmā — arī uz to, kurš var reģistrēties pats.",
+    "inviteSettingsSaved": "Saglabāts."
   },
   "platformAdmin": {
     "title": "Platformas administrēšana",

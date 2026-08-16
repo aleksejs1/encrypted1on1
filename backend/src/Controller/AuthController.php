@@ -118,6 +118,10 @@ class AuthController
             // "Invite" UI (Phase 6g) — not admin-only information. Now a per-company
             // setting (private/cloud-service-plan.md, not tracked in git, Phase A).
             'registrationMode' => $user->getCompany()->getRegistrationMode(),
+            // Non-sensitive (already exposed unauthenticated via GET /api/registration-info
+            // for self-hosted deployments) — needed so AdminPanel.svelte's invite-settings
+            // card can display the current restriction without a dedicated GET endpoint.
+            'allowedEmailDomain' => $user->getCompany()->getAllowedEmailDomain(),
             'meetingRemindersEnabled' => $user->wantsMeetingReminders(),
             // Drives a persistent "you're viewing the shared demo" banner —
             // see private/demo-mode-plan.md (not tracked in git).
