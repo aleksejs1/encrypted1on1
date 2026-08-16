@@ -5,6 +5,16 @@ namespace App\Tests\Functional;
 use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
 
+/**
+ * CLOUD_MODE in .env is "0" (off), inherited unchanged by the test environment — same
+ * deferral InviteControllerTest/SignupControllerTest already document for their own
+ * alternate-mode gaps. testUpdateCompanySettingsRejectsDomainModeUnderCloudMode below
+ * cannot exist in this suite as a real assertion for that reason; the corresponding
+ * rejection in AdminController::updateCompanySettings() (registrationMode 'domain' +
+ * $this->cloudMode) was instead verified for real against the live dev stack with
+ * CLOUD_MODE=1 (a real 400 with errors.domain_mode_unavailable_in_cloud), not skipped
+ * silently.
+ */
 class AdminControllerTest extends ApiTestCase
 {
     public function testListUsersRequires401WhenNotAuthenticated(): void
@@ -116,6 +126,21 @@ class AdminControllerTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'PUT', '/api/admin/company-settings', ['registrationMode' => 'nonsense', 'allowedEmailDomain' => '']);
 
         self::assertSame(400, $result['status']);
+    }
+
+    public function testUpdateCompanySettingsAllowsDomainModeUnderSelfHostedCloudModeOff(): void
+    {
+        $client = static::createClient();
+        $company = $this->makeCompany('Settings Domain Co');
+        $this->activateUser($client, $this->uniqueEmail('settings-domain'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/admin/company-settings', [
+            'registrationMode' => 'domain',
+            'allowedEmailDomain' => 'example.com',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame('domain', $result['json']['registrationMode']);
     }
 
     public function testUpdateCompanySettingsUpdatesBothFields(): void

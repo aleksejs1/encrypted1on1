@@ -5,8 +5,20 @@
   import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
 
-  const REGISTRATION_MODES = ['invite', 'admin_only', 'domain'] as const;
-  type RegistrationMode = (typeof REGISTRATION_MODES)[number];
+  // Deliberately just these two — not the full Company.REGISTRATION_MODES set. `domain`
+  // (open self-registration) is a separate, orthogonal feature (whether people can join
+  // without an invite at all, not "who can invite") and is unavailable on a multi-company
+  // instance anyway (SignupController refuses it globally once CLOUD_MODE is on,
+  // regardless of what any one company's registrationMode says) — offering it here would
+  // let an admin pick a setting that silently does nothing. Self-hosted operators who
+  // want it can still set it directly (bin/console dbal:run-sql), same as before this
+  // panel existed.
+  const REGISTRATION_MODES = ['admin_only', 'invite'] as const;
+  // Plain string, not a literal union of REGISTRATION_MODES: a company's actual
+  // registrationMode can still be 'domain' (set outside this panel, e.g. by a
+  // self-hosted operator via SQL) — this only needs to round-trip that value
+  // correctly if the admin doesn't touch the select, not validate it client-side.
+  type RegistrationMode = string;
 
   interface AdminUser {
     id: string;
@@ -35,7 +47,7 @@
         myUserId = identity.userId;
         isAdmin = identity.isAdmin;
         if (!identity.isAdmin) return;
-        registrationMode = identity.registrationMode as RegistrationMode;
+        registrationMode = identity.registrationMode;
         allowedEmailDomain = identity.allowedEmailDomain;
         return apiGet<AdminUser[]>('/api/admin/users').then((list) => {
           users = list;
@@ -143,6 +155,18 @@
           {#each REGISTRATION_MODES as mode (mode)}
             <option value={mode}>{$_(`admin.registrationMode.${mode}`)}</option>
           {/each}
+          {#if !REGISTRATION_MODES.includes(registrationMode as 'admin_only' | 'invite')}
+            <!-- Not offered as a normal choice (see the REGISTRATION_MODES comment
+                 above), but a company already in this state — set outside this panel,
+                 e.g. a self-hosted operator's own SQL — needs a matching <option> so
+                 selecting anything else here is a deliberate choice, not a silent
+                 downgrade from an unmatched <select> defaulting to the first option. -->
+            <option value={registrationMode}
+              >{$_('admin.registrationModeOther', {
+                values: { mode: registrationMode },
+              })}</option
+            >
+          {/if}
         </select>
       </div>
 

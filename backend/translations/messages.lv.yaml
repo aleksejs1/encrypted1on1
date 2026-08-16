@@ -80,4 +80,5 @@ errors:
     too_many_requests: 'Pārāk daudz pieprasījumu. Lūdzu, mēģiniet vēlreiz vēlāk.'
     registration_not_open: 'Pašreģistrācija pašlaik nav pieejama.'
     cloud_signup_not_open: 'Jauna uzņēmuma reģistrācija šajā instancē nav pieejama.'
+    domain_mode_unavailable_in_cloud: 'Atvērta pašreģistrācija pēc domēna nav pieejama vairāku uzņēmumu instancē.'
     billing_not_configured: 'Norēķini šajā instancē nav konfigurēti.'

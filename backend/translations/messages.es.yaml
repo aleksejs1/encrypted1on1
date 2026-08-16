@@ -80,4 +80,5 @@ errors:
     too_many_requests: 'Demasiadas solicitudes. Inténtalo de nuevo más tarde.'
     registration_not_open: 'El autorregistro no está disponible actualmente.'
     cloud_signup_not_open: 'El registro de nuevas empresas no está disponible en esta instancia.'
+    domain_mode_unavailable_in_cloud: 'El autorregistro abierto por dominio no está disponible en una instancia multiempresa.'
     billing_not_configured: 'La facturación no está configurada en esta instancia.'

@@ -371,11 +371,11 @@
     "registrationModeLabel": "Quién puede invitar",
     "registrationMode": {
       "invite": "Cualquier miembro del equipo",
-      "admin_only": "Solo administradores",
-      "domain": "Autorregistro abierto (por el dominio de abajo)"
+      "admin_only": "Solo administradores"
     },
+    "registrationModeOther": "Otro ({mode}, definido fuera de este panel)",
     "allowedEmailDomainLabel": "Restringir a un dominio de correo",
-    "allowedEmailDomainHint": "Déjalo vacío para permitir cualquier dominio de correo. Se aplica a las invitaciones y, en el modo de autorregistro abierto, también a quién puede registrarse.",
+    "allowedEmailDomainHint": "Déjalo vacío para permitir cualquier dominio de correo. Cualquiera —incluido un administrador— que intente invitar a alguien fuera de este dominio verá un error.",
     "inviteSettingsSaved": "Guardado."
   },
   "platformAdmin": {

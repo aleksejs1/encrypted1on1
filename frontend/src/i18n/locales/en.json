@@ -367,11 +367,11 @@
     "registrationModeLabel": "Who can invite",
     "registrationMode": {
       "invite": "Any team member",
-      "admin_only": "Admins only",
-      "domain": "Open self-registration (by domain below)"
+      "admin_only": "Admins only"
     },
+    "registrationModeOther": "Other ({mode}, set outside this panel)",
     "allowedEmailDomainLabel": "Restrict to email domain",
-    "allowedEmailDomainHint": "Leave empty to allow any email domain. Applies to invites and, in open self-registration mode, to who can sign up.",
+    "allowedEmailDomainHint": "Leave empty to allow any email domain. Anyone — including an admin — who tries to invite someone outside this domain will see an error.",
     "inviteSettingsSaved": "Saved."
   },
   "platformAdmin": {

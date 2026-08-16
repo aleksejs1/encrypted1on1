@@ -87,4 +87,5 @@ errors:
     too_many_requests: 'Too many requests. Please try again later.'
     registration_not_open: 'Self-registration is not currently open.'
     cloud_signup_not_open: 'Company sign-up is not available on this instance.'
+    domain_mode_unavailable_in_cloud: 'Open self-registration by domain is not available on a multi-company instance.'
     billing_not_configured: 'Billing is not configured on this instance.'

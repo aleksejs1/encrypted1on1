@@ -369,11 +369,11 @@
     "registrationModeLabel": "Kurš var uzaicināt",
     "registrationMode": {
       "invite": "Jebkurš komandas dalībnieks",
-      "admin_only": "Tikai administratori",
-      "domain": "Atvērta pašreģistrācija (pēc domēna zemāk)"
+      "admin_only": "Tikai administratori"
     },
+    "registrationModeOther": "Cits ({mode}, iestatīts ārpus šī paneļa)",
     "allowedEmailDomainLabel": "Ierobežot ar e-pasta domēnu",
-    "allowedEmailDomainHint": "Atstājiet tukšu, lai atļautu jebkuru e-pasta domēnu. Attiecas uz uzaicinājumiem, bet atvērtas pašreģistrācijas režīmā — arī uz to, kurš var reģistrēties pats.",
+    "allowedEmailDomainHint": "Atstājiet tukšu, lai atļautu jebkuru e-pasta domēnu. Ja kāds — arī administrators — mēģinās uzaicināt cilvēku ārpus šī domēna, viņš redzēs kļūdu.",
     "inviteSettingsSaved": "Saglabāts."
   },
   "platformAdmin": {

@@ -34,6 +34,7 @@ class AdminController
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
+        private readonly bool $cloudMode,
     ) {
     }
 
@@ -99,12 +100,18 @@ class AdminController
     }
 
     /**
-     * Lets a company admin configure who can invite/self-register and the email-domain
-     * restriction (private/cloud-service-plan.md, not tracked in git) — previously only
-     * settable via raw SQL (see Company's own former docblock). Reuses
-     * Company::REGISTRATION_MODES/InviteController's/SignupController's existing
-     * interpretation of each mode; this endpoint only ever changes the two fields, never
-     * anything billing/seat-related.
+     * Lets a company admin configure who can invite and the email-domain restriction
+     * (private/cloud-service-plan.md, not tracked in git) — previously only settable via
+     * raw SQL (see Company's own former docblock). `domain` (open self-registration) is
+     * deliberately rejected under CLOUD_MODE, not just hidden in the admin panel's own
+     * UI: SignupController::signup()/info() already refuse self-registration globally
+     * once CLOUD_MODE is on, regardless of what any one company's registrationMode says
+     * — resolving "which company" from an anonymous visitor's email domain across many
+     * companies is real, undesigned future work (see SignupController's own docblock),
+     * so setting a cloud company to `domain` would silently do nothing but confuse
+     * whoever set it. Self-hosted deployments (CLOUD_MODE off) keep full access to all
+     * three modes, `domain` included — that path genuinely works there. This endpoint
+     * only ever changes these two fields, never anything billing/seat-related.
      */
     #[Route('/api/admin/company-settings', name: 'admin_company_settings_update', methods: ['PUT'])]
     public function updateCompanySettings(Request $request): JsonResponse
@@ -117,6 +124,9 @@ class AdminController
         $registrationMode = $body['registrationMode'] ?? null;
         if (!\is_string($registrationMode) || !\in_array($registrationMode, Company::REGISTRATION_MODES, true)) {
             return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'registrationMode'])], 400);
+        }
+        if ('domain' === $registrationMode && $this->cloudMode) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.domain_mode_unavailable_in_cloud')], 400);
         }
 
         $allowedEmailDomain = $body['allowedEmailDomain'] ?? null;
