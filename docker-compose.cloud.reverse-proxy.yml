@@ -1,0 +1,91 @@
+# Alternate to docker-compose.cloud.yml, for hosts where an existing reverse proxy
+# (e.g. a host-level nginx/Caddy/Traefik already serving other projects — the landing
+# page, a self-hosted/demo instance, etc. — on 80/443) owns those ports. Mirrors how
+# docker-compose.prod.reverse-proxy.yml already sits alongside docker-compose.prod.yml
+# — same reasoning (Caddy can't bind 80/443 a second time on the same host), same fix
+# (an internal-only bind plus the existing docker/prod/Caddyfile.reverse-proxy, which
+# needed zero changes: its CSP/HSTS/routing logic has no idea whether CLOUD_MODE is on,
+# that's purely a backend/PHP concern). Standalone, not layered via `-f a -f b` — same
+# "Compose's list-key merge semantics are easy to get subtly wrong" reasoning every
+# other alternate-topology file here already gives.
+#
+# Same two things distinguish this from docker-compose.prod.reverse-proxy.yml as
+# docker-compose.cloud.yml distinguishes itself from docker-compose.prod.yml:
+# CLOUD_MODE hardcoded to "1", and DATABASE_URL must be MySQL (see docker-compose.cloud.yml's
+# own comment for the full reasoning — identical here, not repeated).
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/prod/app.Dockerfile
+      args:
+        ARGON2ID_PROFILE: "${ARGON2ID_PROFILE:-interactive}"
+        PRIVACY_POLICY_URL: "${PRIVACY_POLICY_URL:-}"
+        DEMO_MODE: "${DEMO_MODE:-false}"
+    ports:
+      # Caddy only ever listens on port 80 in this mode (auto_https is off in
+      # Caddyfile.reverse-proxy) — bind to loopback, not 0.0.0.0, and use a port
+      # your existing reverse proxy isn't already using for another project on
+      # this same host (e.g. the landing page or a self-hosted/demo instance).
+      - "${APP_INTERNAL_BIND:?e.g. 127.0.0.1:8091 — set in .env.cloud, must match your reverse proxy's upstream/proxy_pass target, and must not collide with any other project's own APP_INTERNAL_BIND on this host}:80"
+    volumes:
+      - data:/app/var
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./docker/prod/Caddyfile.reverse-proxy:/etc/frankenphp/Caddyfile:ro
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      TZ: "${TZ:-UTC}"
+      APP_SECRET: "${APP_SECRET:?generate one with 'openssl rand -hex 32'}"
+      DATABASE_URL: "${DATABASE_URL:?e.g. mysql://encrypted1on1:PASSWORD@mysql:3306/encrypted1on1?serverVersion=8.4.0 — see docs/deployment.md}"
+      CLOUD_MODE: "1"
+      SERVER_NAME: "${SERVER_NAME:?e.g. cloud.example.com — used to build links in emails; Caddy itself never provisions a certificate for this in reverse-proxy mode, your existing proxy handles TLS}"
+      FRONTEND_URL: "${FRONTEND_URL:?e.g. https://cloud.example.com, same domain as SERVER_NAME, used to build links in emails}"
+      MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
+      MAILER_FROM: "${MAILER_FROM:?e.g. noreply@example.com}"
+      # Told to Symfony so it trusts X-Forwarded-* from the reverse proxy — without
+      # this, session cookies lose their Secure flag even on real HTTPS traffic. See
+      # docker-compose.prod.reverse-proxy.yml's own comment for the full reasoning.
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.1,::1}"
+      # Same trust decision, told to Caddy itself (Caddyfile.reverse-proxy).
+      CADDY_TRUSTED_PROXIES: "${CADDY_TRUSTED_PROXIES:-127.0.0.1 ::1}"
+      DEFAULT_SEAT_LIMIT: "${DEFAULT_SEAT_LIMIT:-5}"
+      # Empty by default — see docker-compose.cloud.yml's own comment: real Stripe SDK
+      # code, structurally correct, but never verified against a live Stripe account.
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+        required: false
+
+  # Optional — only starts with `docker compose -f docker-compose.cloud.reverse-proxy.yml
+  # --profile bundled-db up -d`. Skip this profile entirely if DATABASE_URL already
+  # points at your own managed MySQL.
+  mysql:
+    image: mysql:8.4
+    profiles: ["bundled-db"]
+    environment:
+      MYSQL_DATABASE: "${MYSQL_DATABASE:?e.g. encrypted1on1}"
+      MYSQL_USER: "${MYSQL_USER:?e.g. encrypted1on1}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?generate one with 'openssl rand -hex 24'}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?generate one with 'openssl rand -hex 24'}"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # Not published to the host — only `app` (same Docker network) ever needs to
+    # reach this.
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:
+  mysql_data:
