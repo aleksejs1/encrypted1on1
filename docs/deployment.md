@@ -265,6 +265,16 @@ To restore a backup: `./docker/prod/restore.sh backups/data-<timestamp>.db` — 
 
 This only gets the data out of the volume and onto the host's disk — getting `./backups` itself somewhere durable (offsite, cloud storage) is your own infrastructure's concern, not something this app manages.
 
+### Token cleanup
+
+`app:cleanup-expired-tokens` deletes `ActivationToken`/`PasswordResetToken` rows whose TTL has passed (24h/2h respectively — see each entity's own `TOKEN_TTL_HOURS`), used or not. Nothing else in the app ever removes a row from either table, so without this both grow forever. Cheap to run daily via cron, alongside the backup job:
+
+```
+0 4 * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app php bin/console app:cleanup-expired-tokens >> cleanup.log 2>&1
+```
+
+(`-f docker-compose.prod.reverse-proxy.yml`/`-f docker-compose.cloud.yml` instead, for those topologies — same substitution as every other cron line above; the cloud topology also needs `--configuration=migrations-mysql.php`-style awareness only for migrations, not for this command.)
+
 ### Demo mode
 
 Lets a visitor click "Try the live demo" on the login page instead of needing real credentials — logs them straight into a fixed, publicly-known demo account (employee side; the demo manager account exists too, as the counterpart) with a realistic 3-cycle anketa history (2 archived, 1 current — enough for the Report page and the group-view trend sparklines to actually show something). One employee/manager pair per supported UI locale (en/ru/lv/es), each with genuinely translated content, not just a translated UI shell — `?lang=ru` (etc.) on any URL both switches the displayed language and picks the demo login to match, so a link from the landing page's own locale-aware CTAs lands a visitor on the demo in their own language. Two independent pieces, both opt-in:
