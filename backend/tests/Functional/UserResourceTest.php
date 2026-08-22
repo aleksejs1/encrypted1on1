@@ -34,7 +34,14 @@ class UserResourceTest extends ApiTestCase
         $entity->delete();
         $this->entityManager()->flush();
 
-        self::assertNotContains($email, $this->fetchAllUserEmails($client));
+        // The deleted account's own session no longer works to ask this question with —
+        // User::delete() also sets isBlocked (defense-in-depth), and
+        // AuthSession::getCurrentUser() now logs a blocked account out on its very next
+        // request (see that method's own comment). Query as a second, still-live user.
+        $viewerClient = $this->secondClient();
+        $this->activateUser($viewerClient, $this->uniqueEmail('users-resource-deleted-viewer'));
+
+        self::assertNotContains($email, $this->fetchAllUserEmails($viewerClient));
     }
 
     public function testListExcludesADemoUser(): void

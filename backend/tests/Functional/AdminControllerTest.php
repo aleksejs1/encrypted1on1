@@ -64,6 +64,31 @@ class AdminControllerTest extends ApiTestCase
         self::assertFalse($unblock['json']['isBlocked']);
     }
 
+    /**
+     * AuthController::login() already refuses a blocked account at login time —
+     * this checks the other half: blocking someone with an already-open session must
+     * cut that session off on its very next request too, not just at their next login
+     * (see AuthSession::getCurrentUser()'s own comment for why that gap mattered).
+     */
+    public function testBlockingAUserInvalidatesTheirAlreadyOpenSession(): void
+    {
+        $adminClient = static::createClient();
+        $this->activateUser($adminClient, $this->uniqueEmail('admin-blocks-live-session'), admin: true);
+
+        $targetClient = $this->secondClient();
+        $target = $this->activateUser($targetClient, $this->uniqueEmail('admin-blocked-live-session'));
+
+        // The target's own session is live and working before being blocked.
+        self::assertSame(200, $this->jsonRequest($targetClient, 'GET', '/api/me')['status']);
+
+        $block = $this->jsonRequest($adminClient, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        self::assertSame(200, $block['status']);
+
+        $result = $this->jsonRequest($targetClient, 'GET', '/api/me');
+
+        self::assertSame(401, $result['status'], 'a blocked account must lose access immediately, not just at its next login');
+    }
+
     public function testSetBlockedRejectsBlockingYourself(): void
     {
         $client = static::createClient();

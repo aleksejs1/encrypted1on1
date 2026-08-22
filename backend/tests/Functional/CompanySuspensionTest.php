@@ -56,6 +56,25 @@ class CompanySuspensionTest extends ApiTestCase
         self::assertSame("This company's account is suspended. Contact support to resolve it.", $result['json']['error']);
     }
 
+    /**
+     * Mirrors AdminControllerTest::testBlockingAUserInvalidatesTheirAlreadyOpenSession()
+     * at the company level: a platform admin suspending a company must cut off every
+     * already-open session in it on its very next request, not just at each member's
+     * next login (see AuthSession::getCurrentUser()'s own comment for why).
+     */
+    public function testSuspendingTheCompanyInvalidatesAnAlreadyOpenSession(): void
+    {
+        [$client, , $company] = $this->activateInFreshCompany('suspension-live-session');
+
+        self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+
+        $this->suspendCompany($company->getId());
+
+        $result = $this->jsonRequest($client, 'GET', '/api/me');
+
+        self::assertSame(401, $result['status'], 'a suspended company\'s members must lose access immediately, not just at their next login');
+    }
+
     public function testLoginSucceedsAgainAfterUnsuspending(): void
     {
         [$client, $email, $company] = $this->activateInFreshCompany('suspension-recovers');
