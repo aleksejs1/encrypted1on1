@@ -1,0 +1,46 @@
+#!/bin/sh
+# Fast, staged-files-only checks with autofix — nothing here should take more
+# than a couple of seconds. Full lint/typecheck/tests stay in CI and in
+# `make test`/`make lint`/`make coverage`; this hook exists to catch the cheap,
+# mechanical stuff (formatting, trailing whitespace) before it's committed at
+# all. See README.md's "Git hooks" section.
+set -u
+
+status=0
+
+# --- Backend: php-cs-fixer on staged PHP files, autofix ---
+# backend/ is bind-mounted at /app in the dev container (docker-compose.dev.yml),
+# so a host path "backend/src/Foo.php" is "src/Foo.php" inside it.
+backend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'backend/*.php')
+if [ -n "$backend_files" ]; then
+  if docker compose -f docker-compose.dev.yml ps -q backend 2>/dev/null | grep -q .; then
+    container_paths=$(printf '%s\n' "$backend_files" | sed 's#^backend/##')
+    if ! printf '%s\n' "$container_paths" | xargs docker compose -f docker-compose.dev.yml exec -T backend vendor/bin/php-cs-fixer fix; then
+      status=1
+    fi
+    printf '%s\n' "$backend_files" | xargs git add
+  else
+    echo "pre-commit: dev stack not running ('make up') — skipping php-cs-fixer on staged PHP files. CI still gates this (composer cs)." >&2
+  fi
+fi
+
+# --- Frontend: Prettier on staged TS/Svelte files, autofix ---
+frontend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'frontend/src/*.ts' 'frontend/src/*.svelte' 'frontend/e2e/*.ts' 'frontend/*.ts')
+if [ -n "$frontend_files" ]; then
+  if [ -x frontend/node_modules/.bin/prettier ]; then
+    container_paths=$(printf '%s\n' "$frontend_files" | sed 's#^frontend/##')
+    if ! ( cd frontend && printf '%s\n' "$container_paths" | xargs node_modules/.bin/prettier --write ); then
+      status=1
+    fi
+    printf '%s\n' "$frontend_files" | xargs git add
+  else
+    echo "pre-commit: frontend/node_modules missing ('npm install' in frontend/) — skipping Prettier on staged files. CI still gates this (npm run format)." >&2
+  fi
+fi
+
+# --- Whitespace / merge-conflict-marker check on what's actually staged ---
+if ! git diff --cached --check; then
+  status=1
+fi
+
+exit "$status"

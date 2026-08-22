@@ -1,0 +1,45 @@
+#!/bin/sh
+# The one "heavy" check kept in a hook (typecheck) — everything else (tests,
+# coverage, e2e) stays in CI and in `make test`/`make coverage`. Scoped to
+# what actually changed relative to the push target, not the whole repo, so
+# it stays fast. See README.md's "Git hooks" section.
+set -u
+
+if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  range='@{u}...HEAD'
+elif git show-ref --verify --quiet refs/remotes/origin/main; then
+  range='origin/main...HEAD'
+else
+  range=''
+fi
+
+if [ -n "$range" ]; then
+  changed=$(git diff --name-only "$range")
+else
+  # No upstream and no origin/main to diff against (e.g. very first push of a
+  # fresh clone) — fall back to treating everything as touched rather than
+  # silently checking nothing.
+  changed=$(git ls-files)
+fi
+
+status=0
+
+if printf '%s\n' "$changed" | grep -q '^backend/'; then
+  if docker compose -f docker-compose.dev.yml ps -q backend 2>/dev/null | grep -q .; then
+    echo "pre-push: backend changed — running composer stan..."
+    docker compose -f docker-compose.dev.yml exec -T backend composer stan || status=1
+  else
+    echo "pre-push: WARNING — backend changed but the dev stack isn't running ('make up'); skipping composer stan. CI still gates this." >&2
+  fi
+fi
+
+if printf '%s\n' "$changed" | grep -q '^frontend/'; then
+  if [ -d frontend/node_modules ]; then
+    echo "pre-push: frontend changed — running npm run check..."
+    ( cd frontend && npm run check ) || status=1
+  else
+    echo "pre-push: WARNING — frontend changed but frontend/node_modules is missing ('npm install' in frontend/); skipping npm run check. CI still gates this." >&2
+  fi
+fi
+
+exit "$status"
