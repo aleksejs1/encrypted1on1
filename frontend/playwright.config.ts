@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// Local-only e2e suite (see CLAUDE.md) — needs the genuinely isolated e2e stack
+// Local-only e2e suite (see docs/history.md) — needs the genuinely isolated e2e stack
 // already running (`make e2e-up`, or just `make e2e` which does both), since it
 // drives real account creation/anketa flows against real HTTP, not mocks. Its own
 // backend container, own SQLite file, own Compose project (docker-compose.e2e.yml)

@@ -12,7 +12,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Meant to run once daily via an external cron entry (see CLAUDE.md) — not a
+ * Meant to run once daily via an external cron entry (see docs/history.md) — not a
  * Symfony Scheduler/Messenger worker, which would need a new long-running
  * process this docker-compose setup has nowhere to put (see the Phase 6e plan).
  * Idempotent via Anketa::reminderSentAt: a same-day rerun (cron retry,

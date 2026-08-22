@@ -428,7 +428,7 @@ class AnketaControllerTest extends ApiTestCase
 
         // Backdate the anketa's sealedKeyUpdatedAt columns by an hour — the stored
         // datetime_immutable columns are only second-precision (same known limitation
-        // as Goal::createdAt, see CLAUDE.md's Phase 6f notes), so without a real gap the
+        // as Goal::createdAt, see docs/history.md's Phase 6f notes), so without a real gap the
         // reset below and the anketa's creation could tie within the same second and the
         // ">" staleness comparison would never trip.
         $past = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');

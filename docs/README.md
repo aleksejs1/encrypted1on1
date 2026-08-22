@@ -8,6 +8,8 @@ Reader-facing documentation for encrypted1on1 — what the system does and how, 
 - **[architecture.md](architecture.md)** — how the application itself is put together: tech stack, directory layout, request/session model, testing and CI.
 - **[deployment.md](deployment.md)** — how to actually run it, in development and in either of the two production setups, plus a full configuration/environment-variable reference.
 - **[adr/](adr/)** — a short record of *why*, for the handful of foundational, hard-to-reverse architectural decisions (end-to-end encryption, no message queue, session auth, and so on).
+- **[decisions/](decisions/)** — shorter records of non-trivial (but not foundational) decisions made since the `CLAUDE.md`/`history.md` split below.
+- **[history.md](history.md)** — the full phase-by-phase development log: what was built, why, what was tried and rejected, and how it was verified. Development notes, not user-facing documentation.
 - **[screenshots/](screenshots/)** — a visual tour, captioned.
 
-If you're doing active development on this codebase (not just reading about it), see [`CLAUDE.md`](../CLAUDE.md) at the repo root instead — that's development notes (why each part was built the way it was, phase by phase), not user-facing documentation, and is kept separate from these docs on purpose.
+If you're doing active development on this codebase (not just reading about it), see [`CLAUDE.md`](../CLAUDE.md) at the repo root instead — that's the current, actively-loaded ruleset (constraints, working style), kept deliberately thin. It links out to `history.md`/`decisions/`/`adr/` above for the reasoning behind past choices rather than carrying that narrative directly, and is kept separate from these docs on purpose.

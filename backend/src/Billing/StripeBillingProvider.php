@@ -14,7 +14,7 @@ use Stripe\Webhook;
  * Phase D of private/cloud-service-plan.md (not tracked in git) — real usage of the
  * official `stripe/stripe-php` SDK, written correctly per Stripe's documented API shape,
  * but **never run against a real Stripe account** (no test-mode keys were available
- * while building this — see CLAUDE.md's own Phase D entry). Unlike everything else in
+ * while building this — see docs/history.md's own Phase D entry). Unlike everything else in
  * this codebase, this class does not carry the "verified for real" guarantee the rest of
  * the project holds itself to. Two things are structurally different in how much
  * confidence to place in each:

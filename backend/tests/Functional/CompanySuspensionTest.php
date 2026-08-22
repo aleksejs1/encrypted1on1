@@ -73,8 +73,8 @@ class CompanySuspensionTest extends ApiTestCase
 
     /**
      * Re-fetches by id rather than mutating a Company object handed in from earlier in
-     * the test — the same real Doctrine-testing gotcha CLAUDE.md's own Phase B/C entries
-     * already document: a real HTTP request through $client (activateUser()/logout()
+     * the test — the same real Doctrine-testing gotcha docs/history.md's own Phase B/C
+     * entries already document: a real HTTP request through $client (activateUser()/logout()
      * above) clears the entity manager's identity map, leaving any earlier-held entity
      * object detached, so mutating and flushing it silently does nothing.
      */
