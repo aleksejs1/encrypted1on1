@@ -30,5 +30,4 @@ Add a one-line index entry below when you add a file — newest first.
 
 ## Index
 
-_(no entries yet — the first decision made after the `CLAUDE.md` split goes
-here)_
+- [2026-08-22 — Catch npm lockfile drift in the pre-push hook, not just in CI](2026-08-22-npm-lockfile-drift-pre-push-check.md) — an incremental `npm install` left `frontend/package-lock.json` missing entries `npm ci` needed, breaking CI; `pre-push` now runs `npm ci`/`composer validate` when a manifest/lockfile changed.

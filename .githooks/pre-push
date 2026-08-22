@@ -42,4 +42,31 @@ if printf '%s\n' "$changed" | grep -q '^frontend/'; then
   fi
 fi
 
+# Manifest/lockfile drift: `npm ci`/`composer install` fail (or, for composer,
+# warn) if the lockfile doesn't actually match the manifest — an incremental
+# `npm install <pkg>` on an already-installed tree can silently leave the
+# lockfile missing entries (hit for real: adding knip/playwright left
+# frontend/package-lock.json missing ~28 optional-platform entries, which
+# passed a plain `npm install` locally but failed CI's `npm ci` outright).
+# Only `npm ci` actually catches this — `npm install` never refuses to run
+# against a stale lockfile, it just quietly rewrites it.
+if printf '%s\n' "$changed" | grep -qE '^(package(-lock)?\.json)$'; then
+  echo "pre-push: root package.json/package-lock.json changed — running npm ci..."
+  npm ci || status=1
+fi
+
+if printf '%s\n' "$changed" | grep -qE '^frontend/package(-lock)?\.json$'; then
+  echo "pre-push: frontend/package.json or package-lock.json changed — running npm ci..."
+  ( cd frontend && npm ci ) || status=1
+fi
+
+if printf '%s\n' "$changed" | grep -qE '^backend/composer\.(json|lock)$'; then
+  if docker compose -f docker-compose.dev.yml ps -q backend 2>/dev/null | grep -q .; then
+    echo "pre-push: backend composer.json/composer.lock changed — running composer validate..."
+    docker compose -f docker-compose.dev.yml exec -T backend composer validate --no-check-all || status=1
+  else
+    echo "pre-push: WARNING — composer.json/lock changed but the dev stack isn't running ('make up'); skipping composer validate. CI still gates this." >&2
+  fi
+fi
+
 exit "$status"
