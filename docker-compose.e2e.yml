@@ -3,8 +3,9 @@
 # bind-mounted backend/var/, same mechanism docker-compose.test.yml already established
 # for the PHPUnit stack), own Compose project namespace, own host ports. Never shares
 # state with dev, with the PHPUnit isolated stack, or with prod. No Mailpit: e2e doesn't
-# check email content today (provisioning goes through the real app:create-activation-link
-# CLI command directly), and MAILER_DSN=null://null in .env.e2e needs none.
+# check email content today (provisioning goes through the real app:create-activation-link /
+# app:create-password-reset-link CLI commands directly), and MAILER_DSN=null://null in
+# .env.e2e needs none.
 #
 # Run as a persistent service (up -d, real exposed port), not a one-shot `run --rm` like
 # docker-compose.test.yml — Playwright needs a long-lived server to hit repeatedly during

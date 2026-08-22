@@ -51,3 +51,38 @@ export function createActivationLink(email: string): string {
 export function uniqueEmail(label: string): string {
   return `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${label}@example.com`;
 }
+
+/**
+ * Same idea as createActivationLink(), one step later in the account
+ * lifecycle: issues a real PasswordResetToken via
+ * app:create-password-reset-link (the same token POST /api/password-reset
+ * would issue) without a real email round-trip — the e2e stack runs with
+ * MAILER_DSN=null://null and no Mailpit.
+ */
+export function createPasswordResetLink(email: string): string {
+  const output = execFileSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      COMPOSE_FILE,
+      'exec',
+      '-T',
+      'backend',
+      'php',
+      'bin/console',
+      'app:create-password-reset-link',
+      email,
+      '--no-ansi',
+    ],
+    { encoding: 'utf-8' },
+  );
+
+  const match = output.match(/\/reset-password\/([a-f0-9]{64})/);
+  if (!match) {
+    throw new Error(
+      `Could not find a password-reset token in CLI output:\n${output}`,
+    );
+  }
+  return match[1];
+}

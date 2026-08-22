@@ -49,9 +49,17 @@ test('employee and manager complete an anketa across two independent sessions', 
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
-  await employee
-    .locator('#meeting-date')
-    .fill(meetingDate.toISOString().slice(0, 10));
+  // DateInput (frontend/src/design/DateInput.svelte) is a text field
+  // parsed per the user's date-format preference, not a native
+  // `<input type="date">` — DEFAULT_DATE_FORMAT is 'dmy_dot' (DD.MM.YYYY).
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  // DateInput only parses on blur (commitText()) — the "Create anketa"
+  // button starts out disabled, and a disabled button can't take focus to
+  // blur this field for us, so it must be done explicitly first.
+  await meetingDateInput.blur();
   await employee.getByRole('button', { name: 'Create anketa' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
