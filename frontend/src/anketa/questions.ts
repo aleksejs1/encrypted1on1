@@ -13,7 +13,7 @@
  * `Answers` keys and radio/checkbox values) — those never change with locale.
  */
 
-export type FieldType = 'radio' | 'checkboxes' | 'text' | 'list';
+type FieldType = 'radio' | 'checkboxes' | 'text' | 'list';
 
 export interface FieldOption {
   value: string;

@@ -1,8 +1,4 @@
-export const ARGON2ID_PROFILES = [
-  'interactive',
-  'moderate',
-  'sensitive',
-] as const;
+const ARGON2ID_PROFILES = ['interactive', 'moderate', 'sensitive'] as const;
 export type Argon2idProfile = (typeof ARGON2ID_PROFILES)[number];
 
 /**

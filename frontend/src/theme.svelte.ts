@@ -25,7 +25,7 @@ export const themeState = $state<{ theme: Theme }>({
 });
 apply(themeState.theme);
 
-export function setTheme(theme: Theme): void {
+function setTheme(theme: Theme): void {
   themeState.theme = theme;
   localStorage.setItem(STORAGE_KEY, theme);
   apply(theme);

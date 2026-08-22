@@ -1,0 +1,19 @@
+{
+  "path": ["backend/src", "frontend/src"],
+  "threshold": 3,
+  "minTokens": 70,
+  "minLines": 6,
+  "reporters": ["console"],
+  "noTips": true,
+  "ignore": [
+    "**/tests/**",
+    "**/*.test.ts",
+    "**/e2e/**",
+    "**/vendor/**",
+    "**/node_modules/**",
+    "**/var/**",
+    "**/dist/**",
+    "**/migrations/**",
+    "**/migrations-mysql/**"
+  ]
+}

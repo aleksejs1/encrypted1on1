@@ -8,7 +8,7 @@
  * blob record, so unlike OutcomeItem there's no pure add/update function —
  * mutations are just PUT/POST calls, made directly in Anketa.svelte.
  */
-export type GoalStatus = 'in_progress' | 'achieved' | 'cancelled';
+type GoalStatus = 'in_progress' | 'achieved' | 'cancelled';
 
 export interface Goal {
   id: string;

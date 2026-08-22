@@ -1,4 +1,4 @@
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite
+.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend duplication check-doc-links coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite
 
 up:
 	docker compose -f docker-compose.dev.yml up --build -d
@@ -9,7 +9,8 @@ down:
 # Thin wrappers around the exact commands documented in CLAUDE.md/docs/architecture.md
 # — nothing new here, just centralized so they don't have to be remembered/typed in full.
 # Backend targets need `make up` first (they exec into the running dev container);
-# frontend targets need `cd frontend && npm install` first (they run on the host, not in Docker).
+# frontend targets need `cd frontend && npm install` first (they run on the host, not in Docker);
+# `duplication` needs `npm install` at the repo root first (a separate, minimal package.json).
 
 test: test-backend test-frontend
 
@@ -19,7 +20,7 @@ test-backend:
 test-frontend:
 	cd frontend && npm run test
 
-lint: lint-backend lint-frontend
+lint: lint-backend lint-frontend duplication check-doc-links
 
 lint-backend:
 	docker compose -f docker-compose.dev.yml exec backend composer stan
@@ -29,6 +30,19 @@ lint-backend:
 lint-frontend:
 	cd frontend && npm run check
 	cd frontend && npm run format
+	cd frontend && npm run knip
+
+# jscpd across both backend/src and frontend/src in one pass (it natively tokenizes
+# PHP and TS/Svelte, so one tool covers both) — needs `npm install` at the repo root
+# first (a separate, minimal package.json from frontend/'s; see .jscpd.json for the
+# calibrated threshold/ignore list).
+duplication:
+	npx jscpd --config .jscpd.json
+
+# Checks every relative markdown link (root *.md + docs/**) actually resolves, plus
+# its #anchor if any — plain Node, no dependency (see scripts/check-doc-links.mjs).
+check-doc-links:
+	node scripts/check-doc-links.mjs
 
 coverage: coverage-backend coverage-frontend
 

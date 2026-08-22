@@ -23,7 +23,7 @@ export interface DecryptedAnketaForReport {
   checkpoints: GoalCheckpoint[];
 }
 
-export interface ReportGoal extends Goal {
+interface ReportGoal extends Goal {
   /** Every checkpoint for this `goalUuid`, unioned across all anketas in the aggregation set, chronological. */
   checkpoints: GoalCheckpoint[];
 }

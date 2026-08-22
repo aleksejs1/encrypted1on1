@@ -1,0 +1,14 @@
+{
+  "name": "encrypted1on1-tooling",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Repo-wide dev tooling (duplication detection, doc-link checking) that spans both backend/ and frontend/ — not the app itself, see frontend/package.json for that.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "duplication": "jscpd --config .jscpd.json",
+    "check-doc-links": "node scripts/check-doc-links.mjs"
+  },
+  "devDependencies": {
+    "jscpd": "^5.0.16"
+  }
+}
