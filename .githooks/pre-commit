@@ -15,7 +15,11 @@ backend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'backend/*.ph
 if [ -n "$backend_files" ]; then
   if docker compose -f docker-compose.dev.yml ps -q backend 2>/dev/null | grep -q .; then
     container_paths=$(printf '%s\n' "$backend_files" | sed 's#^backend/##')
-    if ! printf '%s\n' "$container_paths" | xargs docker compose -f docker-compose.dev.yml exec -T backend vendor/bin/php-cs-fixer fix; then
+    # --config is required here, not optional: php-cs-fixer only auto-discovers a
+    # config file when given zero or one explicit path — staging 2+ backend PHP files
+    # (the common case) makes it refuse with "For multiple paths config parameter is
+    # required.", failing every such commit outright rather than just skipping the fix.
+    if ! printf '%s\n' "$container_paths" | xargs docker compose -f docker-compose.dev.yml exec -T backend vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php; then
       status=1
     fi
     printf '%s\n' "$backend_files" | xargs git add
