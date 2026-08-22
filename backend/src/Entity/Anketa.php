@@ -13,6 +13,12 @@ use Symfony\Component\Uid\Uuid;
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'anketas')]
+// Covers list()/bulk()'s `WHERE employee = :u OR manager = :u ORDER BY meetingDate DESC` —
+// a composite index lets either branch of the OR use it for both the filter and the sort.
+#[ORM\Index(columns: ['employee_id', 'manager_id', 'meetingDate'], name: 'idx_anketas_employee_manager_meeting_date')]
+// Covers SendRemindersCommand's daily `WHERE archivedAt IS NULL AND reminderSentAt IS NULL
+// AND meetingDate >= :start AND meetingDate < :end`.
+#[ORM\Index(columns: ['archivedAt', 'reminderSentAt', 'meetingDate'], name: 'idx_anketas_archived_reminder_meeting_date')]
 class Anketa
 {
     #[ORM\Id]

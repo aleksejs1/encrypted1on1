@@ -132,8 +132,13 @@ class AnketaController
 
         /** @var Anketa[] $anketas */
         $anketas = $this->entityManager->createQueryBuilder()
-            ->select('a')
+            ->select('a', 'e', 'm')
             ->from(Anketa::class, 'a')
+            // summarize() reads both sides' User below — eager-join them here instead of
+            // letting Doctrine lazy-load one per anketa (an N+1 for anyone with more than
+            // a couple of meetings).
+            ->innerJoin('a.employee', 'e')
+            ->innerJoin('a.manager', 'm')
             ->where('a.employee = :user OR a.manager = :user')
             ->setParameter('user', $user)
             ->orderBy('a.meetingDate', 'DESC')
@@ -160,8 +165,12 @@ class AnketaController
 
         /** @var Anketa[] $anketas */
         $anketas = $this->entityManager->createQueryBuilder()
-            ->select('a')
+            ->select('a', 'e', 'm')
             ->from(Anketa::class, 'a')
+            // Same eager-join as list() — serializeDetail()/summarize() below both read
+            // employee and manager, which would otherwise lazy-load one at a time.
+            ->innerJoin('a.employee', 'e')
+            ->innerJoin('a.manager', 'm')
             ->where('a.employee = :user OR a.manager = :user')
             ->setParameter('user', $user)
             ->orderBy('a.meetingDate', 'DESC')

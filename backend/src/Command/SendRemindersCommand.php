@@ -62,9 +62,13 @@ class SendRemindersCommand extends Command
             }
 
             $anketa->markReminderSent();
-        }
 
-        $this->entityManager->flush();
+            // Flush per anketa, not once at the end: reminderSentAt only protects a same-day
+            // rerun (see the class docblock) for anketas that actually made it to the DB —
+            // a single flush() after the whole loop meant a crash on anketa #190 of 200 left
+            // every prior one unmarked too, so the next cron run would email everyone again.
+            $this->entityManager->flush();
+        }
 
         $io->success(sprintf('Sent reminders for %d anketa(s).', \count($anketas)));
 
