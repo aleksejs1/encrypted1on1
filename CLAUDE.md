@@ -24,3 +24,4 @@ The detailed spec currently lives outside this repo as a local working document 
 ## Working style
 
 - This project explicitly favors dumb-and-simple over clever, and has a documented history of scope creep during planning — when a change grows noticeably beyond what was asked, say so before building it, rather than quietly expanding scope.
+- Before claiming a change touching anketa keys/sealing/password-derived keys is "verified," see the `e1o1-verify-with-real-crypto` skill — it's this project's own established standard (real crypto against the real stack, not opaque placeholder strings, cleaned up afterward), not a new bar.
