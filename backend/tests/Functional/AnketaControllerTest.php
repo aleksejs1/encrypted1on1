@@ -46,6 +46,40 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(404, $result['status']);
     }
 
+    /**
+     * A blocked/deleted account is already excluded from the counterpart-picker
+     * (ExcludeDeletedUsersExtension), but that only stops the normal UI flow — this
+     * checks the server itself refuses a direct API call against a previously-known id,
+     * same "treat like nonexistent" shape as an unknown or cross-company counterpart.
+     */
+    public function testCreateRejectsABlockedCounterpart(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('create-blocked-cp');
+
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
+        $managerEntity->setBlocked(true);
+        $this->entityManager()->flush();
+
+        $result = $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+
+        self::assertSame(404, $result['status']);
+    }
+
+    public function testCreateRejectsADeletedCounterpart(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('create-deleted-cp');
+
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
+        $managerEntity->delete();
+        $this->entityManager()->flush();
+
+        $result = $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+
+        self::assertSame(404, $result['status']);
+    }
+
     public function testListShowsTheAnketaToBothParticipantsWithCorrectRoles(): void
     {
         [$employeeClient, $employee, $managerClient, $manager] = $this->makePair('list-both-sides');

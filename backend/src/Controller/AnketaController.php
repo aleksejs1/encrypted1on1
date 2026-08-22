@@ -65,6 +65,15 @@ class AnketaController
         if ($counterpart->getCompany() !== $user->getCompany()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
         }
+        // Same "treat like nonexistent" shape as the company check above — a blocked or
+        // deleted account is already excluded from the counterpart-picker
+        // (ExcludeDeletedUsersExtension), but that only stops the normal UI flow, not a
+        // direct API call against a previously-known id. archive()'s auto-recreation
+        // already refuses a blocked participant (see its own comment); this closes the
+        // same gap for manual creation, which had no such check at all.
+        if ($counterpart->isBlocked() || null !== $counterpart->getDeletedAt()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
+        }
 
         try {
             // The constructor (unlike createFromFormat(DATE_ATOM, ...)) accepts the
