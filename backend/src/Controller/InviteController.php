@@ -78,15 +78,31 @@ class InviteController
             return new JsonResponse(['error' => $this->translator->trans('errors.email_already_registered')], 400);
         }
 
-        if ($this->seatLimitChecker->hasReachedLimit($company)) {
+        // The seat-limit check and the token insert must land in the same transaction —
+        // checking, then flushing separately, leaves a window where two concurrent
+        // invites can both read the same not-yet-grown headcount and both pass, landing
+        // the company one seat past its limit. wrapInTransaction() also gives
+        // SeatLimitChecker a consistent view including this same request's own pending
+        // token, not just committed ones. The callback returns null (never throws) on a
+        // reached limit — wrapInTransaction() closes the EntityManager on any exception,
+        // which a routine business-rule rejection must not trigger.
+        $rawToken = $this->entityManager->wrapInTransaction(function () use ($email, $company) {
+            if ($this->seatLimitChecker->hasReachedLimit($company)) {
+                return null;
+            }
+
+            // Admin status is only ever granted via the CLI bootstrap or the admin
+            // panel's explicit "make admin" action (Phase 6g) — never implicitly
+            // through an invite.
+            [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
+            $this->entityManager->persist($activationToken);
+
+            return $rawToken;
+        });
+
+        if (null === $rawToken) {
             return new JsonResponse(['error' => $this->translator->trans('errors.seat_limit_reached')], 400);
         }
-
-        // Admin status is only ever granted via the CLI bootstrap or the admin panel's
-        // explicit "make admin" action (Phase 6g) — never implicitly through an invite.
-        [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
-        $this->entityManager->persist($activationToken);
-        $this->entityManager->flush();
 
         $this->notifier->notifyInvited($email, $rawToken, $inviter);
 

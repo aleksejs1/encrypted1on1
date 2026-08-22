@@ -119,13 +119,26 @@ class SignupController
         // the response never reveals whether the email already has an account.
         $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
         if (null === $existing) {
-            if ($this->seatLimitChecker->hasReachedLimit($company)) {
+            // Same reasoning as InviteController::create(): the seat-limit check and the
+            // token insert must share one transaction, or two concurrent signups (or an
+            // invite racing a signup) can both read the same not-yet-grown headcount and
+            // both pass. The callback returns null (never throws) on a reached limit —
+            // wrapInTransaction() closes the EntityManager on any exception, which a
+            // routine business-rule rejection must not trigger.
+            $rawToken = $this->entityManager->wrapInTransaction(function () use ($email, $company) {
+                if ($this->seatLimitChecker->hasReachedLimit($company)) {
+                    return null;
+                }
+
+                [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
+                $this->entityManager->persist($activationToken);
+
+                return $rawToken;
+            });
+
+            if (null === $rawToken) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.seat_limit_reached')], 400);
             }
-
-            [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
-            $this->entityManager->persist($activationToken);
-            $this->entityManager->flush();
 
             $this->notifier->notifySignup($email, $rawToken);
         }

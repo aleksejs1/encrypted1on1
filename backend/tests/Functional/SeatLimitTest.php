@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\ActivationToken;
 use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
 
@@ -92,6 +93,59 @@ class SeatLimitTest extends ApiTestCase
 
         $freed = $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-freed-invitee-2')]);
         self::assertSame(201, $freed['status'], 'a deleted account must no longer count against the seat limit');
+    }
+
+    /**
+     * SeatLimitChecker::hasReachedLimit() used to count only already-activated User rows
+     * — headcount only grew once an invitee actually activated, so a burst of invites
+     * issued back-to-back (each checked against the same not-yet-grown headcount) could
+     * land a company past its seat limit the moment they all activated. This checks the
+     * fix: an outstanding, unactivated invite must itself occupy a seat.
+     */
+    public function testPendingInvitesCountAgainstTheSeatLimitBeforeTheyAreActivated(): void
+    {
+        $client = static::createClient();
+        $company = $this->makeCompany(seatLimit: 2);
+        $this->activateUser($client, $this->uniqueEmail('seat-pending-admin'), company: $company);
+
+        // 1 existing user, limit 2 — one seat left; the first invite takes it.
+        $first = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-pending-invitee-1')]);
+        self::assertSame(201, $first['status']);
+
+        // Nobody has activated yet, but the outstanding invite already occupies the
+        // remaining seat — a second invite must be rejected too, not just a second real user.
+        $second = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-pending-invitee-2')]);
+        self::assertSame(400, $second['status']);
+        self::assertSame('This company has reached its seat limit for the current plan.', $second['json']['error']);
+    }
+
+    public function testAnExpiredPendingInviteNoLongerCountsAgainstTheSeatLimit(): void
+    {
+        $client = static::createClient();
+        $company = $this->makeCompany(seatLimit: 2);
+        $this->activateUser($client, $this->uniqueEmail('seat-expired-pending-admin'), company: $company);
+
+        // Re-fetched by id, same reasoning as activateUser()'s own docblock: the
+        // activateUser() call above already made a real HTTP request through $client,
+        // which clears the entity manager's identity map and leaves $company detached.
+        $company = $this->entityManager()->find(Company::class, $company->getId());
+        self::assertNotNull($company);
+
+        // A stale, expired invite left over from before — same shape issue() produces,
+        // just already past its TTL (issue() itself always sets a real future one).
+        $expiredToken = new ActivationToken(
+            bin2hex(random_bytes(32)),
+            $this->uniqueEmail('seat-expired-pending-invitee'),
+            $company,
+            false,
+            new \DateTimeImmutable('-1 minute'),
+        );
+        $this->entityManager()->persist($expiredToken);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-expired-pending-invitee-2')]);
+
+        self::assertSame(201, $result['status'], 'an expired pending invite must not occupy a seat');
     }
 
     private function makeCompany(?int $seatLimit): Company
