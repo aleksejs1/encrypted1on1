@@ -1,4 +1,5 @@
 import { apiGet } from '../api/client';
+import type { MeResponse } from '../api/types';
 import { fromBase64 } from './encoding';
 import { unpackWrappedPrivateKey, unwrapPrivateKey } from './keypair';
 import { loadMasterKey } from './session';
@@ -17,18 +18,6 @@ export interface Identity {
   isPlatformAdmin: boolean;
   publicKey: Uint8Array;
   privateKey: Uint8Array;
-}
-
-interface MeResponse {
-  id: string;
-  email: string;
-  isAdmin: boolean;
-  registrationMode: string;
-  allowedEmailDomain: string;
-  isDemo: boolean;
-  isPlatformAdmin: boolean;
-  publicKey: string;
-  encryptedPrivateKey: string;
 }
 
 let cached: Identity | null = null;

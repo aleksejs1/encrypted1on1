@@ -1,6 +1,10 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut } from '../api/client';
+  import type {
+    AnketaDetail as AnketaDetailFull,
+    AnketaSummary,
+  } from '../api/types';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { ensureUnlocked } from '../crypto/identity';
   import { fromBase64 } from '../crypto/encoding';
@@ -14,24 +18,10 @@
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
   import { QUESTIONS_BY_SIDE, type Answers } from '../anketa/questions';
 
-  interface AnketaSummary {
-    id: string;
-    myRole: 'employee' | 'manager';
-    counterpartId: string;
-    counterpartEmail: string;
-    meetingDate: string;
-    myPublishedAt: string | null;
-    counterpartPublishedAt: string | null;
-    archivedAt: string | null;
-    missed: boolean;
-    counterpartKeyOutdated: boolean;
-    counterpartDeleted: boolean;
-  }
-
-  interface AnketaDetail {
-    mySealedKey: string;
-    counterpartPublicKey: string;
-  }
+  type AnketaDetail = Pick<
+    AnketaDetailFull,
+    'mySealedKey' | 'counterpartPublicKey'
+  >;
 
   interface BadgeMeta {
     cls: string;

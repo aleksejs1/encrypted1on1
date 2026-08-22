@@ -31,6 +31,24 @@
     routerState.path.match(/^\/reset-password\/(.+)$/),
   );
 
+  /**
+   * Named once and reused by both `showAppHeader` and the routing chain
+   * below, rather than repeating the literal strings in each place — two
+   * independently-typed copies of the same path is exactly what let a typo,
+   * or a forgotten update to one side, silently show/hide the header on the
+   * wrong route.
+   */
+  const PATHS = {
+    forgotPassword: '/forgot-password',
+    signup: '/signup',
+    createCompany: '/create-company',
+    anketaList: '/',
+    report: '/report',
+    admin: '/admin',
+    account: '/account',
+    platformAdmin: '/platform-admin',
+  } as const;
+
   // The redesigned header started with Login/Activate (Phase 8a), then covered
   // AnketaList/CreateAnketa/Report/AdminPanel (Phase 8b), and now Anketa.svelte
   // too (Phase 8c) — every authenticated page now uses AppHeader, closing out
@@ -42,19 +60,19 @@
   // /platform-admin (Phase C) is deliberately included here — same authenticated-page
   // header treatment as every other page — but AppHeader itself never links to it
   // (see PlatformAdminController's own docblock: reachable by URL, not discoverable).
-  const MIGRATED_AUTHED_PATHS = [
-    '/',
-    '/report',
-    '/admin',
-    '/account',
-    '/platform-admin',
+  const MIGRATED_AUTHED_PATHS: string[] = [
+    PATHS.anketaList,
+    PATHS.report,
+    PATHS.admin,
+    PATHS.account,
+    PATHS.platformAdmin,
   ];
   const showAppHeader = $derived(
     !!activationMatch ||
       !!resetPasswordMatch ||
-      routerState.path === '/forgot-password' ||
-      routerState.path === '/signup' ||
-      routerState.path === '/create-company' ||
+      routerState.path === PATHS.forgotPassword ||
+      routerState.path === PATHS.signup ||
+      routerState.path === PATHS.createCompany ||
       !authState.authenticated ||
       !!anketaMatch ||
       MIGRATED_AUTHED_PATHS.includes(routerState.path),
@@ -70,11 +88,11 @@
 
   {#if activationMatch}
     <Activate token={activationMatch[1]} />
-  {:else if routerState.path === '/forgot-password'}
+  {:else if routerState.path === PATHS.forgotPassword}
     <ForgotPassword />
-  {:else if routerState.path === '/signup'}
+  {:else if routerState.path === PATHS.signup}
     <Signup />
-  {:else if routerState.path === '/create-company'}
+  {:else if routerState.path === PATHS.createCompany}
     <CreateCompany />
   {:else if resetPasswordMatch}
     <ResetPassword token={resetPasswordMatch[1]} />
@@ -86,13 +104,13 @@
     <CreateAnketa />
   {:else if anketaMatch}
     <AnketaPage id={anketaMatch[1]} />
-  {:else if routerState.path === '/report'}
+  {:else if routerState.path === PATHS.report}
     <Report />
-  {:else if routerState.path === '/account'}
+  {:else if routerState.path === PATHS.account}
     <AccountSettings />
-  {:else if routerState.path === '/admin'}
+  {:else if routerState.path === PATHS.admin}
     <AdminPanel />
-  {:else if routerState.path === '/platform-admin'}
+  {:else if routerState.path === PATHS.platformAdmin}
     <PlatformAdminPanel />
   {:else}
     <AnketaList />

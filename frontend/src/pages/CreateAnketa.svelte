@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiGetAllPages, apiPost, ApiError } from '../api/client';
+  import type { AnketaDetail, AnketaSummary, UserSummary } from '../api/types';
   import {
     generateAnketaKey,
     sealAnketaKey,
@@ -14,24 +15,10 @@
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
   import DateInput from '../design/DateInput.svelte';
 
-  interface UserSummary {
-    id: string;
-    email: string;
-    publicKey: string;
-  }
-
-  interface AnketaSummary {
-    id: string;
-    counterpartId: string;
-    counterpartEmail: string;
-    meetingDate: string;
-    archivedAt: string | null;
-  }
-
-  interface AnketaDetailForCarry {
-    mySealedKey: string;
-    outcomesBlob: string | null;
-  }
+  type AnketaDetailForCarry = Pick<
+    AnketaDetail,
+    'mySealedKey' | 'outcomesBlob'
+  >;
 
   let users = $state<UserSummary[]>([]);
   let priorAnketas = $state<AnketaSummary[]>([]);

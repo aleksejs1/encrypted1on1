@@ -1,16 +1,10 @@
+import type { AnketaSummary, UserSummary } from '../api/types';
 import { groupByCounterpart } from './groupByCounterpart';
 
-interface UserSummary {
-  id: string;
-  email: string;
-  publicKey: string;
-}
-
-interface PriorAnketaSummary {
-  counterpartId: string;
-  counterpartEmail: string;
-  meetingDate: string;
-}
+type PriorAnketaSummary = Pick<
+  AnketaSummary,
+  'counterpartId' | 'counterpartEmail' | 'meetingDate'
+>;
 
 /**
  * Reorders `users` so counterparts the caller already has anketa history

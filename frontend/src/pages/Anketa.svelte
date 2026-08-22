@@ -28,6 +28,8 @@
     type Side,
     type Answers,
   } from '../anketa/questions';
+  import { updateBlobWithRetry } from '../anketa/blobSync';
+  import type { AnketaDetail } from '../api/types';
   import {
     decryptBlob,
     encryptBlob,
@@ -40,30 +42,6 @@
   import { loadMasterKey } from '../crypto/session';
 
   const { id }: { id: string } = $props();
-
-  interface AnketaDetail {
-    id: string;
-    myRole: Side;
-    counterpartId: string;
-    counterpartEmail: string;
-    meetingDate: string;
-    archivedAt: string | null;
-    mySealedKey: string;
-    employeeBlob: string | null;
-    employeePublishedAt: string | null;
-    managerBlob: string | null;
-    managerPublishedAt: string | null;
-    commentsBlob: string | null;
-    commentsVersion: number;
-    outcomesBlob: string | null;
-    outcomesVersion: number;
-    goals: Goal[];
-    goalCheckpointsBlob: string | null;
-    goalCheckpointsVersion: number;
-    counterpartPublicKey: string;
-    periodicityDays: number | null;
-    missed: boolean;
-  }
 
   let loadError = $state<string | null>(null);
   let detail = $state<AnketaDetail | null>(null);
@@ -363,39 +341,27 @@
     apply: (current: Comment[]) => Comment[],
   ): Promise<void> {
     if (!anketaKey) return;
-
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    const freshComments = fresh.commentsBlob
-      ? (await decryptBlob<Comment[]>(fresh.commentsBlob, anketaKey)).data
-      : [];
-
-    try {
-      await saveComments(apply(freshComments), fresh.commentsVersion);
-    } catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 409) throw error;
-
-      const conflict = error.body as {
-        commentsBlob: string | null;
-        commentsVersion: number;
-      };
-      const remoteComments = conflict.commentsBlob
-        ? (await decryptBlob<Comment[]>(conflict.commentsBlob, anketaKey)).data
-        : [];
-      await saveComments(apply(remoteComments), conflict.commentsVersion);
-    }
-  }
-
-  async function saveComments(
-    comments: Comment[],
-    expectedVersion: number,
-  ): Promise<void> {
-    if (!anketaKey) return;
-    const blob = await encryptBlob(comments, anketaKey);
-    await apiPut<{ commentsVersion: number }>(`/api/anketas/${id}/comments`, {
-      blob,
-      expectedVersion,
-    });
-    allComments = comments;
+    allComments = await updateBlobWithRetry<Comment[]>(
+      anketaKey,
+      { blob: fresh.commentsBlob, version: fresh.commentsVersion },
+      apply,
+      async (blob, expectedVersion) => {
+        await apiPut(`/api/anketas/${id}/comments`, { blob, expectedVersion });
+      },
+      (error) => {
+        if (!(error instanceof ApiError) || error.status !== 409)
+          return undefined;
+        const conflict = error.body as {
+          commentsBlob: string | null;
+          commentsVersion: number;
+        };
+        return {
+          blob: conflict.commentsBlob,
+          version: conflict.commentsVersion,
+        };
+      },
+    );
   }
 
   async function handleAddOutcome(event: SubmitEvent): Promise<void> {
@@ -435,40 +401,27 @@
     apply: (current: OutcomeItem[]) => OutcomeItem[],
   ): Promise<void> {
     if (!anketaKey) return;
-
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    const freshOutcomes = fresh.outcomesBlob
-      ? (await decryptBlob<OutcomeItem[]>(fresh.outcomesBlob, anketaKey)).data
-      : [];
-
-    try {
-      await saveOutcomes(apply(freshOutcomes), fresh.outcomesVersion);
-    } catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 409) throw error;
-
-      const conflict = error.body as {
-        outcomesBlob: string | null;
-        outcomesVersion: number;
-      };
-      const remoteOutcomes = conflict.outcomesBlob
-        ? (await decryptBlob<OutcomeItem[]>(conflict.outcomesBlob, anketaKey))
-            .data
-        : [];
-      await saveOutcomes(apply(remoteOutcomes), conflict.outcomesVersion);
-    }
-  }
-
-  async function saveOutcomes(
-    items: OutcomeItem[],
-    expectedVersion: number,
-  ): Promise<void> {
-    if (!anketaKey) return;
-    const blob = await encryptBlob(items, anketaKey);
-    await apiPut<{ outcomesVersion: number }>(`/api/anketas/${id}/outcomes`, {
-      blob,
-      expectedVersion,
-    });
-    allOutcomes = items;
+    allOutcomes = await updateBlobWithRetry<OutcomeItem[]>(
+      anketaKey,
+      { blob: fresh.outcomesBlob, version: fresh.outcomesVersion },
+      apply,
+      async (blob, expectedVersion) => {
+        await apiPut(`/api/anketas/${id}/outcomes`, { blob, expectedVersion });
+      },
+      (error) => {
+        if (!(error instanceof ApiError) || error.status !== 409)
+          return undefined;
+        const conflict = error.body as {
+          outcomesBlob: string | null;
+          outcomesVersion: number;
+        };
+        return {
+          blob: conflict.outcomesBlob,
+          version: conflict.outcomesVersion,
+        };
+      },
+    );
   }
 
   async function handleAddGoal(event: SubmitEvent): Promise<void> {
@@ -572,63 +525,38 @@
     }
   }
 
-  /** Same reapply-on-conflict shape as updateComments/updateOutcomes — see the comment above updateComments. */
+  /** Same reapply-on-conflict shape as updateComments/updateOutcomes — see blobSync.ts. */
   async function updateGoalCheckpoints(
     apply: (current: GoalCheckpoint[]) => GoalCheckpoint[],
   ): Promise<void> {
     if (!anketaKey) return;
-
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    const freshCheckpoints = fresh.goalCheckpointsBlob
-      ? (
-          await decryptBlob<GoalCheckpoint[]>(
-            fresh.goalCheckpointsBlob,
-            anketaKey,
-          )
-        ).data
-      : [];
-
-    try {
-      await saveGoalCheckpoints(
-        apply(freshCheckpoints),
-        fresh.goalCheckpointsVersion,
-      );
-    } catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 409) throw error;
-
-      const conflict = error.body as {
-        goalCheckpointsBlob: string | null;
-        goalCheckpointsVersion: number;
-      };
-      const remoteCheckpoints = conflict.goalCheckpointsBlob
-        ? (
-            await decryptBlob<GoalCheckpoint[]>(
-              conflict.goalCheckpointsBlob,
-              anketaKey,
-            )
-          ).data
-        : [];
-      await saveGoalCheckpoints(
-        apply(remoteCheckpoints),
-        conflict.goalCheckpointsVersion,
-      );
-    }
-  }
-
-  async function saveGoalCheckpoints(
-    checkpoints: GoalCheckpoint[],
-    expectedVersion: number,
-  ): Promise<void> {
-    if (!anketaKey) return;
-    const blob = await encryptBlob(checkpoints, anketaKey);
-    await apiPut<{ goalCheckpointsVersion: number }>(
-      `/api/anketas/${id}/goal-checkpoints`,
+    allCheckpoints = await updateBlobWithRetry<GoalCheckpoint[]>(
+      anketaKey,
       {
-        blob,
-        expectedVersion,
+        blob: fresh.goalCheckpointsBlob,
+        version: fresh.goalCheckpointsVersion,
+      },
+      apply,
+      async (blob, expectedVersion) => {
+        await apiPut(`/api/anketas/${id}/goal-checkpoints`, {
+          blob,
+          expectedVersion,
+        });
+      },
+      (error) => {
+        if (!(error instanceof ApiError) || error.status !== 409)
+          return undefined;
+        const conflict = error.body as {
+          goalCheckpointsBlob: string | null;
+          goalCheckpointsVersion: number;
+        };
+        return {
+          blob: conflict.goalCheckpointsBlob,
+          version: conflict.goalCheckpointsVersion,
+        };
       },
     );
-    allCheckpoints = checkpoints;
   }
 
   /** "You" for the current viewer's own items, otherwise the counterpart's email — used for outcome-item and goal author tags. */
