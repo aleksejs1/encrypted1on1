@@ -62,4 +62,25 @@ class AuthSession
     {
         $request->getSession()->invalidate();
     }
+
+    /**
+     * Releases the session's file lock (native file-session `flock`, held from
+     * session_start() until the session is written) right after a read, instead of
+     * holding it for the rest of a slow request — otherwise every other request from
+     * the same browser (another tab, a parallel /api/anketas fetch, a debounced draft
+     * autosave) queues up behind whichever one is slowest.
+     *
+     * Only call this from a request that is done touching the session — calling
+     * logIn()/logOut() afterward in the same request would silently no-op
+     * (NativeSessionStorage::regenerate() returns false once the session is already
+     * closed, instead of throwing), so this is opt-in per call site, not automatic
+     * inside getCurrentUser().
+     */
+    public function closeForReading(Request $request): void
+    {
+        $session = $request->getSession();
+        if ($session->isStarted()) {
+            $session->save();
+        }
+    }
 }

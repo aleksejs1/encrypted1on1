@@ -154,9 +154,9 @@ class AuthControllerTest extends ApiTestCase
     {
         $client = static::createClient();
 
-        // The configured limit (5/minute, config/packages/rate_limiter.php) — each of
+        // The configured limit (20/minute, config/packages/rate_limiter.php) — each of
         // these is a normal invalid-credentials rejection, not yet rate-limited.
-        for ($i = 0; $i < 5; ++$i) {
+        for ($i = 0; $i < 20; ++$i) {
             $result = $this->jsonRequest($client, 'POST', '/api/login', [
                 'email' => 'nobody@example.com',
                 'authKey' => str_repeat('z', 44),

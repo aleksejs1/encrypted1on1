@@ -2,7 +2,7 @@
 
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
-/**
+/*
  * Named limiters (three from Phase 7f, two more for password reset, one more for
  * the in-app change-password flow, one more for account deletion, one more for
  * REGISTRATION_MODE=domain self-signup, one more for Phase B's cloud-mode
@@ -18,9 +18,13 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 return static function (ContainerConfigurator $container): void {
     $container->extension('framework', [
         'rate_limiter' => [
+            // Kept IP-keyed on purpose (see AuthController::login()'s own comment) —
+            // 20/min still meaningfully throttles a single-source automated guesser while
+            // tolerating a normal morning login burst from a shared office/VPN NAT, which
+            // 5/min did not.
             'login' => [
                 'policy' => 'sliding_window',
-                'limit' => 5,
+                'limit' => 20,
                 'interval' => '1 minute',
             ],
             'invite' => [

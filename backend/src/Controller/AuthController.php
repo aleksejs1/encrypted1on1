@@ -106,6 +106,11 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
         }
 
+        // Read-only from here on — release the session file lock instead of holding it
+        // while the rest of this (frequently-polled) request builds its response. See
+        // AuthSession::closeForReading()'s docblock for why this isn't automatic.
+        $this->authSession->closeForReading($request);
+
         return new JsonResponse([
             'id' => $user->getId(),
             'email' => $user->getEmail(),
