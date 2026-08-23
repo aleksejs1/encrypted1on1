@@ -2,7 +2,10 @@
 
 use App\Billing\BillingProviderInterface;
 use App\Billing\StripeBillingProvider;
+use App\Mailer\TimeoutEnforcingSmtpTransportFactory;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services()
@@ -25,4 +28,17 @@ return static function (ContainerConfigurator $container): void {
     // can be tested without ever invoking real Stripe SDK code, not because a second
     // implementation is planned.
     $services->alias(BillingProviderInterface::class, StripeBillingProvider::class);
+
+    // Bounds AnketaNotifier's synchronous SMTP send to a real socket timeout instead of
+    // PHP's default_socket_timeout ini (60s) — see the class docblock. Decoration requires
+    // explicit wiring (the tag that makes this discoverable as *the* "smtp" factory doesn't
+    // transfer from the decorated service automatically) and a fixed re-declared id, not the
+    // plain autowired-by-FQCN definition load() already created for this class above.
+    $services->set(TimeoutEnforcingSmtpTransportFactory::class)
+        ->decorate('mailer.transport_factory.smtp')
+        ->args([
+            service('.inner'),
+            10.0,
+        ])
+        ->tag('mailer.transport_factory');
 };
