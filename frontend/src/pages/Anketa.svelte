@@ -337,31 +337,53 @@
     );
   }
 
-  async function updateComments(
-    apply: (current: Comment[]) => Comment[],
-  ): Promise<void> {
-    if (!anketaKey) return;
+  /**
+   * Shared reapply-on-conflict update for the anketa's three optimistic-
+   * concurrency blobs (comments, outcomes, goal checkpoints — see blobSync.ts):
+   * refetch, apply the caller's mutation, save, and on a 409 retry once
+   * against whatever the conflict response carries under the same field names.
+   */
+  async function updateField<T>(
+    blobKey: 'commentsBlob' | 'outcomesBlob' | 'goalCheckpointsBlob',
+    versionKey:
+      'commentsVersion' | 'outcomesVersion' | 'goalCheckpointsVersion',
+    endpoint: string,
+    apply: (current: T) => T,
+  ): Promise<T | undefined> {
+    if (!anketaKey) return undefined;
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    allComments = await updateBlobWithRetry<Comment[]>(
+    return await updateBlobWithRetry<T>(
       anketaKey,
-      { blob: fresh.commentsBlob, version: fresh.commentsVersion },
+      { blob: fresh[blobKey], version: fresh[versionKey] },
       apply,
       async (blob, expectedVersion) => {
-        await apiPut(`/api/anketas/${id}/comments`, { blob, expectedVersion });
+        await apiPut(`/api/anketas/${id}/${endpoint}`, {
+          blob,
+          expectedVersion,
+        });
       },
       (error) => {
         if (!(error instanceof ApiError) || error.status !== 409)
           return undefined;
-        const conflict = error.body as {
-          commentsBlob: string | null;
-          commentsVersion: number;
-        };
+        const conflict = error.body as Record<string, string | number | null>;
         return {
-          blob: conflict.commentsBlob,
-          version: conflict.commentsVersion,
+          blob: conflict[blobKey] as string | null,
+          version: conflict[versionKey] as number,
         };
       },
     );
+  }
+
+  async function updateComments(
+    apply: (current: Comment[]) => Comment[],
+  ): Promise<void> {
+    const result = await updateField<Comment[]>(
+      'commentsBlob',
+      'commentsVersion',
+      'comments',
+      apply,
+    );
+    if (result !== undefined) allComments = result;
   }
 
   async function handleAddOutcome(event: SubmitEvent): Promise<void> {
@@ -396,32 +418,16 @@
     }
   }
 
-  /** Same shape as updateComments — see the comment above it. */
   async function updateOutcomes(
     apply: (current: OutcomeItem[]) => OutcomeItem[],
   ): Promise<void> {
-    if (!anketaKey) return;
-    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    allOutcomes = await updateBlobWithRetry<OutcomeItem[]>(
-      anketaKey,
-      { blob: fresh.outcomesBlob, version: fresh.outcomesVersion },
+    const result = await updateField<OutcomeItem[]>(
+      'outcomesBlob',
+      'outcomesVersion',
+      'outcomes',
       apply,
-      async (blob, expectedVersion) => {
-        await apiPut(`/api/anketas/${id}/outcomes`, { blob, expectedVersion });
-      },
-      (error) => {
-        if (!(error instanceof ApiError) || error.status !== 409)
-          return undefined;
-        const conflict = error.body as {
-          outcomesBlob: string | null;
-          outcomesVersion: number;
-        };
-        return {
-          blob: conflict.outcomesBlob,
-          version: conflict.outcomesVersion,
-        };
-      },
     );
+    if (result !== undefined) allOutcomes = result;
   }
 
   async function handleAddGoal(event: SubmitEvent): Promise<void> {
@@ -525,38 +531,16 @@
     }
   }
 
-  /** Same reapply-on-conflict shape as updateComments/updateOutcomes — see blobSync.ts. */
   async function updateGoalCheckpoints(
     apply: (current: GoalCheckpoint[]) => GoalCheckpoint[],
   ): Promise<void> {
-    if (!anketaKey) return;
-    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    allCheckpoints = await updateBlobWithRetry<GoalCheckpoint[]>(
-      anketaKey,
-      {
-        blob: fresh.goalCheckpointsBlob,
-        version: fresh.goalCheckpointsVersion,
-      },
+    const result = await updateField<GoalCheckpoint[]>(
+      'goalCheckpointsBlob',
+      'goalCheckpointsVersion',
+      'goal-checkpoints',
       apply,
-      async (blob, expectedVersion) => {
-        await apiPut(`/api/anketas/${id}/goal-checkpoints`, {
-          blob,
-          expectedVersion,
-        });
-      },
-      (error) => {
-        if (!(error instanceof ApiError) || error.status !== 409)
-          return undefined;
-        const conflict = error.body as {
-          goalCheckpointsBlob: string | null;
-          goalCheckpointsVersion: number;
-        };
-        return {
-          blob: conflict.goalCheckpointsBlob,
-          version: conflict.goalCheckpointsVersion,
-        };
-      },
     );
+    if (result !== undefined) allCheckpoints = result;
   }
 
   /** "You" for the current viewer's own items, otherwise the counterpart's email — used for outcome-item and goal author tags. */
