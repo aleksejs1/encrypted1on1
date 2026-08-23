@@ -16,6 +16,13 @@ services:
         # Shows a "Try the live demo" login button — see docs/deployment.md's
         # "Frontend build-time" section. Off by default.
         DEMO_MODE: "${DEMO_MODE:-false}"
+        # Short commit hash baked into the footer's version display —
+        # computed automatically by docker/prod/deploy.sh, not meant to be
+        # hand-set. See docs/deployment.md's "Frontend build-time" section.
+        GIT_SHA: "${GIT_SHA:-}"
+        # Shows the version/commit hash in the footer — see
+        # docs/deployment.md's "Frontend build-time" section. Off by default.
+        SHOW_VERSION: "${SHOW_VERSION:-false}"
     ports:
       - "80:80"
       - "443:443"

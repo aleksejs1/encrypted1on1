@@ -27,6 +27,27 @@ ENV VITE_PRIVACY_POLICY_URL=$PRIVACY_POLICY_URL
 # operator has also set up the reset cron job (see docs/deployment.md).
 ARG DEMO_MODE="false"
 ENV VITE_DEMO_MODE=$DEMO_MODE
+# Short git commit hash the image was built from — see docs/deployment.md's
+# "Frontend build-time" section. Empty by default: .git is dockerignored
+# (see .dockerignore), so this has to be computed on the host and passed in,
+# not read from inside the build — docker/prod/deploy.sh does this
+# automatically for the documented build-from-source deploy path.
+# .github/workflows/docker-release.yml (GHCR releases) deliberately doesn't
+# set this or SHOW_VERSION below, same as it doesn't set ARGON2ID_PROFILE/
+# PRIVACY_POLICY_URL/DEMO_MODE — it builds with the Dockerfile's own
+# defaults only, so GHCR images never show version info unless an operator
+# builds their own image instead (see that workflow's own header comment).
+# Trade-off: since this changes on virtually every commit, it invalidates
+# Docker's build cache for `RUN npm run build` below on every redeploy via
+# deploy.sh, even ones that only touched backend code — accepted, since the
+# frontend build itself is well under a second.
+ARG GIT_SHA=""
+ENV VITE_GIT_SHA=$GIT_SHA
+# Shows the version (and commit hash, if set) in the footer — see
+# docs/deployment.md's "Frontend build-time" section. Off by default, same
+# as every other opt-in footer/login feature above.
+ARG SHOW_VERSION="false"
+ENV VITE_SHOW_VERSION=$SHOW_VERSION
 RUN npm run build
 
 FROM dunglas/frankenphp:php8.4

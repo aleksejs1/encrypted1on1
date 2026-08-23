@@ -22,6 +22,8 @@ services:
         ARGON2ID_PROFILE: "${ARGON2ID_PROFILE:-interactive}"
         PRIVACY_POLICY_URL: "${PRIVACY_POLICY_URL:-}"
         DEMO_MODE: "${DEMO_MODE:-false}"
+        GIT_SHA: "${GIT_SHA:-}"
+        SHOW_VERSION: "${SHOW_VERSION:-false}"
     ports:
       # Caddy only ever listens on port 80 in this mode (auto_https is off in
       # Caddyfile.reverse-proxy) — bind to loopback, not 0.0.0.0, and use a port

@@ -34,6 +34,11 @@ COMPOSE="docker compose -f $PROD_COMPOSE_FILE --env-file $ENV_FILE"
 
 cd "$(dirname "$0")/../.."
 
+# Baked into the footer's version display (only shown if SHOW_VERSION=true —
+# see docs/deployment.md's "Frontend build-time" section) — computed here so
+# operators don't have to set it by hand. Empty if this isn't a git checkout.
+export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || true)"
+
 echo "==> Building app image ($PROD_COMPOSE_FILE)..."
 $COMPOSE build app
 

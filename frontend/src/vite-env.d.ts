@@ -29,4 +29,29 @@ interface ImportMetaEnv {
    * in this app.
    */
   readonly VITE_DEMO_MODE?: string;
+
+  /**
+   * Short git commit hash the running image was built from — baked into the
+   * bundle at build time, set via docker/prod/app.Dockerfile's GIT_SHA build
+   * arg. docker/prod/deploy.sh computes this automatically for a local
+   * build-from-source deploy; GHCR release images (docker-release.yml)
+   * never set it, so it's unset there. Unset means the footer just shows
+   * the version with no hash.
+   */
+  readonly VITE_GIT_SHA?: string;
+
+  /**
+   * Shows the app version (and commit hash, if VITE_GIT_SHA is set) in the
+   * footer when set to exactly "true" — baked into the bundle at build time,
+   * set via docker/prod/app.Dockerfile's SHOW_VERSION build arg. Off by
+   * default, same as every other opt-in footer/login feature in this app.
+   */
+  readonly VITE_SHOW_VERSION?: string;
 }
+
+/**
+ * The frontend's own version (frontend/package.json's "version" field) —
+ * injected via `define` in vite.config.ts/vite.config.e2e.ts, not an env var,
+ * so it can't drift out of sync with package.json.
+ */
+declare const __APP_VERSION__: string;
