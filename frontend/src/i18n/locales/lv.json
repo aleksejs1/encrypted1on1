@@ -268,7 +268,12 @@
     "placeholder": "Pievienot komentāru…",
     "post": "Publicēt",
     "posting": "Publicē…",
-    "error": "Neizdevās publicēt komentāru."
+    "error": "Neizdevās publicēt komentāru.",
+    "edit": "Rediģēt",
+    "delete": "Dzēst",
+    "save": "Saglabāt",
+    "cancel": "Atcelt",
+    "confirmDelete": "Apstiprināt dzēšanu"
   },
   "answerField": {
     "addEntryPlaceholder": "Pievienot ierakstu…"

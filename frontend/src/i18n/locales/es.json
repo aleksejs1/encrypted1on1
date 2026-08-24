@@ -268,7 +268,12 @@
     "placeholder": "Añadir un comentario…",
     "post": "Publicar",
     "posting": "Publicando…",
-    "error": "No se pudo publicar el comentario."
+    "error": "No se pudo publicar el comentario.",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirmDelete": "Confirmar eliminación"
   },
   "answerField": {
     "addEntryPlaceholder": "Añadir una entrada…"

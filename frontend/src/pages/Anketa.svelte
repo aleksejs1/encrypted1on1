@@ -5,7 +5,12 @@
   import DateInput from '../design/DateInput.svelte';
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
-  import { addComment, type Comment } from '../anketa/comments';
+  import {
+    addComment,
+    deleteComment,
+    editComment,
+    type Comment,
+  } from '../anketa/comments';
   import {
     clearDraftBackup,
     loadDraftBackup,
@@ -334,6 +339,23 @@
     if (!anketaKey) return;
     await updateComments((current) =>
       addComment(current, targetId, myUserId, text),
+    );
+  }
+
+  async function handleEditComment(
+    commentId: string,
+    text: string,
+  ): Promise<void> {
+    if (!anketaKey) return;
+    await updateComments((current) =>
+      editComment(current, commentId, myUserId, text),
+    );
+  }
+
+  async function handleDeleteComment(commentId: string): Promise<void> {
+    if (!anketaKey) return;
+    await updateComments((current) =>
+      deleteComment(current, commentId, myUserId),
     );
   }
 
@@ -704,7 +726,10 @@
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}
                   {authorEmails}
+                  currentUserId={myUserId}
                   onSubmit={(text) => submitComment(field.id, text)}
+                  onEdit={handleEditComment}
+                  onDelete={handleDeleteComment}
                 />
               {/if}
             {/each}
@@ -770,7 +795,10 @@
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}
                   {authorEmails}
+                  currentUserId={myUserId}
                   onSubmit={(text) => submitComment(field.id, text)}
+                  onEdit={handleEditComment}
+                  onDelete={handleDeleteComment}
                 />
               {/each}
             </div>
@@ -804,7 +832,10 @@
             <CommentThread
               comments={allComments.filter((c) => c.targetId === item.id)}
               {authorEmails}
+              currentUserId={myUserId}
               onSubmit={(text) => submitComment(item.id, text)}
+              onEdit={handleEditComment}
+              onDelete={handleDeleteComment}
             />
           </div>
         {:else}
@@ -965,7 +996,10 @@
             <CommentThread
               comments={allComments.filter((c) => c.targetId === goal.id)}
               {authorEmails}
+              currentUserId={myUserId}
               onSubmit={(text) => submitComment(goal.id, text)}
+              onEdit={handleEditComment}
+              onDelete={handleDeleteComment}
             />
 
             <h4 class="checkpoints-heading">
@@ -994,7 +1028,10 @@
                       (c) => c.targetId === checkpoint.id,
                     )}
                     {authorEmails}
+                    currentUserId={myUserId}
                     onSubmit={(text) => submitComment(checkpoint.id, text)}
+                    onEdit={handleEditComment}
+                    onDelete={handleDeleteComment}
                   />
                 </div>
               {:else}

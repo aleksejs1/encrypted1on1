@@ -30,4 +30,5 @@ Add a one-line index entry below when you add a file — newest first.
 
 ## Index
 
+- [2026-08-24 — Let users edit/delete their own comments, everywhere](2026-08-24-comment-edit-delete.md) — `addComment`-only became `edit`/`delete` too, allowed on archived anketas (matching `addComment`'s existing behavior), ownership enforced client-side only since the server never inspects the encrypted comments blob.
 - [2026-08-22 — Catch npm lockfile drift in the pre-push hook, not just in CI](2026-08-22-npm-lockfile-drift-pre-push-check.md) — an incremental `npm install` left `frontend/package-lock.json` missing entries `npm ci` needed, breaking CI; `pre-push` now runs `npm ci`/`composer validate` when a manifest/lockfile changed.

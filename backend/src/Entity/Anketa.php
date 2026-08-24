@@ -95,9 +95,10 @@ class Anketa
     private ?int $periodicityDays = null;
 
     /**
-     * Shared blob, both sides can write to it (comments only ever get added,
-     * not edited by someone else) — protected by commentsVersion, not a
-     * per-side split like employeeBlob/managerBlob. See the Phase 6a plan.
+     * Shared blob, both sides can write to it — protected by commentsVersion,
+     * not a per-side split like employeeBlob/managerBlob. See the Phase 6a
+     * plan. The server never inspects blob contents, so "can only edit/delete
+     * your own comment" is enforced client-side (frontend/src/anketa/comments.ts).
      */
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $commentsBlob = null;

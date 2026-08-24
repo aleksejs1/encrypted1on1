@@ -268,7 +268,12 @@
     "placeholder": "Add a comment…",
     "post": "Post",
     "posting": "Posting…",
-    "error": "Could not post the comment."
+    "error": "Could not post the comment.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirmDelete": "Confirm delete"
   },
   "answerField": {
     "addEntryPlaceholder": "Add an entry…"

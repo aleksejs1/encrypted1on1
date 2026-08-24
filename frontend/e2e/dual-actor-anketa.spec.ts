@@ -96,9 +96,48 @@ test('employee and manager complete an anketa across two independent sessions', 
   await managerThread.getByRole('button', { name: 'Post' }).click();
   await expect(managerThread.getByText('looks good to me')).toBeVisible();
 
+  // Manager edits their own comment through the real Edit/Save UI (typing,
+  // clicking — not just the pure editComment() unit tests in comments.ts) —
+  // still their own session/tab, real WASM crypto re-encrypting the whole
+  // commentsBlob on Save.
+  await managerThread.getByRole('button', { name: 'Edit' }).click();
+  await managerThread
+    .locator('.edit-form input[type=text]')
+    .fill('looks good to me, approved');
+  await managerThread.getByRole('button', { name: 'Save' }).click();
+  await expect(
+    managerThread.getByText('looks good to me, approved'),
+  ).toBeVisible();
+  await expect(
+    managerThread.getByText('looks good to me', { exact: true }),
+  ).not.toBeVisible();
+
+  // A second comment, posted then deleted by its own author through the
+  // real two-step Delete/Confirm-delete UI — scoped to its own .comment row
+  // so it doesn't touch the first (edited) comment sitting right next to it.
+  await managerThread
+    .locator('input[type=text]')
+    .fill('actually, scratch that');
+  await managerThread.getByRole('button', { name: 'Post' }).click();
+  const scratchComment = managerThread.locator('.comment', {
+    hasText: 'actually, scratch that',
+  });
+  await expect(scratchComment).toBeVisible();
+  await scratchComment.getByRole('button', { name: 'Delete' }).click();
+  await scratchComment.getByRole('button', { name: 'Confirm delete' }).click();
+  await expect(
+    managerThread.getByText('actually, scratch that'),
+  ).not.toBeVisible();
+  // The edit survived the unrelated add+delete right next to it.
+  await expect(
+    managerThread.getByText('looks good to me, approved'),
+  ).toBeVisible();
+
   // Employee reloads: sees the manager's marker on the counterpart side, and
-  // the manager's comment on their own (now-published) side — the second
-  // encrypted shared-blob channel (commentsBlob) round-tripping for real.
+  // the manager's *edited* comment (not the pre-edit text, not the deleted
+  // one) on their own (now-published) side — the second encrypted
+  // shared-blob channel (commentsBlob) round-tripping for real, including
+  // edit/delete.
   await employee.reload();
   const employeeCounterpartSide = employee.locator('.side-card').nth(1);
   await expect(employeeCounterpartSide.locator('textarea').first()).toHaveValue(
@@ -111,6 +150,19 @@ test('employee and manager complete an anketa across two independent sessions', 
     .locator('.thread')
     .first();
   await employeeThread.getByRole('button', { name: /comment/i }).click();
-  await expect(employeeThread.getByText('looks good to me')).toBeVisible();
+  await expect(
+    employeeThread.getByText('looks good to me, approved'),
+  ).toBeVisible();
+  await expect(
+    employeeThread.getByText('actually, scratch that'),
+  ).not.toBeVisible();
   await expect(employeeThread.getByText(`${managerEmail}:`)).toBeVisible();
+  // Employee isn't the comment's author — no Edit/Delete buttons offered on
+  // someone else's comment (CommentThread.svelte's currentUserId gate).
+  await expect(
+    employeeThread.getByRole('button', { name: 'Edit' }),
+  ).toHaveCount(0);
+  await expect(
+    employeeThread.getByRole('button', { name: 'Delete' }),
+  ).toHaveCount(0);
 });
