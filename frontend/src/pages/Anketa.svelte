@@ -71,6 +71,7 @@
   let nextMeetingDate = $state('');
   let rescheduleDate = $state('');
   let rescheduling = $state(false);
+  let showReschedule = $state(false);
 
   const isOverdue = $derived(
     detail !== null &&
@@ -314,6 +315,7 @@
       await apiPut(`/api/anketas/${id}/meeting-date`, { meetingDate: isoDate });
       detail = { ...detail, meetingDate: isoDate };
       rescheduleDate = '';
+      showReschedule = false;
     } catch (error) {
       actionError =
         error instanceof ApiError
@@ -667,7 +669,41 @@
       {#if isOverdue}<span class="tag tag-outline"
           >{$_('anketa.badgeOverdue')}</span
         >{/if}
+      {#if !archived && !isOverdue && !showReschedule}
+        <button
+          type="button"
+          class="btn btn-ghost change-date-btn"
+          onclick={() => (showReschedule = true)}
+        >
+          {$_('anketa.changeDate')}
+        </button>
+      {/if}
     </p>
+
+    {#if !archived && !isOverdue && showReschedule}
+      <div class="reschedule-row">
+        <DateInput bind:value={rescheduleDate} disabled={rescheduling} />
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick={handleReschedule}
+          disabled={rescheduling || !rescheduleDate}
+        >
+          {rescheduling ? $_('anketa.rescheduling') : $_('anketa.reschedule')}
+        </button>
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick={() => {
+            showReschedule = false;
+            rescheduleDate = '';
+          }}
+          disabled={rescheduling}
+        >
+          {$_('anketa.cancel')}
+        </button>
+      </div>
+    {/if}
 
     {#if isOverdue}
       <div class="card elev-sm overdue-card">
@@ -1178,6 +1214,11 @@
     flex-wrap: wrap;
     font-size: 13px;
     margin: 0;
+  }
+
+  .change-date-btn {
+    padding: 4px 0;
+    font-size: 12px;
   }
 
   .overdue-card {

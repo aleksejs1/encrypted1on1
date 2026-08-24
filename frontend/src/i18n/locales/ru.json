@@ -200,6 +200,8 @@
     "overdueHeading": "Эта встреча просрочена",
     "reschedule": "Перенести",
     "rescheduling": "Перенос…",
+    "changeDate": "Изменить дату",
+    "cancel": "Отмена",
     "orIfDidNotHappen": "Или, если встреча не состоялась:",
     "cancelAsMissed": "Отметить как пропущенную",
     "cancelling": "Отмена…",

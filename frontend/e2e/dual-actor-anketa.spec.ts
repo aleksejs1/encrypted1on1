@@ -166,3 +166,93 @@ test('employee and manager complete an anketa across two independent sessions', 
     employeeThread.getByRole('button', { name: 'Delete' }),
   ).toHaveCount(0);
 });
+
+/**
+ * Regression coverage for the "Change date" toggle: before this, an anketa's
+ * meeting date could only be moved from the overdue-only reschedule card
+ * (Anketa.svelte's `isOverdue` gate), so a participant who knew *in advance*
+ * they'd have to miss an upcoming meeting had no way to move it — only the
+ * PUT /api/anketas/{id}/meeting-date endpoint already supported it. This
+ * drives the real UI toggle end to end against the real backend, including
+ * the Cancel path leaving the date untouched.
+ */
+test('participant can change the meeting date on an upcoming (non-overdue) anketa', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-reschedule');
+  const managerEmail = uniqueEmail('manager-reschedule');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  // Only needs to exist as a real, keyed counterpart for the anketa to be
+  // created against — the rest of this test drives the employee alone.
+  await activate(browser, managerToken);
+
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type an email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + 3);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+
+  // Upcoming meeting: the overdue-only reschedule card is absent, and the
+  // lightweight "Change date" toggle is what's offered instead.
+  await expect(employee.locator('.overdue-card')).toHaveCount(0);
+  const changeDateButton = employee.getByRole('button', {
+    name: 'Change date',
+  });
+  await expect(changeDateButton).toBeVisible();
+
+  // Open the toggle, then back out via Cancel — the date must stay
+  // untouched and the toggle must collapse back to its closed state.
+  await changeDateButton.click();
+  const rescheduleRow = employee.locator('.reschedule-row');
+  await expect(rescheduleRow).toBeVisible();
+  await rescheduleRow.getByRole('button', { name: 'Cancel' }).click();
+  await expect(rescheduleRow).toHaveCount(0);
+  await expect(employee.locator('p.meta')).toContainText(
+    `${dd}.${mm}.${meetingDate.getFullYear()}`,
+  );
+
+  // Reopen and actually move the date forward.
+  await changeDateButton.click();
+  const newMeetingDate = new Date();
+  newMeetingDate.setDate(newMeetingDate.getDate() + 10);
+  const newDd = String(newMeetingDate.getDate()).padStart(2, '0');
+  const newMm = String(newMeetingDate.getMonth() + 1).padStart(2, '0');
+  const newYyyy = newMeetingDate.getFullYear();
+
+  const dateField = employee.locator('.reschedule-row input[type=text]');
+  await dateField.fill(`${newDd}.${newMm}.${newYyyy}`);
+  await dateField.blur();
+  await employee
+    .locator('.reschedule-row')
+    .getByRole('button', { name: 'Reschedule' })
+    .click();
+
+  // The inline form collapses back to the closed "Change date" toggle, and
+  // the displayed meeting date reflects the new value — a real round trip
+  // through PUT /api/anketas/{id}/meeting-date, not just local UI state.
+  await expect(employee.locator('.reschedule-row')).toHaveCount(0);
+  await expect(changeDateButton).toBeVisible();
+  await expect(employee.locator('p.meta')).toContainText(
+    `${newDd}.${newMm}.${newYyyy}`,
+  );
+
+  // A page reload confirms the new date was actually persisted server-side,
+  // not just optimistically patched into local state.
+  await employee.reload();
+  await expect(employee.locator('p.meta')).toContainText(
+    `${newDd}.${newMm}.${newYyyy}`,
+  );
+});

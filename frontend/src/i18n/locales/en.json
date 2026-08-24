@@ -200,6 +200,8 @@
     "overdueHeading": "This meeting is overdue",
     "reschedule": "Reschedule",
     "rescheduling": "Rescheduling…",
+    "changeDate": "Change date",
+    "cancel": "Cancel",
     "orIfDidNotHappen": "Or, if this meeting didn't happen:",
     "cancelAsMissed": "Cancel as missed",
     "cancelling": "Cancelling…",

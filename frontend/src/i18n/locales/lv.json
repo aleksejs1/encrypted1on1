@@ -199,6 +199,8 @@
     "notEncryptedHint": "Nosaukums, apraksts un statuss netiek šifrēti",
     "overdueHeading": "Šī tikšanās ir nokavēta",
     "reschedule": "Pārcelt",
+    "changeDate": "Mainīt datumu",
+    "cancel": "Atcelt",
     "rescheduling": "Pārceļ…",
     "orIfDidNotHappen": "Vai, ja šī tikšanās nenotika:",
     "cancelAsMissed": "Atzīmēt kā izlaistu",

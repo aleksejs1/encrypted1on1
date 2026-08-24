@@ -199,6 +199,8 @@
     "notEncryptedHint": "El título, la descripción y el estado no están cifrados",
     "overdueHeading": "Esta reunión está atrasada",
     "reschedule": "Reprogramar",
+    "changeDate": "Cambiar fecha",
+    "cancel": "Cancelar",
     "rescheduling": "Reprogramando…",
     "orIfDidNotHappen": "O, si esta reunión no llegó a celebrarse:",
     "cancelAsMissed": "Marcar como no realizada",
