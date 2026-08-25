@@ -105,6 +105,17 @@
   --color-accent: #c67139;
   --color-accent-2: #7a8a5e;
   --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+  /*
+   * Shared by h4/.text-muted/.card-meta/.table th (components.css) — was
+   * duplicated as a literal `color-mix(in srgb, var(--color-text) 68%,
+   * transparent)` in all four, which let two of them drift to a lower,
+   * sub-4.5:1 percentage (caught by contrast.test.ts, which is also what
+   * pins this exact value: don't lower it without checking there first).
+   * Defined via var(--color-text), not a literal hex, so it needs no
+   * separate dark-theme override — it already reflects whichever theme's
+   * --color-text is active.
+   */
+  --color-text-muted: color-mix(in srgb, var(--color-text) 68%, transparent);
 
   /* Tonal ramps — same step of any role carries the same visual weight. */
   --color-neutral-100: #f9f4ed;
@@ -187,6 +198,55 @@
   --shadow-md: 0 3px 12px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
 
+  /*
+   * Tonal ramps, reversed step-for-step (100<->900, 200<->800, 300<->700,
+   * 400<->600, 500 unchanged) — without this, .tag-accent/.tag-accent-2/
+   * .tag-neutral (background: *-100, color: *-800) kept rendering their
+   * light-theme colors verbatim in dark mode (a pale badge stranded on a
+   * dark page) since these ramps were never redeclared here, only the
+   * plain --color-* tokens above were. Reversing preserves "lightest step
+   * = *-100" as a background fill and "darkest-relative step = *-800" as
+   * readable text on it, in whichever theme is active — verified
+   * automatically by contrast.test.ts, alongside this block.
+   *
+   * --color-accent-600/700 and --color-accent-2-600/700 are the one
+   * deliberate exception to a strict mirror: dark's own --color-accent
+   * (#f6a06b, above) happens to equal light's own accent-400, and
+   * --color-accent-2 likewise equals light's accent-2-400 — so a strict
+   * mirror would put that same value back at the *600* slot, making
+   * .btn-primary's resting and :hover backgrounds identical (an
+   * independent-review finding: hover became invisible in dark mode).
+   * Reusing the already-correctly-reversed, already-distinct 500/400
+   * values here instead keeps hover/active clearly darker than the
+   * resting fill, same direction as the light theme's own 500->600->700.
+   */
+  --color-neutral-100: #2e2b25;
+  --color-neutral-200: #474238;
+  --color-neutral-300: #645c50;
+  --color-neutral-400: #82796a;
+  --color-neutral-600: #c0b6a5;
+  --color-neutral-700: #dcd3c4;
+  --color-neutral-800: #eee7db;
+  --color-neutral-900: #f9f4ed;
+
+  --color-accent-100: #402310;
+  --color-accent-200: #643312;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-600: #d67f48; /* = --color-accent-500 (light's 500, unchanged in dark) */
+  --color-accent-700: #b2622d; /* = --color-accent-400 above, one step darker still */
+  --color-accent-800: #ffe1d0;
+  --color-accent-900: #fff2eb;
+
+  --color-accent-2-100: #272e1b;
+  --color-accent-2-200: #3d472b;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-600: #8fa073; /* = --color-accent-2-500 (light's 500, unchanged in dark) */
+  --color-accent-2-700: #728157; /* = --color-accent-2-400 above, one step darker still */
+  --color-accent-2-800: #e1eecc;
+  --color-accent-2-900: #f0fae1;
+
   color-scheme: dark;
 }
 
@@ -203,6 +263,34 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-md: 0 3px 12px rgba(0, 0, 0, 0.55);
     --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+    /* Same reversed ramps as :root[data-theme='dark'] above — see its comment. */
+    --color-neutral-100: #2e2b25;
+    --color-neutral-200: #474238;
+    --color-neutral-300: #645c50;
+    --color-neutral-400: #82796a;
+    --color-neutral-600: #c0b6a5;
+    --color-neutral-700: #dcd3c4;
+    --color-neutral-800: #eee7db;
+    --color-neutral-900: #f9f4ed;
+
+    --color-accent-100: #402310;
+    --color-accent-200: #643312;
+    --color-accent-300: #8c491a;
+    --color-accent-400: #b2622d;
+    --color-accent-600: #d67f48; /* = --color-accent-500 (light's 500, unchanged in dark) */
+    --color-accent-700: #b2622d; /* = --color-accent-400 above, one step darker still */
+    --color-accent-800: #ffe1d0;
+    --color-accent-900: #fff2eb;
+
+    --color-accent-2-100: #272e1b;
+    --color-accent-2-200: #3d472b;
+    --color-accent-2-300: #56633f;
+    --color-accent-2-400: #728157;
+    --color-accent-2-600: #8fa073; /* = --color-accent-2-500 (light's 500, unchanged in dark) */
+    --color-accent-2-700: #728157; /* = --color-accent-2-400 above, one step darker still */
+    --color-accent-2-800: #e1eecc;
+    --color-accent-2-900: #f0fae1;
 
     color-scheme: dark;
   }

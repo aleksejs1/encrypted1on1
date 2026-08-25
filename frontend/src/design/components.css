@@ -60,7 +60,7 @@ h4 {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: color-mix(in srgb, var(--color-text) 68%, transparent);
+  color: var(--color-text-muted);
 }
 h5 {
   font-size: 14px;
@@ -79,7 +79,7 @@ a {
   text-underline-offset: 3px;
 }
 .text-muted {
-  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  color: var(--color-text-muted);
 }
 
 :focus {
@@ -104,7 +104,10 @@ a {
 .banner-error {
   font-size: 13px;
   color: var(--color-accent-ink);
-  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  /* 12%, not 14% — this banner is routinely nested inside a .card (on
+     --color-surface, not just --color-bg: Login/Signup/AccountSettings/etc.)
+     and 14% dropped just under 4.5:1 there in light theme. See contrast.test.ts. */
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
 }
@@ -321,7 +324,7 @@ textarea.input {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: var(--color-text-muted);
 }
 .elev-sm {
   box-shadow: var(--shadow-sm);
@@ -393,7 +396,7 @@ textarea.input {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  color: var(--color-text-muted);
   padding: var(--space-2);
   border-bottom: 1px solid var(--color-divider);
 }

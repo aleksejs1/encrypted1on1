@@ -30,6 +30,7 @@ Add a one-line index entry below when you add a file — newest first.
 
 ## Index
 
+- [2026-08-25 — Fix dark-mode badge colors and add an automated WCAG contrast check](2026-08-25-dark-mode-tonal-ramps-and-contrast-check.md) — tokens.css's dark blocks never redeclared the tonal ramps badges use; fixed, plus a new contrast.test.ts (reads the real CSS, not a hand-copied palette) that caught two further pre-existing contrast bugs and a hover-collision regression along the way.
 - [2026-08-25 — Version the anketa question set, so it can change without breaking old anketas](2026-08-25-anketa-form-versioning.md) — `Anketa::CURRENT_FORM_VERSION` stamped at creation and never changed after; old anketas keep the six-option "feelings" field, new ones get twelve; a step toward eventual per-company/per-user custom forms, not that feature itself.
 - [2026-08-25 — Show names instead of raw email/uuid, via a new plaintext displayName field](2026-08-25-plaintext-display-name.md) — a deliberate, narrow exception to "assume encrypted" (same sensitivity as the email already sitting next to it in every listing); bidi-override/zero-width characters stripped server-side since the value is echoed verbatim into the counterpart-picker.
 - [2026-08-24 — Let users edit/delete their own comments, everywhere](2026-08-24-comment-edit-delete.md) — `addComment`-only became `edit`/`delete` too, allowed on archived anketas (matching `addComment`'s existing behavior), ownership enforced client-side only since the server never inspects the encrypted comments blob.
