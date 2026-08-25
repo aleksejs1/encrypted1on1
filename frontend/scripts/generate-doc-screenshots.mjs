@@ -277,7 +277,7 @@ await loggedOutPage.close();
 // --- Create the anketa (employee creates, manager is the counterpart) ---
 await employee.goto(`${BASE_URL}/anketas/new`);
 await employee
-  .getByPlaceholder('Type an email to search…')
+  .getByPlaceholder('Type a name or email to search…')
   .fill(MANAGER_EMAIL);
 await employee.getByRole('button', { name: MANAGER_EMAIL }).click();
 // Created in the near future (so the *empty* screenshot below doesn't show

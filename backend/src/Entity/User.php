@@ -41,6 +41,16 @@ class User
     private string $email;
 
     /**
+     * Plaintext, like email — not a secret, and needed server-side to appear in
+     * GET /api/users (the counterpart picker) and in admin/platform-admin listings.
+     * Empty string means "not set": every display site falls back to email in that
+     * case (see frontend/src/userDisplay.ts) rather than treating this as required.
+     */
+    #[ORM\Column(type: 'string', length: 255)]
+    #[Groups(['user:read'])]
+    private string $displayName;
+
+    /**
      * The tenant boundary (see private/cloud-service-plan.md, not tracked in git).
      * Deliberately no serialization group — GET /api/users is already scoped to the
      * requester's own company (ExcludeDeletedUsersExtension), so which company a listed
@@ -162,6 +172,7 @@ class User
         Company $company,
         bool $isAdmin = false,
         string $locale = 'en',
+        string $displayName = '',
     ) {
         $this->id = Uuid::v7()->toRfc4122();
         $this->email = $email;
@@ -172,6 +183,7 @@ class User
         $this->createdAt = new \DateTimeImmutable();
         $this->isAdmin = $isAdmin;
         $this->locale = \in_array($locale, self::SUPPORTED_LOCALES, true) ? $locale : 'en';
+        $this->displayName = $displayName;
     }
 
     public function getId(): string
@@ -182,6 +194,16 @@ class User
     public function getEmail(): string
     {
         return $this->email;
+    }
+
+    public function getDisplayName(): string
+    {
+        return $this->displayName;
+    }
+
+    public function setDisplayName(string $displayName): void
+    {
+        $this->displayName = $displayName;
     }
 
     public function getCompany(): Company
@@ -349,6 +371,7 @@ class User
     public function delete(): void
     {
         $this->email = sprintf('deleted-%s@deleted.invalid', $this->id);
+        $this->displayName = '';
         $this->authHash = bin2hex(random_bytes(32));
         $this->encryptedPrivateKey = '';
         $this->isAdmin = false;

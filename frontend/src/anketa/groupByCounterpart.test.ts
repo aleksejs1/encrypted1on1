@@ -5,6 +5,7 @@ interface Row {
   id: string;
   counterpartId: string;
   counterpartEmail: string;
+  counterpartName: string;
   meetingDate: string;
 }
 
@@ -14,7 +15,13 @@ function row(
   counterpartEmail: string,
   meetingDate: string,
 ): Row {
-  return { id, counterpartId, counterpartEmail, meetingDate };
+  return {
+    id,
+    counterpartId,
+    counterpartEmail,
+    counterpartName: '',
+    meetingDate,
+  };
 }
 
 describe('groupByCounterpart', () => {
@@ -34,6 +41,7 @@ describe('groupByCounterpart', () => {
       {
         counterpartId: 'u1',
         counterpartEmail: 'alice@example.com',
+        counterpartName: '',
         anketas: [anketas[0], anketas[1]],
       },
     ]);

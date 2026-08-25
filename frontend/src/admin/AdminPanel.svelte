@@ -23,6 +23,7 @@
   interface AdminUser {
     id: string;
     email: string;
+    displayName: string;
     isAdmin: boolean;
     isBlocked: boolean;
     createdAt: string;
@@ -213,6 +214,7 @@
       <table class="table">
         <thead>
           <tr>
+            <th>{$_('admin.nameHeader')}</th>
             <th>{$_('admin.emailHeader')}</th>
             <th>{$_('admin.statusHeader')}</th>
             <th>{$_('admin.roleHeader')}</th>
@@ -223,6 +225,7 @@
         <tbody>
           {#each users as user (user.id)}
             <tr>
+              <td>{user.displayName || '—'}</td>
               <td>{user.email}</td>
               <td>
                 <span

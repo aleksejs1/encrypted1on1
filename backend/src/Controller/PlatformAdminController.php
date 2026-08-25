@@ -119,6 +119,7 @@ class PlatformAdminController
         return new JsonResponse(array_map(fn (User $user) => [
             'id' => $user->getId(),
             'email' => $user->getEmail(),
+            'displayName' => $user->getDisplayName(),
             'companyId' => $user->getCompany()->getId(),
             'companyName' => $user->getCompany()->getName(),
             'isAdmin' => $user->isAdmin(),

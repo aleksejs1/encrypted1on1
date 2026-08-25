@@ -111,7 +111,7 @@ abstract class ApiTestCase extends WebTestCase
      *
      * @return array{id: string, email: string, isAdmin: bool}
      */
-    protected function activateUser(KernelBrowser $client, string $email, bool $admin = false, string $locale = 'en', ?Company $company = null): array
+    protected function activateUser(KernelBrowser $client, string $email, bool $admin = false, string $locale = 'en', ?Company $company = null, ?string $displayName = null): array
     {
         if (null !== $company) {
             $company = $this->entityManager()->find(Company::class, $company->getId()) ?? $company;
@@ -128,6 +128,7 @@ abstract class ApiTestCase extends WebTestCase
             'publicKey' => str_repeat('b', 44),
             'encryptedPrivateKey' => str_repeat('c', 44),
             'locale' => $locale,
+            ...(null !== $displayName ? ['displayName' => $displayName] : []),
         ]);
 
         self::assertSame(200, $result['status'], 'activation should succeed in test setup: '.json_encode($result));

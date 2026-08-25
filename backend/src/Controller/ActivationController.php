@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\ActivationToken;
 use App\Entity\User;
+use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
@@ -74,6 +75,11 @@ class ActivationController
         // the constructor itself — not worth a hard validation error for a preference field.
         $locale = $body['locale'] ?? 'en';
 
+        $displayName = DisplayNameField::parse($body['displayName'] ?? '', $this->translator);
+        if ($displayName instanceof JsonResponse) {
+            return $displayName;
+        }
+
         $user = new User(
             email: $activationToken->getEmail(),
             authHash: $body['authKey'],
@@ -82,6 +88,7 @@ class ActivationController
             company: $activationToken->getCompany(),
             isAdmin: $activationToken->grantsAdmin(),
             locale: \is_string($locale) ? $locale : 'en',
+            displayName: $displayName,
         );
         $activationToken->markUsed();
 

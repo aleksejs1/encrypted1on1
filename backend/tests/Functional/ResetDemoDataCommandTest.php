@@ -63,6 +63,37 @@ class ResetDemoDataCommandTest extends ApiTestCase
         }
     }
 
+    public function testFirstRunSetsTheSeededDisplayNameForEachAccount(): void
+    {
+        static::createClient();
+        $this->runCommand();
+
+        $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employee);
+        self::assertNotNull($manager);
+        self::assertSame('Alex Morgan', $employee->getDisplayName());
+        self::assertSame('Jordan Blake', $manager->getDisplayName());
+    }
+
+    public function testResetRestoresADisplayNameAVisitorEdited(): void
+    {
+        static::createClient();
+        $this->runCommand();
+
+        $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        self::assertNotNull($employee);
+        $employee->setDisplayName('Something Else Entirely');
+        $this->entityManager()->flush();
+        $this->entityManager()->clear();
+
+        $this->runCommand();
+
+        $employeeAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        self::assertNotNull($employeeAfter);
+        self::assertSame('Alex Morgan', $employeeAfter->getDisplayName());
+    }
+
     public function testRunningTwiceIsIdempotent(): void
     {
         static::createClient();

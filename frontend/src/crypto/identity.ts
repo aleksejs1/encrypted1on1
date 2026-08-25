@@ -1,5 +1,6 @@
 import { apiGet } from '../api/client';
 import type { MeResponse } from '../api/types';
+import { setDisplayNameState } from '../displayName.svelte';
 import { fromBase64 } from './encoding';
 import { unpackWrappedPrivateKey, unwrapPrivateKey } from './keypair';
 import { loadMasterKey } from './session';
@@ -7,6 +8,8 @@ import { loadMasterKey } from './session';
 export interface Identity {
   userId: string;
   email: string;
+  /** Optional, plaintext — empty string means not set. See userDisplay.ts for how this is shown. */
+  displayName: string;
   isAdmin: boolean;
   /** "invite" | "admin_only" | "domain" (Phase 6g) — every authenticated user needs this to decide whether to show the general "Invite" UI. */
   registrationMode: string;
@@ -47,6 +50,7 @@ export async function ensureUnlocked(): Promise<Identity> {
     const identity: Identity = {
       userId: me.id,
       email: me.email,
+      displayName: me.displayName,
       isAdmin: me.isAdmin,
       registrationMode: me.registrationMode,
       allowedEmailDomain: me.allowedEmailDomain,
@@ -56,6 +60,7 @@ export async function ensureUnlocked(): Promise<Identity> {
       privateKey,
     };
     cached = identity;
+    setDisplayNameState(identity.displayName);
     return identity;
   })();
 
@@ -68,4 +73,11 @@ export async function ensureUnlocked(): Promise<Identity> {
 
 export function clearIdentity(): void {
   cached = null;
+  setDisplayNameState('');
+}
+
+/** Called by AccountSettings.svelte after saving a new display name — updates both the cached Identity and the reactive mirror AppHeader.svelte reads from. */
+export function updateCachedDisplayName(displayName: string): void {
+  if (cached) cached.displayName = displayName;
+  setDisplayNameState(displayName);
 }

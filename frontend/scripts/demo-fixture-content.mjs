@@ -26,7 +26,9 @@ export const DEMO_LOCALES = ['en', 'ru', 'lv', 'es'];
 export const CONTENT = {
   en: {
     employeeEmail: 'demo-employee@example.com',
+    employeeName: 'Alex Morgan',
     managerEmail: 'demo-manager@example.com',
+    managerName: 'Jordan Blake',
     goal: {
       title: 'Lead one cross-team project end to end',
       description:
@@ -135,7 +137,9 @@ export const CONTENT = {
 
   ru: {
     employeeEmail: 'demo-employee-ru@example.com',
+    employeeName: 'Анна Соколова',
     managerEmail: 'demo-manager-ru@example.com',
+    managerName: 'Дмитрий Волков',
     goal: {
       title: 'Довести один межкомандный проект от начала до конца',
       description:
@@ -244,7 +248,9 @@ export const CONTENT = {
 
   lv: {
     employeeEmail: 'demo-employee-lv@example.com',
+    employeeName: 'Anna Kalniņa',
     managerEmail: 'demo-manager-lv@example.com',
+    managerName: 'Jānis Bērziņš',
     goal: {
       title: 'Novadīt vienu starpkomandu projektu no sākuma līdz beigām',
       description:
@@ -353,7 +359,9 @@ export const CONTENT = {
 
   es: {
     employeeEmail: 'demo-employee-es@example.com',
+    employeeName: 'Lucía Fernández',
     managerEmail: 'demo-manager-es@example.com',
+    managerName: 'Carlos Ramírez',
     goal: {
       title: 'Liderar un proyecto entre equipos de principio a fin',
       description:

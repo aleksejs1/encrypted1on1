@@ -48,6 +48,17 @@ class AdminControllerTest extends ApiTestCase
         self::assertContains($admin['id'], $ids);
     }
 
+    public function testListUsersIncludesEachUsersDisplayName(): void
+    {
+        $client = static::createClient();
+        $admin = $this->activateUser($client, $this->uniqueEmail('admin-list-name'), admin: true, displayName: 'Alex Morgan');
+
+        $result = $this->jsonRequest($client, 'GET', '/api/admin/users');
+
+        $row = current(array_filter($result['json'], fn (array $u) => $u['id'] === $admin['id']));
+        self::assertSame('Alex Morgan', $row['displayName']);
+    }
+
     public function testSetBlockedTogglesTheFlag(): void
     {
         $client = static::createClient();

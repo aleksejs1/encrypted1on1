@@ -54,6 +54,41 @@ class ActivationControllerTest extends ApiTestCase
         self::assertSame($user['id'], $me['json']['id']);
     }
 
+    public function testCompleteDefaultsDisplayNameToEmptyStringWhenOmitted(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('activation-no-name'));
+
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+
+        self::assertSame('', $me['json']['displayName']);
+    }
+
+    public function testCompleteSetsAndTrimsTheProvidedDisplayName(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('activation-with-name'), displayName: '  Alex Morgan  ');
+
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+
+        self::assertSame('Alex Morgan', $me['json']['displayName']);
+    }
+
+    public function testCompleteRejectsADisplayNameLongerThan255Characters(): void
+    {
+        $client = static::createClient();
+        $rawToken = $this->issueToken($this->uniqueEmail('activation-name-too-long'));
+
+        $result = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+            'displayName' => str_repeat('x', 256),
+        ]);
+
+        self::assertSame(400, $result['status']);
+    }
+
     public function testCompleteGrantsAdminWhenTheTokenWasIssuedWithIt(): void
     {
         $client = static::createClient();

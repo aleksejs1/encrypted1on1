@@ -47,6 +47,7 @@
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity';
   import { loadMasterKey } from '../crypto/session';
+  import { shortDisplayName } from '../userDisplay';
 
   const { id }: { id: string } = $props();
 
@@ -82,7 +83,8 @@
   );
 
   let myUserId = $state('');
-  let authorEmails = $state<Record<string, string>>({});
+  /** Short display label per participant (first name, or full email if no name is set) — inside the anketa's tight layout, only the tighter comments/outcomes/goals author tags and the two side headings use this. */
+  let authorNames = $state<Record<string, string>>({});
   let allComments = $state<Comment[]>([]);
   let allOutcomes = $state<OutcomeItem[]>([]);
   let newOutcomeText = $state('');
@@ -136,9 +138,15 @@
       detail = anketa;
       masterKey = mk;
       myUserId = identity.userId;
-      authorEmails = {
-        [identity.userId]: identity.email,
-        [anketa.counterpartId]: anketa.counterpartEmail,
+      authorNames = {
+        [identity.userId]: shortDisplayName(
+          identity.displayName,
+          identity.email,
+        ),
+        [anketa.counterpartId]: shortDisplayName(
+          anketa.counterpartName,
+          anketa.counterpartEmail,
+        ),
       };
       counterpartSide = anketa.myRole === 'employee' ? 'manager' : 'employee';
       archived = anketa.archivedAt !== null;
@@ -643,11 +651,11 @@
     if (result !== undefined) allCheckpoints = result;
   }
 
-  /** "You" for the current viewer's own items, otherwise the counterpart's email — used for outcome-item and goal author tags. */
+  /** "You" for the current viewer's own items, otherwise the counterpart's short name — used for outcome-item and goal author tags. */
   function authorLabel(authorId: string): string {
     return authorId === myUserId
       ? $_('anketa.you')
-      : (authorEmails[authorId] ?? authorId);
+      : (authorNames[authorId] ?? authorId);
   }
 
   const GOAL_STATUS_KEYS: Record<Goal['status'], string> = {
@@ -729,7 +737,12 @@
   {:else}
     <h1>
       {$_('anketa.titleWithCounterpart', {
-        values: { email: detail.counterpartEmail },
+        values: {
+          name: shortDisplayName(
+            detail.counterpartName,
+            detail.counterpartEmail,
+          ),
+        },
       })}
     </h1>
     <p class="meta">
@@ -837,7 +850,7 @@
               {#if myPublished}
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}
-                  {authorEmails}
+                  {authorNames}
                   currentUserId={myUserId}
                   onSubmit={(text) => submitComment(field.id, text)}
                   onEdit={handleEditComment}
@@ -878,7 +891,10 @@
         <h2>
           {$_('anketa.counterpartSideHeading', {
             values: {
-              email: detail.counterpartEmail,
+              name: shortDisplayName(
+                detail.counterpartName,
+                detail.counterpartEmail,
+              ),
               role: counterpartSide
                 ? $_(
                     counterpartSide === 'employee'
@@ -906,7 +922,7 @@
                 />
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}
-                  {authorEmails}
+                  {authorNames}
                   currentUserId={myUserId}
                   onSubmit={(text) => submitComment(field.id, text)}
                   onEdit={handleEditComment}
@@ -1024,7 +1040,7 @@
             {/if}
             <CommentThread
               comments={allComments.filter((c) => c.targetId === item.id)}
-              {authorEmails}
+              {authorNames}
               currentUserId={myUserId}
               onSubmit={(text) => submitComment(item.id, text)}
               onEdit={handleEditComment}
@@ -1188,7 +1204,7 @@
 
             <CommentThread
               comments={allComments.filter((c) => c.targetId === goal.id)}
-              {authorEmails}
+              {authorNames}
               currentUserId={myUserId}
               onSubmit={(text) => submitComment(goal.id, text)}
               onEdit={handleEditComment}
@@ -1220,7 +1236,7 @@
                     comments={allComments.filter(
                       (c) => c.targetId === checkpoint.id,
                     )}
-                    {authorEmails}
+                    {authorNames}
                     currentUserId={myUserId}
                     onSubmit={(text) => submitComment(checkpoint.id, text)}
                     onEdit={handleEditComment}

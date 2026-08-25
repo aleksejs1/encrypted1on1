@@ -8,14 +8,16 @@
 				"id": "01a00143-a050-7123-82ad-5deb40c08f75",
 				"authHash": "1tmBYNuLy12dxJwUZL95K3HJLBSA18/wKLriBsLnHPE=",
 				"publicKey": "6ambwf3xKlxiTTxU28vKNK9jw9XqCph58AmIUINzR3k=",
-				"encryptedPrivateKey": "r9jUkSgej24Gy0PGK0riamDAWFViZLbZFhPXOrMNcxIZqFCJ8yFHmdW5zfhY2ypNdmbsjz+ubIRtcqEOmtrZkYGMNOr9zyBx"
+				"encryptedPrivateKey": "r9jUkSgej24Gy0PGK0riamDAWFViZLbZFhPXOrMNcxIZqFCJ8yFHmdW5zfhY2ypNdmbsjz+ubIRtcqEOmtrZkYGMNOr9zyBx",
+				"name": "Alex Morgan"
 			},
 			"manager": {
 				"email": "demo-manager@example.com",
 				"id": "01a00143-a1c3-7f5a-bca1-02e6569b1d38",
 				"authHash": "aajR4EGC9ebpuhA518U21LdTFxZo05P06Q79rKoadF4=",
 				"publicKey": "FKWQajpVCS4fJCZ4cjONEzoXzhOKjWG+AX5jJoCUSCE=",
-				"encryptedPrivateKey": "HUf1A3jODhjawJH49yiI2dhi+tQYDVYXWW3gq/UzXywVfk1UW13qWehN3W5r4ucvlfrw6eMkZONux3BkOy1n59KPUnpVrgEg"
+				"encryptedPrivateKey": "HUf1A3jODhjawJH49yiI2dhi+tQYDVYXWW3gq/UzXywVfk1UW13qWehN3W5r4ucvlfrw6eMkZONux3BkOy1n59KPUnpVrgEg",
+				"name": "Jordan Blake"
 			},
 			"goalUuid": "5dd92a43-e33b-43a2-974f-aa020c022ba8",
 			"goalTitle": "Lead one cross-team project end to end",
@@ -73,14 +75,16 @@
 				"id": "01a00143-d90c-732f-b998-72dd0c790f5a",
 				"authHash": "7UNrx388/DPnlda5eumwoIqAhbjBpaZDYYWZAkihJkw=",
 				"publicKey": "aS2EhqB314hPVWkV4TM7PyupYbU8ktZrkNt5YOYxPVU=",
-				"encryptedPrivateKey": "p0UOagl0pBX22jaB5h/F4z1z9odMbbkfKh34k3TOHmOrRzn1MR73rlD9iGlQIxSveEEUQRysY21ZFQk/+XKOySaCIvgM2YOH"
+				"encryptedPrivateKey": "p0UOagl0pBX22jaB5h/F4z1z9odMbbkfKh34k3TOHmOrRzn1MR73rlD9iGlQIxSveEEUQRysY21ZFQk/+XKOySaCIvgM2YOH",
+				"name": "Анна Соколова"
 			},
 			"manager": {
 				"email": "demo-manager-ru@example.com",
 				"id": "01a00143-da6c-7381-b352-a5ef08ec7f0f",
 				"authHash": "yABef+SPrkO6d1jot/NelYPDGMxlQyaWpJz2K0VGrlI=",
 				"publicKey": "gDKf04c/9cum9gHBuyScDL3SJ693F5dzFQHEjM6fT2g=",
-				"encryptedPrivateKey": "GEhV53Hjhd0c2KlIWFCivgm2KULg6KU6Y9GOnib/s3aGKntwO7+6s+CKJqZbucDacIuMp5SyZdieI5y7M+C8X5VfE25cg7jA"
+				"encryptedPrivateKey": "GEhV53Hjhd0c2KlIWFCivgm2KULg6KU6Y9GOnib/s3aGKntwO7+6s+CKJqZbucDacIuMp5SyZdieI5y7M+C8X5VfE25cg7jA",
+				"name": "Дмитрий Волков"
 			},
 			"goalUuid": "07a0dcdb-87b9-4a7a-9000-273984785142",
 			"goalTitle": "Довести один межкомандный проект от начала до конца",
@@ -138,14 +142,16 @@
 				"id": "01a00144-0777-70aa-9f71-6bc0c8e4d3e3",
 				"authHash": "uj34sQ8CF77wEvA5FW2tt5D5SVlB1UDWSgHut/SUVfY=",
 				"publicKey": "+uJzn7xzZyNppndbJtJu2Hu2sAW0a1yJOW5ntadKSBc=",
-				"encryptedPrivateKey": "XM4qEQJd1ZBuT7Us//4qc1Nl+iIhEQ+JoEnB1PZwQE9iB0Z6AOVU3JMIIWEkXfX7psuYRvXx9/QQwIYSPI/IaXZux9Y9OTMj"
+				"encryptedPrivateKey": "XM4qEQJd1ZBuT7Us//4qc1Nl+iIhEQ+JoEnB1PZwQE9iB0Z6AOVU3JMIIWEkXfX7psuYRvXx9/QQwIYSPI/IaXZux9Y9OTMj",
+				"name": "Anna Kalniņa"
 			},
 			"manager": {
 				"email": "demo-manager-lv@example.com",
 				"id": "01a00144-08e6-724a-95f2-b3af4d8e6bf2",
 				"authHash": "hrNG0lJRtTre+1wJs/L/HNrwc6wEbFVmsWo4TGbBykM=",
 				"publicKey": "qdDksKgAL2Yq45LiLvxSncUGNKdvS/pbdVfVOCqceSM=",
-				"encryptedPrivateKey": "cv8fbhpE0LiKne5gkBBGh8RusUOy73PBbWnWMV4wF2InItvwlaZbJciWU5l69hT+RfOz/Z9E+17SUCgY5qs0CdnsW7keN0ii"
+				"encryptedPrivateKey": "cv8fbhpE0LiKne5gkBBGh8RusUOy73PBbWnWMV4wF2InItvwlaZbJciWU5l69hT+RfOz/Z9E+17SUCgY5qs0CdnsW7keN0ii",
+				"name": "Jānis Bērziņš"
 			},
 			"goalUuid": "30570a6c-9dc0-4d07-a4e8-cb6fd8847049",
 			"goalTitle": "Novadīt vienu starpkomandu projektu no sākuma līdz beigām",
@@ -203,14 +209,16 @@
 				"id": "01a00144-35bd-7f3f-8ac8-c276514656ce",
 				"authHash": "FLKNgp5MJKhCGqrXPPvxCvRO1PdBQKoLPbph7zd0F3c=",
 				"publicKey": "YPjt3B88AfhRiF/K3C0KK1XfYdoeoUJni/6RxFVS9jE=",
-				"encryptedPrivateKey": "CzmmrmM2EGLKu+CMPxx538C/ttlisQs5lJpfhCvLxkK+C6antoKVTv5PgOVJLP3iraiajTIy0WquEdgFu4QsmJRgGks5qQxB"
+				"encryptedPrivateKey": "CzmmrmM2EGLKu+CMPxx538C/ttlisQs5lJpfhCvLxkK+C6antoKVTv5PgOVJLP3iraiajTIy0WquEdgFu4QsmJRgGks5qQxB",
+				"name": "Lucía Fernández"
 			},
 			"manager": {
 				"email": "demo-manager-es@example.com",
 				"id": "01a00144-371c-77e9-83fe-8c31a005912d",
 				"authHash": "QacadFTqcq/9GuzI2XRTjlsfdNGCKoo8T6yC9rXcOb0=",
 				"publicKey": "4ZNULIJPEeGbpgOB5h/BhGbp7BiUzFX2WQokFO2YQCY=",
-				"encryptedPrivateKey": "x9uFOZLrvvIUkel9pqq/qeNqMFqFHXV2Z+MS5vQKbkESbPD2Neqpwniz+o6eF2mo3MNRbS1Y8OIINU0anWZw/jzgjC4FDBjK"
+				"encryptedPrivateKey": "x9uFOZLrvvIUkel9pqq/qeNqMFqFHXV2Z+MS5vQKbkESbPD2Neqpwniz+o6eF2mo3MNRbS1Y8OIINU0anWZw/jzgjC4FDBjK",
+				"name": "Carlos Ramírez"
 			},
 			"goalUuid": "abf2cd9a-a10e-4806-bbf5-67b9096b51a9",
 			"goalTitle": "Liderar un proyecto entre equipos de principio a fin",

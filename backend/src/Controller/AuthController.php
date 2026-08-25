@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Anketa;
 use App\Entity\User;
+use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
@@ -114,6 +115,7 @@ class AuthController
         return new JsonResponse([
             'id' => $user->getId(),
             'email' => $user->getEmail(),
+            'displayName' => $user->getDisplayName(),
             'isAdmin' => $user->isAdmin(),
             // So a page refresh can re-derive the unwrapped private key from the
             // sessionStorage master-key without a full re-login — see identity.ts.
@@ -162,6 +164,33 @@ class AuthController
         $this->entityManager->flush();
 
         return new JsonResponse(['locale' => $user->getLocale()]);
+    }
+
+    /**
+     * Lets an already-registered user set/change the name shown throughout the UI in
+     * place of their email — same "background sync, no dedicated form state" shape as
+     * setLocale() above. Plaintext, like email itself (see User::$displayName's
+     * docblock) — nothing here touches any encrypted content.
+     */
+    #[Route('/api/me/display-name', name: 'me_set_display_name', methods: ['PUT'])]
+    public function setDisplayName(Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+
+        $user = $this->authSession->getCurrentUser($request);
+        if (null === $user) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
+        }
+
+        $displayName = DisplayNameField::parse($request->toArray()['displayName'] ?? null, $this->translator);
+        if ($displayName instanceof JsonResponse) {
+            return $displayName;
+        }
+
+        $user->setDisplayName($displayName);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['displayName' => $user->getDisplayName()]);
     }
 
     /**

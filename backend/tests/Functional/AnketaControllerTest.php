@@ -97,6 +97,26 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame($employee['email'], $managerRow['counterpartEmail']);
     }
 
+    public function testListIncludesTheCounterpartsDisplayNameWhenSet(): void
+    {
+        $employeeClient = static::createClient();
+        $employee = $this->activateUser($employeeClient, $this->uniqueEmail('list-name-emp'));
+        $managerClient = $this->secondClient();
+        $manager = $this->activateUser($managerClient, $this->uniqueEmail('list-name-mgr'), displayName: 'Jordan Blake');
+
+        $created = $this->createAnketaAsEmployee($employeeClient, $manager['id']);
+
+        $fromEmployee = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        $employeeRow = self::findById($fromEmployee['json'], $created['json']['id']);
+
+        self::assertSame('Jordan Blake', $employeeRow['counterpartName']);
+
+        // The manager never set one — falls back to '', not the employee's own id/email.
+        $fromManager = $this->jsonRequest($managerClient, 'GET', '/api/anketas');
+        $managerRow = self::findById($fromManager['json'], $created['json']['id']);
+        self::assertSame('', $managerRow['counterpartName']);
+    }
+
     public function testGetRejectsANonParticipant(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('get-non-participant');

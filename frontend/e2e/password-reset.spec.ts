@@ -52,7 +52,7 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   // the employee's keypair changing underneath it.
   await employee.goto('/anketas/new');
   const counterpartInput = employee.getByPlaceholder(
-    'Type an email to search…',
+    'Type a name or email to search…',
   );
   await counterpartInput.fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();

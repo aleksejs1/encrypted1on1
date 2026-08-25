@@ -20,6 +20,7 @@
   interface PlatformUser {
     id: string;
     email: string;
+    displayName: string;
     companyId: string;
     companyName: string;
     isAdmin: boolean;
@@ -202,6 +203,7 @@
       <table class="table">
         <thead>
           <tr>
+            <th>{$_('platformAdmin.nameHeader')}</th>
             <th>{$_('platformAdmin.emailHeader')}</th>
             <th>{$_('platformAdmin.companyHeader')}</th>
             <th>{$_('platformAdmin.statusHeader')}</th>
@@ -213,6 +215,7 @@
         <tbody>
           {#each users as user (user.id)}
             <tr>
+              <td>{user.displayName || '—'}</td>
               <td>{user.email}</td>
               <td>{user.companyName}</td>
               <td>

@@ -82,3 +82,4 @@ errors:
     cloud_signup_not_open: 'Регистрация новой компании недоступна на этом экземпляре.'
     domain_mode_unavailable_in_cloud: 'Открытая самостоятельная регистрация по домену недоступна на мультикомпанийном экземпляре.'
     billing_not_configured: 'Оплата не настроена на этом экземпляре.'
+    display_name_too_long: '«displayName» должно быть не длиннее %max% символов.'

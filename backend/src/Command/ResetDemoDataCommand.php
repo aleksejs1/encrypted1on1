@@ -64,7 +64,7 @@ class ResetDemoDataCommand extends Command
 
             return Command::FAILURE;
         }
-        /** @var array{generatedAt: string, password: string, locales: array<string, array{employee: array{email: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, manager: array{email: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, goalUuid: string, goalTitle: string, goalDescription: ?string, goalTargetDateOffsetMonths: int, periodicityDays: int, cycles: array<int, array{archived: bool, missed: bool, employeeSealedKey: string, managerSealedKey: string, employeeBlob: ?string, managerBlob: ?string, commentsBlob: ?string, commentsVersion: int, outcomesBlob: ?string, outcomesVersion: int, goalCheckpointsBlob: ?string, goalCheckpointsVersion: int}>}>} $fixture */
+        /** @var array{generatedAt: string, password: string, locales: array<string, array{employee: array{email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, manager: array{email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, goalUuid: string, goalTitle: string, goalDescription: ?string, goalTargetDateOffsetMonths: int, periodicityDays: int, cycles: array<int, array{archived: bool, missed: bool, employeeSealedKey: string, managerSealedKey: string, employeeBlob: ?string, managerBlob: ?string, commentsBlob: ?string, commentsVersion: int, outcomesBlob: ?string, outcomesVersion: int, goalCheckpointsBlob: ?string, goalCheckpointsVersion: int}>}>} $fixture */
         $fixture = json_decode((string) file_get_contents($fixturePath), true, flags: \JSON_THROW_ON_ERROR);
 
         $now = new \DateTimeImmutable();
@@ -127,7 +127,7 @@ class ResetDemoDataCommand extends Command
     }
 
     /**
-     * @param array{email: string, authHash: string, publicKey: string, encryptedPrivateKey: string} $data
+     * @param array{email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string} $data
      */
     private function findOrCreateUser(array $data): User
     {
@@ -139,6 +139,7 @@ class ResetDemoDataCommand extends Command
                 publicKey: $data['publicKey'],
                 encryptedPrivateKey: $data['encryptedPrivateKey'],
                 company: $this->singleCompanyProvider->get(),
+                displayName: $data['name'],
             );
             $user->setDemo(true);
             $this->entityManager->persist($user);
@@ -148,6 +149,9 @@ class ResetDemoDataCommand extends Command
 
         $user->resetDemoCredentials($data['authHash'], $data['publicKey'], $data['encryptedPrivateKey']);
         $user->setDemo(true);
+        // A visitor may have edited the display name via Account Settings — restored
+        // here same as the credentials above, so the demo self-heals within one interval.
+        $user->setDisplayName($data['name']);
         // A visitor may have blocked/deleted-flagged the account via flows that
         // shouldn't apply to it, or an admin may have blocked it by mistake —
         // either way, the demo account should always be usable after a reset.

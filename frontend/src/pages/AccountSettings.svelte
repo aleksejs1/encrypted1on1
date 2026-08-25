@@ -7,7 +7,7 @@
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey, loadMasterKey } from '../crypto/session';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked, updateCachedDisplayName } from '../crypto/identity';
   import {
     MIN_PASSWORD_LENGTH,
     STRENGTH_COLORS,
@@ -45,8 +45,38 @@
   $effect(() => {
     ensureUnlocked().then((identity) => {
       showInvite = identity.registrationMode === 'invite';
+      displayName = identity.displayName;
     });
   });
+
+  let displayName = $state('');
+  let savingDisplayName = $state(false);
+  let displayNameError = $state<string | null>(null);
+  let displayNameSaved = $state(false);
+
+  async function handleSaveDisplayName(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    savingDisplayName = true;
+    displayNameError = null;
+    displayNameSaved = false;
+    try {
+      const trimmed = displayName.trim();
+      const result = await apiPut<{ displayName: string }>(
+        '/api/me/display-name',
+        { displayName: trimmed },
+      );
+      displayName = result.displayName;
+      updateCachedDisplayName(result.displayName);
+      displayNameSaved = true;
+    } catch (error) {
+      displayNameError =
+        error instanceof ApiError
+          ? error.message
+          : $_('accountSettings.genericError');
+    } finally {
+      savingDisplayName = false;
+    }
+  }
 
   function handleNotificationToggle(enabled: boolean): void {
     meetingRemindersEnabled = enabled;
@@ -124,6 +154,7 @@
     id: string;
     myRole: 'employee' | 'manager';
     counterpartEmail: string;
+    counterpartName: string;
     meetingDate: string;
     archivedAt: string | null;
     mySealedKey: string;
@@ -234,6 +265,7 @@
         exportedAnketas.push({
           id: detail.id,
           counterpartEmail: detail.counterpartEmail,
+          counterpartName: detail.counterpartName,
           myRole: detail.myRole,
           meetingDate: detail.meetingDate,
           archivedAt: detail.archivedAt,
@@ -251,6 +283,7 @@
         {
           exportedAt: new Date().toISOString(),
           email: identity.email,
+          displayName: identity.displayName,
           anketas: exportedAnketas,
         },
       );
@@ -397,6 +430,41 @@
           {submitting
             ? $_('accountSettings.submitting')
             : $_('accountSettings.submit')}
+        </button>
+      </form>
+    </div>
+
+    <div class="card elev-md">
+      <h2>{$_('accountSettings.displayNameTitle')}</h2>
+      <p class="text-muted hint">{$_('accountSettings.displayNameHint')}</p>
+      <form onsubmit={handleSaveDisplayName}>
+        <div class="field">
+          <label for="display-name"
+            >{$_('accountSettings.displayNameLabel')}</label
+          >
+          <input
+            id="display-name"
+            class="input"
+            type="text"
+            bind:value={displayName}
+            oninput={() => (displayNameSaved = false)}
+            autocomplete="name"
+          />
+        </div>
+        {#if displayNameSaved}
+          <p class="banner-success">
+            {$_('accountSettings.displayNameSaved')}
+          </p>
+        {/if}
+        {#if displayNameError}
+          <div role="alert" class="banner-error">{displayNameError}</div>
+        {/if}
+        <button
+          type="submit"
+          class="btn btn-secondary btn-block"
+          disabled={savingDisplayName}
+        >
+          {savingDisplayName ? $_('common.saving') : $_('common.save')}
         </button>
       </form>
     </div>

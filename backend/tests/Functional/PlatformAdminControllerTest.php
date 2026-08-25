@@ -75,6 +75,18 @@ class PlatformAdminControllerTest extends ApiTestCase
         self::assertContains($otherCompanyUser['id'], $ids, 'a platform admin must see users from every company, unlike AdminController');
     }
 
+    public function testPlatformAdminUsersListIncludesEachUsersDisplayName(): void
+    {
+        $platformAdminClient = static::createClient();
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-name'), displayName: 'Alex Morgan');
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'GET', '/api/platform-admin/users');
+
+        $row = current(array_filter($result['json'], fn (array $u) => $u['id'] === $platformAdmin['id']));
+        self::assertSame('Alex Morgan', $row['displayName']);
+    }
+
     public function testPlatformAdminSeesEveryCompanyWithACorrectUserCount(): void
     {
         $platformAdminClient = static::createClient();

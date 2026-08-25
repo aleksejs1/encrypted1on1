@@ -6,11 +6,17 @@
   import { authState, logOut } from '../auth.svelte';
   import { routerState, navigate } from '../router.svelte';
   import { ensureUnlocked } from '../crypto/identity';
+  import { displayNameState } from '../displayName.svelte';
+  import { fullDisplayName } from '../userDisplay';
 
   let isAdmin = $state(false);
   let email = $state<string | null>(null);
   let isDemo = $state(false);
   let loggingOut = $state(false);
+
+  const shownName = $derived(
+    email !== null ? fullDisplayName(displayNameState.value, email) : null,
+  );
 
   async function handleLogout(): Promise<void> {
     loggingOut = true;
@@ -53,7 +59,7 @@
 
   <LanguageSwitcher />
   <ThemeToggle />
-  {#if email}<span class="user-email text-muted">{email}</span>{/if}
+  {#if shownName}<span class="user-email text-muted">{shownName}</span>{/if}
   {#if authState.authenticated}
     <a href="/account" class="account-link text-muted"
       >{$_('common.accountSettings')}</a

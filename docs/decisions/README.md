@@ -30,5 +30,6 @@ Add a one-line index entry below when you add a file — newest first.
 
 ## Index
 
+- [2026-08-25 — Show names instead of raw email/uuid, via a new plaintext displayName field](2026-08-25-plaintext-display-name.md) — a deliberate, narrow exception to "assume encrypted" (same sensitivity as the email already sitting next to it in every listing); bidi-override/zero-width characters stripped server-side since the value is echoed verbatim into the counterpart-picker.
 - [2026-08-24 — Let users edit/delete their own comments, everywhere](2026-08-24-comment-edit-delete.md) — `addComment`-only became `edit`/`delete` too, allowed on archived anketas (matching `addComment`'s existing behavior), ownership enforced client-side only since the server never inspects the encrypted comments blob.
 - [2026-08-22 — Catch npm lockfile drift in the pre-push hook, not just in CI](2026-08-22-npm-lockfile-drift-pre-push-check.md) — an incremental `npm install` left `frontend/package-lock.json` missing entries `npm ci` needed, breaking CI; `pre-push` now runs `npm ci`/`composer validate` when a manifest/lockfile changed.

@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { sortByRecentCounterparts } from './recentCounterparts';
 
-const alice = { id: 'alice', email: 'alice@example.com', publicKey: 'k' };
-const bob = { id: 'bob', email: 'bob@example.com', publicKey: 'k' };
-const carol = { id: 'carol', email: 'carol@example.com', publicKey: 'k' };
+const alice = {
+  id: 'alice',
+  email: 'alice@example.com',
+  displayName: '',
+  publicKey: 'k',
+};
+const bob = {
+  id: 'bob',
+  email: 'bob@example.com',
+  displayName: '',
+  publicKey: 'k',
+};
+const carol = {
+  id: 'carol',
+  email: 'carol@example.com',
+  displayName: '',
+  publicKey: 'k',
+};
 
 describe('sortByRecentCounterparts', () => {
   it('leaves order unchanged with no anketa history', () => {
@@ -19,6 +34,7 @@ describe('sortByRecentCounterparts', () => {
       {
         counterpartId: 'bob',
         counterpartEmail: bob.email,
+        counterpartName: '',
         meetingDate: '2026-01-01T00:00:00Z',
       },
     ];
@@ -35,16 +51,19 @@ describe('sortByRecentCounterparts', () => {
       {
         counterpartId: 'carol',
         counterpartEmail: carol.email,
+        counterpartName: '',
         meetingDate: '2026-03-01T00:00:00Z',
       },
       {
         counterpartId: 'bob',
         counterpartEmail: bob.email,
+        counterpartName: '',
         meetingDate: '2026-02-01T00:00:00Z',
       },
       {
         counterpartId: 'carol',
         counterpartEmail: carol.email,
+        counterpartName: '',
         meetingDate: '2026-01-01T00:00:00Z',
       },
     ];
@@ -59,16 +78,19 @@ describe('sortByRecentCounterparts', () => {
       {
         counterpartId: 'bob',
         counterpartEmail: bob.email,
+        counterpartName: '',
         meetingDate: '2026-03-01T00:00:00Z',
       },
       {
         counterpartId: 'carol',
         counterpartEmail: carol.email,
+        counterpartName: '',
         meetingDate: '2026-02-01T00:00:00Z',
       },
       {
         counterpartId: 'bob',
         counterpartEmail: bob.email,
+        counterpartName: '',
         meetingDate: '2026-01-01T00:00:00Z',
       },
     ];

@@ -42,7 +42,7 @@ test('employee and manager complete an anketa across two independent sessions', 
   // dev DB, not just whichever ones happen to land on page 1.
   await employee.goto('/anketas/new');
   const counterpartInput = employee.getByPlaceholder(
-    'Type an email to search…',
+    'Type a name or email to search…',
   );
   await counterpartInput.fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
@@ -191,7 +191,7 @@ test('participant can change the meeting date on an upcoming (non-overdue) anket
 
   await employee.goto('/anketas/new');
   await employee
-    .getByPlaceholder('Type an email to search…')
+    .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
 

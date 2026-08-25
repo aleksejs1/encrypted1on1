@@ -23,6 +23,7 @@
 
   let email = $state<string | null>(null);
   let lookupError = $state<string | null>(null);
+  let name = $state('');
   let password = $state('');
   let confirmPassword = $state('');
   let submitting = $state(false);
@@ -78,6 +79,7 @@
         // The UI language active right now (Phase 6h) — so this account starts with a
         // sensible email language (Phase 6i) instead of always English.
         locale: $locale,
+        displayName: name.trim(),
       });
 
       await storeMasterKey(masterKey);
@@ -111,6 +113,19 @@
       <p class="text-muted key-explainer">{$_('activate.keyExplainer')}</p>
 
       <form onsubmit={handleSubmit}>
+        <div class="field">
+          <label for="act-name">{$_('activate.nameLabel')}</label>
+          <input
+            id="act-name"
+            class="input"
+            type="text"
+            bind:value={name}
+            autocomplete="name"
+            placeholder={$_('activate.namePlaceholder')}
+          />
+          <p class="hint">{$_('activate.nameHint')}</p>
+        </div>
+
         <div class="field">
           <label for="act-password">{$_('activate.passwordLabel')}</label>
           <input

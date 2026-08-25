@@ -64,6 +64,29 @@ class UserTest extends TestCase
         self::assertNull($user->getPublicKeyUpdatedAt());
     }
 
+    public function testDisplayNameDefaultsToEmptyString(): void
+    {
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
+
+        self::assertSame('', $user->getDisplayName());
+    }
+
+    public function testConstructorAcceptsADisplayName(): void
+    {
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany(), displayName: 'Alex Morgan');
+
+        self::assertSame('Alex Morgan', $user->getDisplayName());
+    }
+
+    public function testSetDisplayNameRoundTrips(): void
+    {
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
+
+        $user->setDisplayName('Alex Morgan');
+
+        self::assertSame('Alex Morgan', $user->getDisplayName());
+    }
+
     public function testMeetingRemindersDefaultToEnabled(): void
     {
         $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
@@ -82,12 +105,13 @@ class UserTest extends TestCase
 
     public function testDeleteScrubsIdentifyingFieldsAndForcesSafeDefaults(): void
     {
-        $user = new User('a@example.com', 'original-hash', 'pub', 'original-enc', $this->testCompany(), isAdmin: true);
+        $user = new User('a@example.com', 'original-hash', 'pub', 'original-enc', $this->testCompany(), isAdmin: true, displayName: 'Alex Morgan');
         $id = $user->getId();
 
         $user->delete();
 
         self::assertSame(sprintf('deleted-%s@deleted.invalid', $id), $user->getEmail());
+        self::assertSame('', $user->getDisplayName());
         self::assertNotSame('original-hash', $user->getAuthHash());
         self::assertSame('', $user->getEncryptedPrivateKey());
         self::assertFalse($user->isAdmin());

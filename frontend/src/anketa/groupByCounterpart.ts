@@ -1,8 +1,13 @@
 export interface CounterpartGroup<
-  T extends { counterpartId: string; counterpartEmail: string },
+  T extends {
+    counterpartId: string;
+    counterpartEmail: string;
+    counterpartName: string;
+  },
 > {
   counterpartId: string;
   counterpartEmail: string;
+  counterpartName: string;
   anketas: T[];
 }
 
@@ -14,7 +19,11 @@ export interface CounterpartGroup<
  * ordered by most-recent-activity-first for free.
  */
 export function groupByCounterpart<
-  T extends { counterpartId: string; counterpartEmail: string },
+  T extends {
+    counterpartId: string;
+    counterpartEmail: string;
+    counterpartName: string;
+  },
 >(anketas: T[]): CounterpartGroup<T>[] {
   const groups = new Map<string, CounterpartGroup<T>>();
   for (const anketa of anketas) {
@@ -23,6 +32,7 @@ export function groupByCounterpart<
       group = {
         counterpartId: anketa.counterpartId,
         counterpartEmail: anketa.counterpartEmail,
+        counterpartName: anketa.counterpartName,
         anketas: [],
       };
       groups.set(anketa.counterpartId, group);

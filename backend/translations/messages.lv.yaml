@@ -82,3 +82,4 @@ errors:
     cloud_signup_not_open: 'Jauna uzņēmuma reģistrācija šajā instancē nav pieejama.'
     domain_mode_unavailable_in_cloud: 'Atvērta pašreģistrācija pēc domēna nav pieejama vairāku uzņēmumu instancē.'
     billing_not_configured: 'Norēķini šajā instancē nav konfigurēti.'
+    display_name_too_long: '"displayName" nedrīkst pārsniegt %max% rakstzīmes.'

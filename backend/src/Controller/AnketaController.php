@@ -215,7 +215,7 @@ class AnketaController
      * @param Goal[] $goals
      *
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
-     *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
+     *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
      *     counterpartDeleted: bool, mySealedKey: string, counterpartPublicKey: string,
      *     employeeBlob: string|null, employeePublishedAt: string|null, managerBlob: string|null,
@@ -736,7 +736,7 @@ class AnketaController
 
     /**
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
-     *     meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
+     *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
      *     counterpartDeleted: bool}
      */
@@ -750,6 +750,7 @@ class AnketaController
             'myRole' => $isEmployee ? 'employee' : 'manager',
             'counterpartId' => $counterpart->getId(),
             'counterpartEmail' => $counterpart->getEmail(),
+            'counterpartName' => $counterpart->getDisplayName(),
             'meetingDate' => $anketa->getMeetingDate()->format(\DATE_ATOM),
             'myPublishedAt' => ($isEmployee ? $anketa->getEmployeePublishedAt() : $anketa->getManagerPublishedAt())?->format(\DATE_ATOM),
             'counterpartPublishedAt' => ($isEmployee ? $anketa->getManagerPublishedAt() : $anketa->getEmployeePublishedAt())?->format(\DATE_ATOM),

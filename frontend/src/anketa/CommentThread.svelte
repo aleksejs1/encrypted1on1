@@ -4,14 +4,14 @@
 
   const {
     comments,
-    authorEmails,
+    authorNames,
     currentUserId,
     onSubmit,
     onEdit,
     onDelete,
   }: {
     comments: Comment[];
-    authorEmails: Record<string, string>;
+    authorNames: Record<string, string>;
     currentUserId: string;
     onSubmit: (text: string) => Promise<void>;
     onEdit: (commentId: string, text: string) => Promise<void>;
@@ -167,7 +167,7 @@
             {/if}
           {:else}
             <span class="author"
-              >{authorEmails[comment.authorId] ?? comment.authorId}:</span
+              >{authorNames[comment.authorId] ?? comment.authorId}:</span
             >
             <span class="text">{comment.text}</span>
             {#if comment.authorId === currentUserId}

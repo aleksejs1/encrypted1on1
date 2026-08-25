@@ -74,12 +74,13 @@ function createActivationLink(email) {
   return match[1];
 }
 
-async function activateAndCapture(browser, token) {
+async function activateAndCapture(browser, token, name) {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
   });
   const page = await context.newPage();
   await page.goto(`${BASE_URL}/activate/${token}`);
+  await page.locator('#act-name').fill(name);
   await page.locator('#act-password').fill(PASSWORD);
   await page.locator('#act-confirm').fill(PASSWORD);
 
@@ -260,15 +261,15 @@ async function runLocale(browser, localeCode) {
   const managerToken = createActivationLink(c.managerEmail);
 
   const { page: employee, credentials: employeeCreds } =
-    await activateAndCapture(browser, employeeToken);
+    await activateAndCapture(browser, employeeToken, c.employeeName);
   const { page: manager, credentials: managerCreds } =
-    await activateAndCapture(browser, managerToken);
+    await activateAndCapture(browser, managerToken, c.managerName);
   console.log('Accounts activated.');
 
   // --- Cycle 1: create ---
   await employee.goto(`${BASE_URL}/anketas/new`);
   await employee
-    .getByPlaceholder('Type an email to search…')
+    .getByPlaceholder('Type a name or email to search…')
     .fill(c.managerEmail);
   await employee.getByRole('button', { name: c.managerEmail }).click();
   const meetingDate = new Date();
@@ -382,6 +383,7 @@ async function runLocale(browser, localeCode) {
   const result = {
     employee: {
       email: c.employeeEmail,
+      name: c.employeeName,
       id: employeeCreds.id,
       authHash: employeeCreds.authKey,
       publicKey: employeeCreds.publicKey,
@@ -389,6 +391,7 @@ async function runLocale(browser, localeCode) {
     },
     manager: {
       email: c.managerEmail,
+      name: c.managerName,
       id: managerCreds.id,
       authHash: managerCreds.authKey,
       publicKey: managerCreds.publicKey,

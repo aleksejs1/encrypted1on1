@@ -26,6 +26,7 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(200, $result['status']);
         self::assertSame($user['id'], $result['json']['id']);
         self::assertSame($user['email'], $result['json']['email']);
+        self::assertSame('', $result['json']['displayName']);
         self::assertArrayHasKey('publicKey', $result['json']);
         self::assertArrayHasKey('encryptedPrivateKey', $result['json']);
         self::assertFalse($result['json']['isDemo']);
@@ -136,6 +137,93 @@ class AuthControllerTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'PUT', '/api/me/locale', ['locale' => 'fr']);
 
         self::assertSame(400, $result['status']);
+    }
+
+    public function testSetDisplayNameRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => 'Alex Morgan']);
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testSetDisplayNameUpdatesTheStoredValueAndTrimsWhitespace(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-set-name-ok'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => '  Alex Morgan  ']);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame('Alex Morgan', $result['json']['displayName']);
+
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+        self::assertSame('Alex Morgan', $me['json']['displayName']);
+    }
+
+    public function testSetDisplayNameStripsBidiOverrideAndZeroWidthCharacters(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-set-name-bidi'));
+
+        // U+202E (RIGHT-TO-LEFT OVERRIDE) and U+200B (ZERO WIDTH SPACE) — left in, this
+        // value is echoed verbatim into the counterpart-picker another user clicks to
+        // choose who to share a new anketa with, so a bidi override could visually
+        // reorder it to impersonate a different real name there.
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => "Alex\u{202E} Morgan\u{200B}"]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame('Alex Morgan', $result['json']['displayName']);
+    }
+
+    public function testSetDisplayNameAcceptsAnEmptyStringToClearIt(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-set-name-clear'), displayName: 'Alex Morgan');
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => '']);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame('', $result['json']['displayName']);
+    }
+
+    public function testSetDisplayNameRejectsANonStringValue(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-set-name-bad-type'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => 42]);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testSetDisplayNameRejectsATooLongValue(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-set-name-too-long'));
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => str_repeat('x', 256)]);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    /**
+     * The 255-char cap must count characters, not bytes — a Cyrillic name is 2 bytes
+     * per character in UTF-8, so a byte-length check would wrongly reject a name well
+     * under the real limit (this app explicitly supports Russian and Latvian display
+     * names, per the demo fixture's own seeded names).
+     */
+    public function testSetDisplayNameAcceptsA200CharacterMultiByteName(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-set-name-multibyte'));
+        $name = str_repeat('Ж', 200); // 200 chars, 400 bytes in UTF-8
+
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/display-name', ['displayName' => $name]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame($name, $result['json']['displayName']);
     }
 
     public function testLogoutEndsTheSession(): void

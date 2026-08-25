@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { nameWithEmail } from '../userDisplay';
+
   interface UserOption {
     id: string;
     email: string;
+    displayName: string;
   }
 
   let {
@@ -23,14 +26,18 @@
   const filtered = $derived(
     query.trim() === ''
       ? users
-      : users.filter((u) =>
-          u.email.toLowerCase().includes(query.trim().toLowerCase()),
-        ),
+      : users.filter((u) => {
+          const needle = query.trim().toLowerCase();
+          return (
+            u.email.toLowerCase().includes(needle) ||
+            u.displayName.toLowerCase().includes(needle)
+          );
+        }),
   );
 
   function selectUser(user: UserOption): void {
     value = user.id;
-    query = user.email;
+    query = nameWithEmail(user.displayName, user.email);
     open = false;
   }
 
@@ -87,7 +94,7 @@
               class:highlighted={i === highlightedIndex}
               onmousedown={() => selectUser(user)}
             >
-              {user.email}
+              {nameWithEmail(user.displayName, user.email)}
             </button>
           </li>
         {/each}

@@ -48,6 +48,7 @@ class AdminController
         return new JsonResponse(array_map(fn (User $user) => [
             'id' => $user->getId(),
             'email' => $user->getEmail(),
+            'displayName' => $user->getDisplayName(),
             'isAdmin' => $user->isAdmin(),
             'isBlocked' => $user->isBlocked(),
             'createdAt' => $user->getCreatedAt()->format(\DATE_ATOM),

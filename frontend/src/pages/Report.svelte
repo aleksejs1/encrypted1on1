@@ -5,6 +5,7 @@
   import DateInput from '../design/DateInput.svelte';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
+  import { nameWithEmail } from '../userDisplay';
   import {
     aggregateReport,
     dateRangeForQuarterPreset,
@@ -24,6 +25,7 @@
     myRole: 'employee' | 'manager';
     counterpartId: string;
     counterpartEmail: string;
+    counterpartName: string;
     meetingDate: string;
     archivedAt: string | null;
     mySealedKey: string;
@@ -73,9 +75,12 @@
       ...new Map(
         anketas
           .filter((a) => a.myRole === 'manager')
-          .map((a) => [a.counterpartId, a.counterpartEmail]),
+          .map((a) => [
+            a.counterpartId,
+            { email: a.counterpartEmail, name: a.counterpartName },
+          ]),
       ),
-    ].map(([id, email]) => ({ id, email })),
+    ].map(([id, { email, name }]) => ({ id, email, name })),
   );
 
   $effect(() => {
@@ -185,7 +190,9 @@
         <select id="report-for" class="input" bind:value={target}>
           <option value="me">{$_('report.me')}</option>
           {#each managerTargets as person (person.id)}
-            <option value={person.id}>{person.email}</option>
+            <option value={person.id}
+              >{nameWithEmail(person.name, person.email)}</option
+            >
           {/each}
         </select>
       </div>

@@ -12,6 +12,7 @@ import type { Goal } from '../anketa/goals';
 export interface MeResponse {
   id: string;
   email: string;
+  displayName: string;
   isAdmin: boolean;
   registrationMode: string;
   allowedEmailDomain: string;
@@ -24,6 +25,7 @@ export interface MeResponse {
 export interface UserSummary {
   id: string;
   email: string;
+  displayName: string;
   publicKey: string;
 }
 
@@ -33,6 +35,7 @@ export interface AnketaSummary {
   myRole: Side;
   counterpartId: string;
   counterpartEmail: string;
+  counterpartName: string;
   meetingDate: string;
   myPublishedAt: string | null;
   counterpartPublishedAt: string | null;
@@ -48,6 +51,7 @@ export interface AnketaDetail {
   myRole: Side;
   counterpartId: string;
   counterpartEmail: string;
+  counterpartName: string;
   meetingDate: string;
   archivedAt: string | null;
   mySealedKey: string;

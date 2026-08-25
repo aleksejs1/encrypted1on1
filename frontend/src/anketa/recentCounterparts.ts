@@ -3,7 +3,7 @@ import { groupByCounterpart } from './groupByCounterpart';
 
 type PriorAnketaSummary = Pick<
   AnketaSummary,
-  'counterpartId' | 'counterpartEmail' | 'meetingDate'
+  'counterpartId' | 'counterpartEmail' | 'counterpartName' | 'meetingDate'
 >;
 
 /**
