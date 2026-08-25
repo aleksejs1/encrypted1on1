@@ -337,7 +337,13 @@
         "confident": "Confianza",
         "overwhelmed": "Agobio",
         "motivated": "Motivación",
-        "frustrated": "Frustración"
+        "frustrated": "Frustración",
+        "grateful": "Gratitud",
+        "proud": "Orgullo",
+        "calm": "Calma",
+        "stressed": "Estrés",
+        "bored": "Aburrimiento",
+        "lonely": "Soledad"
       },
       "workloadNow": {
         "tooMuch": "Demasiada",

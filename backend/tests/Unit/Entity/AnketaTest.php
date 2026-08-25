@@ -168,6 +168,13 @@ class AnketaTest extends TestCase
         self::assertEquals($anketa->getCreatedAt(), $anketa->sealedKeyUpdatedAtFor($anketa->getManager()));
     }
 
+    public function testNewAnketaIsCreatedAtTheCurrentFormVersion(): void
+    {
+        $anketa = $this->makeAnketa();
+
+        self::assertSame(Anketa::CURRENT_FORM_VERSION, $anketa->getFormVersion());
+    }
+
     public function testResealKeyForUpdatesOnlyTheTargetedSide(): void
     {
         $anketa = $this->makeAnketa();

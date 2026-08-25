@@ -333,7 +333,13 @@
         "confident": "Confident",
         "overwhelmed": "Overwhelmed",
         "motivated": "Motivated",
-        "frustrated": "Frustrated"
+        "frustrated": "Frustrated",
+        "grateful": "Grateful",
+        "proud": "Proud",
+        "calm": "Calm",
+        "stressed": "Stressed",
+        "bored": "Bored",
+        "lonely": "Lonely"
       },
       "workloadNow": {
         "tooMuch": "Too much",

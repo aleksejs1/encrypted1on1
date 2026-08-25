@@ -335,7 +335,13 @@
         "confident": "Pārliecība",
         "overwhelmed": "Pārslodze",
         "motivated": "Motivācija",
-        "frustrated": "Neapmierinātība"
+        "frustrated": "Neapmierinātība",
+        "grateful": "Pateicība",
+        "proud": "Lepnums",
+        "calm": "Mierīgums",
+        "stressed": "Stress",
+        "bored": "Garlaicība",
+        "lonely": "Vientulība"
       },
       "workloadNow": {
         "tooMuch": "Par daudz",

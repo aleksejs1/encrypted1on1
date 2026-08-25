@@ -21,6 +21,22 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\Index(columns: ['archivedAt', 'reminderSentAt', 'meetingDate'], name: 'idx_anketas_archived_reminder_meeting_date')]
 class Anketa
 {
+    /**
+     * The question-set template version this anketa was created against
+     * (frontend/src/anketa/questions.ts's `getQuestionsForSide()`) — bumped
+     * whenever the question set changes in a way that affects existing
+     * answers (e.g. adding options to a checkbox field), so an anketa's
+     * fields stay stable for its whole life instead of retroactively
+     * changing shape underneath already-published answers. Every anketa is
+     * created at CURRENT_FORM_VERSION (see the constructor); older rows keep
+     * whatever version they were created with. Not user- or company-facing
+     * yet — the spec's eventual per-company/per-user custom forms would
+     * likely replace this with a real form-definition reference, but until
+     * that's a real product decision this is the simplest thing that lets
+     * the one global form change over time without breaking old anketas.
+     */
+    public const int CURRENT_FORM_VERSION = 2;
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
     private string $id;
@@ -123,6 +139,9 @@ class Anketa
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: 'integer')]
+    private int $formVersion;
+
     public function __construct(
         User $employee,
         User $manager,
@@ -141,6 +160,12 @@ class Anketa
         $this->createdAt = new \DateTimeImmutable();
         $this->employeeSealedKeyUpdatedAt = $this->createdAt;
         $this->managerSealedKeyUpdatedAt = $this->createdAt;
+        $this->formVersion = self::CURRENT_FORM_VERSION;
+    }
+
+    public function getFormVersion(): int
+    {
+        return $this->formVersion;
     }
 
     public function getId(): string

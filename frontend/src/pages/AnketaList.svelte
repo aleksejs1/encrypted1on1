@@ -16,7 +16,11 @@
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
   import { extractTrendValues } from '../anketa/moodWorkloadTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
-  import { QUESTIONS_BY_SIDE, type Answers } from '../anketa/questions';
+  import {
+    CURRENT_ANKETA_FORM_VERSION,
+    getQuestionsForSide,
+    type Answers,
+  } from '../anketa/questions';
   import { fullDisplayName } from '../userDisplay';
 
   type AnketaDetail = Pick<
@@ -52,10 +56,15 @@
   // The mood/workload radio fields' own already-defined options *are* the
   // trend scale (private/init.txt: "график трендов по radio-полям") — no
   // separate chart library, per the same spec section (hand-rolled SVG only).
-  const MOOD_OPTIONS = QUESTIONS_BY_SIDE.employee
+  // Neither field has ever varied by form version — any version works here.
+  const employeeQuestions = getQuestionsForSide(
+    'employee',
+    CURRENT_ANKETA_FORM_VERSION,
+  );
+  const MOOD_OPTIONS = employeeQuestions
     .find((q) => q.id === 'mood')!
     .fields.find((f) => f.id === 'moodNow')!.options!;
-  const WORKLOAD_OPTIONS = QUESTIONS_BY_SIDE.employee
+  const WORKLOAD_OPTIONS = employeeQuestions
     .find((q) => q.id === 'workload')!
     .fields.find((f) => f.id === 'workloadNow')!.options!;
 

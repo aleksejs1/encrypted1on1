@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\Anketa;
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -25,6 +26,37 @@ class AnketaControllerTest extends ApiTestCase
 
         self::assertSame(201, $result['status']);
         self::assertArrayHasKey('id', $result['json']);
+    }
+
+    public function testCreateAndGetReturnTheCurrentFormVersion(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('form-version');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        $listRow = self::findById($list['json'], $anketaId);
+        self::assertSame(Anketa::CURRENT_FORM_VERSION, $listRow['formVersion']);
+
+        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
+        self::assertSame(Anketa::CURRENT_FORM_VERSION, $get['json']['formVersion']);
+    }
+
+    public function testAutoRecreatedAnketaGetsTheCurrentFormVersionRegardlessOfThePreviousOnes(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('form-version-carry');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        $next = array_values(array_filter($list, static fn (array $row) => $row['id'] !== $anketaId));
+        self::assertCount(1, $next);
+        self::assertSame(Anketa::CURRENT_FORM_VERSION, $next[0]['formVersion']);
     }
 
     public function testCreateRejectsAnInvalidRole(): void
@@ -552,8 +584,8 @@ class AnketaControllerTest extends ApiTestCase
         ]);
         self::assertSame(200, $result['status']);
 
-        $anketa = $this->entityManager()->find(\App\Entity\Anketa::class, $anketaId);
-        \assert($anketa instanceof \App\Entity\Anketa);
+        $anketa = $this->entityManager()->find(Anketa::class, $anketaId);
+        \assert($anketa instanceof Anketa);
         $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
         \assert($managerEntity instanceof User);
 
@@ -568,8 +600,8 @@ class AnketaControllerTest extends ApiTestCase
         $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
 
         // Employee saves a private draft (never published); manager publishes theirs.
-        $anketa = $this->entityManager()->find(\App\Entity\Anketa::class, $anketaId);
-        \assert($anketa instanceof \App\Entity\Anketa);
+        $anketa = $this->entityManager()->find(Anketa::class, $anketaId);
+        \assert($anketa instanceof Anketa);
         $anketa->saveDraft($anketa->getEmployee(), 'employee-draft-blob');
         $anketa->publish($anketa->getManager(), 'manager-published-blob');
         $this->entityManager()->flush();
@@ -579,8 +611,8 @@ class AnketaControllerTest extends ApiTestCase
         $result = $this->jsonRequest($employeeClient, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
         self::assertSame(200, $result['status']);
 
-        $afterDeletion = $this->entityManager()->find(\App\Entity\Anketa::class, $anketaId);
-        \assert($afterDeletion instanceof \App\Entity\Anketa);
+        $afterDeletion = $this->entityManager()->find(Anketa::class, $anketaId);
+        \assert($afterDeletion instanceof Anketa);
         self::assertNull($afterDeletion->getEmployeeBlob(), 'the unpublished draft must be cleared');
         self::assertSame('manager-published-blob', $afterDeletion->getManagerBlob(), 'a published side is shared history — no cascade');
 

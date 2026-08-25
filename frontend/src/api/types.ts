@@ -43,6 +43,8 @@ export interface AnketaSummary {
   missed: boolean;
   counterpartKeyOutdated: boolean;
   counterpartDeleted: boolean;
+  /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
+  formVersion: number;
 }
 
 /** GET /api/anketas/{id} */
@@ -69,4 +71,6 @@ export interface AnketaDetail {
   counterpartPublicKey: string;
   periodicityDays: number | null;
   missed: boolean;
+  /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
+  formVersion: number;
 }

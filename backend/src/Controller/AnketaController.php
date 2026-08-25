@@ -217,7 +217,7 @@ class AnketaController
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, mySealedKey: string, counterpartPublicKey: string,
+     *     counterpartDeleted: bool, formVersion: int, mySealedKey: string, counterpartPublicKey: string,
      *     employeeBlob: string|null, employeePublishedAt: string|null, managerBlob: string|null,
      *     managerPublishedAt: string|null, commentsBlob: string|null, commentsVersion: int,
      *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
@@ -738,7 +738,7 @@ class AnketaController
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool}
+     *     counterpartDeleted: bool, formVersion: int}
      */
     private function summarize(Anketa $anketa, User $user): array
     {
@@ -759,6 +759,7 @@ class AnketaController
             'periodicityDays' => $anketa->getPeriodicityDays(),
             'counterpartKeyOutdated' => $this->isKeyOutdated($anketa, $counterpart),
             'counterpartDeleted' => null !== $counterpart->getDeletedAt(),
+            'formVersion' => $anketa->getFormVersion(),
         ];
     }
 

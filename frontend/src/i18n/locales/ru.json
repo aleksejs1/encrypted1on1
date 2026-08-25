@@ -335,7 +335,13 @@
         "confident": "Уверенность",
         "overwhelmed": "Перегруженность",
         "motivated": "Мотивация",
-        "frustrated": "Раздражение"
+        "frustrated": "Раздражение",
+        "grateful": "Благодарность",
+        "proud": "Гордость",
+        "calm": "Спокойствие",
+        "stressed": "Стресс",
+        "bored": "Скука",
+        "lonely": "Одиночество"
       },
       "workloadNow": {
         "tooMuch": "Слишком много",
