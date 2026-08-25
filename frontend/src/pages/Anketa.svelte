@@ -19,6 +19,8 @@
   import {
     addOutcome,
     carryForwardOutcomes,
+    deleteOutcome,
+    editOutcome,
     toggleDone,
     type OutcomeItem,
   } from '../anketa/outcomes';
@@ -85,6 +87,20 @@
   let allOutcomes = $state<OutcomeItem[]>([]);
   let newOutcomeText = $state('');
   let addingOutcome = $state(false);
+
+  let editingOutcomeId = $state<string | null>(null);
+  let editOutcomeText = $state('');
+  let editOutcomeBusy = $state(false);
+  let editOutcomeError = $state<string | null>(null);
+
+  let confirmingDeleteOutcomeId = $state<string | null>(null);
+  let deleteOutcomeBusy = $state(false);
+  let deleteOutcomeError = $state<string | null>(null);
+
+  /** Same "one open at a time" reasoning as CommentThread's anotherActionOpen. */
+  const anotherOutcomeActionOpen = $derived(
+    editingOutcomeId !== null || confirmingDeleteOutcomeId !== null,
+  );
 
   let goals = $state<Goal[]>([]);
   let allCheckpoints = $state<GoalCheckpoint[]>([]);
@@ -439,6 +455,66 @@
         error instanceof ApiError
           ? error.message
           : $_('anketa.errorUpdateOutcome');
+    }
+  }
+
+  function startEditOutcome(item: OutcomeItem): void {
+    editingOutcomeId = item.id;
+    editOutcomeText = item.text;
+    editOutcomeError = null;
+  }
+
+  function cancelEditOutcome(): void {
+    editingOutcomeId = null;
+    editOutcomeText = '';
+    editOutcomeError = null;
+  }
+
+  function startDeleteOutcome(itemId: string): void {
+    confirmingDeleteOutcomeId = itemId;
+    deleteOutcomeError = null;
+  }
+
+  async function handleEditOutcomeSubmit(
+    event: SubmitEvent,
+    itemId: string,
+  ): Promise<void> {
+    event.preventDefault();
+    if (!editOutcomeText.trim() || editOutcomeBusy) return;
+
+    editOutcomeBusy = true;
+    editOutcomeError = null;
+    try {
+      await updateOutcomes((current) =>
+        editOutcome(current, itemId, myUserId, editOutcomeText.trim()),
+      );
+      editingOutcomeId = null;
+      editOutcomeText = '';
+    } catch (error) {
+      editOutcomeError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorEditOutcome');
+    } finally {
+      editOutcomeBusy = false;
+    }
+  }
+
+  async function handleDeleteOutcomeConfirm(itemId: string): Promise<void> {
+    deleteOutcomeBusy = true;
+    deleteOutcomeError = null;
+    try {
+      await updateOutcomes((current) =>
+        deleteOutcome(current, itemId, myUserId),
+      );
+      confirmingDeleteOutcomeId = null;
+    } catch (error) {
+      deleteOutcomeError =
+        error instanceof ApiError
+          ? error.message
+          : $_('anketa.errorDeleteOutcome');
+    } finally {
+      deleteOutcomeBusy = false;
     }
   }
 
@@ -859,12 +935,93 @@
                 type="checkbox"
                 class="outcome-checkbox"
                 checked={item.done}
-                disabled={item.authorId !== myUserId}
+                disabled={item.authorId !== myUserId ||
+                  editingOutcomeId === item.id ||
+                  confirmingDeleteOutcomeId === item.id}
                 onchange={() => handleToggleOutcome(item.id)}
               />
-              <span class="entry-text" class:done={item.done}>{item.text}</span>
-              <span class="tag tag-neutral">{authorLabel(item.authorId)}</span>
+              {#if editingOutcomeId === item.id}
+                <form
+                  class="edit-form"
+                  onsubmit={(event) => handleEditOutcomeSubmit(event, item.id)}
+                >
+                  <input
+                    type="text"
+                    class="input"
+                    bind:value={editOutcomeText}
+                    disabled={editOutcomeBusy}
+                  />
+                  <button
+                    type="submit"
+                    class="btn btn-secondary"
+                    disabled={editOutcomeBusy || !editOutcomeText.trim()}
+                  >
+                    {$_('commentThread.save')}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost"
+                    onclick={cancelEditOutcome}
+                    disabled={editOutcomeBusy}
+                  >
+                    {$_('commentThread.cancel')}
+                  </button>
+                </form>
+              {:else}
+                <span class="entry-text" class:done={item.done}
+                  >{item.text}</span
+                >
+                <span class="tag tag-neutral">{authorLabel(item.authorId)}</span
+                >
+                {#if item.authorId === myUserId}
+                  {#if confirmingDeleteOutcomeId === item.id}
+                    <span class="outcome-actions">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-action"
+                        onclick={() => handleDeleteOutcomeConfirm(item.id)}
+                        disabled={deleteOutcomeBusy}
+                      >
+                        {$_('commentThread.confirmDelete')}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-action"
+                        onclick={() => (confirmingDeleteOutcomeId = null)}
+                        disabled={deleteOutcomeBusy}
+                      >
+                        {$_('commentThread.cancel')}
+                      </button>
+                    </span>
+                  {:else}
+                    <span class="outcome-actions">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-action"
+                        onclick={() => startEditOutcome(item)}
+                        disabled={anotherOutcomeActionOpen}
+                      >
+                        {$_('commentThread.edit')}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-action"
+                        onclick={() => startDeleteOutcome(item.id)}
+                        disabled={anotherOutcomeActionOpen}
+                      >
+                        {$_('commentThread.delete')}
+                      </button>
+                    </span>
+                  {/if}
+                {/if}
+              {/if}
             </div>
+            {#if editingOutcomeId === item.id && editOutcomeError}
+              <p class="banner-error">{editOutcomeError}</p>
+            {/if}
+            {#if confirmingDeleteOutcomeId === item.id && deleteOutcomeError}
+              <p class="banner-error">{deleteOutcomeError}</p>
+            {/if}
             <CommentThread
               comments={allComments.filter((c) => c.targetId === item.id)}
               {authorEmails}
@@ -1355,6 +1512,24 @@
 
   .entry-text.done {
     text-decoration: line-through;
+  }
+
+  .outcome-actions {
+    display: flex;
+    gap: 2px;
+  }
+
+  .edit-form {
+    display: flex;
+    flex: 1;
+    min-width: 200px;
+    gap: 6px;
+  }
+
+  .edit-form .input {
+    flex: 1;
+    min-height: 32px;
+    font-size: 13px;
   }
 
   .add-row {

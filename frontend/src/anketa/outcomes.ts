@@ -39,6 +39,55 @@ export function toggleDone(existing: OutcomeItem[], id: string): OutcomeItem[] {
 }
 
 /**
+ * Only the server-blob write is shared; "own item" is enforced here by
+ * matching authorId, mirroring editComment/deleteComment in comments.ts —
+ * same reasoning for throwing on a miss instead of returning `existing`
+ * unchanged (the caller re-fetches the blob fresh before calling this, so a
+ * miss means the item was deleted elsewhere in between).
+ */
+export function editOutcome(
+  existing: OutcomeItem[],
+  id: string,
+  authorId: string,
+  text: string,
+): OutcomeItem[] {
+  const index = existing.findIndex(
+    (item) => item.id === id && item.authorId === authorId,
+  );
+  if (index === -1) {
+    throw new Error(
+      `editOutcome: no item ${id} by ${authorId} (deleted elsewhere?)`,
+    );
+  }
+  const updated = [...existing];
+  updated[index] = { ...updated[index], text };
+  return updated;
+}
+
+/**
+ * Deleting an item leaves any comments targeting it orphaned in
+ * commentsBlob (comments.ts has no notion of the outcomes list, and the two
+ * blobs have independent optimistic-concurrency versions, so cleaning them
+ * up together isn't a single atomic write) — those comments simply stop
+ * being reachable, same as goal checkpoints have no delete at all yet.
+ */
+export function deleteOutcome(
+  existing: OutcomeItem[],
+  id: string,
+  authorId: string,
+): OutcomeItem[] {
+  const filtered = existing.filter(
+    (item) => !(item.id === id && item.authorId === authorId),
+  );
+  if (filtered.length === existing.length) {
+    throw new Error(
+      `deleteOutcome: no item ${id} by ${authorId} (deleted elsewhere already?)`,
+    );
+  }
+  return filtered;
+}
+
+/**
  * Decrypts a prior anketa's outcomesBlob with its own key, keeps only the items still
  * unchecked, and re-encrypts them with a new anketa's key — used both when manually
  * creating a new anketa for an existing pair (CreateAnketa.svelte) and when archiving

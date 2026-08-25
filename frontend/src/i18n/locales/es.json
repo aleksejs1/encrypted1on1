@@ -260,6 +260,8 @@
     "errorPublish": "No se pudo publicar.",
     "errorAddOutcome": "No se pudo añadir el elemento.",
     "errorUpdateOutcome": "No se pudo actualizar el elemento.",
+    "errorEditOutcome": "No se pudo guardar el elemento.",
+    "errorDeleteOutcome": "No se pudo eliminar el elemento.",
     "errorAddGoal": "No se pudo añadir el objetivo.",
     "errorSaveGoal": "No se pudo guardar el objetivo.",
     "errorUpdateGoalStatus": "No se pudo actualizar el estado del objetivo.",

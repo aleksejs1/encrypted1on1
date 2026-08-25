@@ -260,6 +260,8 @@
     "errorPublish": "Neizdevās publicēt.",
     "errorAddOutcome": "Neizdevās pievienot punktu.",
     "errorUpdateOutcome": "Neizdevās atjaunināt punktu.",
+    "errorEditOutcome": "Neizdevās saglabāt punktu.",
+    "errorDeleteOutcome": "Neizdevās izdzēst punktu.",
     "errorAddGoal": "Neizdevās pievienot mērķi.",
     "errorSaveGoal": "Neizdevās saglabāt mērķi.",
     "errorUpdateGoalStatus": "Neizdevās atjaunināt mērķa statusu.",

@@ -260,6 +260,8 @@
     "errorPublish": "Не удалось опубликовать.",
     "errorAddOutcome": "Не удалось добавить пункт.",
     "errorUpdateOutcome": "Не удалось обновить пункт.",
+    "errorEditOutcome": "Не удалось сохранить пункт.",
+    "errorDeleteOutcome": "Не удалось удалить пункт.",
     "errorAddGoal": "Не удалось добавить цель.",
     "errorSaveGoal": "Не удалось сохранить цель.",
     "errorUpdateGoalStatus": "Не удалось обновить статус цели.",

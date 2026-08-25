@@ -260,6 +260,8 @@
     "errorPublish": "Could not publish.",
     "errorAddOutcome": "Could not add the item.",
     "errorUpdateOutcome": "Could not update the item.",
+    "errorEditOutcome": "Could not save the item.",
+    "errorDeleteOutcome": "Could not delete the item.",
     "errorAddGoal": "Could not add the goal.",
     "errorSaveGoal": "Could not save the goal.",
     "errorUpdateGoalStatus": "Could not update the goal status.",

@@ -175,7 +175,7 @@
                 <span class="comment-actions">
                   <button
                     type="button"
-                    class="btn btn-ghost action-btn"
+                    class="btn btn-ghost btn-action"
                     onclick={() => handleDeleteConfirm(comment.id)}
                     disabled={deleteBusy}
                   >
@@ -183,7 +183,7 @@
                   </button>
                   <button
                     type="button"
-                    class="btn btn-ghost action-btn"
+                    class="btn btn-ghost btn-action"
                     onclick={() => (confirmingDeleteId = null)}
                     disabled={deleteBusy}
                   >
@@ -194,7 +194,7 @@
                 <span class="comment-actions">
                   <button
                     type="button"
-                    class="btn btn-ghost action-btn"
+                    class="btn btn-ghost btn-action"
                     onclick={() => startEdit(comment)}
                     disabled={anotherActionOpen}
                   >
@@ -202,7 +202,7 @@
                   </button>
                   <button
                     type="button"
-                    class="btn btn-ghost action-btn"
+                    class="btn btn-ghost btn-action"
                     onclick={() => (confirmingDeleteId = comment.id)}
                     disabled={anotherActionOpen}
                   >
@@ -277,16 +277,6 @@
   .comment-actions {
     display: flex;
     gap: 2px;
-  }
-
-  .action-btn {
-    font-size: 11px;
-    padding: 0 4px;
-    opacity: 0.7;
-  }
-
-  .action-btn:hover {
-    opacity: 1;
   }
 
   .edit-form {
