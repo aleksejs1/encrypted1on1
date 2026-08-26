@@ -399,7 +399,28 @@
     "registrationModeOther": "Cits ({mode}, iestatīts ārpus šī paneļa)",
     "allowedEmailDomainLabel": "Ierobežot ar e-pasta domēnu",
     "allowedEmailDomainHint": "Atstājiet tukšu, lai atļautu jebkuru e-pasta domēnu. Ja kāds — arī administrators — mēģinās uzaicināt cilvēku ārpus šī domēna, viņš redzēs kļūdu.",
-    "inviteSettingsSaved": "Saglabāts."
+    "inviteSettingsSaved": "Saglabāts.",
+    "usersTab": "Lietotāji",
+    "reportsTab": "Pārskati"
+  },
+  "adminReports": {
+    "title": "Pārskati",
+    "errorLoad": "Neizdevās ielādēt pārskatu.",
+    "generate": "Izveidot pārskatu",
+    "generating": "Izveido…",
+    "meetingsLabel": "Tikšanās",
+    "completedLabel": "Pabeigtas",
+    "responseRateLabel": "Atbilžu īpatsvars",
+    "overdueLabel": "Nokavēts",
+    "goalsAchievedLabel": "Sasniegti mērķi",
+    "meetingsPerMonthHeading": "Pabeigtas tikšanās pa mēnešiem",
+    "goalsAchievedPerMonthHeading": "Sasniegtie mērķi pa mēnešiem",
+    "goalsRightNowHeading": "Mērķi tagad",
+    "totalInProgressLabel": "Norisinās",
+    "overdueInProgressLabel": "Nokavēti (pēc mērķa datuma)",
+    "usersActiveLabel": "Aktīvie lietotāji",
+    "usersBlockedLabel": "Bloķēti",
+    "usersAdminsLabel": "Administratori"
   },
   "platformAdmin": {
     "title": "Platformas administrēšana",

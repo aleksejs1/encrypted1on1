@@ -90,3 +90,5 @@ errors:
     domain_mode_unavailable_in_cloud: 'Open self-registration by domain is not available on a multi-company instance.'
     billing_not_configured: 'Billing is not configured on this instance.'
     display_name_too_long: '"displayName" must be at most %max% characters.'
+    report_from_after_to: '"from" must not be after "to".'
+    report_range_too_wide: 'The requested date range is too wide (max %maxDays% days).'

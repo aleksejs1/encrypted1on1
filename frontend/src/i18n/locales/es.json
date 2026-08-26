@@ -401,7 +401,28 @@
     "registrationModeOther": "Otro ({mode}, definido fuera de este panel)",
     "allowedEmailDomainLabel": "Restringir a un dominio de correo",
     "allowedEmailDomainHint": "Déjalo vacío para permitir cualquier dominio de correo. Cualquiera —incluido un administrador— que intente invitar a alguien fuera de este dominio verá un error.",
-    "inviteSettingsSaved": "Guardado."
+    "inviteSettingsSaved": "Guardado.",
+    "usersTab": "Usuarios",
+    "reportsTab": "Informes"
+  },
+  "adminReports": {
+    "title": "Informes",
+    "errorLoad": "No se pudo cargar el informe.",
+    "generate": "Generar informe",
+    "generating": "Generando…",
+    "meetingsLabel": "Reuniones",
+    "completedLabel": "Completadas",
+    "responseRateLabel": "Tasa de respuesta",
+    "overdueLabel": "Atrasadas",
+    "goalsAchievedLabel": "Objetivos logrados",
+    "meetingsPerMonthHeading": "Reuniones completadas por mes",
+    "goalsAchievedPerMonthHeading": "Objetivos logrados por mes",
+    "goalsRightNowHeading": "Objetivos ahora mismo",
+    "totalInProgressLabel": "En curso",
+    "overdueInProgressLabel": "Atrasados (fecha objetivo pasada)",
+    "usersActiveLabel": "Usuarios activos",
+    "usersBlockedLabel": "Bloqueados",
+    "usersAdminsLabel": "Administradores"
   },
   "platformAdmin": {
     "title": "Administración de la plataforma",

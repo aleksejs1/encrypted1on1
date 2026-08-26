@@ -4,6 +4,8 @@
   import { ensureUnlocked, clearIdentity } from '../crypto/identity';
   import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
+  import AdminTabStrip from './AdminTabStrip.svelte';
+  import AdminGate from './AdminGate.svelte';
 
   // Deliberately just these two — not the full Company.REGISTRATION_MODES set. `domain`
   // (open self-registration) is a separate, orthogonal feature (whether people can join
@@ -30,9 +32,8 @@
   }
 
   let myUserId = $state<string | null>(null);
-  let isAdmin = $state<boolean | null>(null);
   let users = $state<AdminUser[]>([]);
-  let loadError = $state<string | null>(null);
+  let panelDataError = $state<string | null>(null);
   let actionError = $state<string | null>(null);
   let pending = $state<Record<string, boolean>>({});
 
@@ -42,23 +43,19 @@
   let settingsSaved = $state(false);
   let settingsError = $state<string | null>(null);
 
-  $effect(() => {
-    ensureUnlocked()
-      .then((identity) => {
-        myUserId = identity.userId;
-        isAdmin = identity.isAdmin;
-        if (!identity.isAdmin) return;
-        registrationMode = identity.registrationMode;
-        allowedEmailDomain = identity.allowedEmailDomain;
-        return apiGet<AdminUser[]>('/api/admin/users').then((list) => {
-          users = list;
-        });
-      })
-      .catch((error: unknown) => {
-        loadError =
-          error instanceof ApiError ? error.message : $_('admin.errorLoad');
-      });
-  });
+  /** AdminGate has already confirmed isAdmin — ensureUnlocked() is memoized (see its own docblock), so calling it again here to get the rest of the identity is cheap, not a second real fetch. */
+  async function loadPanelData(): Promise<void> {
+    try {
+      const identity = await ensureUnlocked();
+      myUserId = identity.userId;
+      registrationMode = identity.registrationMode;
+      allowedEmailDomain = identity.allowedEmailDomain;
+      users = await apiGet<AdminUser[]>('/api/admin/users');
+    } catch (error) {
+      panelDataError =
+        error instanceof ApiError ? error.message : $_('admin.errorLoad');
+    }
+  }
 
   async function saveInviteSettings(): Promise<void> {
     settingsSaving = true;
@@ -133,141 +130,145 @@
 <main>
   <h1>{$_('admin.title')}</h1>
 
-  {#if loadError}
-    <p class="banner-error">{loadError}</p>
-  {:else if isAdmin === null}
-    <p class="text-muted">{$_('common.loading')}</p>
-  {:else if !isAdmin}
-    <p class="text-muted">{$_('admin.notAuthorized')}</p>
-  {:else}
-    <div class="card elev-md invite-settings">
-      <h2>{$_('admin.inviteSettingsTitle')}</h2>
-      <p class="text-muted hint">{$_('admin.inviteSettingsHint')}</p>
+  <AdminGate onReady={loadPanelData}>
+    <AdminTabStrip active="users" />
 
-      <div class="field">
-        <label for="registration-mode"
-          >{$_('admin.registrationModeLabel')}</label
-        >
-        <select
-          id="registration-mode"
-          class="input"
-          bind:value={registrationMode}
-        >
-          {#each REGISTRATION_MODES as mode (mode)}
-            <option value={mode}>{$_(`admin.registrationMode.${mode}`)}</option>
-          {/each}
-          {#if !REGISTRATION_MODES.includes(registrationMode as 'admin_only' | 'invite')}
-            <!-- Not offered as a normal choice (see the REGISTRATION_MODES comment
+    {#if panelDataError}
+      <p class="banner-error">{panelDataError}</p>
+    {:else}
+      <div class="card elev-md invite-settings">
+        <h2>{$_('admin.inviteSettingsTitle')}</h2>
+        <p class="text-muted hint">{$_('admin.inviteSettingsHint')}</p>
+
+        <div class="field">
+          <label for="registration-mode"
+            >{$_('admin.registrationModeLabel')}</label
+          >
+          <select
+            id="registration-mode"
+            class="input"
+            bind:value={registrationMode}
+          >
+            {#each REGISTRATION_MODES as mode (mode)}
+              <option value={mode}
+                >{$_(`admin.registrationMode.${mode}`)}</option
+              >
+            {/each}
+            {#if !REGISTRATION_MODES.includes(registrationMode as 'admin_only' | 'invite')}
+              <!-- Not offered as a normal choice (see the REGISTRATION_MODES comment
                  above), but a company already in this state — set outside this panel,
                  e.g. a self-hosted operator's own SQL — needs a matching <option> so
                  selecting anything else here is a deliberate choice, not a silent
                  downgrade from an unmatched <select> defaulting to the first option. -->
-            <option value={registrationMode}
-              >{$_('admin.registrationModeOther', {
-                values: { mode: registrationMode },
-              })}</option
-            >
-          {/if}
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="allowed-email-domain"
-          >{$_('admin.allowedEmailDomainLabel')}</label
-        >
-        <input
-          id="allowed-email-domain"
-          class="input"
-          type="text"
-          placeholder="company.com"
-          bind:value={allowedEmailDomain}
-        />
-        <p class="text-muted hint">{$_('admin.allowedEmailDomainHint')}</p>
-      </div>
-
-      {#if settingsSaved}
-        <p class="banner-success">{$_('admin.inviteSettingsSaved')}</p>
-      {/if}
-      {#if settingsError}
-        <p class="banner-error">{settingsError}</p>
-      {/if}
-
-      <button
-        type="button"
-        class="btn btn-primary"
-        onclick={saveInviteSettings}
-        disabled={settingsSaving}
-      >
-        {settingsSaving ? $_('common.saving') : $_('common.save')}
-      </button>
-    </div>
-
-    <div class="invite-wrap">
-      <InviteForm />
-    </div>
-
-    {#if actionError}
-      <p class="banner-error">{actionError}</p>
-    {/if}
-
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>{$_('admin.nameHeader')}</th>
-            <th>{$_('admin.emailHeader')}</th>
-            <th>{$_('admin.statusHeader')}</th>
-            <th>{$_('admin.roleHeader')}</th>
-            <th>{$_('admin.createdHeader')}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each users as user (user.id)}
-            <tr>
-              <td>{user.displayName || '—'}</td>
-              <td>{user.email}</td>
-              <td>
-                <span
-                  class="tag {user.isBlocked ? 'tag-neutral' : 'tag-accent-2'}"
-                >
-                  {user.isBlocked
-                    ? $_('admin.statusBlocked')
-                    : $_('admin.statusActive')}
-                </span>
-              </td>
-              <td
-                >{user.isAdmin
-                  ? $_('admin.roleAdmin')
-                  : $_('admin.roleUser')}</td
+              <option value={registrationMode}
+                >{$_('admin.registrationModeOther', {
+                  values: { mode: registrationMode },
+                })}</option
               >
-              <td>{formatDisplayDate(user.createdAt)}</td>
-              <td class="actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-small"
-                  onclick={() => toggleBlocked(user)}
-                  disabled={pending[user.id] || user.id === myUserId}
-                >
-                  {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-small"
-                  onclick={() => toggleAdmin(user)}
-                  disabled={pending[user.id]}
-                >
-                  {user.isAdmin
-                    ? $_('admin.revokeAdmin')
-                    : $_('admin.makeAdmin')}
-                </button>
-              </td>
+            {/if}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="allowed-email-domain"
+            >{$_('admin.allowedEmailDomainLabel')}</label
+          >
+          <input
+            id="allowed-email-domain"
+            class="input"
+            type="text"
+            placeholder="company.com"
+            bind:value={allowedEmailDomain}
+          />
+          <p class="text-muted hint">{$_('admin.allowedEmailDomainHint')}</p>
+        </div>
+
+        {#if settingsSaved}
+          <p class="banner-success">{$_('admin.inviteSettingsSaved')}</p>
+        {/if}
+        {#if settingsError}
+          <p class="banner-error">{settingsError}</p>
+        {/if}
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick={saveInviteSettings}
+          disabled={settingsSaving}
+        >
+          {settingsSaving ? $_('common.saving') : $_('common.save')}
+        </button>
+      </div>
+
+      <div class="invite-wrap">
+        <InviteForm />
+      </div>
+
+      {#if actionError}
+        <p class="banner-error">{actionError}</p>
+      {/if}
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{$_('admin.nameHeader')}</th>
+              <th>{$_('admin.emailHeader')}</th>
+              <th>{$_('admin.statusHeader')}</th>
+              <th>{$_('admin.roleHeader')}</th>
+              <th>{$_('admin.createdHeader')}</th>
+              <th></th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-  {/if}
+          </thead>
+          <tbody>
+            {#each users as user (user.id)}
+              <tr>
+                <td>{user.displayName || '—'}</td>
+                <td>{user.email}</td>
+                <td>
+                  <span
+                    class="tag {user.isBlocked
+                      ? 'tag-neutral'
+                      : 'tag-accent-2'}"
+                  >
+                    {user.isBlocked
+                      ? $_('admin.statusBlocked')
+                      : $_('admin.statusActive')}
+                  </span>
+                </td>
+                <td
+                  >{user.isAdmin
+                    ? $_('admin.roleAdmin')
+                    : $_('admin.roleUser')}</td
+                >
+                <td>{formatDisplayDate(user.createdAt)}</td>
+                <td class="actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-small"
+                    onclick={() => toggleBlocked(user)}
+                    disabled={pending[user.id] || user.id === myUserId}
+                  >
+                    {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-small"
+                    onclick={() => toggleAdmin(user)}
+                    disabled={pending[user.id]}
+                  >
+                    {user.isAdmin
+                      ? $_('admin.revokeAdmin')
+                      : $_('admin.makeAdmin')}
+                  </button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
+  </AdminGate>
 </main>
 
 <style>

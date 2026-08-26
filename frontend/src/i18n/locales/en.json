@@ -397,7 +397,28 @@
     "registrationModeOther": "Other ({mode}, set outside this panel)",
     "allowedEmailDomainLabel": "Restrict to email domain",
     "allowedEmailDomainHint": "Leave empty to allow any email domain. Anyone — including an admin — who tries to invite someone outside this domain will see an error.",
-    "inviteSettingsSaved": "Saved."
+    "inviteSettingsSaved": "Saved.",
+    "usersTab": "Users",
+    "reportsTab": "Reports"
+  },
+  "adminReports": {
+    "title": "Reports",
+    "errorLoad": "Could not load the report.",
+    "generate": "Generate report",
+    "generating": "Generating…",
+    "meetingsLabel": "Meetings",
+    "completedLabel": "Completed",
+    "responseRateLabel": "Response rate",
+    "overdueLabel": "Overdue",
+    "goalsAchievedLabel": "Goals achieved",
+    "meetingsPerMonthHeading": "Meetings completed per month",
+    "goalsAchievedPerMonthHeading": "Goals achieved per month",
+    "goalsRightNowHeading": "Goals, right now",
+    "totalInProgressLabel": "In progress",
+    "overdueInProgressLabel": "Overdue (past target date)",
+    "usersActiveLabel": "Active users",
+    "usersBlockedLabel": "Blocked",
+    "usersAdminsLabel": "Admins"
   },
   "platformAdmin": {
     "title": "Platform admin",

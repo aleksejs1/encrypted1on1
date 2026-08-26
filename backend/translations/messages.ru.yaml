@@ -83,3 +83,5 @@ errors:
     domain_mode_unavailable_in_cloud: 'Открытая самостоятельная регистрация по домену недоступна на мультикомпанийном экземпляре.'
     billing_not_configured: 'Оплата не настроена на этом экземпляре.'
     display_name_too_long: '«displayName» должно быть не длиннее %max% символов.'
+    report_from_after_to: '«from» не может быть позже «to».'
+    report_range_too_wide: 'Запрошенный период слишком широк (максимум %maxDays% дн.).'

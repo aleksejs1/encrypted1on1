@@ -10,6 +10,7 @@ import {
   DATE_FORMAT_IDS,
   DEFAULT_DATE_FORMAT,
   formatDate,
+  formatMonth,
   type DateFormatId,
 } from './dateFormat';
 
@@ -36,4 +37,9 @@ export function setDateFormat(format: DateFormatId): void {
 /** What every page should call to display a date — follows whatever format is currently selected. */
 export function formatDisplayDate(value: string | Date): string {
   return formatDate(value, dateFormatState.format);
+}
+
+/** Same as formatDisplayDate(), for a bare "YYYY-MM" month (a report trend chart's axis labels — see formatMonth()'s own docblock). */
+export function formatDisplayMonth(value: string): string {
+  return formatMonth(value, dateFormatState.format);
 }

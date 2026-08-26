@@ -80,6 +80,28 @@ export function formatDate(
   }
 }
 
+/**
+ * A calendar month has no day component, so there's no day/month order left
+ * to follow — `dmy_slash`/`mdy_slash` render identically (`MM/YYYY`). What
+ * this *does* still carry over from the user's chosen format is separator
+ * style (`.`/`/`/`-`) and whether the year leads (`iso`), which is why this
+ * isn't just a hardcoded "YYYY-MM" everywhere (chart axis labels, e.g.).
+ */
+export function formatMonth(value: string, formatId: DateFormatId): string {
+  const [year, month] = value.split('-');
+  const mm = pad(Number(month));
+
+  switch (formatId) {
+    case 'dmy_dot':
+      return `${mm}.${year}`;
+    case 'dmy_slash':
+    case 'mdy_slash':
+      return `${mm}/${year}`;
+    case 'iso':
+      return `${year}-${mm}`;
+  }
+}
+
 const PARSE_PATTERNS: Record<DateFormatId, RegExp> = {
   dmy_dot: /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/,
   dmy_slash: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,

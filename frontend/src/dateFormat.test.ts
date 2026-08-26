@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, parseDate } from './dateFormat';
+import { formatDate, formatMonth, parseDate } from './dateFormat';
 
 describe('formatDate', () => {
   // Noon UTC — safely within the same calendar day across every real-world
@@ -76,5 +76,24 @@ describe('parseDate', () => {
     // slash-formats genuinely swap which group means what, not just labels.
     expect(parseDate('25/03/2026', 'dmy_slash')).toBe('2026-03-25');
     expect(parseDate('03/25/2026', 'mdy_slash')).toBe('2026-03-25');
+  });
+});
+
+describe('formatMonth', () => {
+  it('formats dmy_dot as MM.YYYY', () => {
+    expect(formatMonth('2026-03', 'dmy_dot')).toBe('03.2026');
+  });
+
+  it('formats dmy_slash and mdy_slash identically — there is no day to reorder', () => {
+    expect(formatMonth('2026-03', 'dmy_slash')).toBe('03/2026');
+    expect(formatMonth('2026-03', 'mdy_slash')).toBe('03/2026');
+  });
+
+  it('formats iso as YYYY-MM', () => {
+    expect(formatMonth('2026-03', 'iso')).toBe('2026-03');
+  });
+
+  it('pads a single-digit month', () => {
+    expect(formatMonth('2026-9', 'iso')).toBe('2026-09');
   });
 });

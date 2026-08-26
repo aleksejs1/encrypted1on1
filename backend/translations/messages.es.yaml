@@ -83,3 +83,5 @@ errors:
     domain_mode_unavailable_in_cloud: 'El autorregistro abierto por dominio no está disponible en una instancia multiempresa.'
     billing_not_configured: 'La facturación no está configurada en esta instancia.'
     display_name_too_long: '"displayName" no puede tener más de %max% caracteres.'
+    report_from_after_to: '"from" no puede ser posterior a "to".'
+    report_range_too_wide: 'El rango de fechas solicitado es demasiado amplio (máximo %maxDays% días).'

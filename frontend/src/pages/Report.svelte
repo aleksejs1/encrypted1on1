@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
+  import { formatDate } from '../dateFormat';
   import DateInput from '../design/DateInput.svelte';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { ensureUnlocked } from '../crypto/identity';
@@ -97,8 +98,12 @@
 
   function applyQuarterPreset(): void {
     const { start, end } = dateRangeForQuarterPreset();
-    rangeStart = start.toISOString().slice(0, 10);
-    rangeEnd = end.toISOString().slice(0, 10);
+    // formatDate(..., 'iso'), not start.toISOString().slice(0, 10): the latter reads
+    // the UTC calendar day, which is a day behind the viewer's own "today" for part of
+    // every day in a positive-UTC-offset timezone — formatDate's date-object branch
+    // uses the local getters instead (see its own docblock).
+    rangeStart = formatDate(start, 'iso');
+    rangeEnd = formatDate(end, 'iso');
   }
 
   async function handleGenerate(event: SubmitEvent): Promise<void> {

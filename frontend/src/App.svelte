@@ -11,6 +11,7 @@
   import Report from './pages/Report.svelte';
   import AccountSettings from './pages/AccountSettings.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
+  import AdminReports from './admin/AdminReports.svelte';
   import PlatformAdminPanel from './admin/PlatformAdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
@@ -45,6 +46,7 @@
     anketaList: '/',
     report: '/report',
     admin: '/admin',
+    adminReports: '/admin/reports',
     account: '/account',
     platformAdmin: '/platform-admin',
   } as const;
@@ -64,6 +66,7 @@
     PATHS.anketaList,
     PATHS.report,
     PATHS.admin,
+    PATHS.adminReports,
     PATHS.account,
     PATHS.platformAdmin,
   ];
@@ -110,6 +113,8 @@
     <AccountSettings />
   {:else if routerState.path === PATHS.admin}
     <AdminPanel />
+  {:else if routerState.path === PATHS.adminReports}
+    <AdminReports />
   {:else if routerState.path === PATHS.platformAdmin}
     <PlatformAdminPanel />
   {:else}

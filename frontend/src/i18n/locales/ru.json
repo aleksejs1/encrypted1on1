@@ -399,7 +399,28 @@
     "registrationModeOther": "Другое ({mode}, задано вне этой панели)",
     "allowedEmailDomainLabel": "Ограничить доменом email",
     "allowedEmailDomainHint": "Оставьте пустым, чтобы разрешить любой домен email. Если кто-либо — включая админа — попытается пригласить человека вне этого домена, он увидит ошибку.",
-    "inviteSettingsSaved": "Сохранено."
+    "inviteSettingsSaved": "Сохранено.",
+    "usersTab": "Пользователи",
+    "reportsTab": "Отчёты"
+  },
+  "adminReports": {
+    "title": "Отчёты",
+    "errorLoad": "Не удалось загрузить отчёт.",
+    "generate": "Сформировать отчёт",
+    "generating": "Формирование…",
+    "meetingsLabel": "Встречи",
+    "completedLabel": "Завершено",
+    "responseRateLabel": "Доля ответивших",
+    "overdueLabel": "Просрочено",
+    "goalsAchievedLabel": "Цели достигнуты",
+    "meetingsPerMonthHeading": "Завершённые встречи по месяцам",
+    "goalsAchievedPerMonthHeading": "Достигнутые цели по месяцам",
+    "goalsRightNowHeading": "Цели сейчас",
+    "totalInProgressLabel": "В процессе",
+    "overdueInProgressLabel": "Просрочено (позже целевой даты)",
+    "usersActiveLabel": "Активные пользователи",
+    "usersBlockedLabel": "Заблокировано",
+    "usersAdminsLabel": "Админы"
   },
   "platformAdmin": {
     "title": "Администрирование платформы",

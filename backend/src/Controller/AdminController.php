@@ -6,20 +6,19 @@ use App\Entity\Company;
 use App\Entity\User;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
+use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * Every route here is admin-only (see requireAdmin()) — the account-lifecycle
- * management the spec says CLI-only tooling doesn't scale for HR/rotations
- * (Phase 6g plan). `admin` stays a flag on the account, orthogonal to the
- * employee/manager roles inside any given anketa.
+ * Every route here is admin-only (see requireAdmin(), from RequiresCompanyAdmin) —
+ * the account-lifecycle management the spec says CLI-only tooling doesn't scale for
+ * HR/rotations (Phase 6g plan). `admin` stays a flag on the account, orthogonal to
+ * the employee/manager roles inside any given anketa.
  *
  * Scoped to the requesting admin's own company throughout (private/cloud-service-plan.md,
  * not tracked in git, Phase A) — `isAdmin` is a *company* admin now, not a platform-wide
@@ -29,6 +28,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  */
 class AdminController
 {
+    use RequiresCompanyAdmin;
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
@@ -143,19 +144,6 @@ class AdminController
             'registrationMode' => $company->getRegistrationMode(),
             'allowedEmailDomain' => $company->getAllowedEmailDomain(),
         ]);
-    }
-
-    private function requireAdmin(Request $request): User
-    {
-        $user = $this->authSession->getCurrentUser($request);
-        if (null === $user) {
-            throw new UnauthorizedHttpException('', $this->translator->trans('errors.not_authenticated'));
-        }
-        if (!$user->isAdmin()) {
-            throw new AccessDeniedHttpException($this->translator->trans('errors.admin_only'));
-        }
-
-        return $user;
     }
 
     /**
