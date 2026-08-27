@@ -15,6 +15,7 @@ How the system is put together. For what the encryption actually does, see [encr
 | Auth | Server-side session (httpOnly, `SameSite=Strict` cookie), CSRF-protected | Not JWT — no client-side token storage/refresh logic needed |
 | i18n | `svelte-i18n` (frontend), Symfony Translation (backend emails/errors) | 4 languages: English, Russian, Latvian, Spanish |
 | Mail | Symfony Mailer, any SMTP DSN | Mailpit in dev, real SMTP in prod |
+| Error tracking | Sentry (`sentry/sentry-symfony`), opt-in via `SENTRY_DSN` | Backend only, empty DSN = disabled (see [deployment.md](deployment.md)); no frontend error tracking yet |
 
 ## High-level shape
 

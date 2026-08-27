@@ -60,6 +60,7 @@ services:
       # of a directly-facing Caddy that's itself behind something like
       # Cloudflare, where trusting *that* is still legitimate.
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     restart: unless-stopped
 
 volumes:

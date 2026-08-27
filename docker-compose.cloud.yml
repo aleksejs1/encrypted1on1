@@ -65,6 +65,7 @@ services:
       STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
       STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     restart: unless-stopped
     depends_on:
       mysql:

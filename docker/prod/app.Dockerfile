@@ -58,6 +58,15 @@ RUN apt-get update && apt-get install --no-install-recommends -y unzip libsqlite
     && docker-php-ext-install pdo_sqlite \
     && docker-php-ext-install pdo_mysql
 
+# Off by default in PHP — with it off, every exception's stack trace frames carry the
+# live argument values each function was called with. Sentry's SDK reads that straight
+# off Throwable::getTrace() (config/packages/sentry.php, SentryBeforeSendFilter's own
+# docblock), so a 500 anywhere in the call chain of a controller action that takes a
+# secret as a plain argument — a password-reset token, an auth key — would otherwise
+# ship that value to Sentry. A php.ini setting, not something an application-level
+# before_send hook can retroactively scrub per call site.
+RUN echo 'zend.exception_ignore_args=On' > /usr/local/etc/php/conf.d/no-exception-args.ini
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 COPY backend/composer.json backend/composer.lock ./

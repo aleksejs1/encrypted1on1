@@ -76,6 +76,7 @@ services:
       # — Caddy also needs to trust the proxy's X-Forwarded-* before it will
       # relay them onward, independently of the Symfony-level setting above.
       CADDY_TRUSTED_PROXIES: "${CADDY_TRUSTED_PROXIES:-127.0.0.1 ::1}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     restart: unless-stopped
 
 volumes:
