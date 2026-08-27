@@ -36,7 +36,7 @@ The server is a single deployable unit: one FrankenPHP process serves the built 
 
 ```
 backend/
-  src/Controller/    one file per resource area (Auth, Activation, Anketa, Admin, Invite, ...)
+  src/Controller/    one file per resource area (Auth, Activation, Anketa, Admin, Invite, Report, ...)
   src/Entity/         Doctrine entities (User, Anketa, Goal, ActivationToken, ...)
   src/EventListener/  cross-cutting concerns (JSON error responses, request-locale resolution)
   src/Http/           small shared helpers (e.g. rate-limit response formatting)
@@ -66,7 +66,7 @@ Every request from the frontend goes through `src/api/client.ts`, which attaches
 
 This is the boundary the whole design sits on top of, so it's worth stating explicitly here too (full detail in encryption.md):
 
-- **The server fully controls**: who can log in, who's an admin, who's blocked, which two accounts are paired in an anketa, rate limits, email delivery.
+- **The server fully controls**: who can log in, who's an admin, who's blocked, which two accounts are paired in an anketa, rate limits, email delivery — which is also the full extent of what a company admin's reporting endpoints (`AdminReportController`) can aggregate into company-wide meeting/goal counts and trend charts; nothing new is exposed, they just read what the server already controls.
 - **The server cannot see, even if compromised**: anketa answers, comments, outcome text, goal checkpoint text, any password, any encryption key. A small, backend test suite enforcement (`backend/tests/Architecture/SerializationBoundaryTest.php`) checks this structurally on every CI run — it fails the build if a ciphertext-bearing field ever gains a serialization group that would expose it over the API, or if a second entity ever gets wired into the generic API-Platform resource layer without the same scrutiny.
 - **If the server itself is compromised**, the browser is the last line of defense: a strict Content-Security-Policy (`docker/prod/Caddyfile`, no `unsafe-inline`, `'wasm-unsafe-eval'` only because the crypto library is real WebAssembly) plus Subresource Integrity on the built JS/CSS (`frontend/scripts/inject-sri.mjs`) mean a tampered server can't silently swap out the crypto code that runs client-side without the browser refusing to execute it.
 
