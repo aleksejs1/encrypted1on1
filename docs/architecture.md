@@ -6,7 +6,7 @@ How the system is put together. For what the encryption actually does, see [encr
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | Symfony (PHP 8.4), hand-composed | No `symfony/skeleton` — deliberately fewer moving parts |
+| Backend | Symfony (PHP 8.5), hand-composed | No `symfony/skeleton` — deliberately fewer moving parts |
 | Backend API layer | Custom controllers | Real logic per endpoint, not generic CRUD (one narrow exception below) |
 | Database | SQLite | Single-tenant, self-hosted; no need for a separate DB server |
 | App server | [FrankenPHP](https://frankenphp.dev/) (built on Caddy) | Serves PHP and the built frontend from one process/container |

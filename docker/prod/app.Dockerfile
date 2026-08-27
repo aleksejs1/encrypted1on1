@@ -50,7 +50,7 @@ ARG SHOW_VERSION="false"
 ENV VITE_SHOW_VERSION=$SHOW_VERSION
 RUN npm run build
 
-FROM dunglas/frankenphp:php8.4
+FROM dunglas/frankenphp:php8.5
 WORKDIR /app
 
 RUN apt-get update && apt-get install --no-install-recommends -y unzip libsqlite3-dev sqlite3 \

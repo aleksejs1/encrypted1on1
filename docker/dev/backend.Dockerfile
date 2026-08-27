@@ -1,6 +1,6 @@
 # Dev-only image for the backend (see plan Phase 1).
 # Prod gets its own lean multi-stage Dockerfile in a later phase.
-FROM dunglas/frankenphp:php8.4
+FROM dunglas/frankenphp:php8.5
 
 WORKDIR /app
 
