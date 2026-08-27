@@ -225,9 +225,58 @@ class AdminReportControllerTest extends ApiTestCase
         self::assertSame(1, $after['json']['goals']['createdInRange'], 'the goal genuinely was created inside this window — that historical fact does not change');
     }
 
+    public function testGoalsEndpointRequiresAdmin(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('report-goals-non-admin'));
+
+        $result = $this->jsonRequest($client, 'GET', $this->goalsPath(new \DateTimeImmutable('-30 days'), new \DateTimeImmutable()));
+
+        self::assertSame(403, $result['status']);
+    }
+
+    public function testGoalsEndpointReturnsExactNumbersFromKnownFixturesIncludingCancelled(): void
+    {
+        $adminClient = static::createClient();
+        $company = $this->makeCompany('Report Goals Happy Path');
+        $this->activateUser($adminClient, $this->uniqueEmail('report-goals-admin'), admin: true, company: $company);
+        $employeeUser = $this->activateUser($this->secondClient(), $this->uniqueEmail('report-goals-emp'), company: $company);
+        $managerUser = $this->activateUser($this->secondClient(), $this->uniqueEmail('report-goals-mgr'), company: $company);
+
+        $now = new \DateTimeImmutable();
+        $from = $now->modify('-30 days');
+        $to = $now->modify('+30 days');
+
+        $anketa = $this->persistAnketa($employeeUser, $managerUser, $now->modify('-10 days'), archived: true, missed: false);
+        $this->persistGoal($anketa, $employeeUser, 'goal-new', Goal::STATUS_IN_PROGRESS, $now->modify('+10 days'));
+        $this->persistGoal($anketa, $employeeUser, 'goal-achieved', Goal::STATUS_ACHIEVED, null);
+        $this->persistGoal($anketa, $employeeUser, 'goal-cancelled', Goal::STATUS_CANCELLED, null);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($adminClient, 'GET', $this->goalsPath($from, $to));
+
+        self::assertSame(200, $result['status']);
+        $json = $result['json'];
+
+        self::assertSame(3, $json['createdInRange']);
+        self::assertSame(1, $json['achievedInRange']);
+        self::assertSame(1, $json['cancelledInRange']);
+        self::assertSame(1, $json['totalInProgress']);
+        self::assertSame(0, $json['overdueInProgress']);
+        self::assertArrayHasKey('byMonth', $json);
+    }
+
     private function overviewPath(\DateTimeImmutable $from, \DateTimeImmutable $to): string
     {
         return '/api/admin/reports/overview?'.http_build_query([
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+        ]);
+    }
+
+    private function goalsPath(\DateTimeImmutable $from, \DateTimeImmutable $to): string
+    {
+        return '/api/admin/reports/goals?'.http_build_query([
             'from' => $from->format('Y-m-d'),
             'to' => $to->format('Y-m-d'),
         ]);

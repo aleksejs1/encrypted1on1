@@ -40,11 +40,43 @@
     }[];
   }
 
+  /** Mirrors GoalsAggregator::aggregate()'s return shape (backend/src/Report/GoalsAggregator.php) — the dedicated Goals tab, proposal §7.2/§8.2. */
+  interface GoalsReport {
+    createdInRange: number;
+    achievedInRange: number;
+    cancelledInRange: number;
+    totalInProgress: number;
+    overdueInProgress: number;
+    byMonth: { month: string; achieved: number }[];
+  }
+
+  const REPORT_TABS = [
+    { key: 'overview', labelKey: 'adminReports.overviewTab' },
+    { key: 'goals', labelKey: 'adminReports.goalsTab' },
+  ] as const;
+  type ReportTabKey = (typeof REPORT_TABS)[number]['key'];
+
   let rangeStart = $state('');
   let rangeEnd = $state('');
   let report = $state<OverviewReport | null>(null);
+  let goalsReport = $state<GoalsReport | null>(null);
+  // Set whenever the requested range changes and this tab hasn't been re-fetched for
+  // it yet — the Goals endpoint is its own separate, unfiltered-goal-history query
+  // (see AdminReportController::fetchGoalSnapshots()'s own docblock), so fetching it
+  // eagerly alongside Overview on every "Generate report" click would double that
+  // query for an admin who never opens this tab. Fetched lazily instead, the first
+  // time the Goals tab is actually opened for a given range.
+  let goalsReportStale = $state(true);
+  let activeReportTab = $state<ReportTabKey>('overview');
   let loading = $state(false);
   let reportError = $state<string | null>(null);
+  let goalsLoading = $state(false);
+  let goalsError = $state<string | null>(null);
+  // Bumped on every loadGoalsReport() call and captured as `requestId` — used to
+  // ignore a response from a superseded request (e.g. two overlapping "Generate
+  // report" clicks while on the Goals tab) so an older range's numbers can never
+  // land after a newer request's, no matter which resolves first.
+  let goalsRequestSequence = 0;
 
   async function loadInitialReport(): Promise<void> {
     applyQuarterPreset();
@@ -66,6 +98,12 @@
 
     loading = true;
     reportError = null;
+    goalsReportStale = true;
+    // Fired concurrently with the overview fetch below, not awaited in sequence —
+    // the two endpoints are independent, and an admin sitting on the Goals tab
+    // shouldn't pay overviewLatency + goalsLatency on every "Generate report" click.
+    const goalsReload =
+      activeReportTab === 'goals' ? loadGoalsReport() : Promise.resolve();
     try {
       const query = new URLSearchParams({ from: rangeStart, to: rangeEnd });
       report = await apiGet<OverviewReport>(
@@ -79,6 +117,42 @@
     } finally {
       loading = false;
     }
+    await goalsReload;
+  }
+
+  async function loadGoalsReport(): Promise<void> {
+    if (!goalsReportStale) return;
+
+    const requestId = ++goalsRequestSequence;
+    // Cleared immediately, not left showing the previous range's numbers while the
+    // new request is in flight — otherwise the template's "do we have data"
+    // check would keep matching on stale data instead of falling through to the
+    // loading state below.
+    goalsReport = null;
+    goalsLoading = true;
+    goalsError = null;
+    try {
+      const query = new URLSearchParams({ from: rangeStart, to: rangeEnd });
+      const result = await apiGet<GoalsReport>(
+        `/api/admin/reports/goals?${query}`,
+      );
+      if (requestId !== goalsRequestSequence) return; // superseded by a newer request
+      goalsReport = result;
+      goalsReportStale = false;
+    } catch (error) {
+      if (requestId !== goalsRequestSequence) return;
+      goalsError =
+        error instanceof ApiError
+          ? error.message
+          : $_('adminReports.errorLoad');
+    } finally {
+      if (requestId === goalsRequestSequence) goalsLoading = false;
+    }
+  }
+
+  function selectTab(tab: ReportTabKey): void {
+    activeReportTab = tab;
+    if (tab === 'goals') void loadGoalsReport();
   }
 
   async function handleGenerate(event: SubmitEvent): Promise<void> {
@@ -89,7 +163,30 @@
   const monthLabels = $derived(
     report?.trend.map((month) => formatDisplayMonth(month.month)) ?? [],
   );
+  const goalsMonthLabels = $derived(
+    goalsReport?.byMonth.map((month) => formatDisplayMonth(month.month)) ?? [],
+  );
 </script>
+
+{#snippet rightNowCard(
+  headingKey: string,
+  totalInProgress: number,
+  overdueInProgress: number,
+)}
+  <div class="card goals-right-now">
+    <h3>{$_(headingKey)}</h3>
+    <p>
+      {$_('adminReports.totalInProgressLabel')}:
+      <strong>{totalInProgress}</strong>
+      &nbsp;·&nbsp;
+      {$_('adminReports.overdueInProgressLabel')}:
+      <strong
+        class="tag {overdueInProgress > 0 ? 'tag-accent' : 'tag-accent-2'}"
+        >{overdueInProgress}</strong
+      >
+    </p>
+  </div>
+{/snippet}
 
 <main>
   <h1>{$_('adminReports.title')}</h1>
@@ -124,84 +221,128 @@
       <button
         type="submit"
         class="btn btn-primary"
-        disabled={loading || !rangeStart || !rangeEnd}
+        disabled={loading || goalsLoading || !rangeStart || !rangeEnd}
       >
         {loading ? $_('adminReports.generating') : $_('adminReports.generate')}
       </button>
     </form>
 
     {#if report}
-      <div class="tiles">
-        <div class="card tile">
-          <span class="tile-label">{$_('adminReports.meetingsLabel')}</span>
-          <span class="tile-value">{report.meetings.total}</span>
-        </div>
-        <div class="card tile">
-          <span class="tile-label">{$_('adminReports.completedLabel')}</span>
-          <span class="tile-value">{report.meetings.completed}</span>
-        </div>
-        <div class="card tile">
-          <span class="tile-label">{$_('adminReports.responseRateLabel')}</span>
-          <span class="tile-value"
-            >{Math.round(report.meetings.responseRate * 100)}%</span
+      <div class="report-tabs" role="tablist">
+        {#each REPORT_TABS as tab (tab.key)}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeReportTab === tab.key}
+            class="tab-btn"
+            class:tab-btn-active={activeReportTab === tab.key}
+            onclick={() => selectTab(tab.key)}
           >
-        </div>
-        <div class="card tile">
-          <span class="tile-label">{$_('adminReports.overdueLabel')}</span>
-          <span
-            class="tile-value tag {report.meetings.overdueOpen > 0
-              ? 'tag-accent'
-              : 'tag-accent-2'}">{report.meetings.overdueOpen}</span
-          >
-        </div>
-        <div class="card tile">
-          <span class="tile-label">{$_('adminReports.goalsAchievedLabel')}</span
-          >
-          <span class="tile-value">{report.goals.achievedInRange}</span>
-        </div>
+            {$_(tab.labelKey)}
+          </button>
+        {/each}
       </div>
 
-      <div class="charts">
-        <div class="card">
-          <h3>{$_('adminReports.meetingsPerMonthHeading')}</h3>
-          <BarChart
-            labels={monthLabels}
-            values={report.trend.map((month) => month.meetingsCompleted)}
-            label={$_('adminReports.meetingsPerMonthHeading')}
-          />
+      {#if activeReportTab === 'overview'}
+        <div class="tiles">
+          <div class="card tile">
+            <span class="tile-label">{$_('adminReports.meetingsLabel')}</span>
+            <span class="tile-value">{report.meetings.total}</span>
+          </div>
+          <div class="card tile">
+            <span class="tile-label">{$_('adminReports.completedLabel')}</span>
+            <span class="tile-value">{report.meetings.completed}</span>
+          </div>
+          <div class="card tile">
+            <span class="tile-label"
+              >{$_('adminReports.responseRateLabel')}</span
+            >
+            <span class="tile-value"
+              >{Math.round(report.meetings.responseRate * 100)}%</span
+            >
+          </div>
+          <div class="card tile">
+            <span class="tile-label">{$_('adminReports.overdueLabel')}</span>
+            <span
+              class="tile-value tag {report.meetings.overdueOpen > 0
+                ? 'tag-accent'
+                : 'tag-accent-2'}">{report.meetings.overdueOpen}</span
+            >
+          </div>
+          <div class="card tile">
+            <span class="tile-label"
+              >{$_('adminReports.goalsAchievedLabel')}</span
+            >
+            <span class="tile-value">{report.goals.achievedInRange}</span>
+          </div>
         </div>
+
+        <div class="charts">
+          <div class="card">
+            <h3>{$_('adminReports.meetingsPerMonthHeading')}</h3>
+            <BarChart
+              labels={monthLabels}
+              values={report.trend.map((month) => month.meetingsCompleted)}
+              label={$_('adminReports.meetingsPerMonthHeading')}
+            />
+          </div>
+          <div class="card">
+            <h3>{$_('adminReports.goalsAchievedPerMonthHeading')}</h3>
+            <BarChart
+              labels={monthLabels}
+              values={report.trend.map((month) => month.goalsAchieved)}
+              label={$_('adminReports.goalsAchievedPerMonthHeading')}
+            />
+          </div>
+        </div>
+
+        {@render rightNowCard(
+          'adminReports.goalsRightNowHeading',
+          report.goals.totalInProgress,
+          report.goals.overdueInProgress,
+        )}
+
+        <p class="text-muted users-line">
+          {$_('adminReports.usersActiveLabel')}: {report.users.active}
+          &nbsp;·&nbsp;
+          {$_('adminReports.usersBlockedLabel')}: {report.users.blocked}
+          &nbsp;·&nbsp;
+          {$_('adminReports.usersAdminsLabel')}: {report.users.admins}
+        </p>
+      {:else if goalsError}
+        <p class="banner-error">{goalsError}</p>
+      {:else if goalsReport}
+        <div class="card goals-in-range">
+          <h3>{$_('adminReports.goalsInRangeHeading')}</h3>
+          <p>
+            {$_('adminReports.createdLabel')}:
+            <strong>{goalsReport.createdInRange}</strong>
+            &nbsp;·&nbsp;
+            {$_('adminReports.achievedLabel')}:
+            <strong>{goalsReport.achievedInRange}</strong>
+            &nbsp;·&nbsp;
+            {$_('adminReports.cancelledLabel')}:
+            <strong>{goalsReport.cancelledInRange}</strong>
+          </p>
+        </div>
+
+        {@render rightNowCard(
+          'adminReports.rightNowHeading',
+          goalsReport.totalInProgress,
+          goalsReport.overdueInProgress,
+        )}
+
         <div class="card">
           <h3>{$_('adminReports.goalsAchievedPerMonthHeading')}</h3>
           <BarChart
-            labels={monthLabels}
-            values={report.trend.map((month) => month.goalsAchieved)}
+            labels={goalsMonthLabels}
+            values={goalsReport.byMonth.map((month) => month.achieved)}
             label={$_('adminReports.goalsAchievedPerMonthHeading')}
           />
         </div>
-      </div>
-
-      <div class="card goals-right-now">
-        <h3>{$_('adminReports.goalsRightNowHeading')}</h3>
-        <p>
-          {$_('adminReports.totalInProgressLabel')}:
-          <strong>{report.goals.totalInProgress}</strong>
-          &nbsp;·&nbsp;
-          {$_('adminReports.overdueInProgressLabel')}:
-          <strong
-            class="tag {report.goals.overdueInProgress > 0
-              ? 'tag-accent'
-              : 'tag-accent-2'}">{report.goals.overdueInProgress}</strong
-          >
-        </p>
-      </div>
-
-      <p class="text-muted users-line">
-        {$_('adminReports.usersActiveLabel')}: {report.users.active}
-        &nbsp;·&nbsp;
-        {$_('adminReports.usersBlockedLabel')}: {report.users.blocked}
-        &nbsp;·&nbsp;
-        {$_('adminReports.usersAdminsLabel')}: {report.users.admins}
-      </p>
+      {:else if goalsLoading}
+        <p class="text-muted">{$_('common.loading')}</p>
+      {/if}
     {/if}
   </AdminGate>
 </main>
@@ -250,6 +391,42 @@
   .range-row .field {
     flex: 1;
     min-width: 160px;
+  }
+
+  .report-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .tab-btn {
+    padding: 8px 4px;
+    font-size: 14px;
+    color: var(--color-text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-right: 16px;
+    cursor: pointer;
+  }
+
+  .tab-btn:hover {
+    color: var(--color-accent-ink);
+  }
+
+  .tab-btn-active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-accent);
+    font-weight: var(--font-heading-weight);
+  }
+
+  .goals-in-range {
+    margin-bottom: 20px;
+  }
+
+  .goals-in-range p {
+    margin: 0;
   }
 
   .tiles {

@@ -3,9 +3,11 @@
 namespace App\Controller;
 
 use App\Entity\Anketa;
+use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Report\AnketaSummaryForReport;
+use App\Report\GoalsAggregator;
 use App\Report\GoalSnapshotForReport;
 use App\Report\OverviewAggregator;
 use App\Security\AuthSession;
@@ -18,9 +20,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Company admin reporting (private/company-admin-reporting-proposal.md — draft,
- * Phase 1 only so far: the company-wide Overview report). Every route here is
- * admin-only and company-scoped, same requireAdmin() shape as AdminController
- * (RequiresCompanyAdmin, shared by both).
+ * Phases 1–2 so far: the company-wide Overview report and the Goals report).
+ * Every route here is admin-only and company-scoped, same requireAdmin() shape
+ * as AdminController (RequiresCompanyAdmin, shared by both).
  *
  * Every endpoint here is read-only and built exclusively from columns that are
  * already plaintext today (the proposal's own §2 accounting) — no new plaintext
@@ -95,28 +97,7 @@ class AdminReportController
         // no single filtered query can provide all of them at once without silently
         // getting at least one wrong (most notably: a carried-forward goal snapshot
         // landing inside the range would otherwise double-count as newly created).
-        /** @var list<array{goalUuid: string, status: string, createdAt: \DateTimeImmutable, targetDate: ?\DateTimeImmutable, anketaMeetingDate: \DateTimeImmutable, employeeDeletedAt: ?\DateTimeImmutable, managerDeletedAt: ?\DateTimeImmutable}> $goalRows */
-        $goalRows = $this->entityManager->createQueryBuilder()
-            ->select('g.goalUuid', 'g.status', 'g.createdAt', 'g.targetDate', 'a.meetingDate AS anketaMeetingDate', 'e.deletedAt AS employeeDeletedAt', 'm.deletedAt AS managerDeletedAt')
-            ->from(Goal::class, 'g')
-            ->innerJoin('g.anketa', 'a')
-            ->innerJoin('a.employee', 'e')
-            ->innerJoin('a.manager', 'm')
-            ->where('e.company = :company')
-            ->setParameter('company', $company)
-            ->getQuery()->getArrayResult();
-
-        $goalSnapshots = array_map(
-            static fn (array $row) => new GoalSnapshotForReport(
-                goalUuid: $row['goalUuid'],
-                status: $row['status'],
-                createdAt: $row['createdAt'],
-                targetDate: $row['targetDate'],
-                anketaMeetingDate: $row['anketaMeetingDate'],
-                bothParticipantsActive: null === $row['employeeDeletedAt'] && null === $row['managerDeletedAt'],
-            ),
-            $goalRows,
-        );
+        $goalSnapshots = $this->fetchGoalSnapshots($company);
 
         // Current headcount — not range-filtered, same reasoning as SeatLimitChecker's
         // own count: "how many people are actually using this right now," not a
@@ -133,6 +114,65 @@ class AdminReportController
         $report = OverviewAggregator::aggregate($anketas, $goalSnapshots, $users, $from, $to, new \DateTimeImmutable());
 
         return new JsonResponse($report);
+    }
+
+    /**
+     * The dedicated Goals tab (proposal §7.2/§8.2, Phase 2) — a focused view of the
+     * same goal-snapshot history as overview()'s "Goals" section, plus a cancelled
+     * count and its own achieved-per-month trend. Same admin-only/company-scoped
+     * shape, same DTO/aggregator split.
+     */
+    #[Route('/api/admin/reports/goals', name: 'admin_reports_goals', methods: ['GET'])]
+    public function goals(Request $request): JsonResponse
+    {
+        $admin = $this->requireAdmin($request);
+
+        $range = $this->parseDateRange($request);
+        if ($range instanceof JsonResponse) {
+            return $range;
+        }
+        [$from, $to] = $range;
+
+        $goalSnapshots = $this->fetchGoalSnapshots($admin->getCompany());
+
+        $report = GoalsAggregator::aggregate($goalSnapshots, $from, $to, new \DateTimeImmutable());
+
+        return new JsonResponse($report);
+    }
+
+    /**
+     * Every Goal row the company has ever had — deliberately unfiltered by date range
+     * or status. See OverviewAggregator's own class docblock for why: the goal
+     * numbers derived from this each need a different slice of this same history,
+     * and no single filtered query can provide all of them at once. Shared by
+     * overview() and goals() — both aggregators consume the identical snapshot list.
+     *
+     * @return GoalSnapshotForReport[]
+     */
+    private function fetchGoalSnapshots(Company $company): array
+    {
+        /** @var list<array{goalUuid: string, status: string, createdAt: \DateTimeImmutable, targetDate: ?\DateTimeImmutable, anketaMeetingDate: \DateTimeImmutable, employeeDeletedAt: ?\DateTimeImmutable, managerDeletedAt: ?\DateTimeImmutable}> $goalRows */
+        $goalRows = $this->entityManager->createQueryBuilder()
+            ->select('g.goalUuid', 'g.status', 'g.createdAt', 'g.targetDate', 'a.meetingDate AS anketaMeetingDate', 'e.deletedAt AS employeeDeletedAt', 'm.deletedAt AS managerDeletedAt')
+            ->from(Goal::class, 'g')
+            ->innerJoin('g.anketa', 'a')
+            ->innerJoin('a.employee', 'e')
+            ->innerJoin('a.manager', 'm')
+            ->where('e.company = :company')
+            ->setParameter('company', $company)
+            ->getQuery()->getArrayResult();
+
+        return array_map(
+            static fn (array $row) => new GoalSnapshotForReport(
+                goalUuid: $row['goalUuid'],
+                status: $row['status'],
+                createdAt: $row['createdAt'],
+                targetDate: $row['targetDate'],
+                anketaMeetingDate: $row['anketaMeetingDate'],
+                bothParticipantsActive: null === $row['employeeDeletedAt'] && null === $row['managerDeletedAt'],
+            ),
+            $goalRows,
+        );
     }
 
     /** @return array{0: \DateTimeImmutable, 1: \DateTimeImmutable}|JsonResponse a [from, to] pair (to = end of that day), or a 400 response. */

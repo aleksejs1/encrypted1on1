@@ -20,14 +20,16 @@ namespace App\Report;
  *
  * `bothParticipantsActive` reflects whether this snapshot's anketa still has
  * two live accounts behind it (neither `employee` nor `manager` has
- * `deletedAt` set) — used only by OverviewAggregator::countCurrentInProgress()
- * to keep "Goals, right now" consistent with the report's own users tile,
- * which already excludes deleted accounts (`AdminReportController`'s users
- * query, same reasoning `SeatLimitChecker` documents: a deleted account no
- * longer occupies a functional seat). Deliberately *not* consulted by
- * countCreatedInRange()/countAchievedInRange() — those are historical facts
- * about a specific window, and a departed employee's own past history still
- * happened, per the reporting proposal's own §12 Q4 default.
+ * `deletedAt` set) — consulted by GoalMetrics::countCurrentInProgress(),
+ * shared by both OverviewAggregator's "Goals, right now" and GoalsAggregator's
+ * own identical "right now" numbers, to keep both consistent with the
+ * report's users tile, which already excludes deleted accounts
+ * (`AdminReportController`'s users query, same reasoning `SeatLimitChecker`
+ * documents: a deleted account no longer occupies a functional seat).
+ * Deliberately *not* consulted by countCreatedInRange()/countStatusInRange()
+ * — those are historical facts about a specific window, and a departed
+ * employee's own past history still happened, per the reporting proposal's
+ * own §12 Q4 default.
  */
 final readonly class GoalSnapshotForReport
 {

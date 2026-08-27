@@ -37,6 +37,12 @@ use App\Entity\Goal;
  * doing all three kinds of grouping here in PHP is simpler and provably
  * correct, rather than three separately-shaped queries each re-deriving
  * part of the same goalUuid history.
+ *
+ * The actual per-goalUuid grouping/classification logic lives in
+ * GoalMetrics, not here — GoalsAggregator (the dedicated Goals tab) needs
+ * the identical "current state" and "reached status X in [from, to]" math
+ * over the same kind of unfiltered snapshot list, so it's factored out
+ * rather than reimplemented a second time.
  */
 final class OverviewAggregator
 {
@@ -137,95 +143,14 @@ final class OverviewAggregator
      */
     private static function aggregateGoals(array $goalSnapshots, \DateTimeImmutable $from, \DateTimeImmutable $to, \DateTimeImmutable $now): array
     {
-        [$totalInProgress, $overdueInProgress] = self::countCurrentInProgress($goalSnapshots, $now);
+        [$totalInProgress, $overdueInProgress] = GoalMetrics::countCurrentInProgress($goalSnapshots, $now);
 
         return [
-            'createdInRange' => self::countCreatedInRange($goalSnapshots, $from, $to),
-            'achievedInRange' => self::countAchievedInRange($goalSnapshots, $from, $to),
+            'createdInRange' => GoalMetrics::countCreatedInRange($goalSnapshots, $from, $to),
+            'achievedInRange' => GoalMetrics::countStatusInRange($goalSnapshots, Goal::STATUS_ACHIEVED, $from, $to),
             'totalInProgress' => $totalInProgress,
             'overdueInProgress' => $overdueInProgress,
         ];
-    }
-
-    /**
-     * @param GoalSnapshotForReport[] $goalSnapshots
-     *
-     * @return array{0: int, 1: int} [totalInProgress, overdueInProgress]
-     */
-    private static function countCurrentInProgress(array $goalSnapshots, \DateTimeImmutable $now): array
-    {
-        // Goal::$targetDate is Doctrine's `date_immutable` type — always hydrated at
-        // midnight, with no real time-of-day component. Comparing it against a
-        // full-precision $now directly would make a goal due "today" read as overdue
-        // for nearly the entire day (its midnight timestamp is less than any later
-        // moment on the same day) — truncating $now to the start of today first makes
-        // this a genuine calendar-day comparison instead.
-        $today = $now->setTime(0, 0, 0, 0);
-
-        $totalInProgress = 0;
-        $overdueInProgress = 0;
-        foreach (self::latestSnapshotPerGoal($goalSnapshots) as $snapshot) {
-            // Same exclusion the users tile already applies to a deleted account — see
-            // GoalSnapshotForReport::$bothParticipantsActive's own docblock for why this
-            // check belongs here and nowhere else in this class.
-            if (Goal::STATUS_IN_PROGRESS !== $snapshot->status || !$snapshot->bothParticipantsActive) {
-                continue;
-            }
-            ++$totalInProgress;
-            if (null !== $snapshot->targetDate && $snapshot->targetDate < $today) {
-                ++$overdueInProgress;
-            }
-        }
-
-        return [$totalInProgress, $overdueInProgress];
-    }
-
-    /** @param GoalSnapshotForReport[] $goalSnapshots */
-    private static function countCreatedInRange(array $goalSnapshots, \DateTimeImmutable $from, \DateTimeImmutable $to): int
-    {
-        $firstSeenPerGoal = [];
-        foreach ($goalSnapshots as $snapshot) {
-            $existing = $firstSeenPerGoal[$snapshot->goalUuid] ?? null;
-            if (null === $existing || $snapshot->createdAt < $existing) {
-                $firstSeenPerGoal[$snapshot->goalUuid] = $snapshot->createdAt;
-            }
-        }
-
-        $createdInRange = 0;
-        foreach ($firstSeenPerGoal as $firstSeen) {
-            if ($firstSeen >= $from && $firstSeen <= $to) {
-                ++$createdInRange;
-            }
-        }
-
-        return $createdInRange;
-    }
-
-    /** @param GoalSnapshotForReport[] $goalSnapshots */
-    private static function countAchievedInRange(array $goalSnapshots, \DateTimeImmutable $from, \DateTimeImmutable $to): int
-    {
-        $achievedGoalUuids = [];
-        foreach ($goalSnapshots as $snapshot) {
-            if (self::isAchievedInRange($snapshot, $from, $to)) {
-                $achievedGoalUuids[$snapshot->goalUuid] = true;
-            }
-        }
-
-        return \count($achievedGoalUuids);
-    }
-
-    /**
-     * Shared by countAchievedInRange() and buildTrend() — one place for "does this
-     * snapshot count as achieved in this window" so the achievedInRange tile and the
-     * trend chart's goalsAchieved series can't silently drift apart. Both the exact
-     * [from, to] bounds *and* the status check matter: $goalSnapshots is company-wide
-     * and unfiltered (see this class's own docblock), so a snapshot from just before
-     * `from` would otherwise slip through a month-label-only check in the trend chart.
-     */
-    private static function isAchievedInRange(GoalSnapshotForReport $snapshot, \DateTimeImmutable $from, \DateTimeImmutable $to): bool
-    {
-        return Goal::STATUS_ACHIEVED === $snapshot->status
-            && $snapshot->anketaMeetingDate >= $from && $snapshot->anketaMeetingDate <= $to;
     }
 
     /**
@@ -236,7 +161,7 @@ final class OverviewAggregator
      */
     private static function buildTrend(array $anketas, array $goalSnapshots, \DateTimeImmutable $from, \DateTimeImmutable $to): array
     {
-        $months = self::monthsBetween($from, $to);
+        $months = GoalMetrics::monthsBetween($from, $to);
 
         $meetingsCompletedByMonth = array_fill_keys($months, 0);
         foreach ($anketas as $anketa) {
@@ -249,62 +174,16 @@ final class OverviewAggregator
             }
         }
 
-        $achievedGoalUuidsByMonth = array_fill_keys($months, []);
-        foreach ($goalSnapshots as $snapshot) {
-            if (!self::isAchievedInRange($snapshot, $from, $to)) {
-                continue;
-            }
-            $month = $snapshot->anketaMeetingDate->format('Y-m');
-            if (isset($achievedGoalUuidsByMonth[$month])) {
-                $achievedGoalUuidsByMonth[$month][$snapshot->goalUuid] = true;
-            }
-        }
+        $achievedByMonth = GoalMetrics::countStatusByMonth($goalSnapshots, Goal::STATUS_ACHIEVED, $months, $from, $to);
 
         return array_map(
             static fn (string $month) => [
                 'month' => $month,
                 'meetingsCompleted' => $meetingsCompletedByMonth[$month],
-                'goalsAchieved' => \count($achievedGoalUuidsByMonth[$month]),
+                'goalsAchieved' => $achievedByMonth[$month],
             ],
             $months,
         );
-    }
-
-    /** @return list<string> Y-m labels, inclusive of both endpoints' months. */
-    private static function monthsBetween(\DateTimeImmutable $from, \DateTimeImmutable $to): array
-    {
-        $months = [];
-        $cursor = $from->modify('first day of this month');
-        $last = $to->modify('first day of this month');
-        while ($cursor <= $last) {
-            $months[] = $cursor->format('Y-m');
-            $cursor = $cursor->modify('+1 month');
-        }
-
-        return $months;
-    }
-
-    /**
-     * One pass, tracking the running latest-by-`anketaMeetingDate` snapshot per
-     * goalUuid — a plain "max per key" reduction, not a sort-then-let-later-overwrite
-     * trick (that was the original shape here; a full O(n log n) sort was strictly more
-     * work than this needs for the same result).
-     *
-     * @param GoalSnapshotForReport[] $goalSnapshots
-     *
-     * @return array<string, GoalSnapshotForReport> keyed by goalUuid
-     */
-    private static function latestSnapshotPerGoal(array $goalSnapshots): array
-    {
-        $latest = [];
-        foreach ($goalSnapshots as $snapshot) {
-            $current = $latest[$snapshot->goalUuid] ?? null;
-            if (null === $current || $snapshot->anketaMeetingDate >= $current->anketaMeetingDate) {
-                $latest[$snapshot->goalUuid] = $snapshot;
-            }
-        }
-
-        return $latest;
     }
 
     /**
