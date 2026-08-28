@@ -156,6 +156,30 @@ class PlatformAdminControllerTest extends ApiTestCase
         self::assertSame(404, $result['status']);
     }
 
+    /**
+     * The company listing's own userCount must agree with what SeatLimitChecker actually
+     * enforces — otherwise a departed, anonymized account would keep showing against a
+     * company's seat total forever, even though InviteController would still accept a
+     * new invite for that freed seat.
+     */
+    public function testPlatformAdminCompanyUserCountExcludesDeletedUsers(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-usercount-deleted'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('platform-admin-usercount-deleted-target'), company: $company);
+        $targetEntity = $this->entityManager()->find(User::class, $target['id']);
+        self::assertNotNull($targetEntity);
+        $targetEntity->delete();
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($platformAdminClient, 'GET', '/api/platform-admin/companies');
+
+        $row = current(array_filter($result['json'], fn (array $c) => $c['id'] === $company->getId()));
+        self::assertSame(1, $row['userCount'], 'the deleted user must not count towards userCount');
+    }
+
     public function testPlatformAdminCanChangeACompanysSeatLimit(): void
     {
         $platformAdminClient = static::createClient();

@@ -50,11 +50,15 @@ class PlatformAdminController
 
         // One query for every company's user count, grouped in PHP — avoids an N+1
         // COUNT(*) per company, same reasoning AnketaController::bulk() already
-        // documents for its own goals-batching query.
+        // documents for its own goals-batching query. Excludes deleted users, same as
+        // SeatLimitChecker's own count — otherwise this would keep showing a departed,
+        // anonymized account against the seat total forever, contradicting the number
+        // InviteController/SignupController actually enforce.
         /** @var array<array{cid: string, c: int}> $counts */
         $counts = $this->entityManager->createQueryBuilder()
             ->select('IDENTITY(u.company) AS cid, COUNT(u.id) AS c')
             ->from(User::class, 'u')
+            ->where('u.deletedAt IS NULL')
             ->groupBy('u.company')
             ->getQuery()
             ->getResult();
