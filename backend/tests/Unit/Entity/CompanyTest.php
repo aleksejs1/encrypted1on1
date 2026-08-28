@@ -56,6 +56,32 @@ class CompanyTest extends TestCase
         self::assertSame('starter', $company->getPlanTier());
     }
 
+    public function testConstructorRejectsANonPositiveSeatLimit(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new Company('Acme', seatLimit: 0);
+    }
+
+    public function testSetSeatLimitRoundTrips(): void
+    {
+        $company = new Company('Acme', seatLimit: 5);
+
+        $company->setSeatLimit(10);
+        self::assertSame(10, $company->getSeatLimit());
+
+        $company->setSeatLimit(null);
+        self::assertNull($company->getSeatLimit());
+    }
+
+    public function testSetSeatLimitRejectsZeroOrNegative(): void
+    {
+        $company = new Company('Acme');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $company->setSeatLimit(0);
+    }
+
     public function testSuspendAndUnsuspendToggleIsSuspended(): void
     {
         $company = new Company('Acme');

@@ -156,6 +156,80 @@ class PlatformAdminControllerTest extends ApiTestCase
         self::assertSame(404, $result['status']);
     }
 
+    public function testPlatformAdminCanChangeACompanysSeatLimit(): void
+    {
+        $platformAdminClient = static::createClient();
+        $companyA = $this->makeCompany('Company A');
+        $companyB = $this->makeCompany('Company B');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-seat-setter'), company: $companyA);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$companyB->getId()}/seat-limit", ['seatLimit' => 25]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(25, $result['json']['seatLimit']);
+    }
+
+    public function testPlatformAdminCanSetACompanysSeatLimitBackToUnlimited(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A', seatLimit: 10);
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-seat-unlimited'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$company->getId()}/seat-limit", ['seatLimit' => null]);
+
+        self::assertSame(200, $result['status']);
+        self::assertNull($result['json']['seatLimit']);
+    }
+
+    public function testSetSeatLimitRejectsAMissingField(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-seat-missing-field'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$company->getId()}/seat-limit", []);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testSetSeatLimitRejectsANonPositiveValue(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-seat-invalid'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/companies/{$company->getId()}/seat-limit", ['seatLimit' => 0]);
+
+        self::assertSame(400, $result['status']);
+    }
+
+    public function testSetSeatLimitReturns404ForAnUnknownCompany(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-seat-unknown'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', '/api/platform-admin/companies/00000000-0000-0000-0000-000000000000/seat-limit', ['seatLimit' => 5]);
+
+        self::assertSame(404, $result['status']);
+    }
+
+    public function testSetSeatLimitRequires403ForAMereCompanyAdmin(): void
+    {
+        $client = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $this->activateUser($client, $this->uniqueEmail('platform-admin-seat-mere-admin'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'PUT', "/api/platform-admin/companies/{$company->getId()}/seat-limit", ['seatLimit' => 5]);
+
+        self::assertSame(403, $result['status']);
+    }
+
     public function testPlatformAdminCanBlockAUserFromAnyCompany(): void
     {
         $platformAdminClient = static::createClient();
@@ -181,6 +255,48 @@ class PlatformAdminControllerTest extends ApiTestCase
         $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/users/{$platformAdmin['id']}/blocked", ['blocked' => true]);
 
         self::assertSame(400, $result['status']);
+    }
+
+    /**
+     * User::delete() forces isBlocked=true "for defense-in-depth" — this proves that
+     * defense holds against a platform admin too, not just a company admin
+     * (AdminControllerTest::testSetBlockedRejectsAnAlreadyDeletedUser covers that half).
+     */
+    public function testPlatformAdminCannotUnblockAnAlreadyDeletedUser(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-unblock-deleted'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('platform-admin-unblock-deleted-target'), company: $company);
+        $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        $targetEntity = $this->entityManager()->find(User::class, $target['id']);
+        self::assertNotNull($targetEntity);
+        $targetEntity->delete();
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/users/{$target['id']}/blocked", ['blocked' => false]);
+
+        self::assertSame(400, $result['status']);
+        self::assertSame('This account has already been deleted.', $result['json']['error']);
+    }
+
+    public function testPlatformAdminCannotGrantPlatformAdminToAnAlreadyDeletedUser(): void
+    {
+        $platformAdminClient = static::createClient();
+        $company = $this->makeCompany('Company A');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-grant-deleted'), company: $company);
+        $this->makePlatformAdmin($platformAdmin['id']);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('platform-admin-grant-deleted-target'), company: $company);
+        $targetEntity = $this->entityManager()->find(User::class, $target['id']);
+        self::assertNotNull($targetEntity);
+        $targetEntity->delete();
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/users/{$target['id']}/platform-admin", ['isPlatformAdmin' => true]);
+
+        self::assertSame(400, $result['status']);
+        self::assertSame('This account has already been deleted.', $result['json']['error']);
     }
 
     public function testPlatformAdminCanGrantAndRevokePlatformAdminOnAnotherUser(): void
@@ -213,9 +329,9 @@ class PlatformAdminControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
     }
 
-    private function makeCompany(string $name): Company
+    private function makeCompany(string $name, ?int $seatLimit = null): Company
     {
-        $company = new Company($name);
+        $company = new Company($name, seatLimit: $seatLimit);
         $this->entityManager()->persist($company);
         $this->entityManager()->flush();
         $this->createdCompanyIds[] = $company->getId();

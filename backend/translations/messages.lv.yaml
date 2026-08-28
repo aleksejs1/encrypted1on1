@@ -85,3 +85,7 @@ errors:
     display_name_too_long: '"displayName" nedrīkst pārsniegt %max% rakstzīmes.'
     report_from_after_to: '"from" nedrīkst būt vēlāk par "to".'
     report_range_too_wide: 'Pieprasītais laika periods ir pārāk plašs (maksimums %maxDays% dienas).'
+    cannot_delete_own_account: 'Jūs nevarat dzēst savu paša kontu.'
+    user_already_deleted: 'Šis konts jau ir dzēsts.'
+    user_must_be_blocked_before_deletion: 'Pirms lietotāja konta dzēšanas tas jābloķē.'
+    missing_or_invalid_seat_limit: '"seatLimit" jābūt null vai pozitīvam veselam skaitlim.'

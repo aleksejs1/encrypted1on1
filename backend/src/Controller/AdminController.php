@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Account\AccountDeleter;
 use App\Entity\Company;
 use App\Entity\User;
 use App\Security\AuthSession;
@@ -10,6 +11,7 @@ use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -102,6 +104,48 @@ class AdminController
     }
 
     /**
+     * Frees the seat a blocked-but-not-deleted departed employee still occupies
+     * (SeatLimitChecker deliberately keeps counting a merely-blocked user — see its own
+     * docblock — since blocking is reversible and shouldn't itself free capacity). Reuses
+     * User::delete(), the same anonymization-in-place self-service account deletion
+     * already uses, so a company admin gets no destructive capability beyond what a user
+     * already has over their own account — including clearing that user's own
+     * never-shared draft blobs first, exactly like AuthController::deleteAccount() does,
+     * since those are unreadable by anyone else and "delete this account" should mean the
+     * same thing regardless of who triggers it. Requires the target already be blocked
+     * first — a deliberate two-step (block, confirm, delete) rather than a single
+     * irreversible action reachable from an active account's row.
+     */
+    #[Route('/api/admin/users/{id}', name: 'admin_user_delete', methods: ['DELETE'])]
+    public function deleteUser(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        $admin = $this->requireAdmin($request);
+
+        $target = $this->findUser($id, $admin);
+        if ($target->getId() === $admin->getId()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.cannot_delete_own_account')], 400);
+        }
+        if (!$target->isBlocked()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.user_must_be_blocked_before_deletion')], 400);
+        }
+
+        AccountDeleter::delete($target, $this->entityManager);
+        $this->entityManager->flush();
+
+        // email/displayName are returned post-anonymization (not just deletedAt) so the
+        // admin panel can show the real result in place, instead of the stale
+        // pre-deletion values, without duplicating User::delete()'s own anonymization
+        // format on the frontend.
+        return new JsonResponse([
+            'id' => $target->getId(),
+            'email' => $target->getEmail(),
+            'displayName' => $target->getDisplayName(),
+            'deletedAt' => $target->getDeletedAt()?->format(\DATE_ATOM),
+        ]);
+    }
+
+    /**
      * Lets a company admin configure who can invite and the email-domain restriction
      * (private/cloud-service-plan.md, not tracked in git) — previously only settable via
      * raw SQL (see Company's own former docblock). `domain` (open self-registration) is
@@ -151,12 +195,20 @@ class AdminController
      * company is treated identically to a nonexistent one (same NotFoundHttpException,
      * same message), so this never reveals whether a given id belongs to another
      * company's user versus not existing at all.
+     *
+     * Also rejects an already-deleted target for every one of this controller's mutating
+     * endpoints (setBlocked/setAdmin/deleteUser, the only callers) in one place — a
+     * deleted account's isBlocked/isAdmin are forced by User::delete() specifically for
+     * defense-in-depth, and letting any of these endpoints flip them back would undo that.
      */
     private function findUser(string $id, User $admin): User
     {
         $user = $this->entityManager->find(User::class, $id);
         if (null === $user || $user->getCompany() !== $admin->getCompany()) {
             throw new NotFoundHttpException($this->translator->trans('errors.user_not_found'));
+        }
+        if (null !== $user->getDeletedAt()) {
+            throw new BadRequestHttpException($this->translator->trans('errors.user_already_deleted'));
         }
 
         return $user;

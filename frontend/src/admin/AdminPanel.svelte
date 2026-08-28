@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { apiGet, apiPut, ApiError } from '../api/client';
+  import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
   import { ensureUnlocked, clearIdentity } from '../crypto/identity';
   import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
@@ -29,6 +29,7 @@
     isAdmin: boolean;
     isBlocked: boolean;
     createdAt: string;
+    deletedAt: string | null;
   }
 
   let myUserId = $state<string | null>(null);
@@ -121,6 +122,45 @@
     } catch (error) {
       actionError =
         error instanceof ApiError ? error.message : $_('admin.errorUpdate');
+    } finally {
+      pending = { ...pending, [user.id]: false };
+    }
+  }
+
+  /**
+   * A plain confirm() would be a single accidental click away from permanently
+   * anonymizing another employee's account — the self-service equivalent
+   * (AccountSettings.svelte) requires re-entering the current password, which isn't
+   * available to an admin acting on someone else's account, so this asks the admin to
+   * type the target's email instead as an equivalent-friction stand-in.
+   */
+  async function deletePermanently(user: AdminUser): Promise<void> {
+    const typed = prompt(
+      $_('admin.deleteConfirmPrompt', { values: { email: user.email } }),
+    );
+    if (typed !== user.email) return;
+
+    pending = { ...pending, [user.id]: true };
+    actionError = null;
+    try {
+      const result = await apiDelete<{
+        email: string;
+        displayName: string;
+        deletedAt: string;
+      }>(`/api/admin/users/${user.id}`, null);
+      users = users.map((u) =>
+        u.id === user.id
+          ? {
+              ...u,
+              email: result.email,
+              displayName: result.displayName,
+              deletedAt: result.deletedAt,
+            }
+          : u,
+      );
+    } catch (error) {
+      actionError =
+        error instanceof ApiError ? error.message : $_('admin.errorDelete');
     } finally {
       pending = { ...pending, [user.id]: false };
     }
@@ -231,9 +271,11 @@
                       ? 'tag-neutral'
                       : 'tag-accent-2'}"
                   >
-                    {user.isBlocked
-                      ? $_('admin.statusBlocked')
-                      : $_('admin.statusActive')}
+                    {user.deletedAt
+                      ? $_('admin.statusDeleted')
+                      : user.isBlocked
+                        ? $_('admin.statusBlocked')
+                        : $_('admin.statusActive')}
                   </span>
                 </td>
                 <td
@@ -243,24 +285,36 @@
                 >
                 <td>{formatDisplayDate(user.createdAt)}</td>
                 <td class="actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-small"
-                    onclick={() => toggleBlocked(user)}
-                    disabled={pending[user.id] || user.id === myUserId}
-                  >
-                    {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-small"
-                    onclick={() => toggleAdmin(user)}
-                    disabled={pending[user.id]}
-                  >
-                    {user.isAdmin
-                      ? $_('admin.revokeAdmin')
-                      : $_('admin.makeAdmin')}
-                  </button>
+                  {#if !user.deletedAt}
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-small"
+                      onclick={() => toggleBlocked(user)}
+                      disabled={pending[user.id] || user.id === myUserId}
+                    >
+                      {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-small"
+                      onclick={() => toggleAdmin(user)}
+                      disabled={pending[user.id]}
+                    >
+                      {user.isAdmin
+                        ? $_('admin.revokeAdmin')
+                        : $_('admin.makeAdmin')}
+                    </button>
+                    {#if user.isBlocked}
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        onclick={() => deletePermanently(user)}
+                        disabled={pending[user.id] || user.id === myUserId}
+                      >
+                        {$_('admin.deletePermanently')}
+                      </button>
+                    {/if}
+                  {/if}
                 </td>
               </tr>
             {/each}

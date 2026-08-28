@@ -85,3 +85,7 @@ errors:
     display_name_too_long: '«displayName» должно быть не длиннее %max% символов.'
     report_from_after_to: '«from» не может быть позже «to».'
     report_range_too_wide: 'Запрошенный период слишком широк (максимум %maxDays% дн.).'
+    cannot_delete_own_account: 'Вы не можете удалить свою собственную учётную запись.'
+    user_already_deleted: 'Эта учётная запись уже удалена.'
+    user_must_be_blocked_before_deletion: 'Перед удалением учётной записи пользователя нужно заблокировать.'
+    missing_or_invalid_seat_limit: '«seatLimit» должно быть null или положительным целым числом.'

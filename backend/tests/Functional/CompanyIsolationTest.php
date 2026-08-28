@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Entity\ActivationToken;
 use App\Entity\Company;
+use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
 
 /**
@@ -122,6 +123,28 @@ class CompanyIsolationTest extends ApiTestCase
         $target = $this->activateUser($otherCompanyClient, $this->uniqueEmail('isolation-grantee'), company: $companyB);
 
         $result = $this->jsonRequest($adminClient, 'PUT', "/api/admin/users/{$target['id']}/admin", ['isAdmin' => true]);
+
+        self::assertSame(404, $result['status']);
+    }
+
+    public function testAdminCannotDeleteAUserFromAnotherCompany(): void
+    {
+        $adminClient = static::createClient();
+        $companyA = $this->makeCompany('Company A');
+        $companyB = $this->makeCompany('Company B');
+        $this->activateUser($adminClient, $this->uniqueEmail('isolation-deleter'), admin: true, company: $companyA);
+        $otherCompanyClient = $this->secondClient();
+        $target = $this->activateUser($otherCompanyClient, $this->uniqueEmail('isolation-delete-target'), company: $companyB);
+
+        // Blocked directly (this test only needs the target blocked, not how) — proves the
+        // 404 below is company scoping, not just the "must be blocked first" rule
+        // shadowing it.
+        $targetEntity = $this->entityManager()->find(User::class, $target['id']);
+        self::assertNotNull($targetEntity);
+        $targetEntity->setBlocked(true);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($adminClient, 'DELETE', "/api/admin/users/{$target['id']}");
 
         self::assertSame(404, $result['status']);
     }

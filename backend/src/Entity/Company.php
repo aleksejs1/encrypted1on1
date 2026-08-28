@@ -118,7 +118,7 @@ class Company
         $this->registrationMode = $registrationMode;
         $this->allowedEmailDomain = $allowedEmailDomain;
         $this->planTier = $planTier;
-        $this->seatLimit = $seatLimit;
+        $this->setSeatLimit($seatLimit);
         $this->subscriptionStatus = 'active';
         $this->createdAt = new \DateTimeImmutable();
     }
@@ -162,6 +162,16 @@ class Company
     public function getSeatLimit(): ?int
     {
         return $this->seatLimit;
+    }
+
+    /** Platform-admin only (PlatformAdminController) — self-service company creation (CompanyController) is the only other place this is set. Null = unlimited. */
+    public function setSeatLimit(?int $seatLimit): void
+    {
+        if (null !== $seatLimit && $seatLimit < 1) {
+            throw new \InvalidArgumentException('seatLimit must be null or a positive integer.');
+        }
+
+        $this->seatLimit = $seatLimit;
     }
 
     public function getSubscriptionStatus(): string

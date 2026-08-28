@@ -96,6 +96,60 @@ class SeatLimitTest extends ApiTestCase
     }
 
     /**
+     * The real endpoint (AuthController::deleteAccount()), not just the raw-SQL
+     * simulation testADeletedAccountFreesUpItsSeat() above uses to isolate
+     * SeatLimitChecker's own query — this proves the actual self-service flow really
+     * does free the seat, end to end.
+     */
+    public function testSelfServiceAccountDeletionFreesUpItsSeat(): void
+    {
+        $adminClient = static::createClient();
+        $company = $this->makeCompany(seatLimit: 2);
+        $this->activateUser($adminClient, $this->uniqueEmail('seat-self-delete-admin'), company: $company);
+        $targetClient = $this->secondClient();
+        $this->activateUser($targetClient, $this->uniqueEmail('seat-self-delete-target'), company: $company);
+
+        // Both seats taken — the next invite must be rejected.
+        $full = $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-self-delete-invitee-1')]);
+        self::assertSame(400, $full['status']);
+
+        $delete = $this->jsonRequest($targetClient, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+        self::assertSame(200, $delete['status']);
+
+        $freed = $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-self-delete-invitee-2')]);
+        self::assertSame(201, $freed['status'], 'a real self-service account deletion must free its seat');
+    }
+
+    /**
+     * The admin-triggered counterpart: a departed employee left blocked (not deleted)
+     * still occupies a seat by design (SeatLimitChecker's own docblock) — this proves
+     * AdminController::deleteUser() is the way a company admin actually frees it.
+     */
+    public function testAdminDeletingABlockedUserFreesUpItsSeat(): void
+    {
+        $adminClient = static::createClient();
+        $company = $this->makeCompany(seatLimit: 2);
+        $this->activateUser($adminClient, $this->uniqueEmail('seat-admin-delete-admin'), admin: true, company: $company);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('seat-admin-delete-target'), company: $company);
+
+        // Both seats taken — the next invite must be rejected.
+        $full = $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-admin-delete-invitee-1')]);
+        self::assertSame(400, $full['status']);
+
+        // Blocking alone must not free the seat (SeatLimitChecker's own documented rule).
+        $block = $this->jsonRequest($adminClient, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        self::assertSame(200, $block['status']);
+        $stillFull = $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-admin-delete-invitee-2')]);
+        self::assertSame(400, $stillFull['status'], 'a merely blocked user must still occupy its seat');
+
+        $delete = $this->jsonRequest($adminClient, 'DELETE', "/api/admin/users/{$target['id']}");
+        self::assertSame(200, $delete['status']);
+
+        $freed = $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-admin-delete-invitee-3')]);
+        self::assertSame(201, $freed['status'], 'an admin-deleted blocked account must no longer count against the seat limit');
+    }
+
+    /**
      * SeatLimitChecker::hasReachedLimit() used to count only already-activated User rows
      * — headcount only grew once an invitee actually activated, so a burst of invites
      * issued back-to-back (each checked against the same not-yet-grown headcount) could

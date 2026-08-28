@@ -85,3 +85,7 @@ errors:
     display_name_too_long: '"displayName" no puede tener más de %max% caracteres.'
     report_from_after_to: '"from" no puede ser posterior a "to".'
     report_range_too_wide: 'El rango de fechas solicitado es demasiado amplio (máximo %maxDays% días).'
+    cannot_delete_own_account: 'No puedes eliminar tu propia cuenta.'
+    user_already_deleted: 'Esta cuenta ya ha sido eliminada.'
+    user_must_be_blocked_before_deletion: 'Bloquea a este usuario antes de eliminar su cuenta.'
+    missing_or_invalid_seat_limit: '"seatLimit" debe ser null o un entero positivo.'

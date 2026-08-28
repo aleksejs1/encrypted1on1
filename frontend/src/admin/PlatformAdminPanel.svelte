@@ -27,6 +27,7 @@
     isPlatformAdmin: boolean;
     isBlocked: boolean;
     createdAt: string;
+    deletedAt: string | null;
   }
 
   let myUserId = $state<string | null>(null);
@@ -36,6 +37,8 @@
   let loadError = $state<string | null>(null);
   let actionError = $state<string | null>(null);
   let pending = $state<Record<string, boolean>>({});
+  /** Empty string means "unlimited" (null) — undrafted companies fall back to their current seatLimit in seatLimitDraft(). */
+  let seatLimitDrafts = $state<Record<string, string>>({});
 
   $effect(() => {
     ensureUnlocked()
@@ -106,6 +109,40 @@
     }
   }
 
+  function seatLimitDraft(company: PlatformCompany): string {
+    return seatLimitDrafts[company.id] ?? String(company.seatLimit ?? '');
+  }
+
+  async function saveSeatLimit(company: PlatformCompany): Promise<void> {
+    const raw = seatLimitDraft(company).trim();
+    const seatLimit = raw === '' ? null : Number(raw);
+    if (null !== seatLimit && (!Number.isInteger(seatLimit) || seatLimit < 1)) {
+      actionError = $_('platformAdmin.invalidSeatLimit');
+      return;
+    }
+
+    pending = { ...pending, [company.id]: true };
+    actionError = null;
+    try {
+      const result = await apiPut<{ seatLimit: number | null }>(
+        `/api/platform-admin/companies/${company.id}/seat-limit`,
+        { seatLimit },
+      );
+      companies = companies.map((c) =>
+        c.id === company.id ? { ...c, seatLimit: result.seatLimit } : c,
+      );
+      const { [company.id]: _removed, ...rest } = seatLimitDrafts;
+      seatLimitDrafts = rest;
+    } catch (error) {
+      actionError =
+        error instanceof ApiError
+          ? error.message
+          : $_('platformAdmin.errorUpdate');
+    } finally {
+      pending = { ...pending, [company.id]: false };
+    }
+  }
+
   async function togglePlatformAdmin(user: PlatformUser): Promise<void> {
     pending = { ...pending, [user.id]: true };
     actionError = null;
@@ -164,10 +201,23 @@
               <td>{company.name}</td>
               <td>{company.registrationMode}</td>
               <td>{company.planTier}</td>
-              <td
-                >{company.userCount} / {company.seatLimit ??
-                  $_('platformAdmin.unlimited')}</td
-              >
+              <td class="seat-limit-cell">
+                {company.userCount} /
+                <input
+                  type="number"
+                  min="1"
+                  class="input seat-limit-input"
+                  placeholder={$_('platformAdmin.unlimited')}
+                  value={seatLimitDraft(company)}
+                  oninput={(event) =>
+                    (seatLimitDrafts = {
+                      ...seatLimitDrafts,
+                      [company.id]: (event.currentTarget as HTMLInputElement)
+                        .value,
+                    })}
+                  disabled={pending[company.id]}
+                />
+              </td>
               <td>
                 <span
                   class="tag {company.isSuspended
@@ -181,6 +231,14 @@
               </td>
               <td>{formatDisplayDate(company.createdAt)}</td>
               <td class="actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-small"
+                  onclick={() => saveSeatLimit(company)}
+                  disabled={pending[company.id]}
+                >
+                  {$_('common.save')}
+                </button>
                 <button
                   type="button"
                   class="btn btn-secondary btn-small"
@@ -222,9 +280,11 @@
                 <span
                   class="tag {user.isBlocked ? 'tag-neutral' : 'tag-accent-2'}"
                 >
-                  {user.isBlocked
-                    ? $_('platformAdmin.statusBlocked')
-                    : $_('platformAdmin.statusActive')}
+                  {user.deletedAt
+                    ? $_('platformAdmin.statusDeleted')
+                    : user.isBlocked
+                      ? $_('platformAdmin.statusBlocked')
+                      : $_('platformAdmin.statusActive')}
                 </span>
               </td>
               <td>
@@ -238,26 +298,28 @@
               </td>
               <td>{formatDisplayDate(user.createdAt)}</td>
               <td class="actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-small"
-                  onclick={() => toggleBlocked(user)}
-                  disabled={pending[user.id] || user.id === myUserId}
-                >
-                  {user.isBlocked
-                    ? $_('platformAdmin.unblock')
-                    : $_('platformAdmin.block')}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-small"
-                  onclick={() => togglePlatformAdmin(user)}
-                  disabled={pending[user.id]}
-                >
-                  {user.isPlatformAdmin
-                    ? $_('platformAdmin.revokePlatformAdmin')
-                    : $_('platformAdmin.makePlatformAdmin')}
-                </button>
+                {#if !user.deletedAt}
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-small"
+                    onclick={() => toggleBlocked(user)}
+                    disabled={pending[user.id] || user.id === myUserId}
+                  >
+                    {user.isBlocked
+                      ? $_('platformAdmin.unblock')
+                      : $_('platformAdmin.block')}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-small"
+                    onclick={() => togglePlatformAdmin(user)}
+                    disabled={pending[user.id]}
+                  >
+                    {user.isPlatformAdmin
+                      ? $_('platformAdmin.revokePlatformAdmin')
+                      : $_('platformAdmin.makePlatformAdmin')}
+                  </button>
+                {/if}
               </td>
             </tr>
           {/each}
@@ -297,5 +359,15 @@
   .btn-small {
     padding: 4px 12px;
     font-size: 12px;
+  }
+
+  .seat-limit-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seat-limit-input {
+    width: 5rem;
   }
 </style>

@@ -136,6 +136,132 @@ class AdminControllerTest extends ApiTestCase
         self::assertSame(404, $result['status']);
     }
 
+    /**
+     * User::delete() forces isBlocked=true "for defense-in-depth" — this proves that
+     * defense actually holds: a company admin must not be able to un-block (or
+     * re-admin) a row deleteUser() already anonymized.
+     */
+    public function testSetBlockedRejectsAnAlreadyDeletedUser(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-set-blocked-deleted'), admin: true);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('admin-set-blocked-deleted-target'));
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$target['id']}");
+
+        $result = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => false]);
+
+        self::assertSame(400, $result['status']);
+        self::assertSame('This account has already been deleted.', $result['json']['error']);
+    }
+
+    public function testSetAdminRejectsAnAlreadyDeletedUser(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-set-admin-deleted'), admin: true);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('admin-set-admin-deleted-target'));
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$target['id']}");
+
+        $result = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$target['id']}/admin", ['isAdmin' => true]);
+
+        self::assertSame(400, $result['status']);
+        self::assertSame('This account has already been deleted.', $result['json']['error']);
+    }
+
+    public function testDeleteUserRequires401WhenNotAuthenticated(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/admin/users/00000000-0000-0000-0000-000000000000');
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testDeleteUserRequires403ForANonAdmin(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-delete-non-admin'));
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/admin/users/00000000-0000-0000-0000-000000000000');
+
+        self::assertSame(403, $result['status']);
+    }
+
+    public function testDeleteUserRejectsDeletingYourself(): void
+    {
+        $client = static::createClient();
+        $admin = $this->activateUser($client, $this->uniqueEmail('admin-delete-self'), admin: true);
+
+        $result = $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$admin['id']}");
+
+        self::assertSame(400, $result['status']);
+        self::assertSame('You cannot delete your own account.', $result['json']['error']);
+    }
+
+    public function testDeleteUserRejectsAUserThatIsNotYetBlocked(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-delete-not-blocked'), admin: true);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('admin-delete-not-blocked-target'));
+
+        $result = $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$target['id']}");
+
+        self::assertSame(400, $result['status']);
+        self::assertSame('Block this user before deleting their account.', $result['json']['error']);
+    }
+
+    public function testDeleteUserSucceedsForABlockedUser(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-deleter'), admin: true);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('admin-delete-target'));
+
+        $block = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        self::assertSame(200, $block['status']);
+
+        $result = $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$target['id']}");
+
+        self::assertSame(200, $result['status']);
+        self::assertSame($target['id'], $result['json']['id']);
+        self::assertNotNull($result['json']['deletedAt']);
+        // The response reflects the post-anonymization state, not the stale pre-deletion
+        // values, so the admin panel can show the real result in place.
+        self::assertSame(sprintf('deleted-%s@deleted.invalid', $target['id']), $result['json']['email']);
+        self::assertSame('', $result['json']['displayName']);
+
+        $listing = $this->jsonRequest($client, 'GET', '/api/admin/users');
+        $row = current(array_filter($listing['json'], fn (array $u) => $u['id'] === $target['id']));
+        self::assertNotNull($row['deletedAt'], 'the deletion must be reflected in the admin listing too');
+        self::assertTrue($row['isBlocked']);
+    }
+
+    public function testDeleteUserRejectsAnAlreadyDeletedUser(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-delete-twice'), admin: true);
+        $target = $this->activateUser($this->secondClient(), $this->uniqueEmail('admin-delete-twice-target'));
+
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$target['id']}/blocked", ['blocked' => true]);
+        $first = $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$target['id']}");
+        self::assertSame(200, $first['status']);
+
+        $second = $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$target['id']}");
+
+        self::assertSame(400, $second['status']);
+        self::assertSame('This account has already been deleted.', $second['json']['error']);
+    }
+
+    public function testDeleteUserReturns404ForAnUnknownUser(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('admin-delete-unknown'), admin: true);
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/admin/users/00000000-0000-0000-0000-000000000000');
+
+        self::assertSame(404, $result['status']);
+    }
+
     public function testUpdateCompanySettingsRequires401WhenNotAuthenticated(): void
     {
         $client = static::createClient();

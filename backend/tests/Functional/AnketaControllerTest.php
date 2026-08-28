@@ -621,6 +621,38 @@ class AnketaControllerTest extends ApiTestCase
         self::assertTrue(self::findById($listAsManager['json'], $anketaId)['counterpartDeleted']);
     }
 
+    /**
+     * The admin-triggered counterpart to testDeletingAUserClearsTheirUnpublishedDraftButLeavesAPublishedSideUntouched()
+     * above — proves AccountDeleter's shared draft-clearing behavior holds no matter
+     * which of its two callers (AuthController::deleteAccount() vs.
+     * AdminController::deleteUser()) triggers the deletion.
+     */
+    public function testAdminDeletingAUserClearsTheirUnpublishedDraftButLeavesAPublishedSideUntouched(): void
+    {
+        $employeeClient = static::createClient();
+        $employee = $this->activateUser($employeeClient, $this->uniqueEmail('admin-delete-consequence-emp'));
+        $managerClient = $this->secondClient();
+        $manager = $this->activateUser($managerClient, $this->uniqueEmail('admin-delete-consequence-mgr'), admin: true);
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $anketa = $this->entityManager()->find(Anketa::class, $anketaId);
+        \assert($anketa instanceof Anketa);
+        $anketa->saveDraft($anketa->getEmployee(), 'employee-draft-blob');
+        $anketa->publish($anketa->getManager(), 'manager-published-blob');
+        $this->entityManager()->flush();
+        $this->entityManager()->clear();
+
+        $block = $this->jsonRequest($managerClient, 'PUT', "/api/admin/users/{$employee['id']}/blocked", ['blocked' => true]);
+        self::assertSame(200, $block['status']);
+        $result = $this->jsonRequest($managerClient, 'DELETE', "/api/admin/users/{$employee['id']}");
+        self::assertSame(200, $result['status']);
+
+        $afterDeletion = $this->entityManager()->find(Anketa::class, $anketaId);
+        \assert($afterDeletion instanceof Anketa);
+        self::assertNull($afterDeletion->getEmployeeBlob(), 'the unpublished draft must be cleared even when an admin triggers the deletion');
+        self::assertSame('manager-published-blob', $afterDeletion->getManagerBlob(), 'a published side is shared history — no cascade');
+    }
+
     public function testCounterpartDeletedIsFalseByDefault(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('counterpart-deleted-default');

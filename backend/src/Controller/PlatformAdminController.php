@@ -10,6 +10,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -104,6 +105,32 @@ class PlatformAdminController
     }
 
     /**
+     * No pricing tiers are decided yet (see Company's own docblock) — this just lets a
+     * platform admin correct/raise a company's seat count directly (e.g. a customer
+     * upgraded outside Stripe, or self-service's own default placeholder needs a manual
+     * override), independent of BillingController's not-yet-built plan-tier automation.
+     * `null` means unlimited, same convention as everywhere else this field is read.
+     */
+    #[Route('/api/platform-admin/companies/{id}/seat-limit', name: 'platform_admin_company_set_seat_limit', methods: ['PUT'])]
+    public function setCompanySeatLimit(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        $this->requirePlatformAdmin($request);
+
+        $company = $this->findCompany($id);
+
+        $body = $request->toArray();
+        if (!\array_key_exists('seatLimit', $body) || (null !== $body['seatLimit'] && (!\is_int($body['seatLimit']) || $body['seatLimit'] < 1))) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_seat_limit')], 400);
+        }
+
+        $company->setSeatLimit($body['seatLimit']);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['id' => $company->getId(), 'seatLimit' => $company->getSeatLimit()]);
+    }
+
+    /**
      * Every user on the instance, across every company — the one deliberate exception
      * to the company-scoping every other listing in this app now has. Includes which
      * company each row belongs to, unlike AdminController::listUsers() (which doesn't
@@ -190,12 +217,22 @@ class PlatformAdminController
         return $user;
     }
 
-    /** Unscoped by design — see this class's own docblock for why that's the one deliberate exception here. */
+    /**
+     * Unscoped by design — see this class's own docblock for why that's the one
+     * deliberate exception here.
+     *
+     * Also rejects an already-deleted target for both of this controller's mutating
+     * endpoints (setBlocked/setPlatformAdmin, the only callers), same reasoning as
+     * AdminController's own findUser().
+     */
     private function findUser(string $id): User
     {
         $user = $this->entityManager->find(User::class, $id);
         if (null === $user) {
             throw new NotFoundHttpException($this->translator->trans('errors.user_not_found'));
+        }
+        if (null !== $user->getDeletedAt()) {
+            throw new BadRequestHttpException($this->translator->trans('errors.user_already_deleted'));
         }
 
         return $user;

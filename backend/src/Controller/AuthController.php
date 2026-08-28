@@ -2,7 +2,7 @@
 
 namespace App\Controller;
 
-use App\Entity\Anketa;
+use App\Account\AccountDeleter;
 use App\Entity\User;
 use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
@@ -291,20 +291,7 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.invalid_current_password')], 401);
         }
 
-        /** @var Anketa[] $anketas */
-        $anketas = $this->entityManager->createQueryBuilder()
-            ->select('a')
-            ->from(Anketa::class, 'a')
-            ->where('a.employee = :user OR a.manager = :user')
-            ->setParameter('user', $user)
-            ->getQuery()
-            ->getResult();
-
-        foreach ($anketas as $anketa) {
-            $anketa->clearUnpublishedDraftFor($user);
-        }
-
-        $user->delete();
+        AccountDeleter::delete($user, $this->entityManager);
         $this->authSession->logOut($request);
         $this->entityManager->flush();
 
