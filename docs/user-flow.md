@@ -19,7 +19,7 @@ Email and password, same as anywhere. Behind that simple form: the password gets
 
 Once logged in, the session lives in two places with two different lifetimes:
 - A regular httpOnly session cookie (server-side, like any web app) keeps you *authenticated*.
-- The unwrapped encryption key lives only in that browser tab's memory/`sessionStorage` — it survives a page refresh, but closing the tab clears it. Opening the app again in a new tab means logging in again. This is a deliberate trade-off explained on the login screen itself, not a hidden limitation: convenience (no re-typing on every refresh) without persisting key material anywhere durable.
+- The unwrapped encryption key lives only in that browser tab's memory/`sessionStorage` — it survives a page refresh, but closing the tab clears it. This is a deliberate trade-off explained on the login screen itself, not a hidden limitation: convenience (no re-typing on every refresh) without persisting key material anywhere durable. Opening the app in a *new* tab is still authenticated (the session cookie is shared across tabs), but that tab has no key of its own yet — `App.svelte` detects this (`authState.unlockStatus`, checked via `checkUnlocked()` in `auth.svelte.ts`) and shows `UnlockTab.svelte`, a lightweight password-only re-entry screen, instead of rendering pages that would otherwise silently fail to decrypt anything.
 
 ## Account settings
 

@@ -8,7 +8,7 @@
     unsealAnketaKey,
   } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked } from '../crypto/identity.svelte';
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
   import { sortByRecentCounterparts } from '../anketa/recentCounterparts';

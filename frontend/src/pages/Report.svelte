@@ -5,7 +5,7 @@
   import { formatDate } from '../dateFormat';
   import DateInput from '../design/DateInput.svelte';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked } from '../crypto/identity.svelte';
   import { nameWithEmail } from '../userDisplay';
   import {
     aggregateReport,

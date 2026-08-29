@@ -23,13 +23,22 @@
     "submit": "Iniciar sesión",
     "submitting": "Iniciando sesión…",
     "cryptoNote": "Descifrando tus datos — esto puede tardar unos segundos.",
-    "sessionNote": "Tendrás que iniciar sesión de nuevo la próxima vez que abras una pestaña nueva. Tu clave se guarda solo en la memoria de esta pestaña y nunca se almacena.",
+    "sessionNote": "Al abrir una pestaña nueva se te pedirá volver a introducir tu contraseña para descifrar los datos allí. Tu clave se guarda solo en la memoria de cada pestaña y nunca se almacena.",
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "signUpLink": "Regístrate",
     "createCompanyLink": "Crear una nueva empresa",
     "genericError": "Algo salió mal.",
     "tryDemo": "Probar la demo en vivo",
     "demoNote": "Una cuenta de demostración compartida con datos de ejemplo — se reinicia cada hora."
+  },
+  "unlockTab": {
+    "title": "Desbloquear esta pestaña",
+    "subtitle": "Has iniciado sesión, pero tu sesión está abierta en otra pestaña. Introduce tu contraseña para descifrar los datos también aquí.",
+    "submit": "Desbloquear",
+    "wrongPassword": "Contraseña incorrecta.",
+    "genericError": "Algo salió mal.",
+    "loadError": "No se pudieron cargar los datos de tu cuenta.",
+    "retry": "Intentar de nuevo"
   },
   "forgotPassword": {
     "title": "Restablece tu contraseña",

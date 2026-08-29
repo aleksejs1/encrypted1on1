@@ -7,7 +7,10 @@
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey, loadMasterKey } from '../crypto/session';
-  import { ensureUnlocked, updateCachedDisplayName } from '../crypto/identity';
+  import {
+    ensureUnlocked,
+    updateCachedDisplayName,
+  } from '../crypto/identity.svelte';
   import {
     MIN_PASSWORD_LENGTH,
     STRENGTH_COLORS,
@@ -43,10 +46,12 @@
   let showInvite = $state(false);
 
   $effect(() => {
-    ensureUnlocked().then((identity) => {
-      showInvite = identity.registrationMode === 'invite';
-      displayName = identity.displayName;
-    });
+    ensureUnlocked()
+      .then((identity) => {
+        showInvite = identity.registrationMode === 'invite';
+        displayName = identity.displayName;
+      })
+      .catch(() => {});
   });
 
   let displayName = $state('');

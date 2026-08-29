@@ -45,7 +45,7 @@
     unsealAnketaKey,
   } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked } from '../crypto/identity.svelte';
   import { loadMasterKey } from '../crypto/session';
   import { shortDisplayName } from '../userDisplay';
 

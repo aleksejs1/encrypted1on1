@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
-  import { ensureUnlocked, clearIdentity } from '../crypto/identity';
+  import { ensureUnlocked, clearIdentity } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
   import AdminTabStrip from './AdminTabStrip.svelte';

@@ -112,7 +112,12 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   const resetToken = createPasswordResetLink(employeeEmail);
 
   await employee.goto(`/reset-password/${resetToken}`);
-  await expect(employee.getByText(employeeEmail)).toBeVisible();
+  // Scoped to ResetPassword.svelte's own lookup line, not a bare
+  // getByText(employeeEmail): the employee is still logged in on this tab
+  // (per the comment above), so AppHeader shows the same email too — a
+  // plain text match against the whole page is ambiguous once both render.
+  await expect(employee.locator('.email-line')).toBeVisible();
+  await expect(employee.locator('.email-line')).toContainText(employeeEmail);
   await employee.locator('#reset-password').fill(NEW_PASSWORD);
   await employee.locator('#reset-confirm').fill(NEW_PASSWORD);
   await employee

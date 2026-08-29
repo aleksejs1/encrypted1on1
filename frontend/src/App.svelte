@@ -4,6 +4,7 @@
   import CreateAnketa from './pages/CreateAnketa.svelte';
   import AnketaPage from './pages/Anketa.svelte';
   import Login from './pages/Login.svelte';
+  import UnlockTab from './pages/UnlockTab.svelte';
   import ForgotPassword from './pages/ForgotPassword.svelte';
   import ResetPassword from './pages/ResetPassword.svelte';
   import Signup from './pages/Signup.svelte';
@@ -20,6 +21,12 @@
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
 
+  // checkAuth() (auth.svelte.ts) resolves both authState.authenticated and,
+  // from the same /api/me response, authState.unlockStatus — see its own
+  // docblock. A same-tab relogin after logOut() goes through
+  // markAuthenticated() instead (Login/Activate/ResetPassword.svelte),
+  // which resolves unlockStatus directly; this effect only ever needs to
+  // run once, at mount.
   $effect(() => {
     checkAuth();
   });
@@ -103,6 +110,10 @@
     <p>{$_('common.loading')}</p>
   {:else if !authState.authenticated}
     <Login />
+  {:else if authState.unlockStatus === 'unknown'}
+    <p>{$_('common.loading')}</p>
+  {:else if authState.unlockStatus === 'locked'}
+    <UnlockTab />
   {:else if routerState.path === '/anketas/new'}
     <CreateAnketa />
   {:else if anketaMatch}

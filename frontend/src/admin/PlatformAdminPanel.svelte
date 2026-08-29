@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, ApiError } from '../api/client';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
 
   interface PlatformCompany {

@@ -23,13 +23,22 @@
     "submit": "Log in",
     "submitting": "Logging in…",
     "cryptoNote": "Unlocking your data — this can take a few seconds.",
-    "sessionNote": "You'll need to log in again next time you open a new tab. Your key is kept only in this tab's memory, never stored.",
+    "sessionNote": "Opening a new tab will ask you to re-enter your password to unlock your data there. Your key is kept only in each tab's memory, never stored.",
     "forgotPassword": "Forgot password?",
     "signUpLink": "Sign up",
     "createCompanyLink": "Start a new company",
     "genericError": "Something went wrong.",
     "tryDemo": "Try the live demo",
     "demoNote": "A shared demo account with sample data — resets every hour."
+  },
+  "unlockTab": {
+    "title": "Unlock this tab",
+    "subtitle": "You're logged in, but your session is open in another tab. Enter your password to decrypt data here too.",
+    "submit": "Unlock",
+    "wrongPassword": "Incorrect password.",
+    "genericError": "Something went wrong.",
+    "loadError": "Could not load your account.",
+    "retry": "Try again"
   },
   "forgotPassword": {
     "title": "Reset your password",

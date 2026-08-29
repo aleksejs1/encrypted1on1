@@ -5,7 +5,7 @@
   import LanguageSwitcher from '../i18n/LanguageSwitcher.svelte';
   import { authState, logOut } from '../auth.svelte';
   import { routerState, navigate } from '../router.svelte';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked, getGeneration } from '../crypto/identity.svelte';
   import { displayNameState } from '../displayName.svelte';
   import { fullDisplayName } from '../userDisplay';
 
@@ -26,16 +26,39 @@
   }
 
   $effect(() => {
-    if (!authState.authenticated) {
+    // Also doubles as this call's staleness snapshot below: getGeneration()
+    // is what forces this effect to re-run on a same-tab reauth as a
+    // *different* identity (e.g. an Activate/ResetPassword link opened
+    // while already logged in) — authenticated/unlockStatus alone can hold
+    // the exact same values before and after, and Svelte skips re-running
+    // an $effect whose tracked values didn't change. See getGeneration()'s
+    // own docblock.
+    const startedAt = getGeneration();
+
+    if (!authState.authenticated || authState.unlockStatus !== 'unlocked') {
       email = null;
       isDemo = false;
+      isAdmin = false;
       return;
     }
-    ensureUnlocked().then((identity) => {
-      isAdmin = identity.isAdmin;
-      email = identity.email;
-      isDemo = identity.isDemo;
-    });
+    ensureUnlocked()
+      .then((identity) => {
+        // A second reauth (a different Activate/ResetPassword link opened
+        // moments after the first, in the same tab) can start a second,
+        // fresher ensureUnlocked() call before this one's own /api/me round
+        // trip resolves. If this call is the stale one, it must not
+        // overwrite what the newer call already committed.
+        if (getGeneration() !== startedAt) return;
+        isAdmin = identity.isAdmin;
+        email = identity.email;
+        isDemo = identity.isDemo;
+      })
+      .catch(() => {
+        if (getGeneration() !== startedAt) return;
+        email = null;
+        isDemo = false;
+        isAdmin = false;
+      });
   });
 
   const isHome = $derived(routerState.path === '/');

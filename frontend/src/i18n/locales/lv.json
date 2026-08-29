@@ -23,13 +23,22 @@
     "submit": "Pieslēgties",
     "submitting": "Notiek pieslēgšanās…",
     "cryptoNote": "Atšifrējam jūsu datus — tas var aizņemt dažas sekundes.",
-    "sessionNote": "Nākamreiz, atverot jaunu cilni, būs jāpieslēdzas no jauna. Atslēga tiek glabāta tikai šīs cilnes atmiņā un nekur netiek saglabāta.",
+    "sessionNote": "Atverot jaunu cilni, būs jāievada parole vēlreiz, lai atšifrētu datus tajā. Atslēga tiek glabāta tikai katras cilnes atmiņā un nekur netiek saglabāta.",
     "forgotPassword": "Aizmirsāt paroli?",
     "signUpLink": "Reģistrēties",
     "createCompanyLink": "Izveidot jaunu uzņēmumu",
     "genericError": "Kaut kas nogāja greizi.",
     "tryDemo": "Izmēģināt tiešsaistes demo",
     "demoNote": "Kopīgs demo konts ar paraugdatiem — tiek atiestatīts katru stundu."
+  },
+  "unlockTab": {
+    "title": "Atbloķēt šo cilni",
+    "subtitle": "Jūs esat pieslēdzies, bet sesija ir atvērta citā cilnē. Ievadiet paroli, lai atšifrētu datus arī šeit.",
+    "submit": "Atbloķēt",
+    "wrongPassword": "Nepareiza parole.",
+    "genericError": "Kaut kas nogāja greizi.",
+    "loadError": "Neizdevās ielādēt konta datus.",
+    "retry": "Mēģināt vēlreiz"
   },
   "forgotPassword": {
     "title": "Atiestatīt paroli",

@@ -6,7 +6,7 @@
     AnketaSummary,
   } from '../api/types';
   import { formatDisplayDate } from '../datePreference.svelte';
-  import { ensureUnlocked } from '../crypto/identity';
+  import { ensureUnlocked } from '../crypto/identity.svelte';
   import { fromBase64 } from '../crypto/encoding';
   import {
     decryptBlob,
