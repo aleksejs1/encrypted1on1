@@ -52,13 +52,16 @@ class Company
     private string $id;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[AllowPlaintext(reason: 'Company/organization name — operational metadata, not anketa content.')]
     private string $name;
 
     #[ORM\Column(type: 'string', length: 20)]
+    #[AllowPlaintext(reason: 'Enum-like registration-mode setting, not content.')]
     private string $registrationMode;
 
     /** Empty string means "no restriction" — same convention the old env var used. */
     #[ORM\Column(type: 'string', length: 255)]
+    #[AllowPlaintext(reason: 'Email-domain policy setting, not content.')]
     private string $allowedEmailDomain;
 
     /**
@@ -66,6 +69,7 @@ class Company
      * pricing tiers are decided yet. Purely informational until they are.
      */
     #[ORM\Column(type: 'string', length: 40)]
+    #[AllowPlaintext(reason: 'Billing plan label, not content.')]
     private string $planTier;
 
     /**
@@ -77,6 +81,7 @@ class Company
     private ?int $seatLimit;
 
     #[ORM\Column(type: 'string', length: 20)]
+    #[AllowPlaintext(reason: 'Mirrors Stripe subscription status vocabulary, not content.')]
     private string $subscriptionStatus;
 
     /** Never set in this build (no trial period) — structurally present for when one exists. */
@@ -94,9 +99,11 @@ class Company
     private ?\DateTimeImmutable $suspendedAt = null;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    #[AllowPlaintext(reason: 'A Stripe-issued identifier, not content.')]
     private ?string $stripeCustomerId = null;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    #[AllowPlaintext(reason: 'A Stripe-issued identifier, not content.')]
     private ?string $stripeSubscriptionId = null;
 
     #[ORM\Column(type: 'datetime_immutable')]

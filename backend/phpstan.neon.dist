@@ -3,3 +3,9 @@ parameters:
     paths:
         - src
     tmpDir: var/cache/phpstan
+
+services:
+    -
+        class: App\PHPStan\EnforceEncryptedEntityFieldsRule
+        tags:
+            - phpstan.rules.rule

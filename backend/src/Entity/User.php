@@ -38,6 +38,7 @@ class User
 
     #[ORM\Column(type: 'string', length: 255, unique: true)]
     #[Groups(['user:read'])]
+    #[AllowPlaintext(reason: 'Server-visible for login/invites — always plaintext, see ADR 1.')]
     private string $email;
 
     /**
@@ -48,6 +49,7 @@ class User
      */
     #[ORM\Column(type: 'string', length: 255)]
     #[Groups(['user:read'])]
+    #[AllowPlaintext(reason: 'Same sensitivity as email — see docs/decisions/2026-08-25-plaintext-display-name.md.')]
     private string $displayName;
 
     /**
@@ -67,10 +69,12 @@ class User
      * Deliberately has no serialization group: must never be exposed via the API.
      */
     #[ORM\Column(type: 'string')]
+    #[AllowPlaintext(reason: 'HKDF auth verifier, not the password or master-key — never serialized.')]
     private string $authHash;
 
     #[ORM\Column(type: 'text')]
     #[Groups(['user:read'])]
+    #[AllowPlaintext(reason: 'A public key is meant to be public.')]
     private string $publicKey;
 
     /**
@@ -142,6 +146,7 @@ class User
      * which never reads it back (see the Phase 6i plan for why that's a one-way flow).
      */
     #[ORM\Column(type: 'string', length: 5)]
+    #[AllowPlaintext(reason: 'A locale code (e.g. "en"), not content.')]
     private string $locale = 'en';
 
     /**

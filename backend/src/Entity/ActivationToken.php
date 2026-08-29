@@ -23,9 +23,11 @@ class ActivationToken
 
     /** SHA-256 of the actual token. The raw token is never stored — it only ever exists in the URL. */
     #[ORM\Column(type: 'string', length: 64, unique: true)]
+    #[AllowPlaintext(reason: 'A SHA-256 hash, not the token itself.')]
     private string $tokenHash;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[AllowPlaintext(reason: 'Same as User::$email — always plaintext.')]
     private string $email;
 
     /**

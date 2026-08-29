@@ -21,7 +21,15 @@ return static function (ContainerConfigurator $container): void {
             ->bind('string $stripePriceId', '%env(STRIPE_PRICE_ID)%');
 
     $services->load('App\\', __DIR__.'/../src/')
-        ->exclude(__DIR__.'/../src/Kernel.php');
+        ->exclude([
+            __DIR__.'/../src/Kernel.php',
+            // Custom PHPStan rules implement PHPStan\Rules\Rule, a require-dev-only
+            // interface — a --no-dev production install can't autoload it. Excluded from
+            // the container entirely rather than relying on Symfony's compiler happening
+            // to drop it as an unused/unloadable service (see
+            // docs/architecture-invariants.md §1's PHPStan-rule note).
+            __DIR__.'/../src/PHPStan',
+        ]);
 
     // One real implementation for now (Phase D of private/cloud-service-plan.md, not
     // tracked in git) — the interface exists so BillingController's auth/gating logic

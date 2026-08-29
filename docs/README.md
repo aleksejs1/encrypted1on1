@@ -6,6 +6,7 @@ Reader-facing documentation for encrypted1on1 — what the system does and how, 
 - **[methodology.md](methodology.md)** — the 1:1 practice itself: why it matters, how a cycle is meant to be conducted, and what each question is actually asking.
 - **[user-flow.md](user-flow.md)** — the system from a user's perspective: getting an account, logging in, account settings, running a 1:1 cycle end to end, what happens if you forget your password.
 - **[architecture.md](architecture.md)** — how the application itself is put together: tech stack, directory layout, request/session model, testing and CI.
+- **[architecture-invariants.md](architecture-invariants.md)** — a short, actionable checklist of rules that hold across the codebase (the E2EE boundary, state-space modeling, tenant scoping), each one either machine-enforced or meant to be checked by hand on every review that touches it.
 - **[deployment.md](deployment.md)** — how to actually run it, in development and in either of the two production setups, plus a full configuration/environment-variable reference.
 - **[adr/](adr/)** — a short record of *why*, for the handful of foundational, hard-to-reverse architectural decisions (end-to-end encryption, no message queue, session auth, and so on).
 - **[decisions/](decisions/)** — shorter records of non-trivial (but not foundational) decisions made since the `CLAUDE.md`/`history.md` split below.

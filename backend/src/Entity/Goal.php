@@ -33,6 +33,7 @@ class Goal
 
     /** Client-generated, stable across carried-forward rows — see the class docblock. */
     #[ORM\Column(type: 'string', length: 36)]
+    #[AllowPlaintext(reason: 'A stable identifier across carry-forward rows, not content.')]
     private string $goalUuid;
 
     #[ORM\ManyToOne(targetEntity: Anketa::class)]
@@ -45,15 +46,18 @@ class Goal
     private User $author;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[AllowPlaintext(reason: "The spec's one deliberate plaintext exception — see CLAUDE.md's non-negotiable constraints.")]
     private string $title;
 
     #[ORM\Column(type: 'text', nullable: true)]
+    #[AllowPlaintext(reason: "The spec's one deliberate plaintext exception — see CLAUDE.md's non-negotiable constraints.")]
     private ?string $description;
 
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $targetDate;
 
     #[ORM\Column(type: 'string', length: 20)]
+    #[AllowPlaintext(reason: "The spec's one deliberate plaintext exception — see CLAUDE.md's non-negotiable constraints.")]
     private string $status;
 
     #[ORM\Column(type: 'datetime_immutable')]

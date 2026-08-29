@@ -10,4 +10,8 @@ parameters:
     level: 8
     paths:
         - tests
+    # PHPStan rule-test fixtures under tests/PHPStan/Data/ are analysis inputs, not real
+    # code — their unused/never-assigned properties are the point, not a bug.
+    excludePaths:
+        - tests/PHPStan/Data/*
     tmpDir: var/cache/phpstan-tests
