@@ -74,7 +74,8 @@
         ],
         "stan": [
             "vendor/bin/phpstan analyse --memory-limit=512M",
-            "vendor/bin/phpstan analyse --configuration=phpstan.tests.neon.dist --memory-limit=512M"
+            "vendor/bin/phpstan analyse --configuration=phpstan.tests.neon.dist --memory-limit=512M",
+            "php bin/console doctrine:schema:validate --skip-sync --env=test"
         ],
         "cs": [
             "vendor/bin/php-cs-fixer fix --dry-run --diff"
