@@ -56,6 +56,22 @@ Everything the app reads from the environment. `backend/.env` (committed, dev-on
 
 Registration mode (`invite`/`admin_only`/`domain` — see [user-flow.md](user-flow.md#getting-an-account)) and the allowed email domain are no longer env vars — they're columns on the single `Company` row every deployment has (`private/cloud-service-plan.md`, not tracked in git, Phase A of a not-yet-built multi-tenant cloud offering). They default to `invite`/unrestricted, same as before. To change them, update that row directly: `docker compose exec app php bin/console dbal:run-sql "UPDATE companies SET registrationMode = 'domain', allowedEmailDomain = 'company.com'"`.
 
+### Rate limits
+
+Each named limiter (`config/packages/rate_limiter.php`) reads its request count and sliding-window interval from an env var pair, so a deployment with more headroom than the built-in defaults — e.g. a production SMTP provider that can send faster than the default 10 invites/hour — isn't stuck with them. All optional; unset falls back to the values below (the same numbers that were hardcoded before this became configurable). `*_INTERVAL` values are Symfony rate-limiter interval strings (e.g. `1 hour`, `1 minute`, `30 seconds`).
+
+| Limiter | Guards | Variables | Default |
+|---|---|---|---|
+| `login` | `POST /api/login` — IP-keyed | `LOGIN_RATE_LIMIT` / `LOGIN_RATE_LIMIT_INTERVAL` | 20 / 1 minute |
+| `invite` | `POST /api/invites` — keyed by the inviting user | `INVITE_RATE_LIMIT` / `INVITE_RATE_LIMIT_INTERVAL` | 10 / 1 hour |
+| `activation_complete` | `POST /api/activation-tokens/{token}` | `ACTIVATION_COMPLETE_RATE_LIMIT` / `ACTIVATION_COMPLETE_RATE_LIMIT_INTERVAL` | 10 / 1 minute |
+| `password_reset_request` | `POST /api/password-reset-tokens` | `PASSWORD_RESET_REQUEST_RATE_LIMIT` / `PASSWORD_RESET_REQUEST_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
+| `password_reset_complete` | `POST /api/password-reset-tokens/{token}` | `PASSWORD_RESET_COMPLETE_RATE_LIMIT` / `PASSWORD_RESET_COMPLETE_RATE_LIMIT_INTERVAL` | 10 / 1 minute |
+| `change_password` | In-app change-password (logged in) | `CHANGE_PASSWORD_RATE_LIMIT` / `CHANGE_PASSWORD_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
+| `delete_account` | Account deletion | `DELETE_ACCOUNT_RATE_LIMIT` / `DELETE_ACCOUNT_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
+| `signup` | `REGISTRATION_MODE=domain` self-signup | `SIGNUP_RATE_LIMIT` / `SIGNUP_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
+| `create_company` | `CLOUD_MODE=1` self-service company creation | `CREATE_COMPANY_RATE_LIMIT` / `CREATE_COMPANY_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
+
 ### Frontend build-time (baked into the static bundle)
 
 Unlike everything above — which Symfony reads at runtime, so a plain `docker compose up -d` (no rebuild) picks up a changed value — this one is compiled into the SPA's JavaScript when the image is *built*. Changing it needs `--build`, not just a restart.

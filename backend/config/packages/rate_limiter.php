@@ -14,6 +14,13 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
  * "burst right at the window boundary" gap a plain fixed_window policy has.
  * Each auto-registers as a `limiter.<name>` service, injected into
  * controllers via #[Autowire(service: ...)].
+ *
+ * limit/interval are env-overridable (see backend/.env's "Rate limits" section
+ * and docs/deployment.md's own table) — the values below are just the defaults
+ * .env falls back to, so a bare checkout with no env vars set behaves exactly
+ * as before this became configurable. Requested after a real operator hit the
+ * hardcoded invite limit sending invites through a production SMTP provider
+ * with plenty of headroom to send faster than 10/hour.
  */
 return static function (ContainerConfigurator $container): void {
     $container->extension('framework', [
@@ -24,48 +31,48 @@ return static function (ContainerConfigurator $container): void {
             // 5/min did not.
             'login' => [
                 'policy' => 'sliding_window',
-                'limit' => 20,
-                'interval' => '1 minute',
+                'limit' => '%env(int:LOGIN_RATE_LIMIT)%',
+                'interval' => '%env(LOGIN_RATE_LIMIT_INTERVAL)%',
             ],
             'invite' => [
                 'policy' => 'sliding_window',
-                'limit' => 10,
-                'interval' => '1 hour',
+                'limit' => '%env(int:INVITE_RATE_LIMIT)%',
+                'interval' => '%env(INVITE_RATE_LIMIT_INTERVAL)%',
             ],
             'activation_complete' => [
                 'policy' => 'sliding_window',
-                'limit' => 10,
-                'interval' => '1 minute',
+                'limit' => '%env(int:ACTIVATION_COMPLETE_RATE_LIMIT)%',
+                'interval' => '%env(ACTIVATION_COMPLETE_RATE_LIMIT_INTERVAL)%',
             ],
             'password_reset_request' => [
                 'policy' => 'sliding_window',
-                'limit' => 5,
-                'interval' => '1 hour',
+                'limit' => '%env(int:PASSWORD_RESET_REQUEST_RATE_LIMIT)%',
+                'interval' => '%env(PASSWORD_RESET_REQUEST_RATE_LIMIT_INTERVAL)%',
             ],
             'password_reset_complete' => [
                 'policy' => 'sliding_window',
-                'limit' => 10,
-                'interval' => '1 minute',
+                'limit' => '%env(int:PASSWORD_RESET_COMPLETE_RATE_LIMIT)%',
+                'interval' => '%env(PASSWORD_RESET_COMPLETE_RATE_LIMIT_INTERVAL)%',
             ],
             'change_password' => [
                 'policy' => 'sliding_window',
-                'limit' => 5,
-                'interval' => '1 hour',
+                'limit' => '%env(int:CHANGE_PASSWORD_RATE_LIMIT)%',
+                'interval' => '%env(CHANGE_PASSWORD_RATE_LIMIT_INTERVAL)%',
             ],
             'delete_account' => [
                 'policy' => 'sliding_window',
-                'limit' => 5,
-                'interval' => '1 hour',
+                'limit' => '%env(int:DELETE_ACCOUNT_RATE_LIMIT)%',
+                'interval' => '%env(DELETE_ACCOUNT_RATE_LIMIT_INTERVAL)%',
             ],
             'signup' => [
                 'policy' => 'sliding_window',
-                'limit' => 5,
-                'interval' => '1 hour',
+                'limit' => '%env(int:SIGNUP_RATE_LIMIT)%',
+                'interval' => '%env(SIGNUP_RATE_LIMIT_INTERVAL)%',
             ],
             'create_company' => [
                 'policy' => 'sliding_window',
-                'limit' => 5,
-                'interval' => '1 hour',
+                'limit' => '%env(int:CREATE_COMPANY_RATE_LIMIT)%',
+                'interval' => '%env(CREATE_COMPANY_RATE_LIMIT_INTERVAL)%',
             ],
         ],
     ]);

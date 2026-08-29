@@ -61,6 +61,29 @@ services:
       # Cloudflare, where trusting *that* is still legitimate.
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
       SENTRY_DSN: "${SENTRY_DSN:-}"
+      # Rate limits (config/packages/rate_limiter.php) — overridable per deployment,
+      # e.g. a production SMTP provider with more send headroom than the default
+      # 10 invites/hour. Defaults here match what was hardcoded before this became
+      # configurable — see docs/deployment.md's "Rate limits" table for what each
+      # one guards. Leave unset to keep the defaults.
+      LOGIN_RATE_LIMIT: "${LOGIN_RATE_LIMIT:-20}"
+      LOGIN_RATE_LIMIT_INTERVAL: "${LOGIN_RATE_LIMIT_INTERVAL:-1 minute}"
+      INVITE_RATE_LIMIT: "${INVITE_RATE_LIMIT:-10}"
+      INVITE_RATE_LIMIT_INTERVAL: "${INVITE_RATE_LIMIT_INTERVAL:-1 hour}"
+      ACTIVATION_COMPLETE_RATE_LIMIT: "${ACTIVATION_COMPLETE_RATE_LIMIT:-10}"
+      ACTIVATION_COMPLETE_RATE_LIMIT_INTERVAL: "${ACTIVATION_COMPLETE_RATE_LIMIT_INTERVAL:-1 minute}"
+      PASSWORD_RESET_REQUEST_RATE_LIMIT: "${PASSWORD_RESET_REQUEST_RATE_LIMIT:-5}"
+      PASSWORD_RESET_REQUEST_RATE_LIMIT_INTERVAL: "${PASSWORD_RESET_REQUEST_RATE_LIMIT_INTERVAL:-1 hour}"
+      PASSWORD_RESET_COMPLETE_RATE_LIMIT: "${PASSWORD_RESET_COMPLETE_RATE_LIMIT:-10}"
+      PASSWORD_RESET_COMPLETE_RATE_LIMIT_INTERVAL: "${PASSWORD_RESET_COMPLETE_RATE_LIMIT_INTERVAL:-1 minute}"
+      CHANGE_PASSWORD_RATE_LIMIT: "${CHANGE_PASSWORD_RATE_LIMIT:-5}"
+      CHANGE_PASSWORD_RATE_LIMIT_INTERVAL: "${CHANGE_PASSWORD_RATE_LIMIT_INTERVAL:-1 hour}"
+      DELETE_ACCOUNT_RATE_LIMIT: "${DELETE_ACCOUNT_RATE_LIMIT:-5}"
+      DELETE_ACCOUNT_RATE_LIMIT_INTERVAL: "${DELETE_ACCOUNT_RATE_LIMIT_INTERVAL:-1 hour}"
+      SIGNUP_RATE_LIMIT: "${SIGNUP_RATE_LIMIT:-5}"
+      SIGNUP_RATE_LIMIT_INTERVAL: "${SIGNUP_RATE_LIMIT_INTERVAL:-1 hour}"
+      CREATE_COMPANY_RATE_LIMIT: "${CREATE_COMPANY_RATE_LIMIT:-5}"
+      CREATE_COMPANY_RATE_LIMIT_INTERVAL: "${CREATE_COMPANY_RATE_LIMIT_INTERVAL:-1 hour}"
     restart: unless-stopped
 
 volumes:
