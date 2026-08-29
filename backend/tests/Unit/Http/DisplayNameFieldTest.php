@@ -11,7 +11,7 @@ class DisplayNameFieldTest extends TestCase
 {
     private function translator(): TranslatorInterface
     {
-        $translator = $this->createStub(TranslatorInterface::class);
+        $translator = self::createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('translated');
 
         return $translator;

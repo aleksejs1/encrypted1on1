@@ -70,7 +70,7 @@ class PlatformAdminController
             'registrationMode' => $company->getRegistrationMode(),
             'allowedEmailDomain' => $company->getAllowedEmailDomain(),
             'createdAt' => $company->getCreatedAt()->format(\DATE_ATOM),
-            'userCount' => (int) ($userCountByCompanyId[$company->getId()] ?? 0),
+            'userCount' => $userCountByCompanyId[$company->getId()] ?? 0,
             // Billing fields (Phase D, private/cloud-service-plan.md, not tracked in git).
             'planTier' => $company->getPlanTier(),
             'seatLimit' => $company->getSeatLimit(),

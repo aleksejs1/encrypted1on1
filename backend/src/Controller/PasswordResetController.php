@@ -104,7 +104,7 @@ class PasswordResetController
 
         $body = $request->toArray();
         foreach (['authKey', 'publicKey', 'encryptedPrivateKey'] as $field) {
-            if (empty($body[$field]) || !\is_string($body[$field])) {
+            if (!isset($body[$field]) || !\is_string($body[$field]) || '' === $body[$field]) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
             }
         }

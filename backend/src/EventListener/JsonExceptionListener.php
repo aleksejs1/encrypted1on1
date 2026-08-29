@@ -33,7 +33,7 @@ class JsonExceptionListener
         }
 
         $event->setResponse(new JsonResponse(
-            ['error' => $exception->getMessage() ?: 'An error occurred.'],
+            ['error' => '' !== $exception->getMessage() ? $exception->getMessage() : 'An error occurred.'],
             $exception->getStatusCode(),
             $exception->getHeaders(),
         ));

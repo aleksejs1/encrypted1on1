@@ -44,7 +44,7 @@ class AnketaController
 
         $body = $request->toArray();
         foreach (['counterpartId', 'myRole', 'meetingDate', 'mySealedKey', 'counterpartSealedKey'] as $field) {
-            if (empty($body[$field]) || !\is_string($body[$field])) {
+            if (!isset($body[$field]) || !\is_string($body[$field]) || '' === $body[$field]) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
             }
         }
@@ -343,7 +343,7 @@ class AnketaController
 
         $body = $request->toArray();
         foreach (['goalUuid', 'title'] as $field) {
-            if (empty($body[$field]) || !\is_string($body[$field])) {
+            if (!isset($body[$field]) || !\is_string($body[$field]) || '' === $body[$field]) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
             }
         }
@@ -353,7 +353,7 @@ class AnketaController
         }
 
         $targetDate = null;
-        if (!empty($body['targetDate'])) {
+        if (isset($body['targetDate']) && '' !== $body['targetDate']) {
             if (!\is_string($body['targetDate'])) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.target_date_must_be_string')], 400);
             }

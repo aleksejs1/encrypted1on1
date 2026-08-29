@@ -49,7 +49,7 @@ class LoadTestSqliteCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if ($input->getOption('worker')) {
+        if (true === $input->getOption('worker')) {
             $anketaId = $input->getOption('anketa-id');
             \assert(\is_string($anketaId));
 

@@ -74,7 +74,7 @@ class AnketaNotifierTest extends TestCase
     {
         // A stub, not a mock — its return value is stubbed, but no call-count
         // expectation is being verified on it, only on $mailer.
-        $translator = $this->createStub(TranslatorInterface::class);
+        $translator = self::createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('translated');
 
         return new AnketaNotifier($mailer, $translator, 'https://example.com', 'noreply@example.com');

@@ -83,7 +83,7 @@ final class EnforceEncryptedEntityFieldsRule implements Rule
         $errors = [];
         foreach ($node->getProperties() as $property) {
             foreach ($property->props as $prop) {
-                $error = $this->checkColumn($node, $property->attrGroups, $prop->name->toString(), $property->getLine(), $property->type, $scope);
+                $error = $this->checkColumn($node, $property->attrGroups, $prop->name->toString(), $property->getStartLine(), $property->type, $scope);
                 if (null !== $error) {
                     $errors[] = $error;
                 }
@@ -95,7 +95,7 @@ final class EnforceEncryptedEntityFieldsRule implements Rule
             $var = $param->var;
             /** @var string $name */
             $name = $var->name;
-            $error = $this->checkColumn($node, $param->attrGroups, $name, $param->getLine(), $param->type, $scope);
+            $error = $this->checkColumn($node, $param->attrGroups, $name, $param->getStartLine(), $param->type, $scope);
             if (null !== $error) {
                 $errors[] = $error;
             }

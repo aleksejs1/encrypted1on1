@@ -68,7 +68,9 @@ class PrivacyBlackBoxTest extends ApiTestCase
 
         $detail = $this->jsonRequest($scenario['employeeClient'], 'GET', "/api/anketas/{$scenario['anketaId']}")['json'];
 
-        $anketaKey = sodium_crypto_box_seal_open(base64_decode($detail['mySealedKey']), $scenario['employeeKeypair']);
+        $sealedKey = base64_decode($detail['mySealedKey'], true);
+        \assert(\is_string($sealedKey));
+        $anketaKey = sodium_crypto_box_seal_open($sealedKey, $scenario['employeeKeypair']);
         self::assertSame($scenario['anketaKeyRaw'], $anketaKey, 'unsealing with the real private key must recover the exact original anketa key');
 
         self::assertSame($scenario['encryptedMarkers']['employee'], $this->decryptBlob($detail['employeeBlob'], $anketaKey));
@@ -85,7 +87,9 @@ class PrivacyBlackBoxTest extends ApiTestCase
         $detail = $this->jsonRequest($scenario['employeeClient'], 'GET', "/api/anketas/{$scenario['anketaId']}")['json'];
 
         $wrongKeypair = sodium_crypto_box_keypair();
-        self::assertFalse(sodium_crypto_box_seal_open(base64_decode($detail['mySealedKey']), $wrongKeypair), 'an unrelated keypair must not be able to unseal the real anketa key');
+        $sealedKey = base64_decode($detail['mySealedKey'], true);
+        \assert(\is_string($sealedKey));
+        self::assertFalse(sodium_crypto_box_seal_open($sealedKey, $wrongKeypair), 'an unrelated keypair must not be able to unseal the real anketa key');
 
         $wrongAeadKey = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES);
         self::assertFalse($this->decryptBlob($detail['employeeBlob'], $wrongAeadKey), 'a random key must not be able to decrypt real ciphertext');
@@ -231,7 +235,10 @@ class PrivacyBlackBoxTest extends ApiTestCase
     /** @return string|false */
     private function decryptBlob(string $blob, string $key)
     {
-        $combined = base64_decode($blob);
+        $combined = base64_decode($blob, true);
+        if (false === $combined) {
+            return false;
+        }
         $nonce = substr($combined, 0, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $ciphertext = substr($combined, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
 
