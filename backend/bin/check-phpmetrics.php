@@ -45,6 +45,9 @@ const ALLOWED = [
     'App\\Controller\\AuthController' => [
         'Too complex method code' => "login()'s complexity (11, same level as InviteController::create() above) grew by exactly one guard clause — Phase D's company-suspension check (private/cloud-service-plan.md, not tracked in git), added immediately after the existing isBlocked() guard it mirrors — the same stacked-guard-clause shape, not tangled branching.",
     ],
+    'App\\Controller\\ActivationController' => [
+        'Too complex method code' => "complete()'s complexity (11, same level as AuthController::login() and SignupController::signup() above) comes from the same linear sequence of independent guard clauses (CSRF, rate limit, token usability, required fields, display-name validation) before persisting the activated user, not tangled branching.",
+    ],
 ];
 
 [, $violationsPath] = $argv + [null, null];

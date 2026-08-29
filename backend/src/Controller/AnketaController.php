@@ -44,7 +44,7 @@ class AnketaController
 
         $body = $request->toArray();
         foreach (['counterpartId', 'myRole', 'meetingDate', 'mySealedKey', 'counterpartSealedKey'] as $field) {
-            if (!isset($body[$field]) || !\is_string($body[$field]) || '' === $body[$field]) {
+            if (!\is_string($body[$field] ?? null) || '' === $body[$field]) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
             }
         }
@@ -343,7 +343,7 @@ class AnketaController
 
         $body = $request->toArray();
         foreach (['goalUuid', 'title'] as $field) {
-            if (!isset($body[$field]) || !\is_string($body[$field]) || '' === $body[$field]) {
+            if (!\is_string($body[$field] ?? null) || '' === $body[$field]) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
             }
         }
