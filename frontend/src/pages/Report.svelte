@@ -116,6 +116,7 @@
     try {
       const identity = await ensureUnlocked();
       const start = new Date(rangeStart);
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local scratch value, mutated once then only read, never stored in reactive state
       const end = new Date(rangeEnd);
       end.setHours(23, 59, 59, 999);
 

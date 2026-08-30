@@ -9,16 +9,17 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, 'e2e/**'],
     coverage: {
       provider: 'v8',
-      // `all: true` so untested files count in the denominator, not just
-      // whatever a test happens to import. Scoped to .ts only — Vitest's v8
-      // remapper cannot parse .svelte files' compiled output for files with
-      // no test touching them (RolldownError: "Unexpected JSX expression"
-      // on every .svelte file), so they're structurally impossible to
-      // include here today. That's consistent with this project's own
-      // stance (see docs/architecture.md): no component-rendering tests,
-      // .svelte correctness verified by code review + manual passes, not
-      // automated coverage.
-      all: true,
+      // Untested files count in the denominator whenever `include` is set —
+      // Vitest 4 made that the unconditional default (the old `all: true`
+      // toggle was removed, not just renamed; TypeScript now rejects it as
+      // an unknown option). Scoped to .ts only — Vitest's v8 remapper cannot
+      // parse .svelte files' compiled output for files with no test
+      // touching them (RolldownError: "Unexpected JSX expression" on every
+      // .svelte file), so they're structurally impossible to include here
+      // today. That's consistent with this project's own stance (see
+      // docs/architecture.md): no component-rendering tests, .svelte
+      // correctness verified by code review + manual passes, not automated
+      // coverage.
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts'],
       // A small buffer below the real measured baseline (51.94/46.05/54.23/52.35)

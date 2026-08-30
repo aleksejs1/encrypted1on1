@@ -123,7 +123,11 @@
 
   $effect(() => {
     void id;
-    load();
+    // load() catches every error itself today, setting loadError — .catch() here
+    // is so a future change to load() can't turn into a silent unhandled rejection.
+    load().catch((error: unknown) => {
+      console.error(error);
+    });
   });
 
   async function load() {
@@ -153,6 +157,7 @@
       periodicityDays = anketa.periodicityDays;
       missed = anketa.missed;
       if (periodicityDays !== null) {
+        // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local scratch value, mutated once and read once, never stored in reactive state
         const defaultNext = new Date();
         defaultNext.setDate(defaultNext.getDate() + periodicityDays);
         nextMeetingDate = defaultNext.toISOString().slice(0, 10);
@@ -244,7 +249,14 @@
     if (!loaded || myPublished || !masterKey) return;
     saveState = 'saving';
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveDraft, 1000);
+    // saveDraft() catches every error itself today, setting saveState — .catch()
+    // here is so a future change to saveDraft() can't turn into a silent unhandled
+    // rejection.
+    saveTimer = setTimeout(() => {
+      saveDraft().catch((error: unknown) => {
+        console.error(error);
+      });
+    }, 1000);
   }
 
   async function saveDraft() {
@@ -688,7 +700,12 @@
     // protects against a silent server-sync failure within the debounce
     // window, not just its timing. See anketa/draftBackup.ts.
     if (loaded && !myPublished && masterKey) {
-      void saveDraftBackup(id, myAnswers, masterKey);
+      // saveDraftBackup() has no internal try/catch (e.g. sessionStorage quota),
+      // so unlike the other fire-and-forget calls in this file, this one can
+      // genuinely reject — .catch() here isn't just future-proofing.
+      saveDraftBackup(id, myAnswers, masterKey).catch((error: unknown) => {
+        console.error(error);
+      });
     }
   });
 </script>

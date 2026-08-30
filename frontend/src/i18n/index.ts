@@ -56,7 +56,11 @@ function detectInitialLocale(): SupportedLocale {
   return 'en';
 }
 
-init({
+// init()/locale.set() below are typed void | Promise<void> (svelte-i18n supports lazy
+// locale loaders that return a promise) but never actually async here — every locale's
+// messages are already loaded eagerly via addMessages() above, not svelte-i18n's lazy
+// register(). Explicitly voided rather than awaited, matching that eager-load design.
+void init({
   fallbackLocale: 'en',
   initialLocale: detectInitialLocale(),
 });
@@ -64,5 +68,5 @@ init({
 /** Persists the choice (localStorage — a pure client-side UI preference, see the Phase 6h plan) alongside switching the active locale. */
 export function setLocale(code: SupportedLocale): void {
   localStorage.setItem(STORAGE_KEY, code);
-  locale.set(code);
+  void locale.set(code); // see the eager-load note on init() above — never actually async here
 }

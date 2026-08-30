@@ -23,12 +23,14 @@ test-frontend:
 lint: lint-backend lint-frontend duplication check-doc-links
 
 lint-backend:
+	docker compose -f docker-compose.dev.yml exec backend composer schema-validate
 	docker compose -f docker-compose.dev.yml exec backend composer stan
 	docker compose -f docker-compose.dev.yml exec backend composer cs
 	docker compose -f docker-compose.dev.yml exec backend composer md
 
 lint-frontend:
 	cd frontend && npm run check
+	cd frontend && npm run lint
 	cd frontend && npm run format
 	cd frontend && npm run knip
 
@@ -81,6 +83,7 @@ test-backend-isolated:
 	docker compose -f docker-compose.test.yml run --rm backend composer test
 
 lint-backend-isolated:
+	docker compose -f docker-compose.test.yml run --rm backend composer schema-validate
 	docker compose -f docker-compose.test.yml run --rm backend composer stan
 	docker compose -f docker-compose.test.yml run --rm backend composer cs
 	docker compose -f docker-compose.test.yml run --rm backend composer md

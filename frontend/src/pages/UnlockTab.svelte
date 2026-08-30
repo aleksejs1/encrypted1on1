@@ -39,7 +39,12 @@
   }
 
   $effect(() => {
-    loadMe();
+    // loadMe() catches every error itself today (see above) — .catch() here isn't
+    // for that, it's so a future change that makes loadMe() reject doesn't become a
+    // silent unhandled rejection just because this call site used to be provably safe.
+    loadMe().catch((error: unknown) => {
+      console.error(error);
+    });
   });
 
   const canSubmit = $derived(password.length > 0 && me !== null && !submitting);

@@ -21,11 +21,13 @@ What's actually running:
 Useful commands while developing:
 ```
 # backend, from inside the container
-docker compose -f docker-compose.dev.yml exec backend composer test   # PHPUnit
-docker compose -f docker-compose.dev.yml exec backend composer stan   # PHPStan
+docker compose -f docker-compose.dev.yml exec backend composer test             # PHPUnit
+docker compose -f docker-compose.dev.yml exec backend composer stan             # PHPStan
+docker compose -f docker-compose.dev.yml exec backend composer schema-validate  # Doctrine mapping check
 
 # frontend, from the frontend/ directory
 npm run check   # svelte-check + tsc
+npm run lint    # ESLint (promise-safety rules)
 npm run test    # Vitest
 npm run build   # production build
 

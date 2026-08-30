@@ -26,10 +26,11 @@ status=0
 
 if printf '%s\n' "$changed" | grep -q '^backend/'; then
   if docker compose -f docker-compose.dev.yml ps -q backend 2>/dev/null | grep -q .; then
-    echo "pre-push: backend changed — running composer stan..."
+    echo "pre-push: backend changed — running composer schema-validate/stan..."
+    docker compose -f docker-compose.dev.yml exec -T backend composer schema-validate || status=1
     docker compose -f docker-compose.dev.yml exec -T backend composer stan || status=1
   else
-    echo "pre-push: WARNING — backend changed but the dev stack isn't running ('make up'); skipping composer stan. CI still gates this." >&2
+    echo "pre-push: WARNING — backend changed but the dev stack isn't running ('make up'); skipping composer schema-validate/stan. CI still gates this." >&2
   fi
 fi
 

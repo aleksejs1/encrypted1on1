@@ -29,7 +29,7 @@ if [ -n "$backend_files" ]; then
 fi
 
 # --- Frontend: Prettier on staged TS/Svelte files, autofix ---
-frontend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'frontend/src/*.ts' 'frontend/src/*.svelte' 'frontend/e2e/*.ts' 'frontend/*.ts')
+frontend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'frontend/src/*.ts' 'frontend/src/*.svelte' 'frontend/e2e/*.ts' 'frontend/*.ts' 'frontend/*.js')
 if [ -n "$frontend_files" ]; then
   if [ -x frontend/node_modules/.bin/prettier ]; then
     container_paths=$(printf '%s\n' "$frontend_files" | sed 's#^frontend/##')

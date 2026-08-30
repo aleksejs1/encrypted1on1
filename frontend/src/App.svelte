@@ -28,7 +28,13 @@
   // which resolves unlockStatus directly; this effect only ever needs to
   // run once, at mount.
   $effect(() => {
-    checkAuth();
+    // checkAuth() re-throws any unexpected (non-session-expired) error after
+    // already setting authState.checked, so this tab still renders correctly
+    // either way — but nothing else here awaits/catches it, so the rejection
+    // itself needs handling to avoid a silent unhandled promise rejection.
+    checkAuth().catch((error: unknown) => {
+      console.error(error);
+    });
   });
 
   const activationMatch = $derived(

@@ -40,7 +40,7 @@ npm run dev      # frontend dev server, proxies API calls to the backend
 git config core.hooksPath .githooks
 ```
 
-One-time, per clone (not committed by git itself). `.githooks/pre-commit` autofixes and re-stages formatting on whatever's actually staged (`php-cs-fixer`/Prettier — skipped with a warning, not blocked, if the dev stack/`node_modules` aren't ready) plus a whitespace/conflict-marker check; `.githooks/pre-push` runs a typecheck (`composer stan`/`npm run check`), scoped to whichever of `backend/`/`frontend/` actually changed since the push target. Both stay fast on purpose — CI and `make test`/`make lint`/`make coverage` own the exhaustive checks, the hooks just catch the cheap stuff before it leaves your machine.
+One-time, per clone (not committed by git itself). `.githooks/pre-commit` autofixes and re-stages formatting on whatever's actually staged (`php-cs-fixer`/Prettier — skipped with a warning, not blocked, if the dev stack/`node_modules` aren't ready) plus a whitespace/conflict-marker check; `.githooks/pre-push` runs `composer schema-validate`/`composer stan` (Doctrine mapping check plus PHPStan) on the backend and a typecheck (`npm run check`) on the frontend, scoped to whichever of `backend/`/`frontend/` actually changed since the push target. Both stay fast on purpose — CI and `make test`/`make lint`/`make coverage` own the exhaustive checks, the hooks just catch the cheap stuff before it leaves your machine.
 
 ## License
 

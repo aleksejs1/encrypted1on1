@@ -35,9 +35,18 @@
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
   $effect(() => {
-    apiGet<{ meetingRemindersEnabled: boolean }>('/api/me').then((me) => {
-      meetingRemindersEnabled = me.meetingRemindersEnabled;
-    });
+    apiGet<{ meetingRemindersEnabled: boolean }>('/api/me')
+      .then((me) => {
+        meetingRemindersEnabled = me.meetingRemindersEnabled;
+      })
+      .catch((error: unknown) => {
+        // Leaves meetingRemindersEnabled at its initial null — the toggle below
+        // stays disabled (disabled={meetingRemindersEnabled === null}) rather
+        // than showing an error banner for a non-critical preference load. Still
+        // logged, consistent with the other mount-effect fetches in this app
+        // (see App.svelte's checkAuth()), so a persistent failure isn't silent.
+        console.error(error);
+      });
   });
 
   // Same condition AnketaList.svelte's home-page invite block used to check —
