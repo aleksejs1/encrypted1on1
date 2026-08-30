@@ -53,6 +53,26 @@ succeed) rather than a proxy for it, and it happens to also leave
   platform entries differently than a real `npm ci` would. Rejected in favor
   of just running the real command.
 
+## Addendum (2026-08-30): the same failure can recur across npm versions, not just incremental installs
+
+CI failed again with the identical signature (`Missing: @emnapi/core@1.11.3
+from lock file`) despite `.githooks/pre-push`'s `npm ci` check passing
+locally first. Root cause this time: the local machine's npm (11.6.2, bundled
+with Node 24) and CI's npm (10.9.8, bundled with `actions/setup-node`'s
+Node 22) resolved/hoisted an optional peer dependency differently, so a
+lockfile that satisfies `npm ci` under one npm version didn't satisfy it
+under the other — not incremental-install drift, a genuine cross-npm-version
+resolution difference. Reproduced directly: `docker run node:22 npm ci`
+against the committed lockfile failed with the exact CI error; `docker run
+node:22 npm install` (regenerating under the same npm version CI uses) then
+made `npm ci` succeed under both npm 10 and npm 11. Fixed by committing the
+lockfile as regenerated under npm 10/Node 22 specifically, matching CI's
+actual environment rather than whatever happens to be installed locally.
+`.githooks/pre-push`'s `npm ci` check is still correct and worth keeping —
+it just can't catch a mismatch between the local npm version and CI's,
+which pinning Node/npm versions identically everywhere would close but
+hasn't been done (no `engines` field in `frontend/package.json` today).
+
 ## Verification
 
 Reproduced the actual CI failure locally first (`rm -rf node_modules
