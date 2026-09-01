@@ -17,6 +17,7 @@
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
   import AppFooter from './design/AppFooter.svelte';
+  import { untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
@@ -32,8 +33,14 @@
     // already setting authState.checked, so this tab still renders correctly
     // either way — but nothing else here awaits/catches it, so the rejection
     // itself needs handling to avoid a silent unhandled promise rejection.
-    checkAuth().catch((error: unknown) => {
-      console.error(error);
+    // untrack() ensures synchronous reads inside checkAuth() (such as
+    // getGeneration()) do not register as reactive dependencies, which would
+    // otherwise cause an infinite loop when an unauthenticated 401 triggers
+    // markSessionExpired() -> invalidateIdentity() (generation++).
+    untrack(() => {
+      checkAuth().catch((error: unknown) => {
+        console.error(error);
+      });
     });
   });
 
