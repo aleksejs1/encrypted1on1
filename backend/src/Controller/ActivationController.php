@@ -8,6 +8,7 @@ use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -93,7 +94,28 @@ class ActivationController
         $activationToken->markUsed();
 
         $this->entityManager->persist($user);
-        $this->entityManager->flush();
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException $exception) {
+            // Two concurrent completions of the same token (e.g. a double-click, or a
+            // retried request) can both pass findUsableToken()'s isUsable() check above
+            // before either commits. The loser's flush hits User::$email's unique
+            // constraint — treat that the same as completing an already-used token
+            // sequentially would (see testATokenCannotBeCompletedTwice), not a 500.
+            //
+            // A failed flush leaves Doctrine's UnitOfWork closed for the rest of this
+            // request (ORM behavior, not something we control) — returning immediately,
+            // as below, is required; don't add EntityManager use after this catch block.
+            //
+            // Reported to Sentry explicitly (a no-op when SENTRY_DSN is unset, the
+            // self-hosted default — config/packages/sentry.php) since returning a plain
+            // 404 here, instead of letting the exception bubble up as a 500, would
+            // otherwise make this race invisible even to deployments that do have
+            // monitoring configured.
+            \Sentry\captureException($exception);
+
+            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_or_expired_activation_link')], 404);
+        }
 
         $this->authSession->logIn($request, $user);
 

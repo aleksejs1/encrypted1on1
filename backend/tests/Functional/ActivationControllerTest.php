@@ -118,6 +118,34 @@ class ActivationControllerTest extends ApiTestCase
         self::assertSame(404, $second['status']);
     }
 
+    public function testCompletingASecondValidTokenForAnAlreadyRegisteredEmailReturns404NotA500(): void
+    {
+        // Two still-usable tokens for the same email — e.g. a resent invite, or two
+        // concurrent completions of the same token racing past the isUsable() check
+        // before either commits. Whichever completes second must hit User::$email's
+        // unique constraint and get the same "invalid or expired" outcome as
+        // testATokenCannotBeCompletedTwice, not an uncaught 500.
+        $client = static::createClient();
+        $email = $this->uniqueEmail('activation-race');
+        $firstRawToken = $this->issueToken($email);
+        $secondRawToken = $this->issueToken($email);
+
+        $first = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$firstRawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+        self::assertSame(200, $first['status']);
+
+        $second = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$secondRawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+        self::assertSame(404, $second['status']);
+        self::assertSame('Invalid or expired activation link.', $second['json']['error']);
+    }
+
     public function testCompleteIsRateLimitedAfterTooManyAttempts(): void
     {
         $client = static::createClient();

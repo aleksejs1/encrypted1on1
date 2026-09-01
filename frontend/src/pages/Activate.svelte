@@ -253,6 +253,13 @@
     opacity: 0.7;
   }
 
+  /* When the password-too-short hint follows the strength label (rather than
+     sitting directly under the input, which .hint's negative margin assumes),
+     the negative margin pulls it up into the label's own text instead. */
+  .strength-label + .hint {
+    margin-top: 6px;
+  }
+
   .one-time-note {
     font-size: 12px;
     margin: 0;
