@@ -25,6 +25,17 @@ services:
     environment:
       SERVER_NAME: ":80"
       APP_ENV: e2e
+    # Backs `docker compose up --wait` (Makefile's e2e-up) — `up -d` alone only
+    # guarantees the container process started, not that FrankenPHP is actually
+    # accepting requests yet, which the very next command (a migrate `exec`) and
+    # Playwright's own HTTP requests both need. /health has no DB dependency (a
+    # bare static JSON response), so this only measures "the app booted", not
+    # migration state — safe to wait on before migrations have run.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
 
 volumes:
   e2e_var:

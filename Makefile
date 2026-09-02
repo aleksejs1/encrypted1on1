@@ -54,7 +54,8 @@ coverage-backend:
 coverage-frontend:
 	cd frontend && npm run test:coverage
 
-# Local-only, not run in CI (see docs/architecture.md's Testing and CI section) — needs
+# Also run in CI (the `e2e` job in .github/workflows/ci.yml calls these same two
+# targets — see docs/architecture.md's Testing and CI section). Locally, needs
 # `cd frontend && npx playwright install chromium` once per machine. Genuinely isolated
 # (docker-compose.e2e.yml): own backend container, own SQLite file, own Compose project,
 # never touches dev's or the PHPUnit stack's data. Leaves the stack up afterward so
@@ -64,8 +65,14 @@ e2e: e2e-up
 	cd frontend && npm run test:e2e
 
 e2e-up:
-	docker compose -f docker-compose.e2e.yml up --build -d
-	docker compose -f docker-compose.e2e.yml exec backend sh -c "rm -f var/e2e.db && rm -rf var/cache/e2e && php bin/console doctrine:migrations:migrate --env=e2e --no-interaction"
+	# --wait: blocks until the backend's healthcheck (docker-compose.e2e.yml) passes,
+	# not just until the container process started — the exec below needs the app
+	# actually accepting requests, which a bare `up -d` doesn't guarantee, especially
+	# on a slower/loaded CI runner building the image from scratch.
+	docker compose -f docker-compose.e2e.yml up --build -d --wait
+	# -T: no pseudo-TTY — this runs unattended in CI as well as locally, and `exec`
+	# fails ("the input device is not a TTY") without it on a runner with no real tty.
+	docker compose -f docker-compose.e2e.yml exec -T backend sh -c "rm -f var/e2e.db && rm -rf var/cache/e2e && php bin/console doctrine:migrations:migrate --env=e2e --no-interaction"
 
 e2e-down:
 	docker compose -f docker-compose.e2e.yml down

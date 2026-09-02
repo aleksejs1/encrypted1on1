@@ -120,3 +120,107 @@ jobs:
       # accepts this one specific moderate issue until svelte-i18n bumps esbuild upstream.
       - name: Audit dependencies for known vulnerabilities
         run: npm audit --audit-level=high
+
+  # The dual-actor Playwright suite (frontend/e2e/) against the genuinely isolated
+  # e2e stack (docker-compose.e2e.yml) — the same commands `make e2e` runs locally,
+  # not a parallel CI-only setup. Chromium only (playwright.config.ts has no
+  # `projects` array, so Playwright's default single project already covers what
+  # this repo tests) — no FrankenPHP/tmpfs/Argon2id-profile changes needed here:
+  # docker/dev/backend.Dockerfile is already dunglas/frankenphp-based, not `php -S`,
+  # and the frontend already defaults to libsodium's fastest 'interactive' Argon2id
+  # profile with no e2e-specific override — both already true before this job
+  # existed, confirmed by actually running the suite (14.7s, 5/5 passing) rather
+  # than assumed from the proposal that first floated this job
+  # (private/delivery-quality-improvement-proposal.md, not tracked in git).
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-playwright-
+
+      # Safe to run unconditionally even on a cache hit: playwright install skips
+      # re-downloading a browser it finds already in ~/.cache/ms-playwright, but the
+      # OS-level shared libraries --with-deps installs via apt aren't part of that
+      # cached path and don't persist across a fresh runner VM either way.
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite
+
+      - name: Get composer cache directory
+        id: composer-cache
+        working-directory: backend
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      # Own cache key (composer-e2e, not composer): the `backend` job caches the same
+      # path from the same composer.lock — sharing one key would have both jobs race
+      # to save it (they run in parallel, no `needs:` between them), and GitHub
+      # Actions silently drops the losing job's save rather than erroring.
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-e2e-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-e2e-
+
+      # Needed on the *runner's* filesystem, not just inside the image build:
+      # docker-compose.e2e.yml bind-mounts ./backend:/app, which shadows whatever
+      # backend.Dockerfile's own `RUN composer install` baked into the image at
+      # container start — confirmed by actually building the image and reproducing
+      # the same bind mount. Without this, /app/vendor is empty inside the running
+      # container on a fresh checkout (backend/vendor is gitignored), and the very
+      # next step's migrate command fatals on a missing vendor/autoload.php.
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-progress --prefer-dist
+
+      # Blocks until the backend's healthcheck passes (docker-compose.e2e.yml,
+      # `up --wait`), not just until the container process started — the same
+      # guarantee `make e2e` already gives a local run, not a CI-only addition.
+      #
+      # Known, deliberately undone cost: `--build` here reruns backend.Dockerfile's
+      # own `apt-get`/`composer install`/`dump-autoload` from scratch every run, with
+      # no Docker layer cache — and that work is immediately thrown away anyway, since
+      # the bind mount above shadows the image's vendor/ with the runner's own (the
+      # "Install backend dependencies" step). Fixing this properly means changing
+      # backend.Dockerfile/docker-compose.*.yml's shared bind-mount pattern, which
+      # also affects local dev — a separate, bigger change than wiring e2e into CI,
+      # left alone here rather than expanded into unrelated scope.
+      - name: Start the e2e stack
+        run: make e2e-up
+
+      - name: Run e2e tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down the e2e stack
+        if: always()
+        run: make e2e-down
