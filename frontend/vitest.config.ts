@@ -1,6 +1,14 @@
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // Needed so importing a *.svelte.ts rune module (auth.svelte.ts,
+  // identity.svelte.ts, displayName.svelte.ts) doesn't blow up on a bare
+  // `$state(...)` call — Svelte 5 runes are a compile-time transform, not a
+  // runtime global. Svelte's compiled reactivity has no DOM dependency, so
+  // this works fine under the 'node' environment below; no component
+  // rendering is involved.
+  plugins: [svelte()],
   test: {
     environment: 'node',
     // The Playwright e2e suite (frontend/e2e/) lives outside Vitest's world
