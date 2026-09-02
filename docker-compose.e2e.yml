@@ -17,6 +17,11 @@ services:
     build:
       context: .
       dockerfile: docker/dev/backend.Dockerfile
+      # pcov crashed the running server outright (a segfault in pcov.so — see
+      # backend.Dockerfile's own comment) merely by being loaded, no coverage
+      # collection even in progress; e2e never collects PHP coverage anyway.
+      args:
+        ENABLE_PCOV: "0"
     volumes:
       - ./backend:/app
       - e2e_var:/app/var
