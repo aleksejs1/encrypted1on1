@@ -45,6 +45,11 @@ class PlatformAdminController
     {
         $this->requirePlatformAdmin($request);
 
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
+
         /** @var Company[] $companies */
         $companies = $this->entityManager->getRepository(Company::class)->findAll();
 
@@ -144,6 +149,11 @@ class PlatformAdminController
     public function listUsers(Request $request): JsonResponse
     {
         $this->requirePlatformAdmin($request);
+
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
 
         $users = $this->entityManager->getRepository(User::class)->findAll();
 

@@ -51,6 +51,77 @@ jobs:
       - name: Audit dependencies for known vulnerabilities
         run: composer audit
 
+  # Mutation testing (infection/infection), scoped to just this PR's own changed lines
+  # (--git-diff-lines) — see private/delivery-quality-improvement-proposal.md's Phase 6
+  # write-up for the full reasoning. Report-only for now, not a merge gate: no
+  # --min-msi/--min-covered-msi threshold is set, so this job always exits 0 regardless
+  # of what it finds (--logger-github still surfaces escaped mutants as inline PR
+  # annotations) — confirmed for real, not assumed, that a hard 90% covered-MSI floor
+  # (the proposal's own original suggestion) would fail on already-accepted, already-
+  # shipped patterns this codebase has no test for today (AuthSession::closeForReading()
+  # calls score 85% covered MSI on their own small diff — see AuthController::me()'s
+  # identical, pre-existing, untested call). Blocking CI on an uncalibrated threshold
+  # would just train everyone to ignore red CI, the same reasoning the frontend job's own
+  # `npm audit` exemption above already documents; revisit once a handful of real PRs
+  # have produced enough MSI data to pick a floor that isn't itself a guess.
+  #
+  # `make mutation-backend` runs the same tool locally, but without the diff scoping —
+  # `docker-compose.dev.yml`'s `./backend:/app` bind mount never exposes the repo's own
+  # `.git` directory to that container, so Infection has no history to diff against from
+  # in there; only this native CI job (full checkout, real git) can do the scoped version.
+  mutation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Needs the PR's base commit reachable in history to diff against it — the
+          # default shallow (depth-1) checkout only has the merge commit itself.
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite
+          coverage: pcov
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      # Own cache key (composer-mutation, not composer/composer-e2e) — same reasoning as
+      # the e2e job's own cache key comment below: this job runs in parallel with
+      # `backend`, which caches the identical path from the identical composer.lock, and
+      # two parallel jobs racing to save the same key means GitHub Actions silently drops
+      # the loser's save.
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-mutation-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-mutation-
+
+      - name: Install dependencies
+        run: composer install --no-progress --prefer-dist
+
+      - name: Prepare test database
+        run: composer test-db-reset
+
+      # --initial-tests-php-options mirrors backend/composer.json's own "mutation"
+      # script — Infection always runs a full initial PHPUnit pass to generate its own
+      # coverage first, and that pass has hit PHP's default memory_limit in this
+      # backend's own dev container before (EnforceEncryptedEntityFieldsRuleTest, a
+      # PHPStan RuleTestCase run inside PHPUnit). shivammathur/setup-php's runner
+      # default is far more generous, so this is likely a no-op here — kept anyway so
+      # this job can't fail on a memory ceiling `make mutation-backend` doesn't have.
+      - name: Run mutation testing on the PR diff
+        run: >
+          vendor/bin/infection --threads=4 --no-progress --logger-github
+          --initial-tests-php-options="-d memory_limit=512M"
+          --git-diff-lines --git-diff-base=${{ github.event.pull_request.base.sha }}
+
   # Repo-wide checks that don't fit the backend/frontend split: duplication spans both
   # backend/src and frontend/src in one pass (jscpd natively tokenizes both PHP and
   # TS/Svelte), and the doc-link check covers root *.md + docs/** either way.
@@ -224,3 +295,19 @@ jobs:
       - name: Tear down the e2e stack
         if: always()
         run: make e2e-down
+
+  # Exercises docker/prod/backup.sh and docker/prod/restore.sh for real — not just
+  # reviewing them by eye — against a real throwaway prod image and real seeded demo
+  # data (see scripts/test-backup-restore.sh's own header comment for the full
+  # walkthrough: build, seed, back up, destroy the live database, restore, and confirm
+  # the restored data is byte-identical to a fresh backup of it). Self-contained (its
+  # own Compose project, its own throwaway .env.prod, no ports/state shared with the
+  # `e2e` job's stack), so it needs nothing beyond Docker, already present on the
+  # runner — no Node/PHP setup step, unlike every other job here.
+  backup-restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Test backup/restore round-trip
+        run: ./scripts/test-backup-restore.sh

@@ -288,6 +288,8 @@ To restore a backup: `./docker/prod/restore.sh backups/data-<timestamp>.db` — 
 
 This only gets the data out of the volume and onto the host's disk — getting `./backups` itself somewhere durable (offsite, cloud storage) is your own infrastructure's concern, not something this app manages.
 
+Both scripts are also exercised end-to-end in CI (the `backup-restore` job, `scripts/test-backup-restore.sh`) — a real throwaway prod image, real seeded demo data, a real backup, a destroyed live database, a real restore, and a byte-for-byte check that the restored data matches — not just that the scripts exit 0.
+
 ### Token cleanup
 
 `app:cleanup-expired-tokens` deletes `ActivationToken`/`PasswordResetToken` rows whose TTL has passed (24h/2h respectively — see each entity's own `TOKEN_TTL_HOURS`), used or not. Nothing else in the app ever removes a row from either table, so without this both grow forever. Cheap to run daily via cron, alongside the backup job:

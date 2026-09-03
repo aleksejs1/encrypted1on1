@@ -1,0 +1,21 @@
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    // Whole backend/src, not a hand-picked "critical" subdirectory — tenant-scoping
+    // logic (the actual gap this exists to catch, docs/architecture-invariants.md §3)
+    // lives ad hoc inside each Controller, not behind a single listener class this
+    // codebase doesn't have (see private/delivery-quality-improvement-proposal.md's
+    // Phase 6 write-up for why). --git-diff-lines (composer mutation / CI) already
+    // restricts each real run to just the lines a change actually touches, so a broad
+    // source scope here costs nothing in practice.
+    "source": {
+        "directories": ["src"],
+        // Same exclusion as phpunit.xml.dist's <source><exclude> — a one-off manual
+        // measurement tool, deliberately untested by the suite that provides Infection
+        // its coverage data.
+        "excludes": ["Command/LoadTestSqliteCommand.php"]
+    },
+    "logs": {
+        "text": "var/infection.log",
+        "summary": "var/infection-summary.log"
+    }
+}

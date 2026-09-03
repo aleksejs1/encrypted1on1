@@ -46,6 +46,11 @@ class AdminController
     {
         $admin = $this->requireAdmin($request);
 
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
+
         $users = $this->entityManager->getRepository(User::class)->findBy(['company' => $admin->getCompany()]);
 
         return new JsonResponse(array_map(fn (User $user) => [

@@ -168,6 +168,11 @@ class AnketaController
     {
         $user = $this->requireUser($request);
 
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
+
         /** @var Anketa[] $anketas */
         $anketas = $this->entityManager->createQueryBuilder()
             ->select('a', 'e', 'm')
@@ -207,6 +212,11 @@ class AnketaController
     public function get(string $id, Request $request): JsonResponse
     {
         [$anketa, $user] = $this->findAccessible($id, $request);
+
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
 
         return new JsonResponse($this->serializeDetail($anketa, $user, $this->goalRepository()->findBy(['anketa' => $anketa])));
     }

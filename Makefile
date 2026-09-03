@@ -1,4 +1,4 @@
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend duplication check-doc-links coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite
+.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend duplication check-doc-links coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite mutation-backend
 
 up:
 	docker compose -f docker-compose.dev.yml up --build -d
@@ -103,3 +103,15 @@ coverage-backend-isolated:
 # composer test itself uses, so repeated runs never accumulate leftover seeded rows.
 load-test-sqlite:
 	docker compose -f docker-compose.test.yml run --rm backend sh -c "rm -f var/test.db && rm -rf var/cache/test && php bin/console doctrine:migrations:migrate --env=test --no-interaction && php bin/console app:load-test-sqlite --env=test"
+
+# Mutation testing (infection/infection) against the whole of backend/src, not the
+# --git-diff-lines-scoped diff CI runs (see .github/workflows/ci.yml's `mutation` job) —
+# `./backend:/app` (docker-compose.dev.yml) never bind-mounts the repo's own .git
+# directory, so Infection has no git history to diff against from inside that container;
+# this target sidesteps that by not asking it to diff at all. Slower than the CI job
+# (mutates every covered line in src/, not just a PR's own diff) but needs nothing beyond
+# `make up`, so it's still useful for an occasional deeper local check. Informational only,
+# like load-test-sqlite above — no --min-msi/--min-covered-msi gate (see the CI job's own
+# comment for why this repo doesn't yet have a calibrated baseline to gate on).
+mutation-backend:
+	docker compose -f docker-compose.dev.yml exec backend composer mutation

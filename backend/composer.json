@@ -26,7 +26,8 @@
     "config": {
         "allow-plugins": {
             "symfony/runtime": true,
-            "phpstan/extension-installer": true
+            "phpstan/extension-installer": true,
+            "infection/extension-installer": true
         },
         "sort-packages": true,
         "optimize-autoloader": true
@@ -48,6 +49,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.95",
+        "infection/infection": "^0.35.4",
         "phpmetrics/phpmetrics": "^2.11",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.2",
@@ -59,16 +61,17 @@
         "symfony/browser-kit": "^8.1"
     },
     "scripts": {
-        "test": [
+        "test-db-reset": [
             "rm -f var/test.db",
             "rm -rf var/cache/test",
-            "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
+            "php bin/console doctrine:migrations:migrate --env=test --no-interaction"
+        ],
+        "test": [
+            "@test-db-reset",
             "vendor/bin/phpunit"
         ],
         "test-coverage": [
-            "rm -f var/test.db",
-            "rm -rf var/cache/test",
-            "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
+            "@test-db-reset",
             "vendor/bin/phpunit --coverage-clover var/coverage/clover.xml",
             "php bin/check-coverage.php var/coverage/clover.xml 75"
         ],
@@ -88,6 +91,10 @@
         "md": [
             "vendor/bin/phpmetrics --report-violations=var/phpmetrics-violations.xml --quiet src",
             "php bin/check-phpmetrics.php var/phpmetrics-violations.xml"
+        ],
+        "mutation": [
+            "@test-db-reset",
+            "vendor/bin/infection --threads=4 --no-progress --initial-tests-php-options=\"-d memory_limit=512M\""
         ]
     }
 }

@@ -57,6 +57,11 @@ class AdminReportController
     {
         $admin = $this->requireAdmin($request);
 
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
+
         $range = $this->parseDateRange($request);
         if ($range instanceof JsonResponse) {
             return $range;
@@ -126,6 +131,11 @@ class AdminReportController
     public function goals(Request $request): JsonResponse
     {
         $admin = $this->requireAdmin($request);
+
+        // Read-only from here on — release the session file lock instead of holding it
+        // for the rest of this request. See AuthSession::closeForReading()'s docblock
+        // for why this isn't automatic.
+        $this->authSession->closeForReading($request);
 
         $range = $this->parseDateRange($request);
         if ($range instanceof JsonResponse) {
