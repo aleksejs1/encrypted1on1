@@ -133,6 +133,52 @@ class AnketaTest extends TestCase
         self::assertSame('employee-published', $anketa->getEmployeeBlob());
     }
 
+    public function testUpdateAnswersSucceedsOnMatchingVersionAndIncrements(): void
+    {
+        $anketa = $this->makeAnketa();
+        $employee = $anketa->getEmployee();
+        $anketa->publish($employee, 'employee-published');
+        $publishedAtBefore = $anketa->getEmployeePublishedAt();
+
+        self::assertTrue($anketa->updateAnswers($employee, 'employee-edited', 0));
+
+        self::assertSame('employee-edited', $anketa->getEmployeeBlob());
+        self::assertSame(1, $anketa->getEmployeeBlobVersion());
+        // Editing must never look like a fresh publish — see
+        // docs/decisions/2026-09-07-editable-published-anketa-answers.md.
+        self::assertEquals($publishedAtBefore, $anketa->getEmployeePublishedAt());
+    }
+
+    public function testUpdateAnswersFailsOnVersionMismatchAndLeavesStateUnchanged(): void
+    {
+        $anketa = $this->makeAnketa();
+        $employee = $anketa->getEmployee();
+        $anketa->publish($employee, 'employee-published');
+        $anketa->updateAnswers($employee, 'employee-edited', 0);
+
+        self::assertFalse($anketa->updateAnswers($employee, 'employee-edited-again', 0)); // 0 is now stale
+
+        self::assertSame('employee-edited', $anketa->getEmployeeBlob());
+        self::assertSame(1, $anketa->getEmployeeBlobVersion());
+    }
+
+    public function testUpdateAnswersOnlyTouchesTheCallersSide(): void
+    {
+        $anketa = $this->makeAnketa();
+        $employee = $anketa->getEmployee();
+        $manager = $anketa->getManager();
+        $anketa->publish($employee, 'employee-published');
+        $anketa->publish($manager, 'manager-published');
+
+        self::assertTrue($anketa->updateAnswers($employee, 'employee-edited', 0));
+
+        self::assertSame('employee-edited', $anketa->getEmployeeBlob());
+        self::assertSame(1, $anketa->getEmployeeBlobVersion());
+        // The manager's own (also published) side is untouched — only the caller's.
+        self::assertSame('manager-published', $anketa->getManagerBlob());
+        self::assertSame(0, $anketa->getManagerBlobVersion());
+    }
+
     public function testArchiveSetsArchivedAtAndMissedFlag(): void
     {
         $anketa = $this->makeAnketa();

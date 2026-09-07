@@ -63,6 +63,37 @@
   let counterpartPublished = $state(false);
   let archived = $state(false);
 
+  /**
+   * My own published answers' edit session — see
+   * docs/decisions/2026-09-07-editable-published-anketa-answers.md. Reachable states,
+   * modeled up front per docs/architecture-invariants.md §2 rather than as independent
+   * booleans that could combine into something nothing produces:
+   *
+   * - Not editing: `editingMyAnswers` false. Only reachable/offered when `myPublished &&
+   *   !archived`; AnswerField is readonly.
+   * - Editing: `editingMyAnswers` true, `savingAnswersEdit` false. AnswerField is
+   *   writable; Save/Cancel shown.
+   * - Saving: `editingMyAnswers` true, `savingAnswersEdit` true. A save request is in
+   *   flight; Save/Cancel disabled to prevent a double-submit.
+   * - After a 409: handleSaveAnswersEdit() always exits back to "not editing" rather
+   *   than retrying — a blind resubmit could silently overwrite someone's real save
+   *   with this tab's stale draft. A same-tab version conflict (another of *my own*
+   *   tabs saved first, since employeeBlob/managerBlob are never written by both
+   *   participants) decrypts and loads the now-current content into myAnswers so the
+   *   next "Edit" starts from real data, not the stale draft. The counterpart archiving
+   *   mid-edit (a real race — nothing polls, so this tab only learns about it from the
+   *   409) flips `archived` instead, matching state 6 (below).
+   * - Archived: `archived` true. Editing is never offered, regardless of any
+   *   in-progress local edit — matches the counterpart-archives-mid-edit case above.
+   * - Also reset to "not editing" whenever `id` changes (load(), a new anketa entirely)
+   *   — the router reuses this component instance across same-page navigation with no
+   *   remount, so a left-open edit session must not leak into the next anketa.
+   */
+  let editingMyAnswers = $state(false);
+  let savingAnswersEdit = $state(false);
+  let myBlobVersion = $state(0);
+  let answersBeforeEdit: Answers | null = null;
+
   let saveState = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let publishing = $state(false);
   let archiving = $state(false);
@@ -131,6 +162,14 @@
   });
 
   async function load() {
+    // The router reuses this component instance across a same-page navigation to a
+    // different anketa id (App.svelte mounts <AnketaPage> with no {#key}, so `id`
+    // changing re-runs the $effect above without a remount) — an answers-edit session
+    // left open on the previous anketa must not leak into the next one's otherwise-
+    // fresh state below.
+    editingMyAnswers = false;
+    savingAnswersEdit = false;
+    answersBeforeEdit = null;
     try {
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
@@ -211,6 +250,10 @@
           ? anketa.employeePublishedAt
           : anketa.managerPublishedAt;
       myPublished = myPublishedAt !== null;
+      myBlobVersion =
+        anketa.myRole === 'employee'
+          ? anketa.employeeBlobVersion
+          : anketa.managerBlobVersion;
       if (myBlob) {
         const envelope = await decryptBlob<Answers>(
           myBlob,
@@ -285,6 +328,82 @@
         error instanceof ApiError ? error.message : $_('anketa.errorPublish');
     } finally {
       publishing = false;
+    }
+  }
+
+  function startEditingAnswers(): void {
+    answersBeforeEdit = { ...myAnswers };
+    editingMyAnswers = true;
+    actionError = null;
+  }
+
+  function cancelEditingAnswers(): void {
+    if (answersBeforeEdit) myAnswers = answersBeforeEdit;
+    answersBeforeEdit = null;
+    editingMyAnswers = false;
+    actionError = null;
+  }
+
+  /**
+   * No merge/retry-on-conflict here unlike updateField()'s comments/outcomes/
+   * checkpoints pattern — those are shared blobs where reapplying the same edit to
+   * fresh state is safe; myAnswers is a full-overwrite of the whole side; automatically
+   * replaying it over someone else's newer save (even my own other tab's) could
+   * silently discard real content. On a genuine version conflict, just surface the
+   * server's fresh version and let the user decide to save again. On any other 409
+   * (the only other one findAccessible/updateAnswers can produce is "anketa is now
+   * archived" — the counterpart can archive from their own session at any time, a real
+   * race, not a hypothetical), stop offering editing entirely — see the editingMyAnswers
+   * docblock above for the full state list this maps onto.
+   */
+  async function handleSaveAnswersEdit(): Promise<void> {
+    if (!anketaKey) return;
+    savingAnswersEdit = true;
+    actionError = null;
+    try {
+      const blob = await encryptBlob(myAnswers, anketaKey);
+      const result = await apiPut<{ blobVersion: number }>(
+        `/api/anketas/${id}/answers`,
+        { blob, expectedVersion: myBlobVersion },
+      );
+      myBlobVersion = result.blobVersion;
+      answersBeforeEdit = null;
+      editingMyAnswers = false;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        const conflict = error.body as {
+          blobVersion?: number;
+          blob?: string | null;
+        } | null;
+        if (conflict && typeof conflict.blobVersion === 'number') {
+          // A genuine same-tab conflict (another of my own tabs saved first) — load
+          // what's actually saved now rather than leaving this tab's stale edit sitting
+          // in myAnswers, where a second Save click would otherwise silently overwrite
+          // the other tab's real save with no warning. Exiting edit mode (instead of
+          // retrying automatically) means the user has to explicitly re-open editing
+          // on top of the now-current content, never blindly resubmit over it.
+          myBlobVersion = conflict.blobVersion;
+          if (anketaKey && typeof conflict.blob === 'string') {
+            const envelope = await decryptBlob<Answers>(
+              conflict.blob,
+              anketaKey,
+            );
+            myAnswers = envelope.data;
+          }
+        } else {
+          archived = true;
+        }
+        answersBeforeEdit = null;
+        editingMyAnswers = false;
+        actionError = error.message;
+      } else {
+        actionError =
+          error instanceof ApiError
+            ? error.message
+            : $_('anketa.errorSaveAnswers');
+      }
+    } finally {
+      savingAnswersEdit = false;
     }
   }
 
@@ -862,7 +981,7 @@
               <AnswerField
                 {field}
                 bind:value={myAnswers[field.id]}
-                readonly={myPublished}
+                readonly={myPublished && !editingMyAnswers}
               />
               {#if myPublished}
                 <CommentThread
@@ -895,10 +1014,42 @@
         >
           {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
         </button>
-      {:else}
+      {:else if archived}
         <span class="tag tag-accent side-publish-btn"
           >{$_('anketa.badgePublished')}</span
         >
+      {:else if editingMyAnswers}
+        <div class="answers-edit-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            onclick={handleSaveAnswersEdit}
+            disabled={savingAnswersEdit}
+          >
+            {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={cancelEditingAnswers}
+            disabled={savingAnswersEdit}
+          >
+            {$_('anketa.cancel')}
+          </button>
+        </div>
+      {:else}
+        <div class="answers-edit-actions">
+          <span class="tag tag-accent side-publish-btn"
+            >{$_('anketa.badgePublished')}</span
+          >
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={startEditingAnswers}
+          >
+            {$_('anketa.editAnswers')}
+          </button>
+        </div>
       {/if}
     </section>
 
@@ -1498,6 +1649,13 @@
   }
 
   .side-publish-btn {
+    align-self: flex-start;
+  }
+
+  .answers-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     align-self: flex-start;
   }
 

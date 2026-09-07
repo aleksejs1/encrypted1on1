@@ -84,11 +84,26 @@ class Anketa
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $employeePublishedAt = null;
 
+    /**
+     * Guards updateAnswers() the same way commentsVersion/outcomesVersion/goalCheckpointsVersion
+     * guard their own blobs — but unlike those, employeeBlob/managerBlob are never written by
+     * both participants (only the employee ever writes employeeBlob), so a version conflict here
+     * can only happen against the *same* user's own other tab, never against the counterpart.
+     * Deliberately never touched by publish() itself — see
+     * docs/decisions/2026-09-07-editable-published-anketa-answers.md for why an edit must not
+     * look like a fresh publish.
+     */
+    #[ORM\Column(type: 'integer')]
+    private int $employeeBlobVersion = 0;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $managerBlob = null;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $managerPublishedAt = null;
+
+    #[ORM\Column(type: 'integer')]
+    private int $managerBlobVersion = 0;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $archivedAt = null;
@@ -238,6 +253,11 @@ class Anketa
         return $this->employeePublishedAt;
     }
 
+    public function getEmployeeBlobVersion(): int
+    {
+        return $this->employeeBlobVersion;
+    }
+
     public function getManagerBlob(): ?string
     {
         return $this->managerBlob;
@@ -246,6 +266,11 @@ class Anketa
     public function getManagerPublishedAt(): ?\DateTimeImmutable
     {
         return $this->managerPublishedAt;
+    }
+
+    public function getManagerBlobVersion(): int
+    {
+        return $this->managerBlobVersion;
     }
 
     public function getArchivedAt(): ?\DateTimeImmutable
@@ -300,6 +325,33 @@ class Anketa
             $this->managerBlob = $blob;
             $this->managerPublishedAt = new \DateTimeImmutable();
         }
+    }
+
+    /**
+     * Re-saves an already-published side's answers, re-encrypted with the same anketa key
+     * (see docs/decisions/2026-09-07-editable-published-anketa-answers.md) — the caller is
+     * responsible for checking isPublished($user) and !isArchived() first, same division of
+     * responsibility as saveDraft()/publish() vs. AnketaController.
+     *
+     * @return bool true if saved, false on a version mismatch (caller should return 409)
+     */
+    public function updateAnswers(User $user, string $blob, int $expectedVersion): bool
+    {
+        if ($this->isEmployee($user)) {
+            if ($expectedVersion !== $this->employeeBlobVersion) {
+                return false;
+            }
+            $this->employeeBlob = $blob;
+            ++$this->employeeBlobVersion;
+        } else {
+            if ($expectedVersion !== $this->managerBlobVersion) {
+                return false;
+            }
+            $this->managerBlob = $blob;
+            ++$this->managerBlobVersion;
+        }
+
+        return true;
     }
 
     public function archive(bool $missed = false): void

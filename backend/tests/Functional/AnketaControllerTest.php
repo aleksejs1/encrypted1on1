@@ -370,6 +370,101 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame('Already published.', $result['json']['error']);
     }
 
+    public function testUpdateAnswersSucceedsAndIncrementsVersionWithoutTouchingPublishedAt(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('answers-ok');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/publish", ['blob' => 'v1']);
+        $publishedAt = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['employeePublishedAt'];
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/answers", [
+            'blob' => 'v2',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(1, $result['json']['blobVersion']);
+
+        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertSame('v2', $get['employeeBlob']);
+        self::assertSame(1, $get['employeeBlobVersion']);
+        // An edit must never look like a fresh publish — see
+        // docs/decisions/2026-09-07-editable-published-anketa-answers.md.
+        self::assertSame($publishedAt, $get['employeePublishedAt']);
+    }
+
+    public function testUpdateAnswersOnlyTouchesTheCallersSide(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('answers-caller-side');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/publish", ['blob' => 'employee-v1']);
+        $this->jsonRequest($managerClient, 'POST', "/api/anketas/{$anketaId}/publish", ['blob' => 'manager-v1']);
+
+        $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/answers", [
+            'blob' => 'employee-v2',
+            'expectedVersion' => 0,
+        ]);
+
+        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertSame('employee-v2', $get['employeeBlob']);
+        self::assertSame(1, $get['employeeBlobVersion']);
+        // The manager's own (also published) side is untouched — only the caller's.
+        self::assertSame('manager-v1', $get['managerBlob']);
+        self::assertSame(0, $get['managerBlobVersion']);
+    }
+
+    public function testUpdateAnswersConflictReturns409WithCurrentState(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('answers-conflict');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/publish", ['blob' => 'v1']);
+        // Simulates a second tab already having saved an edit, moving the version to 1.
+        $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/answers", [
+            'blob' => 'v2-from-other-tab',
+            'expectedVersion' => 0,
+        ]);
+
+        // This tab still thinks the version is 0.
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/answers", [
+            'blob' => 'v2-from-this-tab',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('v2-from-other-tab', $result['json']['blob']);
+        self::assertSame(1, $result['json']['blobVersion']);
+    }
+
+    public function testUpdateAnswersRejectsBeforeFirstPublish(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('answers-not-published');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/answers", [
+            'blob' => 'v1',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('Not published yet.', $result['json']['error']);
+    }
+
+    public function testUpdateAnswersRejectsOnceArchived(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('answers-archived');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/publish", ['blob' => 'v1']);
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", ['missed' => false, 'skipNextMeeting' => true]);
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/answers", [
+            'blob' => 'v2',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('Anketa is archived.', $result['json']['error']);
+    }
+
     public function testArchiveWithoutAutoRecreationCreatesNoNextAnketa(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('archive-no-next');

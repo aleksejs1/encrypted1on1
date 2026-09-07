@@ -54,7 +54,7 @@ Creating the anketa is also the moment its encryption key is generated and hande
 
 Each side answers their own set of questions privately — an employee side (mood, workload, feelings, growth, friction, achievements, things to discuss) and a manager side (how the period went, feedback, support, the employee's achievements worth recognizing, things to discuss). See [methodology.md](methodology.md#what-each-question-is-asking-and-why) for what each one is actually asking. Answers autosave as a draft every second of inactivity, encrypted with your own session key even before publishing.
 
-**Publishing is one-way.** Once you publish your side, it's visible to your counterpart and can no longer be edited. There's no draft-recall after that point — the app treats "published" as a real commitment, not a checkpoint you can walk back.
+**Publishing itself is one-way** — once you publish your side, there's no draft-recall back to a private, unpublished state, and it becomes visible to your counterpart. But you can still edit your own answers afterward, right up until the anketa is archived: click "Edit" on your side, change what you need, and save. There's no time limit, and it's silent — your counterpart isn't notified and sees no "edited" marker, so treat this as a way to fix a mistake, not as a private undo button once someone's already read and responded to what you wrote. See [`docs/decisions/2026-09-07-editable-published-anketa-answers.md`](decisions/2026-09-07-editable-published-anketa-answers.md) for why it works this way.
 
 Each side can only see the other's answers once *that* side has published theirs too — until then, it just shows "not published yet."
 

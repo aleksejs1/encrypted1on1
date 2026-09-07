@@ -59,8 +59,10 @@ export interface AnketaDetail {
   mySealedKey: string;
   employeeBlob: string | null;
   employeePublishedAt: string | null;
+  employeeBlobVersion: number;
   managerBlob: string | null;
   managerPublishedAt: string | null;
+  managerBlobVersion: number;
   commentsBlob: string | null;
   commentsVersion: number;
   outcomesBlob: string | null;

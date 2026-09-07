@@ -228,8 +228,9 @@ class AnketaController
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
      *     counterpartDeleted: bool, formVersion: int, mySealedKey: string, counterpartPublicKey: string,
-     *     employeeBlob: string|null, employeePublishedAt: string|null, managerBlob: string|null,
-     *     managerPublishedAt: string|null, commentsBlob: string|null, commentsVersion: int,
+     *     employeeBlob: string|null, employeePublishedAt: string|null, employeeBlobVersion: int,
+     *     managerBlob: string|null, managerPublishedAt: string|null, managerBlobVersion: int,
+     *     commentsBlob: string|null, commentsVersion: int,
      *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
      *     authorId: string, title: string, description: string|null, targetDate: string|null, status: string,
      *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int}
@@ -246,8 +247,10 @@ class AnketaController
             'counterpartPublicKey' => $counterpart->getPublicKey(),
             'employeeBlob' => $anketa->getEmployeeBlob(),
             'employeePublishedAt' => $anketa->getEmployeePublishedAt()?->format(\DATE_ATOM),
+            'employeeBlobVersion' => $anketa->getEmployeeBlobVersion(),
             'managerBlob' => $anketa->getManagerBlob(),
             'managerPublishedAt' => $anketa->getManagerPublishedAt()?->format(\DATE_ATOM),
+            'managerBlobVersion' => $anketa->getManagerBlobVersion(),
             'commentsBlob' => $anketa->getCommentsBlob(),
             'commentsVersion' => $anketa->getCommentsVersion(),
             'outcomesBlob' => $anketa->getOutcomesBlob(),
@@ -483,6 +486,46 @@ class AnketaController
         $this->entityManager->flush();
 
         return new JsonResponse(['ok' => true]);
+    }
+
+    /**
+     * Edits an already-published side's own answers — see
+     * docs/decisions/2026-09-07-editable-published-anketa-answers.md. Deliberately separate
+     * from publish() (which only handles the first publish and stamps *PublishedAt) so an
+     * edit can never look like a fresh publish to anything reading that timestamp.
+     */
+    #[Route('/api/anketas/{id}/answers', name: 'anketa_update_answers', methods: ['PUT'])]
+    public function updateAnswers(string $id, Request $request): JsonResponse
+    {
+        $this->csrfGuard->assertValid($request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        if (!$anketa->isPublished($user)) {
+            throw new ConflictHttpException($this->translator->trans('errors.not_published_yet'));
+        }
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
+        }
+
+        $body = $request->toArray();
+        $blob = $body['blob'] ?? null;
+        $expectedVersion = $body['expectedVersion'] ?? null;
+        if (!\is_string($blob) || !\is_int($expectedVersion)) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob_or_expected_version')], 400);
+        }
+
+        $isEmployee = $anketa->isEmployee($user);
+        if (!$anketa->updateAnswers($user, $blob, $expectedVersion)) {
+            return new JsonResponse([
+                'error' => $this->translator->trans('errors.answers_conflict'),
+                'blob' => $isEmployee ? $anketa->getEmployeeBlob() : $anketa->getManagerBlob(),
+                'blobVersion' => $isEmployee ? $anketa->getEmployeeBlobVersion() : $anketa->getManagerBlobVersion(),
+            ], 409);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse(['blobVersion' => $isEmployee ? $anketa->getEmployeeBlobVersion() : $anketa->getManagerBlobVersion()]);
     }
 
     #[Route('/api/anketas/{id}/archive', name: 'anketa_archive', methods: ['POST'])]

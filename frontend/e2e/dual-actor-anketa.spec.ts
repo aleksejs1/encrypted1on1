@@ -81,6 +81,24 @@ test('employee and manager complete an anketa across two independent sessions', 
     employeeMarker,
   );
 
+  // Employee edits their already-published answer — the editable-after-publish
+  // feature (docs/decisions/2026-09-07-editable-published-anketa-answers.md).
+  // Real re-encryption with the same anketa key through the actual Edit/Save UI,
+  // not just PUT /api/anketas/{id}/answers called directly.
+  const employeeEditedMarker = `E2E-MARKER-EMPLOYEE-EDITED-${Date.now()}`;
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await employeeMySide.locator('textarea').first().fill(employeeEditedMarker);
+  await employeeMySide.getByRole('button', { name: 'Save' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // Manager — a separate session — reloads and sees the edited content, not the
+  // original marker: the edit genuinely round-tripped through the server,
+  // re-encrypted under the shared anketa key, not merely updated in local state.
+  await manager.reload();
+  await expect(managerCounterpartSide.locator('textarea').first()).toHaveValue(
+    employeeEditedMarker,
+  );
+
   // Manager publishes their own side with a second marker.
   const managerMarker = `E2E-MARKER-MANAGER-${Date.now()}`;
   const managerMySide = manager.locator('.side-card').first();
