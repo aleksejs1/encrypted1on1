@@ -106,20 +106,29 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --prefer-dist
 
+      # Kept as its own named step — bin/mutation.sh runs this same command again
+      # internally right before Infection (so it's still correct when invoked directly,
+      # e.g. from scripts/verify-pr-ready.sh) — purely so a migration failure shows up
+      # as "Prepare test database" in the Actions UI instead of buried inside "Run
+      # mutation testing on the PR diff"'s combined log. A review round pointed out
+      # that this step's removal (when the invocation was consolidated into
+      # bin/mutation.sh) cost that per-step failure attribution; the redundant reset
+      # this restores is cheap (SQLite rm+migrate, well under a second).
       - name: Prepare test database
         run: composer test-db-reset
 
-      # --initial-tests-php-options mirrors backend/composer.json's own "mutation"
-      # script — Infection always runs a full initial PHPUnit pass to generate its own
-      # coverage first, and that pass has hit PHP's default memory_limit in this
-      # backend's own dev container before (EnforceEncryptedEntityFieldsRuleTest, a
-      # PHPStan RuleTestCase run inside PHPUnit). shivammathur/setup-php's runner
-      # default is far more generous, so this is likely a no-op here — kept anyway so
+      # bin/mutation.sh (shared with backend/composer.json's "mutation" script and
+      # scripts/verify-pr-ready.sh) supplies the threads/memory_limit flags — kept in
+      # one place after a code-review round found the same flags hardcoded separately
+      # here and in composer.json. The memory_limit override exists because
+      # Infection's initial full PHPUnit pass has hit PHP's default memory_limit in
+      # this backend's own dev container before (EnforceEncryptedEntityFieldsRuleTest,
+      # a PHPStan RuleTestCase run inside PHPUnit) — shivammathur/setup-php's runner
+      # default is far more generous, so this is likely a no-op here, kept anyway so
       # this job can't fail on a memory ceiling `make mutation-backend` doesn't have.
       - name: Run mutation testing on the PR diff
         run: >
-          vendor/bin/infection --threads=4 --no-progress --logger-github
-          --initial-tests-php-options="-d memory_limit=512M"
+          bin/mutation.sh --logger-github
           --git-diff-lines --git-diff-base=${{ github.event.pull_request.base.sha }}
 
   # Repo-wide checks that don't fit the backend/frontend split: duplication spans both

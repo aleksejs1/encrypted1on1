@@ -6,9 +6,11 @@
 // dependency: plain fs/path, same "boring custom script" precedent as
 // backend/bin/check-coverage.php and frontend/scripts/inject-sri.mjs.
 //
-// Scope: this repo's own hand-written docs (root *.md + docs/**/*.md) — not
-// backend/frontend source comments, not private/ (gitignored, not part of
-// the public repo), not vendored/node_modules content.
+// Scope: this repo's own hand-written docs (root *.md + docs/**/*.md, plus
+// .github/PULL_REQUEST_TEMPLATE.md — a code-review round pointed out its own
+// relative doc links would otherwise go unchecked) — not backend/frontend
+// source comments, not private/ (gitignored, not part of the public repo),
+// not vendored/node_modules content.
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -29,9 +31,12 @@ function findMarkdownFiles(dir) {
   return results;
 }
 
-const targets = [join(repoRoot, 'README.md'), join(repoRoot, 'CLAUDE.md'), ...findMarkdownFiles(join(repoRoot, 'docs'))].filter(
-  existsSync,
-);
+const targets = [
+  join(repoRoot, 'README.md'),
+  join(repoRoot, 'CLAUDE.md'),
+  join(repoRoot, '.github', 'PULL_REQUEST_TEMPLATE.md'),
+  ...findMarkdownFiles(join(repoRoot, 'docs')),
+].filter(existsSync);
 
 function slugify(heading) {
   // GitHub's own heading-to-anchor algorithm (github-slugger): lowercase,

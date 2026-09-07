@@ -1,4 +1,4 @@
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend duplication check-doc-links coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite mutation-backend
+.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend duplication check-doc-links coverage coverage-backend coverage-frontend e2e e2e-up e2e-down build test-backend-isolated lint-backend-isolated coverage-backend-isolated load-test-sqlite mutation-backend verify-pr-ready
 
 up:
 	docker compose -f docker-compose.dev.yml up --build -d
@@ -115,3 +115,10 @@ load-test-sqlite:
 # comment for why this repo doesn't yet have a calibrated baseline to gate on).
 mutation-backend:
 	docker compose -f docker-compose.dev.yml exec backend composer mutation
+
+# One-command pre-PR gate (scripts/verify-pr-ready.sh) — see that script's own header
+# comment for what it runs and why. Not folded into `lint`/`test` themselves: those stay
+# the fast, individually-runnable building blocks; this is the "run everything before
+# opening a PR" aggregate on top.
+verify-pr-ready:
+	./scripts/verify-pr-ready.sh

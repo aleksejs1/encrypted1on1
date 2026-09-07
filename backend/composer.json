@@ -93,8 +93,7 @@
             "php bin/check-phpmetrics.php var/phpmetrics-violations.xml"
         ],
         "mutation": [
-            "@test-db-reset",
-            "vendor/bin/infection --threads=4 --no-progress --initial-tests-php-options=\"-d memory_limit=512M\""
+            "bin/mutation.sh"
         ]
     }
 }

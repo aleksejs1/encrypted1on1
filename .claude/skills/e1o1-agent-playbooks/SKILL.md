@@ -47,8 +47,11 @@ Before calling a change done and requesting the `code-review` skill loop:
 - [ ] Ran the real verification standard for anything touching anketa
       keys/sealing/password-derived keys — see the `e1o1-verify-with-real-crypto`
       skill, not opaque placeholder strings.
-- [ ] Ran `make test && make lint` (or the isolated variants) locally and
-      they're clean — the same checks CI and `pre-push` run.
+- [ ] Ran `make verify-pr-ready` (or, for a quick local iteration, `make test && make lint`
+      — the isolated variants work too) and it's clean — lint/test plus a changed-file-
+      scoped mutation-testing pass (informational, not a blocker on its own). Doesn't
+      cover every CI gate (dependency audits, enforced coverage thresholds, e2e,
+      backup-restore stay CI-only) — a genuinely green CI run is still the real bar.
 - [ ] Updated `docs/architecture-invariants.md`/CLAUDE.md/an ADR or decision
       record if this change establishes or revises a load-bearing rule, not
       just a decision that stays implicit in the diff.
