@@ -93,6 +93,13 @@ final class OverviewAggregator
         // neither side having published anything is expected, not a non-response.
         $respondableSides = 0;
 
+        // meetingDate is always hydrated at UTC midnight of the picked calendar day (see
+        // CreateAnketa.svelte) — comparing it against full-precision $now directly would
+        // make a meeting due "today" read as overdue for nearly the entire day. Truncating
+        // $now to the start of today first makes this a genuine calendar-day comparison,
+        // same fix as GoalMetrics::countCurrentInProgress() for goal target dates.
+        $today = $now->setTime(0, 0, 0, 0);
+
         foreach ($anketas as $anketa) {
             if (null !== $anketa->archivedAt) {
                 if (self::isCompletedMeeting($anketa)) {
@@ -100,7 +107,7 @@ final class OverviewAggregator
                 } else {
                     ++$missed;
                 }
-            } elseif ($anketa->meetingDate < $now) {
+            } elseif ($anketa->meetingDate < $today) {
                 ++$overdueOpen;
             } else {
                 ++$upcomingOpen;

@@ -45,6 +45,33 @@ class OverviewAggregatorTest extends TestCase
         self::assertSame(1, $report['meetings']['upcomingOpen']);
     }
 
+    public function testAMeetingScheduledForTodayIsNotYetOverdue(): void
+    {
+        // meetingDate is always hydrated at midnight (see the anketa() fixture helper),
+        // and self::NOW is midday on the same calendar date — a naive instant comparison
+        // would already read this as overdue for the second half of the day.
+        $anketas = [
+            $this->anketa('2026-08-25', archived: false, missed: false, employeePublished: false, managerPublished: false),
+        ];
+
+        $report = $this->aggregate($anketas, [], []);
+
+        self::assertSame(0, $report['meetings']['overdueOpen']);
+        self::assertSame(1, $report['meetings']['upcomingOpen']);
+    }
+
+    public function testAMeetingScheduledForYesterdayIsOverdue(): void
+    {
+        $anketas = [
+            $this->anketa('2026-08-24', archived: false, missed: false, employeePublished: false, managerPublished: false),
+        ];
+
+        $report = $this->aggregate($anketas, [], []);
+
+        self::assertSame(1, $report['meetings']['overdueOpen']);
+        self::assertSame(0, $report['meetings']['upcomingOpen']);
+    }
+
     public function testResponseRateExcludesUpcomingAnketasFromItsDenominator(): void
     {
         $anketas = [
