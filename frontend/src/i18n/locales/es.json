@@ -418,7 +418,25 @@
     "allowedEmailDomainHint": "Déjalo vacío para permitir cualquier dominio de correo. Cualquiera —incluido un administrador— que intente invitar a alguien fuera de este dominio verá un error.",
     "inviteSettingsSaved": "Guardado.",
     "usersTab": "Usuarios",
-    "reportsTab": "Informes"
+    "reportsTab": "Informes",
+    "invitesTab": "Invitaciones"
+  },
+  "adminInvites": {
+    "title": "Invitaciones",
+    "errorLoad": "No se pudieron cargar las invitaciones.",
+    "empty": "Todavía no hay invitaciones.",
+    "emailHeader": "Correo electrónico",
+    "senderHeader": "Enviada por",
+    "sentHeader": "Enviada",
+    "expiresHeader": "Caduca",
+    "statusHeader": "Estado",
+    "status": {
+      "pending": "Pendiente",
+      "accepted": "Aceptada",
+      "expired": "Caducada"
+    },
+    "senderSelfRegistered": "Autorregistro",
+    "senderDeleted": "Cuenta del remitente eliminada"
   },
   "adminReports": {
     "title": "Informes",
@@ -478,7 +496,20 @@
     "revokePlatformAdmin": "Quitar permisos de administrador de la plataforma",
     "invalidSeatLimit": "El límite de plazas debe estar vacío (sin límite) o ser un número entero positivo.",
     "errorLoad": "No se pudieron cargar los datos de administración de la plataforma.",
-    "errorUpdate": "No se pudo actualizar el usuario."
+    "errorUpdate": "No se pudo actualizar el usuario.",
+    "invitesHeading": "Invitaciones",
+    "invitesEmpty": "Todavía no hay invitaciones.",
+    "invitesSenderHeader": "Enviada por",
+    "invitesSentHeader": "Enviada",
+    "invitesExpiresHeader": "Caduca",
+    "invitesStatusHeader": "Estado",
+    "invitesStatus": {
+      "pending": "Pendiente",
+      "accepted": "Aceptada",
+      "expired": "Caducada"
+    },
+    "invitesSenderSelfRegistered": "Autorregistro",
+    "invitesSenderDeleted": "Cuenta del remitente eliminada"
   },
   "inviteForm": {
     "label": "Invitar a un compañero",

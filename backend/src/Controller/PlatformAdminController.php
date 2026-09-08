@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Company;
+use App\Entity\InviteRecord;
 use App\Entity\User;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
@@ -216,6 +217,41 @@ class PlatformAdminController
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $target->getId(), 'isPlatformAdmin' => $target->isPlatformAdmin()]);
+    }
+
+    /**
+     * Every InviteRecord on the instance, across every company (GitHub issue #24) —
+     * the platform-admin, cross-tenant counterpart to InviteController::list(). Includes
+     * which company each row belongs to, same reasoning as listUsers() above.
+     */
+    #[Route('/api/platform-admin/invites', name: 'platform_admin_invites_list', methods: ['GET'])]
+    public function listInvites(Request $request): JsonResponse
+    {
+        $this->requirePlatformAdmin($request);
+
+        $this->authSession->closeForReading($request);
+
+        // Fetch-joins invitedBy and company — toPayload() reads the former, this method
+        // the latter, for every row; unscoped like listUsers() above, so N companies'
+        // worth of invites would otherwise mean up to 2N lazy-load queries (same
+        // reasoning as listCompanies()'s own batched user-count query further up).
+        /** @var InviteRecord[] $inviteRecords */
+        $inviteRecords = $this->entityManager->createQueryBuilder()
+            ->select('i', 'invitedBy', 'company')
+            ->from(InviteRecord::class, 'i')
+            ->leftJoin('i.invitedBy', 'invitedBy')
+            ->leftJoin('i.company', 'company')
+            ->orderBy('i.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+
+        $now = new \DateTimeImmutable();
+
+        return new JsonResponse(array_map(fn (InviteRecord $inviteRecord) => [
+            ...InviteController::toPayload($inviteRecord, $now),
+            'companyId' => $inviteRecord->getCompany()->getId(),
+            'companyName' => $inviteRecord->getCompany()->getName(),
+        ], $inviteRecords));
     }
 
     private function requirePlatformAdmin(Request $request): User

@@ -292,7 +292,7 @@ Both scripts are also exercised end-to-end in CI (the `backup-restore` job, `scr
 
 ### Token cleanup
 
-`app:cleanup-expired-tokens` deletes `ActivationToken`/`PasswordResetToken` rows whose TTL has passed (24h/2h respectively — see each entity's own `TOKEN_TTL_HOURS`), used or not. Nothing else in the app ever removes a row from either table, so without this both grow forever. Cheap to run daily via cron, alongside the backup job:
+`app:cleanup-expired-tokens` deletes `ActivationToken`/`PasswordResetToken` rows whose TTL has passed (24h/2h respectively — see each entity's own `TOKEN_TTL_HOURS`), used or not, and separately prunes `InviteRecord` rows (the admin-facing invite-history table, `GET /api/admin/invites`/`GET /api/platform-admin/invites`) past their own independent retention window (`InviteRecord::RETENTION_DAYS`, 90 days by default — unrelated to the two tokens' TTLs). Nothing else in the app ever removes a row from any of the three tables, so without this all of them grow forever. Cheap to run daily via cron, alongside the backup job:
 
 ```
 0 4 * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app php bin/console app:cleanup-expired-tokens >> cleanup.log 2>&1

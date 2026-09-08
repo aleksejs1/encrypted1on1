@@ -2,8 +2,12 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\ActivationToken;
+use App\Entity\Company;
+use App\Entity\InviteRecord;
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
+use Symfony\Component\Uid\Uuid;
 
 class AuthControllerTest extends ApiTestCase
 {
@@ -470,6 +474,140 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(401, $login['status']);
     }
 
+    /**
+     * AccountDeleter::delete() scrubs InviteRecord.email for this exact address — the
+     * same "delete means delete" anonymization User::delete() already does for the
+     * users table itself (GitHub issue #24: without this, a deleted user's real
+     * address would keep sitting in the invite-history table for the rest of its
+     * retention window). Uses the real activation flow (shared id between the
+     * ActivationToken and its InviteRecord, completed for real) so the InviteRecord
+     * being scrubbed is genuinely the one that produced this account — not just any
+     * row sharing its email, which is exactly the distinction
+     * testDeleteAccountDoesNotScrubAStillPendingDuplicateInviteAtTheSameCompany below
+     * exists to draw.
+     */
+    public function testDeleteAccountScrubsItsOwnAcceptedInviteRecordEmail(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('delete-account-invite-scrub');
+        [$rawToken, $inviteRecordId] = $this->issueInvite($email);
+        $activate = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+        self::assertSame(200, $activate['status']);
+
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+        self::assertSame(200, $result['status']);
+
+        $persisted = $this->entityManager()->find(InviteRecord::class, $inviteRecordId);
+        self::assertNotNull($persisted);
+        self::assertNotSame($email, $persisted->getEmail());
+        self::assertStringEndsWith('@deleted.invalid', $persisted->getEmail());
+    }
+
+    /**
+     * Nothing stops a duplicate re-invite to the same address before the first is
+     * accepted (InviteController::create() only checks for an existing User row) — a
+     * still-pending one sharing this exact email at the same company must survive,
+     * since its own ActivationToken is still genuinely completable by someone else.
+     */
+    public function testDeleteAccountDoesNotScrubAStillPendingDuplicateInviteAtTheSameCompany(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('delete-account-duplicate-invite');
+        $company = $this->singleCompanyProvider()->get();
+        [$rawToken, $acceptedInviteId] = $this->issueInvite($email);
+        $duplicateInviteId = Uuid::v7()->toRfc4122();
+        $duplicateInvite = new InviteRecord($duplicateInviteId, $email, $company, null, new \DateTimeImmutable('+1 day'));
+        $this->entityManager()->persist($duplicateInvite);
+        $this->entityManager()->flush();
+
+        $activate = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+        self::assertSame(200, $activate['status']);
+        $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+
+        self::assertNotSame($email, $this->entityManager()->find(InviteRecord::class, $acceptedInviteId)?->getEmail(), 'the accepted invite that produced this account must still be scrubbed');
+        self::assertSame($email, $this->entityManager()->find(InviteRecord::class, $duplicateInviteId)?->getEmail(), 'a still-pending duplicate invite must survive untouched');
+    }
+
+    /**
+     * The company/email scope on the accepted-or-expired scrub query must apply to
+     * BOTH branches of that OR, not just the accepted one — an unparenthesized DQL
+     * "acceptedAt IS NOT NULL OR expiresAt <= :now" would combine with AND-ed
+     * email/company clauses as "(email AND company AND accepted) OR (expired)", with
+     * the second disjunct carrying no email/company filter at all. This test uses an
+     * *expired* row at an unrelated company/email specifically to exercise that
+     * branch — testDeleteAccountDoesNotScrubAnUnrelatedInviteAtAnotherCompany below
+     * only covers a still-pending row, which the OR's first branch already excludes
+     * regardless of this bug.
+     */
+    public function testDeleteAccountDoesNotScrubAnExpiredInviteAtAnotherCompany(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('delete-account-expired-cross-company');
+        $ownCompany = $this->singleCompanyProvider()->get();
+        $otherCompany = $this->makeCompany('Delete Scrub Expired Isolation Co');
+        $unrelatedExpiredId = Uuid::v7()->toRfc4122();
+        $unrelatedExpired = new InviteRecord($unrelatedExpiredId, $this->uniqueEmail('delete-account-expired-unrelated'), $otherCompany, null, new \DateTimeImmutable('-1 minute'));
+        $this->entityManager()->persist($unrelatedExpired);
+        $this->entityManager()->flush();
+        $unrelatedExpiredEmail = $unrelatedExpired->getEmail();
+
+        $this->activateUser($client, $email, company: $ownCompany);
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+        self::assertSame(200, $result['status']);
+
+        self::assertSame($unrelatedExpiredEmail, $this->entityManager()->find(InviteRecord::class, $unrelatedExpiredId)?->getEmail(), 'an expired invite at an unrelated company, with an unrelated email, must survive this account\'s deletion untouched');
+    }
+
+    /** @return array{0: string, 1: string} raw token, InviteRecord id */
+    private function issueInvite(string $email): array
+    {
+        $company = $this->singleCompanyProvider()->get();
+        [$token, $rawToken] = ActivationToken::issue($email, $company);
+        $this->entityManager()->persist($token);
+        $inviteRecord = new InviteRecord($token->getId(), $email, $company, null, $token->getExpiresAt());
+        $this->entityManager()->persist($inviteRecord);
+        $this->entityManager()->flush();
+
+        return [$rawToken, $inviteRecord->getId()];
+    }
+
+    /**
+     * Unlike users.email, activation_tokens/invite_records carry no cross-company
+     * uniqueness constraint — an unrelated, still-pending invite at a different
+     * company can share this exact email address (GitHub issue #24). Deleting this
+     * account must not reach into that other tenant's InviteRecord row.
+     */
+    public function testDeleteAccountDoesNotScrubAnUnrelatedInviteAtAnotherCompany(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('delete-account-cross-company');
+        // Resolved before makeCompany() below creates a second row — SingleCompanyProvider
+        // (which activateUser()'s default company resolution uses) refuses to guess once
+        // more than one company exists.
+        $ownCompany = $this->singleCompanyProvider()->get();
+        $otherCompany = $this->makeCompany('Delete Scrub Isolation Co');
+        $otherCompanyInviteId = Uuid::v7()->toRfc4122();
+        $otherCompanyInvite = new InviteRecord($otherCompanyInviteId, $email, $otherCompany, null, new \DateTimeImmutable('+1 day'));
+        $this->entityManager()->persist($otherCompanyInvite);
+        $this->entityManager()->flush();
+
+        $this->activateUser($client, $email, company: $ownCompany);
+        $result = $this->jsonRequest($client, 'DELETE', '/api/me', ['currentAuthKey' => str_repeat('a', 44)]);
+        self::assertSame(200, $result['status']);
+
+        $persisted = $this->entityManager()->find(InviteRecord::class, $otherCompanyInviteId);
+        self::assertNotNull($persisted);
+        self::assertSame($email, $persisted->getEmail(), 'a pending invite at an unrelated company must survive this account\'s deletion untouched');
+    }
+
     public function testDeleteAccountIsRateLimitedAfterTooManyAttempts(): void
     {
         $client = static::createClient();
@@ -487,5 +625,32 @@ class AuthControllerTest extends ApiTestCase
 
         self::assertSame(429, $limited['status']);
         self::assertTrue($client->getResponse()->headers->has('Retry-After'));
+    }
+
+    /** @var list<string> */
+    private array $createdCompanyIds = [];
+
+    protected function tearDown(): void
+    {
+        if ([] !== $this->createdCompanyIds) {
+            $connection = $this->entityManager()->getConnection();
+            $placeholders = implode(',', array_fill(0, \count($this->createdCompanyIds), '?'));
+            $connection->executeStatement("DELETE FROM invite_records WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM activation_tokens WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM users WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
+            $connection->executeStatement("DELETE FROM companies WHERE id IN ({$placeholders})", $this->createdCompanyIds);
+        }
+
+        parent::tearDown();
+    }
+
+    private function makeCompany(string $name): Company
+    {
+        $company = new Company($name);
+        $this->entityManager()->persist($company);
+        $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
+
+        return $company;
     }
 }

@@ -414,7 +414,25 @@
     "allowedEmailDomainHint": "Leave empty to allow any email domain. Anyone — including an admin — who tries to invite someone outside this domain will see an error.",
     "inviteSettingsSaved": "Saved.",
     "usersTab": "Users",
-    "reportsTab": "Reports"
+    "reportsTab": "Reports",
+    "invitesTab": "Invites"
+  },
+  "adminInvites": {
+    "title": "Invites",
+    "errorLoad": "Could not load invites.",
+    "empty": "No invites yet.",
+    "emailHeader": "Email",
+    "senderHeader": "Sent by",
+    "sentHeader": "Sent",
+    "expiresHeader": "Expires",
+    "statusHeader": "Status",
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "expired": "Expired"
+    },
+    "senderSelfRegistered": "Self-registered",
+    "senderDeleted": "Sender account deleted"
   },
   "adminReports": {
     "title": "Reports",
@@ -474,7 +492,20 @@
     "revokePlatformAdmin": "Revoke platform admin",
     "invalidSeatLimit": "Seat limit must be empty (unlimited) or a positive whole number.",
     "errorLoad": "Could not load platform admin data.",
-    "errorUpdate": "Could not update the user."
+    "errorUpdate": "Could not update the user.",
+    "invitesHeading": "Invites",
+    "invitesEmpty": "No invites yet.",
+    "invitesSenderHeader": "Sent by",
+    "invitesSentHeader": "Sent",
+    "invitesExpiresHeader": "Expires",
+    "invitesStatusHeader": "Status",
+    "invitesStatus": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "expired": "Expired"
+    },
+    "invitesSenderSelfRegistered": "Self-registered",
+    "invitesSenderDeleted": "Sender account deleted"
   },
   "inviteForm": {
     "label": "Invite a colleague",

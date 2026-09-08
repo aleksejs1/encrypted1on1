@@ -416,7 +416,25 @@
     "allowedEmailDomainHint": "Оставьте пустым, чтобы разрешить любой домен email. Если кто-либо — включая админа — попытается пригласить человека вне этого домена, он увидит ошибку.",
     "inviteSettingsSaved": "Сохранено.",
     "usersTab": "Пользователи",
-    "reportsTab": "Отчёты"
+    "reportsTab": "Отчёты",
+    "invitesTab": "Приглашения"
+  },
+  "adminInvites": {
+    "title": "Приглашения",
+    "errorLoad": "Не удалось загрузить приглашения.",
+    "empty": "Пока нет приглашений.",
+    "emailHeader": "Email",
+    "senderHeader": "Отправил",
+    "sentHeader": "Отправлено",
+    "expiresHeader": "Истекает",
+    "statusHeader": "Статус",
+    "status": {
+      "pending": "Ожидает",
+      "accepted": "Принято",
+      "expired": "Истекло"
+    },
+    "senderSelfRegistered": "Самостоятельная регистрация",
+    "senderDeleted": "Аккаунт отправителя удалён"
   },
   "adminReports": {
     "title": "Отчёты",
@@ -476,7 +494,20 @@
     "revokePlatformAdmin": "Забрать права админа платформы",
     "invalidSeatLimit": "Лимит мест должен быть пустым (без ограничений) или положительным целым числом.",
     "errorLoad": "Не удалось загрузить данные администрирования платформы.",
-    "errorUpdate": "Не удалось обновить пользователя."
+    "errorUpdate": "Не удалось обновить пользователя.",
+    "invitesHeading": "Приглашения",
+    "invitesEmpty": "Пока нет приглашений.",
+    "invitesSenderHeader": "Отправил",
+    "invitesSentHeader": "Отправлено",
+    "invitesExpiresHeader": "Истекает",
+    "invitesStatusHeader": "Статус",
+    "invitesStatus": {
+      "pending": "Ожидает",
+      "accepted": "Принято",
+      "expired": "Истекло"
+    },
+    "invitesSenderSelfRegistered": "Самостоятельная регистрация",
+    "invitesSenderDeleted": "Аккаунт отправителя удалён"
   },
   "inviteForm": {
     "label": "Пригласить коллегу",

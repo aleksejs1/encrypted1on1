@@ -3,6 +3,11 @@
   import { apiGet, apiPut, ApiError } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
+  import {
+    inviteSenderLabel,
+    inviteStatusTagClass,
+    type Invite,
+  } from './inviteDisplay';
 
   interface PlatformCompany {
     id: string;
@@ -30,10 +35,17 @@
     deletedAt: string | null;
   }
 
+  /** Adds companyId/companyName to the shared Invite shape (PlatformAdminController::listInvites()). */
+  interface PlatformInvite extends Invite {
+    companyId: string;
+    companyName: string;
+  }
+
   let myUserId = $state<string | null>(null);
   let isPlatformAdmin = $state<boolean | null>(null);
   let companies = $state<PlatformCompany[]>([]);
   let users = $state<PlatformUser[]>([]);
+  let invites = $state<PlatformInvite[]>([]);
   let loadError = $state<string | null>(null);
   let actionError = $state<string | null>(null);
   let pending = $state<Record<string, boolean>>({});
@@ -55,6 +67,11 @@
           apiGet<PlatformUser[]>('/api/platform-admin/users').then((list) => {
             users = list;
           }),
+          apiGet<PlatformInvite[]>('/api/platform-admin/invites').then(
+            (list) => {
+              invites = list;
+            },
+          ),
         ]);
       })
       .catch((error: unknown) => {
@@ -164,6 +181,17 @@
     } finally {
       pending = { ...pending, [user.id]: false };
     }
+  }
+
+  function senderLabel(invite: PlatformInvite): string {
+    return inviteSenderLabel(invite.invitedBy, {
+      selfRegistered: $_('platformAdmin.invitesSenderSelfRegistered'),
+      senderDeleted: $_('platformAdmin.invitesSenderDeleted'),
+    });
+  }
+
+  function statusLabel(invite: PlatformInvite): string {
+    return $_(`platformAdmin.invitesStatus.${invite.status}`);
   }
 </script>
 
@@ -326,6 +354,42 @@
         </tbody>
       </table>
     </div>
+
+    <h2>{$_('platformAdmin.invitesHeading')}</h2>
+    {#if 0 === invites.length}
+      <p class="text-muted">{$_('platformAdmin.invitesEmpty')}</p>
+    {:else}
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{$_('platformAdmin.emailHeader')}</th>
+              <th>{$_('platformAdmin.companyHeader')}</th>
+              <th>{$_('platformAdmin.invitesSenderHeader')}</th>
+              <th>{$_('platformAdmin.invitesSentHeader')}</th>
+              <th>{$_('platformAdmin.invitesExpiresHeader')}</th>
+              <th>{$_('platformAdmin.invitesStatusHeader')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each invites as invite (invite.id)}
+              <tr>
+                <td>{invite.email}</td>
+                <td>{invite.companyName}</td>
+                <td>{senderLabel(invite)}</td>
+                <td>{formatDisplayDate(invite.createdAt)}</td>
+                <td>{formatDisplayDate(invite.expiresAt)}</td>
+                <td>
+                  <span class="tag {inviteStatusTagClass(invite.status)}">
+                    {statusLabel(invite)}
+                  </span>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
   {/if}
 </main>
 

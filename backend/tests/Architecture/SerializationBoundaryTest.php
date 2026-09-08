@@ -7,6 +7,7 @@ use App\Entity\ActivationToken;
 use App\Entity\Anketa;
 use App\Entity\Company;
 use App\Entity\Goal;
+use App\Entity\InviteRecord;
 use App\Entity\PasswordResetToken;
 use App\Entity\User;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -60,6 +61,7 @@ class SerializationBoundaryTest extends TestCase
         self::assertFalse(self::hasApiResourceAttribute(ActivationToken::class));
         self::assertFalse(self::hasApiResourceAttribute(PasswordResetToken::class));
         self::assertFalse(self::hasApiResourceAttribute(Company::class), 'Company has no company-admin-settings endpoint yet (see private/cloud-service-plan.md, Phase B/C) — must stay a plain entity, not an ApiResource, until that phase deliberately adds one.');
+        self::assertFalse(self::hasApiResourceAttribute(InviteRecord::class), 'InviteRecord holds invitee/inviter email addresses — GET /api/admin/invites and GET /api/platform-admin/invites are plain controllers with their own company-scoping logic, not generic API Platform CRUD.');
     }
 
     /** @param class-string $class */

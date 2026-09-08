@@ -41,7 +41,10 @@ class CompanyIsolationTest extends ApiTestCase
         if ([] !== $this->createdCompanyIds) {
             $connection = $this->entityManager()->getConnection();
             $placeholders = implode(',', array_fill(0, \count($this->createdCompanyIds), '?'));
-            // FK-safe order: children (tokens, users) before the company row itself.
+            // FK-safe order: children (invite records, tokens, users) before the company
+            // row itself — invite_records (GitHub issue #24) is populated by this
+            // suite's own POST /api/invites call and would otherwise dangle.
+            $connection->executeStatement("DELETE FROM invite_records WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM activation_tokens WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM users WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM companies WHERE id IN ({$placeholders})", $this->createdCompanyIds);

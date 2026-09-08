@@ -13,6 +13,7 @@
   import AccountSettings from './pages/AccountSettings.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
   import AdminReports from './admin/AdminReports.svelte';
+  import AdminInvites from './admin/AdminInvites.svelte';
   import PlatformAdminPanel from './admin/PlatformAdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
@@ -67,6 +68,7 @@
     report: '/report',
     admin: '/admin',
     adminReports: '/admin/reports',
+    adminInvites: '/admin/invites',
     account: '/account',
     platformAdmin: '/platform-admin',
   } as const;
@@ -87,6 +89,7 @@
     PATHS.report,
     PATHS.admin,
     PATHS.adminReports,
+    PATHS.adminInvites,
     PATHS.account,
     PATHS.platformAdmin,
   ];
@@ -139,6 +142,8 @@
     <AdminPanel />
   {:else if routerState.path === PATHS.adminReports}
     <AdminReports />
+  {:else if routerState.path === PATHS.adminInvites}
+    <AdminInvites />
   {:else if routerState.path === PATHS.platformAdmin}
     <PlatformAdminPanel />
   {:else}
