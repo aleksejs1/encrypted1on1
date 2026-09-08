@@ -114,8 +114,13 @@
     position: relative;
   }
 
+  /* .input's own 6px/14px padding (28px total) counts against this under
+     box-sizing: border-box, so a plain `11ch` leaves barely enough room for
+     the 10-character date text itself — content width is really `10ch +
+     28px`; the extra 42px here is real breathing room beyond that, not
+     padding double-counted. */
   .date-input .input {
-    width: 11ch;
+    width: calc(10ch + 42px);
   }
 
   .date-input .input.invalid {
