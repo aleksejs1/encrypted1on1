@@ -1,17 +1,23 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
 
-  const { active }: { active: 'users' | 'reports' } = $props();
+  const TABS = [
+    { key: 'users', href: '/admin', labelKey: 'admin.usersTab' },
+    { key: 'reports', href: '/admin/reports', labelKey: 'admin.reportsTab' },
+    { key: 'invites', href: '/admin/invites', labelKey: 'admin.invitesTab' },
+  ] as const;
+
+  const { active }: { active: (typeof TABS)[number]['key'] } = $props();
 </script>
 
 <nav class="tab-strip">
-  {#if active === 'users'}
-    <span class="tab tab-active">{$_('admin.usersTab')}</span>
-    <a class="tab" href="/admin/reports">{$_('admin.reportsTab')}</a>
-  {:else}
-    <a class="tab" href="/admin">{$_('admin.usersTab')}</a>
-    <span class="tab tab-active">{$_('admin.reportsTab')}</span>
-  {/if}
+  {#each TABS as tab (tab.key)}
+    {#if tab.key === active}
+      <span class="tab tab-active">{$_(tab.labelKey)}</span>
+    {:else}
+      <a class="tab" href={tab.href}>{$_(tab.labelKey)}</a>
+    {/if}
+  {/each}
 </nav>
 
 <style>

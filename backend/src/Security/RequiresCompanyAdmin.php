@@ -10,11 +10,12 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 /**
  * The company-admin gate (401 unauthenticated, 403 non-admin) shared by
  * every controller scoped to the requesting admin's own company —
- * `AdminController` and `AdminReportController` at the time of writing. A
- * trait, not a service, since the two call sites just need the same
+ * `AdminController`, `AdminReportController`, and `InviteController`
+ * (its `list()` method, GitHub issue #24) at the time of writing. A
+ * trait, not a service, since these call sites just need the same
  * private method, not a collaborator to inject. Deliberately *not*
- * declaring `$authSession`/`$translator` properties here — both using
- * classes already have them as constructor-promoted properties of the
+ * declaring `$authSession`/`$translator` properties here — every using
+ * class already has them as constructor-promoted properties of the
  * same name/type, and a trait redeclaring them would conflict; this trait
  * just assumes they're there (same "trait needs the host class to already
  * have X" contract PHP traits commonly use). Deliberately not shared with

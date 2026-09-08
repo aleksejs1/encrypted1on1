@@ -77,6 +77,11 @@ class ActivationToken
         return [new self($tokenHash, $email, $company, $grantsAdmin, $expiresAt), $rawToken];
     }
 
+    public function getId(): string
+    {
+        return $this->id;
+    }
+
     public function getEmail(): string
     {
         return $this->email;
@@ -85,6 +90,11 @@ class ActivationToken
     public function getCompany(): Company
     {
         return $this->company;
+    }
+
+    public function getExpiresAt(): \DateTimeImmutable
+    {
+        return $this->expiresAt;
     }
 
     public function grantsAdmin(): bool

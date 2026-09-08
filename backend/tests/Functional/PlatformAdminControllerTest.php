@@ -27,6 +27,9 @@ class PlatformAdminControllerTest extends ApiTestCase
         if ([] !== $this->createdCompanyIds) {
             $connection = $this->entityManager()->getConnection();
             $placeholders = implode(',', array_fill(0, \count($this->createdCompanyIds), '?'));
+            // invite_records (GitHub issue #24) first — populated by this suite's own
+            // POST /api/invites calls, with FKs to both companies and users below.
+            $connection->executeStatement("DELETE FROM invite_records WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM activation_tokens WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM users WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM companies WHERE id IN ({$placeholders})", $this->createdCompanyIds);
@@ -351,6 +354,57 @@ class PlatformAdminControllerTest extends ApiTestCase
         $result = $this->jsonRequest($platformAdminClient, 'PUT', "/api/platform-admin/users/{$target['id']}/platform-admin", []);
 
         self::assertSame(400, $result['status']);
+    }
+
+    public function testInvitesListRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'GET', '/api/platform-admin/invites');
+
+        self::assertSame(401, $result['status']);
+    }
+
+    public function testInvitesListRequires403ForAMereCompanyAdmin(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('platform-admin-invites-mere-admin'), admin: true);
+
+        $result = $this->jsonRequest($client, 'GET', '/api/platform-admin/invites');
+
+        self::assertSame(403, $result['status']);
+    }
+
+    public function testPlatformAdminSeesInvitesAcrossEveryCompanyWithCompanyName(): void
+    {
+        $platformAdminClient = static::createClient();
+        $companyA = $this->makeCompany('Invites Platform Co A');
+        $companyB = $this->makeCompany('Invites Platform Co B');
+        $platformAdmin = $this->activateUser($platformAdminClient, $this->uniqueEmail('platform-admin-invites-viewer'), admin: true, company: $companyA);
+        $this->makePlatformAdmin($platformAdmin['id']);
+        $targetA = $this->uniqueEmail('platform-admin-invites-target-a');
+        $this->jsonRequest($platformAdminClient, 'POST', '/api/invites', ['email' => $targetA]);
+
+        $otherCompanyClient = $this->secondClient();
+        $otherCompanyAdmin = $this->activateUser($otherCompanyClient, $this->uniqueEmail('platform-admin-invites-other-admin'), admin: true, company: $companyB);
+        $targetB = $this->uniqueEmail('platform-admin-invites-target-b');
+        $this->jsonRequest($otherCompanyClient, 'POST', '/api/invites', ['email' => $targetB]);
+
+        $result = $this->jsonRequest($platformAdminClient, 'GET', '/api/platform-admin/invites');
+
+        self::assertSame(200, $result['status']);
+        $byEmail = [];
+        foreach ($result['json'] as $row) {
+            $byEmail[$row['email']] = $row;
+        }
+        self::assertArrayHasKey($targetA, $byEmail, 'a platform admin must see every company\'s invites, unlike InviteController::list()');
+        self::assertArrayHasKey($targetB, $byEmail);
+        self::assertSame($companyA->getId(), $byEmail[$targetA]['companyId']);
+        self::assertSame($companyB->getId(), $byEmail[$targetB]['companyId']);
+        self::assertSame('Invites Platform Co A', $byEmail[$targetA]['companyName']);
+        self::assertSame('Invites Platform Co B', $byEmail[$targetB]['companyName']);
+        self::assertSame($platformAdmin['email'], $byEmail[$targetA]['invitedBy']['email']);
+        self::assertSame($otherCompanyAdmin['email'], $byEmail[$targetB]['invitedBy']['email']);
     }
 
     private function makeCompany(string $name, ?int $seatLimit = null): Company

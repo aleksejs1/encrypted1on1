@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Billing\SeatLimitChecker;
 use App\Company\SingleCompanyProvider;
 use App\Entity\ActivationToken;
+use App\Entity\InviteRecord;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
 use App\Notification\InvitationNotifier;
@@ -132,6 +133,14 @@ class SignupController
 
                 [$activationToken, $rawToken] = ActivationToken::issue($email, $company);
                 $this->entityManager->persist($activationToken);
+
+                // invitedBy: null — open self-registration, nobody sent this. See
+                // InviteRecord's own docblock and GitHub issue #24's "Scope" section
+                // for why this is tracked (same expiring-link problem as an
+                // admin-sent invite) while the CLI bootstrap/cloud company-creation
+                // paths deliberately are not.
+                $inviteRecord = new InviteRecord($activationToken->getId(), $email, $company, null, $activationToken->getExpiresAt());
+                $this->entityManager->persist($inviteRecord);
 
                 return $rawToken;
             });

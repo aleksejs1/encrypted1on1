@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\ActivationToken;
+use App\Entity\InviteRecord;
 use App\Tests\Support\ApiTestCase;
 
 class ActivationControllerTest extends ApiTestCase
@@ -170,6 +171,50 @@ class ActivationControllerTest extends ApiTestCase
         self::assertSame(429, $limited['status']);
     }
 
+    /**
+     * GitHub issue #24: a token issued alongside a matching InviteRecord (mirroring
+     * InviteController::create()) gets that record's acceptedAt stamped on real
+     * completion — proving the coupling described in InviteRecord's own docblock,
+     * not just the pure aggregator-style unit the entity's own status() getter covers.
+     */
+    public function testCompletingATokenStampsItsMatchingInviteRecordAsAccepted(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('activation-invite-accept');
+        [$rawToken, $inviteRecordId] = $this->issueInvite($email);
+
+        $result = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $inviteRecord = $this->entityManager()->find(InviteRecord::class, $inviteRecordId);
+        self::assertNotNull($inviteRecord);
+        self::assertNotNull($inviteRecord->getAcceptedAt());
+        self::assertSame('accepted', $inviteRecord->status(new \DateTimeImmutable()));
+    }
+
+    /**
+     * The CLI bootstrap / cloud company-creation completions have no matching
+     * InviteRecord at all (see ActivationController::complete()'s own comment) — this
+     * proves that's a normal, silent no-op, not a 500.
+     */
+    public function testCompletingATokenWithNoMatchingInviteRecordStillSucceeds(): void
+    {
+        $client = static::createClient();
+        $rawToken = $this->issueToken($this->uniqueEmail('activation-no-invite-record'));
+
+        $result = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
+            'authKey' => str_repeat('a', 44),
+            'publicKey' => str_repeat('b', 44),
+            'encryptedPrivateKey' => str_repeat('c', 44),
+        ]);
+
+        self::assertSame(200, $result['status']);
+    }
+
     private function issueToken(string $email): string
     {
         [$token, $rawToken] = ActivationToken::issue($email, $this->singleCompanyProvider()->get());
@@ -177,5 +222,18 @@ class ActivationControllerTest extends ApiTestCase
         $this->entityManager()->flush();
 
         return $rawToken;
+    }
+
+    /** @return array{0: string, 1: string} raw token, InviteRecord id */
+    private function issueInvite(string $email): array
+    {
+        $company = $this->singleCompanyProvider()->get();
+        [$token, $rawToken] = ActivationToken::issue($email, $company);
+        $this->entityManager()->persist($token);
+        $inviteRecord = new InviteRecord($token->getId(), $email, $company, null, $token->getExpiresAt());
+        $this->entityManager()->persist($inviteRecord);
+        $this->entityManager()->flush();
+
+        return [$rawToken, $inviteRecord->getId()];
     }
 }

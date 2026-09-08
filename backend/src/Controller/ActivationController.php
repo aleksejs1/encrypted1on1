@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\ActivationToken;
+use App\Entity\InviteRecord;
 use App\Entity\User;
 use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
@@ -92,6 +93,13 @@ class ActivationController
             displayName: $displayName,
         );
         $activationToken->markUsed();
+
+        // Not found is the expected common case, not an anomaly: only
+        // InviteController/SignupController write an InviteRecord (see its own
+        // docblock) — the CLI bootstrap and cloud self-service company-creation
+        // completions have none, by design (GitHub issue #24's "Scope" section).
+        $inviteRecord = $this->entityManager->find(InviteRecord::class, $activationToken->getId());
+        $inviteRecord?->markAccepted();
 
         $this->entityManager->persist($user);
         try {

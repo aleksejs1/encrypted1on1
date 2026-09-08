@@ -29,6 +29,12 @@ class SeatLimitTest extends ApiTestCase
         if ([] !== $this->createdCompanyIds) {
             $connection = $this->entityManager()->getConnection();
             $placeholders = implode(',', array_fill(0, \count($this->createdCompanyIds), '?'));
+            // invite_records first — GitHub issue #24's new table, populated by every
+            // POST /api/invites this suite makes, with FKs to both companies and users
+            // below; deleting it last would leave dangling rows a later test's
+            // GET /api/platform-admin/invites could trip over (EntityNotFoundException
+            // on a lazy-loaded, now-missing company/user).
+            $connection->executeStatement("DELETE FROM invite_records WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM activation_tokens WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM users WHERE company_id IN ({$placeholders})", $this->createdCompanyIds);
             $connection->executeStatement("DELETE FROM companies WHERE id IN ({$placeholders})", $this->createdCompanyIds);

@@ -416,7 +416,25 @@
     "allowedEmailDomainHint": "Atstājiet tukšu, lai atļautu jebkuru e-pasta domēnu. Ja kāds — arī administrators — mēģinās uzaicināt cilvēku ārpus šī domēna, viņš redzēs kļūdu.",
     "inviteSettingsSaved": "Saglabāts.",
     "usersTab": "Lietotāji",
-    "reportsTab": "Pārskati"
+    "reportsTab": "Pārskati",
+    "invitesTab": "Uzaicinājumi"
+  },
+  "adminInvites": {
+    "title": "Uzaicinājumi",
+    "errorLoad": "Neizdevās ielādēt uzaicinājumus.",
+    "empty": "Pagaidām nav uzaicinājumu.",
+    "emailHeader": "E-pasts",
+    "senderHeader": "Nosūtīja",
+    "sentHeader": "Nosūtīts",
+    "expiresHeader": "Derīgs līdz",
+    "statusHeader": "Statuss",
+    "status": {
+      "pending": "Gaida",
+      "accepted": "Pieņemts",
+      "expired": "Beidzies"
+    },
+    "senderSelfRegistered": "Pašreģistrācija",
+    "senderDeleted": "Nosūtītāja konts dzēsts"
   },
   "adminReports": {
     "title": "Pārskati",
@@ -476,7 +494,20 @@
     "revokePlatformAdmin": "Atņemt platformas administratora tiesības",
     "invalidSeatLimit": "Vietu limitam jābūt tukšam (bez ierobežojuma) vai pozitīvam veselam skaitlim.",
     "errorLoad": "Neizdevās ielādēt platformas administrēšanas datus.",
-    "errorUpdate": "Neizdevās atjaunināt lietotāju."
+    "errorUpdate": "Neizdevās atjaunināt lietotāju.",
+    "invitesHeading": "Uzaicinājumi",
+    "invitesEmpty": "Pagaidām nav uzaicinājumu.",
+    "invitesSenderHeader": "Nosūtīja",
+    "invitesSentHeader": "Nosūtīts",
+    "invitesExpiresHeader": "Derīgs līdz",
+    "invitesStatusHeader": "Statuss",
+    "invitesStatus": {
+      "pending": "Gaida",
+      "accepted": "Pieņemts",
+      "expired": "Beidzies"
+    },
+    "invitesSenderSelfRegistered": "Pašreģistrācija",
+    "invitesSenderDeleted": "Nosūtītāja konts dzēsts"
   },
   "inviteForm": {
     "label": "Uzaicināt kolēģi",
