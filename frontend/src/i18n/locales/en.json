@@ -13,7 +13,9 @@
     "pickDate": "Pick a date",
     "invalidDate": "Invalid date — expected format: {example}",
     "save": "Save",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "edit": "Edit",
+    "cancel": "Cancel"
   },
   "login": {
     "title": "Log in",

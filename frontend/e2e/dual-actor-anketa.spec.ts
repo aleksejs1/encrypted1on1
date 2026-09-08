@@ -186,6 +186,128 @@ test('employee and manager complete an anketa across two independent sessions', 
 });
 
 /**
+ * Coverage for editing an existing list-entry (achievements/growth/discuss)
+ * in place, added because these fields previously only supported add/remove
+ * (see the "achievements/growth entries have no edit" issue) — deleting and
+ * re-adding an entry to fix a typo would silently re-stamp its date and move
+ * it to the end of the log, corrupting the timeline of a field whose whole
+ * point is being an accurate, dated record. Drives the real Edit/Save UI
+ * (not the pure mutation directly — there's no exported/unit-tested function
+ * for it, unlike editOutcome/editComment, since it stays an inline closure
+ * alongside its untested addListEntry/removeListEntry siblings) and confirms
+ * the edit survives a real publish + re-encrypt + a separate session
+ * decrypting it, the same round-trip standard as the rest of this file.
+ */
+test('achievements list entry can be edited in place, and the edit survives publish', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-editentry');
+  const managerEmail = uniqueEmail('manager-editentry');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + 3);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const anketaUrl = employee.url();
+
+  // "Achievements" (not "Achievements worth recognizing", the manager-side
+  // field) is unambiguous within the employee's own side-card.
+  const achievementsBlock = employee
+    .locator('.side-card')
+    .first()
+    .locator('.block', { hasText: 'Achievements' });
+  const originalText = `E2E-ENTRY-ORIGINAL-${Date.now()}`;
+  const editedText = `E2E-ENTRY-EDITED-${Date.now()}`;
+  await achievementsBlock.getByPlaceholder('Add an entry…').fill(originalText);
+  await achievementsBlock.getByRole('button', { name: 'Add' }).click();
+  // Anchored by position, not by hasText: 'Edit' swaps the entry's text span
+  // for an input carrying the text as a *value*, not text content, so a
+  // hasText-filtered locator would stop matching its own row mid-edit. This
+  // is the only entry in the list at this point.
+  const entryRow = achievementsBlock.locator('.entry').first();
+  await expect(entryRow).toContainText(originalText);
+  const originalDate = await entryRow.locator('.entry-date').innerText();
+
+  await entryRow.getByRole('button', { name: 'Edit' }).click();
+  await entryRow.locator('.entry-edit-input').fill(editedText);
+  await entryRow.getByRole('button', { name: 'Save' }).click();
+
+  // Renamed in place: same row, edited text, and — unlike a delete-and-readd —
+  // the same original date, since editing must not disturb the entry's
+  // position or dated meaning in the log.
+  await expect(entryRow.locator('.entry-text')).toHaveText(editedText);
+  await expect(entryRow.locator('.entry-date')).toHaveText(originalDate);
+
+  // The initial "Publish" button must also refuse to fire while an entry's
+  // inline edit sits open and uncommitted — otherwise Publish would persist
+  // the pre-edit answers and silently discard whatever's mid-typed here.
+  const employeeMySide = employee.locator('.side-card').first();
+  const publishButton = employeeMySide.getByRole('button', {
+    name: 'Publish',
+  });
+  await entryRow.getByRole('button', { name: 'Edit' }).click();
+  await expect(publishButton).toBeDisabled();
+  await entryRow.getByRole('button', { name: 'Cancel' }).click();
+  await expect(publishButton).toBeEnabled();
+
+  // Publish, then a completely separate manager session must see the edited
+  // text (not the original) — confirming the edit genuinely round-tripped
+  // through the server's saveDraft()/publish() blob save, re-encrypted under
+  // the shared anketa key, not merely local component state.
+  await publishButton.click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // Open the outer per-side "Edit" (the editable-after-publish feature), then
+  // open the *same entry's* inline edit again. The outer "Save" must be
+  // disabled while that inline edit sits open and uncommitted — otherwise
+  // clicking outer Save would persist the pre-edit text while silently
+  // discarding whatever's mid-typed in the entry's own edit box.
+  const postPublishEditedText = `E2E-ENTRY-POST-PUBLISH-EDIT-${Date.now()}`;
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  const outerSaveButton = employeeMySide
+    .locator('.answers-edit-actions')
+    .getByRole('button', { name: 'Save' });
+  await entryRow.getByRole('button', { name: 'Edit' }).click();
+  await expect(outerSaveButton).toBeDisabled();
+  await entryRow.locator('.entry-edit-input').fill(postPublishEditedText);
+  await entryRow.getByRole('button', { name: 'Save' }).click();
+  await expect(outerSaveButton).toBeEnabled();
+  await outerSaveButton.click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  await manager.goto(anketaUrl);
+  const managerCounterpartAchievements = manager
+    .locator('.side-card')
+    .nth(1)
+    .locator('.block', { hasText: 'Achievements' });
+  await expect(
+    managerCounterpartAchievements.getByText(postPublishEditedText),
+  ).toBeVisible();
+  await expect(
+    managerCounterpartAchievements.getByText(editedText, { exact: true }),
+  ).not.toBeVisible();
+  await expect(
+    managerCounterpartAchievements.getByText(originalText),
+  ).not.toBeVisible();
+});
+
+/**
  * Regression coverage for the "Change date" toggle: before this, an anketa's
  * meeting date could only be moved from the overdue-only reschedule card
  * (Anketa.svelte's `isOverdue` gate), so a participant who knew *in advance*

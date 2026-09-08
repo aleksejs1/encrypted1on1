@@ -13,7 +13,9 @@
     "pickDate": "Izvēlēties datumu",
     "invalidDate": "Nederīgs datums — sagaidāmais formāts: {example}",
     "save": "Saglabāt",
-    "saving": "Saglabā…"
+    "saving": "Saglabā…",
+    "edit": "Rediģēt",
+    "cancel": "Atcelt"
   },
   "login": {
     "title": "Pieslēgties",
