@@ -74,7 +74,14 @@
    * - Editing: `editingMyAnswers` true, `savingAnswersEdit` false. AnswerField is
    *   writable; Save/Cancel shown.
    * - Saving: `editingMyAnswers` true, `savingAnswersEdit` true. A save request is in
-   *   flight; Save/Cancel disabled to prevent a double-submit.
+   *   flight; Save/Cancel disabled to prevent a double-submit, and AnswerField itself
+   *   goes back to readonly (`readonly={myPublished && (!editingMyAnswers ||
+   *   savingAnswersEdit)}`) — not just to stop further top-level field edits from
+   *   racing the in-flight blob, but because AnswerField's list fields have their own
+   *   uncommitted-until-"Save" inline entry-edit state; without this, opening an entry's
+   *   inline edit *during* this window and typing into it gets silently discarded the
+   *   instant the request resolves and `editingMyAnswers` flips back to false, with no
+   *   warning the text was lost.
    * - After a 409: handleSaveAnswersEdit() always exits back to "not editing" rather
    *   than retrying — a blind resubmit could silently overwrite someone's real save
    *   with this tab's stale draft. A same-tab version conflict (another of *my own*
@@ -93,6 +100,19 @@
   let savingAnswersEdit = $state(false);
   let myBlobVersion = $state(0);
   let answersBeforeEdit: Answers | null = null;
+
+  /**
+   * Keyed by field.id, mirrored from each AnswerField's own hasOpenEntryEdit
+   * (list fields only — non-list fields never set theirs true). The outer
+   * Save/Cancel below stay disabled while any is true, so clicking them can
+   * never save-over or silently discard a list entry's typed-but-uncommitted
+   * inline edit — same "one action open at a time" reasoning as
+   * anotherOutcomeActionOpen, one level up.
+   */
+  let fieldsWithOpenEntryEdit = $state<Record<string, boolean>>({});
+  const anyEntryEditOpen = $derived(
+    Object.values(fieldsWithOpenEntryEdit).some(Boolean),
+  );
 
   let saveState = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let publishing = $state(false);
@@ -170,6 +190,7 @@
     editingMyAnswers = false;
     savingAnswersEdit = false;
     answersBeforeEdit = null;
+    fieldsWithOpenEntryEdit = {};
     try {
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
@@ -981,7 +1002,10 @@
               <AnswerField
                 {field}
                 bind:value={myAnswers[field.id]}
-                readonly={myPublished && !editingMyAnswers}
+                readonly={myPublished &&
+                  (!editingMyAnswers || savingAnswersEdit)}
+                bind:hasOpenEntryEdit={fieldsWithOpenEntryEdit[field.id]}
+                anketaId={id}
               />
               {#if myPublished}
                 <CommentThread
@@ -1010,7 +1034,7 @@
           type="button"
           class="btn btn-primary side-publish-btn"
           onclick={handlePublish}
-          disabled={publishing}
+          disabled={publishing || anyEntryEditOpen}
         >
           {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
         </button>
@@ -1024,7 +1048,7 @@
             type="button"
             class="btn btn-primary"
             onclick={handleSaveAnswersEdit}
-            disabled={savingAnswersEdit}
+            disabled={savingAnswersEdit || anyEntryEditOpen}
           >
             {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
           </button>
@@ -1032,7 +1056,7 @@
             type="button"
             class="btn btn-ghost"
             onclick={cancelEditingAnswers}
-            disabled={savingAnswersEdit}
+            disabled={savingAnswersEdit || anyEntryEditOpen}
           >
             {$_('anketa.cancel')}
           </button>
@@ -1087,6 +1111,7 @@
                   {field}
                   value={counterpartAnswers[field.id]}
                   readonly
+                  anketaId={id}
                 />
                 <CommentThread
                   comments={allComments.filter((c) => c.targetId === field.id)}

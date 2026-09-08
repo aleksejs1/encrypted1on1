@@ -13,7 +13,9 @@
     "pickDate": "Elegir una fecha",
     "invalidDate": "Fecha no válida — formato esperado: {example}",
     "save": "Guardar",
-    "saving": "Guardando…"
+    "saving": "Guardando…",
+    "edit": "Editar",
+    "cancel": "Cancelar"
   },
   "login": {
     "title": "Iniciar sesión",

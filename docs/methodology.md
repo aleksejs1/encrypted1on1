@@ -21,7 +21,7 @@ Answers stay editable for the entire period between meetings, right up until pub
 
 ## Why the anketa stays open the whole cycle
 
-Several fields are lists you add dated entries to over time, not a single text box: what you learned or discovered (growth), things worth calling out as achievements, and topics you want to make sure get discussed. These are append-format on purpose — the idea someone learned something worth noting is far easier to capture in the moment it happens than to reconstruct from memory the night before a meeting that might be weeks away. The same applies to the manager's "achievements worth recognizing" for their report.
+Several fields are lists you add dated entries to over time, not a single text box: what you learned or discovered (growth), things worth calling out as achievements, and topics you want to make sure get discussed. These are append-format on purpose — the idea someone learned something worth noting is far easier to capture in the moment it happens than to reconstruct from memory the night before a meeting that might be weeks away. An entry's own wording can still be corrected in place afterward (e.g. fixing a typo) without losing its original date or position in the log — only deleting and re-adding it would do that. The same applies to the manager's "achievements worth recognizing" for their report.
 
 Other fields are deliberately the opposite — a single snapshot, not a log: mood and workload are asked as "how do you feel *right now*, and compared to last time" — a trend line across an anketa's whole lifetime wouldn't mean much, since what matters is where things stand as the meeting approaches, not a diary of every day in between.
 
