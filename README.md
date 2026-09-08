@@ -46,6 +46,10 @@ One-time, per clone (not committed by git itself). `.githooks/pre-commit` autofi
 
 AGPLv3 — see [LICENSE](LICENSE).
 
+## Security
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md) for how to report it privately.
+
 ## Contributing
 
 Not currently set up for external contributions (no issue templates, no contribution guidelines yet) — open an issue first if you're interested, rather than sending an unsolicited PR.
