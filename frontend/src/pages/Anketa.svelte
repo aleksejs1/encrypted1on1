@@ -36,6 +36,7 @@
     type Answers,
   } from '../anketa/questions';
   import { updateBlobWithRetry } from '../anketa/blobSync';
+  import { isOverdue as computeIsOverdue } from '../anketa/isOverdue';
   import type { AnketaDetail } from '../api/types';
   import {
     decryptBlob,
@@ -128,9 +129,7 @@
   let showReschedule = $state(false);
 
   const isOverdue = $derived(
-    detail !== null &&
-      !archived &&
-      new Date(detail.meetingDate).getTime() < Date.now(),
+    detail !== null && !archived && computeIsOverdue(detail),
   );
 
   let myUserId = $state('');

@@ -14,6 +14,7 @@
     unsealAnketaKey,
   } from '../crypto/anketaKey';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
+  import { isOverdue } from '../anketa/isOverdue';
   import { extractTrendValues } from '../anketa/moodWorkloadTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
   import {
@@ -67,13 +68,6 @@
   const WORKLOAD_OPTIONS = employeeQuestions
     .find((q) => q.id === 'workload')!
     .fields.find((f) => f.id === 'workloadNow')!.options!;
-
-  function isOverdue(anketa: AnketaSummary): boolean {
-    return (
-      anketa.archivedAt === null &&
-      new Date(anketa.meetingDate).getTime() < Date.now()
-    );
-  }
 
   /** The first full Unicode code point of a string, not just its first UTF-16 code unit — plain indexing/slicing would split an astral-plane character (e.g. an emoji) into a broken surrogate half. */
   function firstCodePoint(s: string): string {
