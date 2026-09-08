@@ -111,6 +111,7 @@ class InviteControllerTest extends ApiTestCase
         $persisted = $this->entityManager()->getRepository(InviteRecord::class)->findOneBy(['email' => $targetEmail]);
         self::assertNotNull($persisted);
         self::assertSame($persisted->getId(), $row['id']);
+        self::assertSame($persisted->getExpiresAt()->format(\DATE_ATOM), $row['expiresAt']);
         self::assertSame('pending', $row['status']);
         self::assertNull($row['acceptedAt']);
         self::assertSame('Alex Morgan', $row['invitedBy']['name']);
