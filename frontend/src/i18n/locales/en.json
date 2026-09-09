@@ -178,6 +178,7 @@
     "viewToggleDate": "By date",
     "viewToggleCounterpart": "By person",
     "nextMeetingLabel": "Next meeting: {date}",
+    "daysUntilMeeting": "{days, plural, =0 {Today} one {In # day} other {In # days}}",
     "reshareBannerText": "One or more counterparts reset their password, which changed their encryption key. Anketas you share with them may need to be shared again before they can read them.",
     "reshareButton": "Re-share now",
     "reshareInProgress": "Re-sharing…",
