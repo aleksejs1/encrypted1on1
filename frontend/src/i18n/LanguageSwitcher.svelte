@@ -8,6 +8,7 @@
     ru: 'Русский',
     lv: 'Latviešu',
     es: 'Español',
+    de: 'Deutsch',
   };
 
   function handleChange(code: SupportedLocale): void {

@@ -3,16 +3,19 @@ import en from './locales/en.json';
 import ru from './locales/ru.json';
 import lv from './locales/lv.json';
 import es from './locales/es.json';
+import de from './locales/de.json';
 
 /**
  * The 4 launch-required locales (spec: "английский (дефолт), русский,
- * латышский, испанский — обязательны на старте"). Messages are added
- * directly (not svelte-i18n's lazy `register()`) — these files are small
- * enough that bundling all 4 together and initializing synchronously is
- * simpler than threading an async "locale still loading" state through
- * every page, for no real bundle-size benefit at this scale.
+ * латышский, испанский — обязательны на старте"), plus German added later
+ * (GitHub issue #34) — the same eager-load pattern extends cleanly since it
+ * was never spec-hardcoded to 4. Messages are added directly (not
+ * svelte-i18n's lazy `register()`) — these files are small enough that
+ * bundling them all together and initializing synchronously is simpler
+ * than threading an async "locale still loading" state through every page,
+ * for no real bundle-size benefit at this scale.
  */
-export const SUPPORTED_LOCALES = ['en', 'ru', 'lv', 'es'] as const;
+export const SUPPORTED_LOCALES = ['en', 'ru', 'lv', 'es', 'de'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 const STORAGE_KEY = 'e1o1:locale';
@@ -21,6 +24,7 @@ addMessages('en', en);
 addMessages('ru', ru);
 addMessages('lv', lv);
 addMessages('es', es);
+addMessages('de', de);
 
 function isSupported(code: string | null | undefined): code is SupportedLocale {
   return (

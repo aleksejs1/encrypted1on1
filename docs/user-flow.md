@@ -85,4 +85,4 @@ Admins get one extra screen: the full user list, with the ability to invite, blo
 
 ## Language
 
-The interface (English, Russian, Latvian, Spanish) is a pure client-side preference, switchable anytime, independent of what language a given account's notification emails go out in — those follow whatever the account holder last set explicitly, since the two can reasonably differ (e.g. someone reading the UI in one language while a colleague, or their own inbox habits, expect emails in another).
+The interface (English, Russian, Latvian, Spanish, German) is a pure client-side preference, switchable anytime, independent of what language a given account's notification emails go out in — those follow whatever the account holder last set explicitly, since the two can reasonably differ (e.g. someone reading the UI in one language while a colleague, or their own inbox habits, expect emails in another).

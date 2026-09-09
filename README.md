@@ -6,7 +6,7 @@ A self-hosted, end-to-end encrypted platform for running 1:1 meetings between ma
 
 <img src="docs/screenshots/anketa.png" alt="An anketa page, showing a manager's published side with feedback and achievements filled in" width="600">
 
-More: [screenshots](docs/screenshots/) — login, the anketa list, a filled-in anketa, the report view, dark mode, all 4 languages, and a look at what the server's own API response actually contains.
+More: [screenshots](docs/screenshots/) — login, the anketa list, a filled-in anketa, the report view, dark mode, several of the supported languages, and a look at what the server's own API response actually contains.
 
 ## Status
 
