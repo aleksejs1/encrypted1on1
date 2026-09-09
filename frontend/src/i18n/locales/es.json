@@ -178,6 +178,7 @@
     "viewToggleDate": "Por fecha",
     "viewToggleCounterpart": "Por persona",
     "nextMeetingLabel": "Próxima reunión: {date}",
+    "daysUntilMeeting": "{days, plural, =0 {Hoy} one {En # día} other {En # días}}",
     "reshareBannerText": "Uno o más interlocutores restablecieron su contraseña, lo que cambió su clave de cifrado. Es posible que los cuestionarios que compartes con ellos deban compartirse de nuevo antes de que puedan leerlos.",
     "reshareButton": "Compartir de nuevo",
     "reshareInProgress": "Compartiendo de nuevo…",

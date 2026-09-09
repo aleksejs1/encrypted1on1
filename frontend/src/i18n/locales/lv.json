@@ -178,6 +178,7 @@
     "viewToggleDate": "Pēc datuma",
     "viewToggleCounterpart": "Pēc personas",
     "nextMeetingLabel": "Nākamā tikšanās: {date}",
+    "daysUntilMeeting": "{days, plural, =0 {Šodien} zero {Pēc # dienām} one {Pēc # dienas} other {Pēc # dienām}}",
     "reshareBannerText": "Vienam vai vairākiem sarunu biedriem ir veikta paroles atiestatīšana, kas nomainīja viņu šifrēšanas atslēgu. Iespējams, ka anketas, kas jums ir kopīgas ar viņiem, būs jāpiešķir vēlreiz, pirms viņi tās varēs izlasīt.",
     "reshareButton": "Piešķirt piekļuvi vēlreiz",
     "reshareInProgress": "Piešķiršana…",

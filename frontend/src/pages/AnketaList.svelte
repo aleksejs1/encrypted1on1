@@ -14,7 +14,7 @@
     unsealAnketaKey,
   } from '../crypto/anketaKey';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
-  import { isOverdue } from '../anketa/isOverdue';
+  import { daysUntilMeeting } from '../anketa/isOverdue';
   import { extractTrendValues } from '../anketa/moodWorkloadTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
   import {
@@ -92,26 +92,57 @@
       : fullDisplayName(name, email);
   }
 
-  function badgesFor(anketa: AnketaSummary): BadgeMeta[] {
-    const list: BadgeMeta[] = [];
-    if (isOverdue(anketa))
-      list.push({ cls: 'tag-outline', label: $_('anketaList.badgeOverdue') });
+  interface RowDisplay {
+    badges: BadgeMeta[];
+    daysLabel: string | null;
+  }
+
+  /**
+   * Badges and days-until-meeting label for one anketa, computed together
+   * from a single `daysUntilMeeting()` call (and so a single `new Date()`
+   * reading) rather than as two separate functions each defaulting `now` on
+   * their own — which could disagree right at a local-midnight boundary
+   * (see `daysUntilMeeting`'s docblock). Deliberately *not* cached/hoisted
+   * to component scope: called fresh on every render, so both the badge and
+   * the label stay live across whatever ordinary re-render eventually
+   * happens (view toggle, list refetch after reshare) — the same freshness
+   * every other per-anketa value on this page already has.
+   */
+  function rowDisplay(anketa: AnketaSummary): RowDisplay {
+    const days = daysUntilMeeting(anketa.meetingDate);
+    const overdue = anketa.archivedAt === null && days < 0;
+
+    const badges: BadgeMeta[] = [];
+    if (overdue)
+      badges.push({
+        cls: 'tag-outline',
+        label: $_('anketaList.badgeOverdue'),
+      });
     if (anketa.archivedAt)
-      list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeArchived') });
+      badges.push({
+        cls: 'tag-neutral',
+        label: $_('anketaList.badgeArchived'),
+      });
     if (anketa.missed)
-      list.push({ cls: 'tag-neutral', label: $_('anketaList.badgeMissed') });
+      badges.push({ cls: 'tag-neutral', label: $_('anketaList.badgeMissed') });
     if (anketa.myPublishedAt)
-      list.push({
+      badges.push({
         cls: 'tag-accent',
         label: $_('anketaList.badgePublishedByMe'),
       });
     if (anketa.counterpartPublishedAt) {
-      list.push({
+      badges.push({
         cls: 'tag-accent-2',
         label: $_('anketaList.badgePublishedByCounterpart'),
       });
     }
-    return list;
+
+    const daysLabel =
+      anketa.archivedAt === null && days >= 0
+        ? $_('anketaList.daysUntilMeeting', { values: { days } })
+        : null;
+
+    return { badges, daysLabel };
   }
 
   let anketas = $state(apiGet<AnketaSummary[]>('/api/anketas'));
@@ -234,6 +265,7 @@
   <h1>{$_('anketaList.title')}</h1>
 
   {#snippet anketaRow(anketa: AnketaSummary)}
+    {@const row = rowDisplay(anketa)}
     <a href="/anketas/{anketa.id}" class="card elev-sm anketa-row">
       <div class="avatar">
         {initials(
@@ -259,10 +291,13 @@
               : 'common.roleManager',
           )} —
           {formatDisplayDate(anketa.meetingDate)}
+          {#if row.daysLabel}
+            · {row.daysLabel}
+          {/if}
         </div>
       </div>
       <div class="badges">
-        {#each badgesFor(anketa) as badge (badge.cls + badge.label)}
+        {#each row.badges as badge (badge.cls + badge.label)}
           <span class="tag {badge.cls}">{badge.label}</span>
         {/each}
       </div>
@@ -331,6 +366,12 @@
               groupTrend.map((t) => ({ value: t.workloadNow })),
               WORKLOAD_OPTIONS,
             )}
+            <!-- group.anketas[0] is "largest meetingDate in the group" (backend
+                 sorts meetingDate DESC), not strictly "soonest upcoming" — a
+                 pre-existing imprecision this day count inherits from
+                 nextMeetingLabel below rather than introduces; see GitHub
+                 issue #32. -->
+            {@const nextMeetingDays = rowDisplay(group.anketas[0]).daysLabel}
             <div class="card group-card">
               <div class="group-header">
                 <div class="avatar avatar-accent-2">
@@ -356,6 +397,9 @@
                         date: formatDisplayDate(group.anketas[0].meetingDate),
                       },
                     })}
+                    {#if nextMeetingDays}
+                      · {nextMeetingDays}
+                    {/if}
                   </div>
                 </div>
                 <div class="trend-sparklines">
@@ -378,7 +422,7 @@
                       >{formatDisplayDate(anketa.meetingDate)}</span
                     >
                     <div class="badges">
-                      {#each badgesFor(anketa) as badge (badge.cls + badge.label)}
+                      {#each rowDisplay(anketa).badges as badge (badge.cls + badge.label)}
                         <span class="tag {badge.cls}">{badge.label}</span>
                       {/each}
                     </div>
