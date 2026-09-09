@@ -18,8 +18,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * — see docs/deployment.md), same "documented external trigger" pattern as
  * app:send-reminders and the backup scripts, not a Symfony Scheduler/
  * Messenger worker. Restores every fixed, publicly-documented demo
- * employee/manager pair (one per supported UI locale — en/ru/lv/es, see
- * frontend/src/i18n/index.ts's SUPPORTED_LOCALES) and their 3-cycle anketa
+ * employee/manager pair — one per UI locale that has translated demo
+ * content (en/ru/lv/es; not every entry in frontend/src/i18n/index.ts's
+ * SUPPORTED_LOCALES has one yet, see demo.ts) — and their 3-cycle anketa
  * history (2 archived, 1 current) to a known-good seeded state, so a demo
  * visitor editing or clearing things out self-heals within one interval
  * rather than degrading permanently.

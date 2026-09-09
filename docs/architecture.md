@@ -13,7 +13,7 @@ How the system is put together. For what the encryption actually does, see [encr
 | Frontend | Svelte 5 + TypeScript + Vite | Runes (`$state`/`$derived`/`$effect`), no SSR — a plain SPA |
 | Frontend crypto | [libsodium-wrappers-sumo](https://github.com/jedisct1/libsodium.js) + WebCrypto | See encryption.md |
 | Auth | Server-side session (httpOnly, `SameSite=Strict` cookie), CSRF-protected | Not JWT — no client-side token storage/refresh logic needed |
-| i18n | `svelte-i18n` (frontend), Symfony Translation (backend emails/errors) | 4 languages: English, Russian, Latvian, Spanish |
+| i18n | `svelte-i18n` (frontend), Symfony Translation (backend emails/errors) | 5 languages: English, Russian, Latvian, Spanish, German |
 | Mail | Symfony Mailer, any SMTP DSN | Mailpit in dev, real SMTP in prod |
 | Error tracking | Sentry (`sentry/sentry-symfony`), opt-in via `SENTRY_DSN` | Backend only, empty DSN = disabled (see [deployment.md](deployment.md)); no frontend error tracking yet |
 

@@ -3,6 +3,7 @@ import en from './locales/en.json';
 import ru from './locales/ru.json';
 import lv from './locales/lv.json';
 import es from './locales/es.json';
+import de from './locales/de.json';
 
 /**
  * Cheap substitute for the "lint check for missing keys" the spec calls
@@ -16,7 +17,7 @@ function flattenKeys(obj: unknown, prefix = ''): string[] {
   );
 }
 
-const locales: Record<string, unknown> = { en, ru, lv, es };
+const locales: Record<string, unknown> = { en, ru, lv, es, de };
 const englishKeys = flattenKeys(en).sort();
 
 describe('locale files', () => {

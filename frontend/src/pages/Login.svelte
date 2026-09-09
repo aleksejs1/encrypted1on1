@@ -76,7 +76,8 @@
     if (submitting) return;
     // Follows whatever locale is currently displayed (?lang= in the URL,
     // the language switcher, or the usual browser-detected default) — see
-    // demo.ts's own docblock for why each locale has its own demo pair.
+    // demo.ts's own docblock for which locales have their own demo pair
+    // and what happens for the ones that don't yet.
     await performLogin(demoEmailFor(get(locale) ?? 'en'), DEMO_PASSWORD);
   }
 </script>
