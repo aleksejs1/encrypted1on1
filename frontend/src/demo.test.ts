@@ -12,10 +12,11 @@ describe('demoEmailFor', () => {
 
   it('falls back to the English demo email for a supported locale with no demo content yet', () => {
     expect(demoEmailFor('de')).toBe('demo-employee@example.com');
+    expect(demoEmailFor('fr')).toBe('demo-employee@example.com');
   });
 
   it('falls back to the English demo email for an unsupported locale', () => {
-    expect(demoEmailFor('fr')).toBe('demo-employee@example.com');
+    expect(demoEmailFor('it')).toBe('demo-employee@example.com');
   });
 
   it('falls back to the English demo email for an inherited Object.prototype key', () => {

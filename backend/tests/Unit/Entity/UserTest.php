@@ -29,7 +29,7 @@ class UserTest extends TestCase
 
     public function testConstructorSilentlyFallsBackToEnglishForAnUnsupportedLocale(): void
     {
-        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany(), locale: 'fr');
+        $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany(), locale: 'it');
 
         self::assertSame('en', $user->getLocale());
     }
@@ -48,7 +48,7 @@ class UserTest extends TestCase
         $user = new User('a@example.com', 'hash', 'pub', 'enc', $this->testCompany());
 
         $this->expectException(\InvalidArgumentException::class);
-        $user->setLocale('fr');
+        $user->setLocale('it');
     }
 
     public function testChangePasswordUpdatesAuthHashAndEncryptedPrivateKeyOnly(): void
