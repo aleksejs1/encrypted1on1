@@ -138,7 +138,7 @@ class AuthControllerTest extends ApiTestCase
         $client = static::createClient();
         $this->activateUser($client, $this->uniqueEmail('auth-set-locale-bad'));
 
-        $result = $this->jsonRequest($client, 'PUT', '/api/me/locale', ['locale' => 'fr']);
+        $result = $this->jsonRequest($client, 'PUT', '/api/me/locale', ['locale' => 'it']);
 
         self::assertSame(400, $result['status']);
     }

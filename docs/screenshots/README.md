@@ -38,7 +38,7 @@ Dark mode is a first-class theme, not an afterthought — same anketa as above, 
 
 ## Multiple languages
 
-The interface ships with 5 languages out of the box: English (shown above), Russian, Latvian, Spanish, and German (no screenshot yet for the last one).
+The interface ships with 6 languages out of the box: English (shown above), Russian, Latvian, Spanish, German, and French (no screenshot yet for the last two).
 
 | Russian | Latvian | Spanish |
 |---|---|---|

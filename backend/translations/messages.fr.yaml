@@ -1,0 +1,97 @@
+# French — see config/packages/translation.php. Keys must match
+# messages.en.yaml exactly.
+email:
+    anketa_created:
+        subject: 'Nouvelle anketa 1:1 planifiée'
+        body: "%creator% a planifié un 1:1 avec vous pour le %date%.\n\nVeuillez remplir votre partie : %url%"
+    meeting_tomorrow:
+        subject: 'Votre 1:1 est demain'
+        body: "Votre 1:1 avec %counterpart% est demain (%date%).\n\n%url%"
+    not_filled_out:
+        subject: "Rappel : remplissez l'anketa de demain"
+        body: "Vous n'avez pas encore rempli votre partie pour le 1:1 de demain avec %counterpart% (%date%).\n\n%url%"
+    invited:
+        subject: 'Vous avez été invité(e) sur encrypted1on1'
+        body: "%inviter% vous a invité(e) sur encrypted1on1.\n\nActivez votre compte : %url%"
+    password_reset_requested:
+        subject: 'Réinitialisez votre mot de passe'
+        body: "Nous avons reçu une demande de réinitialisation de votre mot de passe.\n\nChoisissez un nouveau mot de passe : %url%\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."
+    counterpart_key_changed:
+        subject: "La clé de chiffrement d'un interlocuteur a changé"
+        body: "Le compte de %counterpart% a fait l'objet d'une réinitialisation de mot de passe, ce qui a remplacé sa clé de chiffrement.\n\nLes anketas que vous partagez avec cette personne devront peut-être être repartagées pour qu'elle puisse les lire — le cas échéant, vous verrez une bannière à ce sujet sur votre liste d'anketas."
+    signup:
+        subject: 'Confirmez votre e-mail pour encrypted1on1'
+        body: "Nous avons reçu une demande de création d'un compte encrypted1on1 avec cette adresse e-mail.\n\nActivez votre compte : %url%\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."
+    company_signup:
+        subject: 'Confirmez votre nouvelle entreprise sur encrypted1on1'
+        body: "Nous avons reçu une demande de création d'une nouvelle entreprise, \"%company%\", sur encrypted1on1, avec vous comme premier administrateur.\n\nActivez votre compte : %url%\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."
+# API error messages (Phase 6j) — translated into the requesting user's active
+# UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
+errors:
+    not_authenticated: 'Non authentifié.'
+    missing_or_invalid_field: 'Champ "%field%" manquant ou invalide.'
+    anketa_archived: 'L''anketa est archivée.'
+    missing_blob_or_expected_version: '"blob" ou "expectedVersion" manquant.'
+    already_published: 'Déjà publiée.'
+    not_published_yet: 'Pas encore publiée.'
+    missing_blob: '"blob" manquant.'
+    description_must_be_string: '"description" doit être une chaîne de caractères.'
+    target_date_must_be_valid_date: '"targetDate" doit être une date valide.'
+    meeting_date_must_be_valid_date: '"meetingDate" doit être une date valide.'
+    outcomes_blob_must_be_string: '"outcomesBlob" doit être une chaîne de caractères.'
+    invalid_or_expired_activation_link: "Lien d'activation invalide ou expiré."
+    invalid_or_expired_reset_link: 'Lien de réinitialisation du mot de passe invalide ou expiré.'
+    missing_email_or_auth_key: '"email" ou "authKey" manquant.'
+    invalid_email_or_password: 'E-mail ou mot de passe invalide.'
+    invalid_current_password: 'Mot de passe actuel incorrect.'
+    account_blocked: 'Ce compte a été bloqué.'
+    company_suspended: "Le compte de cette entreprise est suspendu. Contactez le support pour le résoudre."
+    locale_must_be_one_of: '"locale" doit être l''une des valeurs suivantes : %locales%.'
+    cannot_block_own_account: 'Vous ne pouvez pas bloquer votre propre compte.'
+    missing_blocked: '"blocked" manquant.'
+    missing_is_admin: '"isAdmin" manquant.'
+    admin_only: 'Réservé aux admins.'
+    platform_admin_only: 'Réservé aux admins de plateforme.'
+    missing_is_platform_admin: '"isPlatformAdmin" manquant.'
+    user_not_found: 'Utilisateur introuvable.'
+    company_not_found: 'Entreprise introuvable.'
+    missing_suspended: '"suspended" manquant.'
+    admin_only_invite: 'Seuls les admins peuvent inviter de nouveaux utilisateurs tant que l''inscription est réservée aux admins.'
+    missing_email: '"email" manquant.'
+    email_domain_restricted: 'Seules les adresses e-mail "@%domain%" sont autorisées.'
+    email_already_registered: 'Un compte existe déjà pour cet e-mail.'
+    seat_limit_reached: 'Cette entreprise a atteint la limite de places de son offre actuelle.'
+    invalid_role: '"myRole" doit être "employee" ou "manager".'
+    counterpart_not_found: 'Interlocuteur introuvable.'
+    periodicity_required: '"periodicityDays" doit être un entier positif pour un nouveau binôme.'
+    comments_conflict: 'Les commentaires ont changé depuis votre dernière lecture.'
+    answers_conflict: 'Vos réponses ont changé depuis votre dernière lecture.'
+    outcomes_conflict: 'Les résultats ont changé depuis votre dernière lecture.'
+    goal_checkpoints_conflict: 'Les jalons de l''objectif ont changé depuis votre dernière lecture.'
+    target_date_must_be_string: '"targetDate" doit être une chaîne de caractères.'
+    target_date_must_be_string_or_null: '"targetDate" doit être une chaîne de caractères ou null.'
+    title_must_be_non_empty: '"title" doit être une chaîne de caractères non vide.'
+    status_must_be_one_of: '"status" doit être l''une des valeurs suivantes : %statuses%.'
+    goal_not_found: 'Objectif introuvable.'
+    goal_author_only: "Seul l'auteur de l'objectif peut le modifier."
+    missed_skip_must_be_booleans: '"missed" et "skipNextMeeting" doivent être des booléens.'
+    next_meeting_date_must_be_string: '"nextMeetingDate" doit être une chaîne de caractères.'
+    next_meeting_date_must_be_valid_date: '"nextMeetingDate" doit être une date valide.'
+    no_periodicity_on_record: 'Aucune périodicité enregistrée pour cette anketa — transmettez "skipNextMeeting": true.'
+    missing_sealed_keys: '"mySealedKey" ou "counterpartSealedKey" manquant.'
+    anketa_not_found: 'Anketa introuvable.'
+    not_a_participant: 'Vous n''êtes pas participant.'
+    missing_meeting_date: '"meetingDate" manquant.'
+    invalid_csrf_token: 'Jeton CSRF invalide.'
+    too_many_requests: 'Trop de requêtes. Veuillez réessayer plus tard.'
+    registration_not_open: "L'inscription libre n'est actuellement pas ouverte."
+    cloud_signup_not_open: "L'inscription d'entreprise n'est pas disponible sur cette instance."
+    domain_mode_unavailable_in_cloud: "L'inscription libre par domaine n'est pas disponible sur une instance multi-entreprises."
+    billing_not_configured: "La facturation n'est pas configurée sur cette instance."
+    display_name_too_long: '"displayName" doit comporter au plus %max% caractères.'
+    report_from_after_to: '"from" ne doit pas être postérieur à "to".'
+    report_range_too_wide: 'La période demandée est trop large (max %maxDays% jours).'
+    cannot_delete_own_account: 'Vous ne pouvez pas supprimer votre propre compte.'
+    user_already_deleted: 'Ce compte a déjà été supprimé.'
+    user_must_be_blocked_before_deletion: 'Bloquez cet utilisateur avant de supprimer son compte.'
+    missing_or_invalid_seat_limit: '"seatLimit" doit être null ou un entier positif.'

@@ -9,6 +9,7 @@
     lv: 'Latviešu',
     es: 'Español',
     de: 'Deutsch',
+    fr: 'Français',
   };
 
   function handleChange(code: SupportedLocale): void {

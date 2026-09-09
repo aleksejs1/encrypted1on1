@@ -25,12 +25,13 @@ class User
 {
     /**
      * The 4 launch-required locales (spec: "обязательны на старте"), plus German
-     * added later (GitHub issue #34) — single source of truth wherever a locale
-     * value needs validating (Phase 6i plan). Matches the frontend's
-     * SUPPORTED_LOCALES (frontend/src/i18n/index.ts) but this list exists
-     * independently since the two sides validate different things at different times.
+     * (GitHub issue #34) and French (GitHub issue #46) added later — single
+     * source of truth wherever a locale value needs validating (Phase 6i plan).
+     * Matches the frontend's SUPPORTED_LOCALES (frontend/src/i18n/index.ts) but
+     * this list exists independently since the two sides validate different
+     * things at different times.
      */
-    public const SUPPORTED_LOCALES = ['en', 'ru', 'lv', 'es', 'de'];
+    public const SUPPORTED_LOCALES = ['en', 'ru', 'lv', 'es', 'de', 'fr'];
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
