@@ -24,7 +24,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
     public function testFirstRunCreatesEveryLocalePairWithA3CycleHistory(): void
     {
         static::createClient();
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
 
         foreach (['en' => '', 'ru' => '-ru', 'lv' => '-lv', 'es' => '-es'] as $suffix) {
             $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => "demo-employee{$suffix}@example.com"]);
@@ -66,7 +66,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
     public function testFirstRunSetsTheSeededDisplayNameForEachAccount(): void
     {
         static::createClient();
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
 
         $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
         $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
@@ -79,7 +79,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
     public function testResetRestoresADisplayNameAVisitorEdited(): void
     {
         static::createClient();
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
 
         $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
         self::assertNotNull($employee);
@@ -87,7 +87,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
         $this->entityManager()->flush();
         $this->entityManager()->clear();
 
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
 
         $employeeAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
         self::assertNotNull($employeeAfter);
@@ -97,8 +97,8 @@ class ResetDemoDataCommandTest extends ApiTestCase
     public function testRunningTwiceIsIdempotent(): void
     {
         static::createClient();
-        $this->runCommand();
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
+        $this->runResetDemoDataCommand();
 
         $employees = $this->entityManager()->getRepository(User::class)->findBy(['email' => 'demo-employee@example.com']);
         self::assertCount(1, $employees);
@@ -112,7 +112,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
     public function testResetRestoresContentAfterVandalismAndUnblocksTheAccount(): void
     {
         static::createClient();
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
 
         $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
         $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
@@ -143,7 +143,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
         $this->entityManager()->flush();
         $this->entityManager()->clear();
 
-        $this->runCommand();
+        $this->runResetDemoDataCommand();
 
         $employeeAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
         $managerAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
@@ -160,7 +160,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
         }
     }
 
-    private function runCommand(): void
+    private function runResetDemoDataCommand(): void
     {
         $command = new ResetDemoDataCommand($this->entityManager(), $this->singleCompanyProvider());
         $tester = new CommandTester($command);
