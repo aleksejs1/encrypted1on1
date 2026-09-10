@@ -170,11 +170,17 @@
       {/each}
     </div>
   {:else if field.type === 'text'}
-    <textarea
-      class="input"
-      value={typeof value === 'string' ? value : ''}
-      disabled={readonly}
-      oninput={(e) => (value = e.currentTarget.value)}></textarea>
+    {#if readonly}
+      {@const text = typeof value === 'string' ? value.trim() : ''}
+      <p class="answer-text" class:text-muted={!text}>
+        {text || $_('answerField.noAnswer')}
+      </p>
+    {:else}
+      <textarea
+        class="input"
+        value={typeof value === 'string' ? value : ''}
+        oninput={(e) => (value = e.currentTarget.value)}></textarea>
+    {/if}
   {:else if field.type === 'list'}
     <ul class="entries">
       {#each (value as ListEntry[]) ?? [] as entry (entry.id)}
@@ -298,6 +304,13 @@
 
   textarea.input {
     width: 100%;
+  }
+
+  .answer-text {
+    margin: 0;
+    font-size: 14px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
   }
 
   .entries {

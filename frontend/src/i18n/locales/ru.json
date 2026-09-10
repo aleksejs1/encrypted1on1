@@ -301,7 +301,8 @@
     "confirmDelete": "Подтвердить удаление"
   },
   "answerField": {
-    "addEntryPlaceholder": "Добавить запись…"
+    "addEntryPlaceholder": "Добавить запись…",
+    "noAnswer": "Нет ответа."
   },
   "questions": {
     "employee": {
