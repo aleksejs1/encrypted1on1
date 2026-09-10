@@ -38,11 +38,15 @@ Dark mode is a first-class theme, not an afterthought — same anketa as above, 
 
 ## Multiple languages
 
-The interface ships with 6 languages out of the box: English (shown above), Russian, Latvian, Spanish, German, and French (no screenshot yet for the last two).
+The interface ships with 6 languages out of the box: English (shown above), Russian, Latvian, Spanish, German, and French.
 
 | Russian | Latvian | Spanish |
 |---|---|---|
 | ![Russian locale](anketa_ru.png) | ![Latvian locale](anketa_lv.png) | ![Spanish locale](anketa_es.png) |
+
+| German | French |
+|---|---|
+| ![German locale](anketa_de.png) | ![French locale](anketa_fr.png) |
 
 ## What the server actually sees
 

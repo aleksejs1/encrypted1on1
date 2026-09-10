@@ -21,21 +21,47 @@ use Symfony\Component\Console\Tester\CommandTester;
  */
 class ResetDemoDataCommandTest extends ApiTestCase
 {
+    /**
+     * fixtureLocaleSuffixes() (used by the test below) derives its expected
+     * locale set from the fixture's own keys — real for that test's purpose
+     * (checking the command's handling of whatever's actually in the
+     * fixture), but on its own that check can never catch a locale being
+     * added to SUPPORTED_LOCALES and forgotten in the fixture, the exact gap
+     * `de`/`fr` briefly sat in as `null` in `frontend/src/demo.ts`. This
+     * test is the one that actually closes it, by cross-checking against
+     * the canonical locale list instead.
+     */
+    public function testFixtureCoversEverySupportedLocale(): void
+    {
+        $fixtureLocales = array_keys($this->loadFixture()['locales']);
+        sort($fixtureLocales);
+        $supportedLocales = User::SUPPORTED_LOCALES;
+        sort($supportedLocales);
+
+        self::assertSame($supportedLocales, $fixtureLocales, 'backend/fixtures/demo-seed.json must have demo content for every locale in User::SUPPORTED_LOCALES — regenerate it via frontend/scripts/generate-demo-fixture.mjs after adding a new locale there.');
+    }
+
     public function testFirstRunCreatesEveryLocalePairWithA3CycleHistory(): void
     {
         static::createClient();
         $this->runResetDemoDataCommand();
 
-        foreach (['en' => '', 'ru' => '-ru', 'lv' => '-lv', 'es' => '-es'] as $suffix) {
-            $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => "demo-employee{$suffix}@example.com"]);
-            $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => "demo-manager{$suffix}@example.com"]);
-            self::assertNotNull($employee, "employee{$suffix}");
-            self::assertNotNull($manager, "manager{$suffix}");
+        foreach ($this->loadFixture()['locales'] as $localeCode => $data) {
+            // Read straight from the fixture's own employee.email/manager.email
+            // — the same fields ResetDemoDataCommand itself keys account
+            // lookup on — rather than reconstructing an expected email from
+            // the locale code by convention, so this test still catches a
+            // fixture entry whose stored email doesn't actually match that
+            // convention, not just one whose locale key is missing.
+            $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => $data['employee']['email']]);
+            $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => $data['manager']['email']]);
+            self::assertNotNull($employee, "employee for locale \"{$localeCode}\"");
+            self::assertNotNull($manager, "manager for locale \"{$localeCode}\"");
             self::assertTrue($employee->isDemo());
             self::assertTrue($manager->isDemo());
 
             $anketas = $this->anketasForPair($employee, $manager);
-            self::assertCount(3, $anketas, "expected 3 cycles for locale suffix \"{$suffix}\"");
+            self::assertCount(3, $anketas, "expected 3 cycles for locale \"{$localeCode}\"");
 
             $archivedCount = 0;
             $currentCount = 0;
@@ -166,6 +192,17 @@ class ResetDemoDataCommandTest extends ApiTestCase
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([]);
         self::assertSame(0, $exitCode, $tester->getDisplay());
+    }
+
+    /** @return array{locales: array<string, array{employee: array{email: string}, manager: array{email: string}}>} */
+    private function loadFixture(): array
+    {
+        $fixturePath = \dirname(__DIR__, 2).'/fixtures/demo-seed.json';
+
+        /** @var array{locales: array<string, array{employee: array{email: string}, manager: array{email: string}}>} $fixture */
+        $fixture = json_decode((string) file_get_contents($fixturePath), true, flags: \JSON_THROW_ON_ERROR);
+
+        return $fixture;
     }
 
     /** @return Anketa[] */

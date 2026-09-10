@@ -19,11 +19,11 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * app:send-reminders and the backup scripts, not a Symfony Scheduler/
  * Messenger worker. Restores every fixed, publicly-documented demo
  * employee/manager pair — one per UI locale that has translated demo
- * content (en/ru/lv/es; not every entry in frontend/src/i18n/index.ts's
- * SUPPORTED_LOCALES has one yet, see demo.ts) — and their 3-cycle anketa
- * history (2 archived, 1 current) to a known-good seeded state, so a demo
- * visitor editing or clearing things out self-heals within one interval
- * rather than degrading permanently.
+ * content (en/ru/lv/es/de/fr; every current SUPPORTED_LOCALES entry has
+ * one, see demo.ts) — and their 3-cycle anketa history (2 archived, 1
+ * current) to a known-good seeded state, so a demo visitor editing or
+ * clearing things out self-heals within one interval rather than
+ * degrading permanently.
  *
  * Reads backend/fixtures/demo-seed.json — real ciphertext generated once,
  * offline, by actually driving the app's real UI with real crypto (see

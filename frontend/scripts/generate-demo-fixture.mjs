@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEMO_LOCALES, CONTENT } from './demo-fixture-content.mjs';
+import { fillDateInput } from './fillDateInput.mjs';
+import { ARGON2ID_REDIRECT_TIMEOUT } from './playwrightTimeouts.mjs';
 
 /**
  * Regenerates backend/fixtures/demo-seed.json — the seed data behind
@@ -94,7 +96,9 @@ async function activateAndCapture(browser, token, name) {
   ]);
   const reqBody = JSON.parse(response.request().postData());
   const resBody = await response.json();
-  await page.waitForURL(BASE_URL + '/');
+  await page.waitForURL(BASE_URL + '/', {
+    timeout: ARGON2ID_REDIRECT_TIMEOUT,
+  });
 
   return { page, credentials: { ...reqBody, id: resBody.id } };
 }
@@ -202,9 +206,10 @@ async function addGoal(page, anketaId, goal) {
     .fill(goal.description);
   const targetDate = new Date();
   targetDate.setMonth(targetDate.getMonth() + 4);
-  await page
-    .locator('.add-goal-row input[type=date]')
-    .fill(targetDate.toISOString().slice(0, 10));
+  await fillDateInput(
+    page.locator('.add-goal-row .date-input input[type=text]'),
+    targetDate,
+  );
   const [goalRes] = await Promise.all([
     page.waitForResponse(
       (res) =>
@@ -221,7 +226,9 @@ async function addCheckpoint(page, anketaId, checkpoint) {
   await goalCard
     .locator('.checkpoint-form input[type=text]')
     .fill(checkpoint.text);
-  await goalCard.locator('.checkpoint-form select').selectOption(checkpoint.tag);
+  await goalCard
+    .locator('.checkpoint-form select')
+    .selectOption(checkpoint.tag);
   await Promise.all([
     page.waitForResponse(
       (res) =>
@@ -262,8 +269,11 @@ async function runLocale(browser, localeCode) {
 
   const { page: employee, credentials: employeeCreds } =
     await activateAndCapture(browser, employeeToken, c.employeeName);
-  const { page: manager, credentials: managerCreds } =
-    await activateAndCapture(browser, managerToken, c.managerName);
+  const { page: manager, credentials: managerCreds } = await activateAndCapture(
+    browser,
+    managerToken,
+    c.managerName,
+  );
   console.log('Accounts activated.');
 
   // --- Cycle 1: create ---
@@ -274,15 +284,12 @@ async function runLocale(browser, localeCode) {
   await employee.getByRole('button', { name: c.managerEmail }).click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 5);
-  await employee
-    .locator('#meeting-date')
-    .fill(meetingDate.toISOString().slice(0, 10));
+  await fillDateInput(employee.locator('#meeting-date'), meetingDate);
 
   const [createRes] = await Promise.all([
     employee.waitForResponse(
       (res) =>
-        res.request().method() === 'POST' &&
-        res.url().endsWith('/api/anketas'),
+        res.request().method() === 'POST' && res.url().endsWith('/api/anketas'),
     ),
     employee.getByRole('button', { name: 'Create anketa' }).click(),
   ]);
@@ -290,12 +297,18 @@ async function runLocale(browser, localeCode) {
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   console.log('Cycle 1 anketa created:', cycle1Id);
 
-  await fillEmployeeSide(employee.locator('.side-card').first(), c.cycle1.employee);
+  await fillEmployeeSide(
+    employee.locator('.side-card').first(),
+    c.cycle1.employee,
+  );
   await publish(employee, cycle1Id, employee.locator('.side-card').first());
 
   await manager.goto(`${BASE_URL}/anketas/${cycle1Id}`);
   await manager.waitForLoadState('networkidle');
-  await fillManagerSide(manager.locator('.side-card').first(), c.cycle1.manager);
+  await fillManagerSide(
+    manager.locator('.side-card').first(),
+    c.cycle1.manager,
+  );
   await publish(manager, cycle1Id, manager.locator('.side-card').first());
 
   await addComment(manager, cycle1Id, c.cycle1.comment);
@@ -323,12 +336,18 @@ async function runLocale(browser, localeCode) {
   // --- Cycle 2: fill ---
   await employee.goto(`${BASE_URL}/anketas/${cycle2Id}`);
   await employee.waitForLoadState('networkidle');
-  await fillEmployeeSide(employee.locator('.side-card').first(), c.cycle2.employee);
+  await fillEmployeeSide(
+    employee.locator('.side-card').first(),
+    c.cycle2.employee,
+  );
   await publish(employee, cycle2Id, employee.locator('.side-card').first());
 
   await manager.goto(`${BASE_URL}/anketas/${cycle2Id}`);
   await manager.waitForLoadState('networkidle');
-  await fillManagerSide(manager.locator('.side-card').first(), c.cycle2.manager);
+  await fillManagerSide(
+    manager.locator('.side-card').first(),
+    c.cycle2.manager,
+  );
   await publish(manager, cycle2Id, manager.locator('.side-card').first());
 
   await addComment(manager, cycle2Id, c.cycle2.comment);
@@ -415,10 +434,27 @@ async function runLocale(browser, localeCode) {
   return result;
 }
 
-const browser = await chromium.launch();
 const locales = {};
 for (const localeCode of DEMO_LOCALES) {
-  locales[localeCode] = await runLocale(browser, localeCode);
+  // A fresh browser *process* per locale, not just a fresh context within
+  // one long-lived process — the context-closing comment above already
+  // diagnosed that accumulating activity across locales measurably slows
+  // the next one down; running 6 locales instead of the original 4 showed
+  // that per-context cleanup alone isn't quite enough to keep the last one
+  // or two comfortably under a normal timeout, so this closes the loop on
+  // that same fix rather than just widening the timeout further.
+  const browser = await chromium.launch();
+  try {
+    locales[localeCode] = await runLocale(browser, localeCode);
+  } finally {
+    // Runs even if runLocale() throws (e.g. a timeout mid-locale, which has
+    // happened in practice — see docs/history.md) — otherwise a thrown
+    // error orphans that locale's own Chromium process instead of just
+    // aborting the script, one leaked process per failed attempt rather
+    // than the single shared one the old one-browser-for-the-whole-run
+    // shape would have leaked at most once.
+    await browser.close();
+  }
   // Written after every locale, not just at the end — a later locale's
   // failure shouldn't lose already-completed ones from a full rerun (which
   // would also collide on now-already-registered emails).
@@ -430,8 +466,9 @@ for (const localeCode of DEMO_LOCALES) {
       '\t',
     ) + '\n',
   );
-  console.log(`Fixture updated with ${localeCode} (${Object.keys(locales).length}/${DEMO_LOCALES.length} locales so far).`);
+  console.log(
+    `Fixture updated with ${localeCode} (${Object.keys(locales).length}/${DEMO_LOCALES.length} locales so far).`,
+  );
 }
-await browser.close();
 
 console.log('\nFixture complete:', FIXTURE_PATH);

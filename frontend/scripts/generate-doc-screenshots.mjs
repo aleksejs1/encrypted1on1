@@ -3,6 +3,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEMO_LOCALES as ALL_DEMO_LOCALES } from './demo-fixture-content.mjs';
+import { fillDateInput } from './fillDateInput.mjs';
+import { ARGON2ID_REDIRECT_TIMEOUT } from './playwrightTimeouts.mjs';
 
 /**
  * Regenerates every screenshot under docs/screenshots/, plus the two hero
@@ -46,10 +49,13 @@ const VIEWPORT = { width: 1400, height: 900 };
 // The demo-mode fixture's own fixed credentials (frontend/src/demo.ts,
 // backend/fixtures/demo-seed.json) — a real employee/manager pair per
 // supported locale, each with genuinely translated content (not English
-// text under a translated UI, which `?lang=` alone would produce). Used
-// below for the anketa_ru/lv/es.png screenshots specifically.
+// text under a translated UI, which `?lang=` alone would produce). Derived
+// from demo-fixture-content.mjs's own DEMO_LOCALES (minus 'en', which gets
+// its own dedicated screenshot flow above via john.doe/jane.doe) rather
+// than a second hand-kept list, so a future locale added there doesn't
+// also need remembering here.
 const DEMO_PASSWORD = 'e1o1-demo-2026';
-const DEMO_LOCALES = ['ru', 'lv', 'es'];
+const DEMO_LOCALES = ALL_DEMO_LOCALES.filter((locale) => locale !== 'en');
 
 function createActivationLink(email) {
   const output = execFileSync(
@@ -111,7 +117,7 @@ async function activate(browser, token) {
     ),
     page.getByRole('button', { name: 'Activate' }).click(),
   ]);
-  await page.waitForURL(BASE_URL + '/');
+  await page.waitForURL(BASE_URL + '/', { timeout: ARGON2ID_REDIRECT_TIMEOUT });
   return page;
 }
 
@@ -127,10 +133,13 @@ async function login(browser, email, password, lang) {
     page.waitForResponse(
       (res) =>
         res.request().method() === 'POST' && res.url().endsWith('/api/login'),
+      { timeout: ARGON2ID_REDIRECT_TIMEOUT },
     ),
     page.locator('form button[type=submit]').click(),
   ]);
-  await page.locator('#login-email').waitFor({ state: 'detached' });
+  await page
+    .locator('#login-email')
+    .waitFor({ state: 'detached', timeout: ARGON2ID_REDIRECT_TIMEOUT });
   await page.waitForLoadState('networkidle');
   return page;
 }
@@ -289,12 +298,7 @@ await employee.getByRole('button', { name: MANAGER_EMAIL }).click();
 // CLAUDE.md's Phase 6f notes) and hit again here before this two-step fix.
 const meetingDate = new Date();
 meetingDate.setDate(meetingDate.getDate() + 7);
-await employee
-  .locator('#meeting-date')
-  .fill(
-    `${String(meetingDate.getDate()).padStart(2, '0')}.${String(meetingDate.getMonth() + 1).padStart(2, '0')}.${meetingDate.getFullYear()}`,
-  );
-await employee.locator('#meeting-date').blur();
+await fillDateInput(employee.locator('#meeting-date'), meetingDate);
 
 const [createRes] = await Promise.all([
   employee.waitForResponse(
@@ -459,12 +463,10 @@ await employee
   .fill('Own scoping and delivery of a project spanning at least two teams.');
 const targetDate = new Date();
 targetDate.setMonth(targetDate.getMonth() + 3);
-await employee
-  .locator('.add-goal-row .date-input input[type=text]')
-  .fill(
-    `${String(targetDate.getDate()).padStart(2, '0')}.${String(targetDate.getMonth() + 1).padStart(2, '0')}.${targetDate.getFullYear()}`,
-  );
-await employee.locator('.add-goal-row .date-input input[type=text]').blur();
+await fillDateInput(
+  employee.locator('.add-goal-row .date-input input[type=text]'),
+  targetDate,
+);
 await Promise.all([
   employee.waitForResponse(
     (res) =>
@@ -586,4 +588,6 @@ await employee.waitForLoadState('networkidle');
 await captureHeroCrop(employee, 'en');
 
 await browser.close();
-console.log('\nDone. encryption.png was intentionally skipped — see this script\'s own docblock.');
+console.log(
+  "\nDone. encryption.png was intentionally skipped — see this script's own docblock.",
+);

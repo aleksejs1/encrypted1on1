@@ -1,5 +1,5 @@
 /**
- * Localized content for generate-demo-fixture.mjs — 4 locale-specific
+ * Localized content for generate-demo-fixture.mjs — 6 locale-specific
  * employee/manager pairs, each with a 2-cycle narrative (a "struggle" cycle
  * followed by a "resolution" cycle) so the demo has real history to show
  * off trend sparklines (mood/workload in AnketaList's grouped view, goal
@@ -18,10 +18,15 @@
  * stalled cross-team goal; cycle 2 is the payoff (shipped, mentored,
  * outcome resolved, goal checkpoint improves from at_risk to on_track) —
  * chosen deliberately so both the mood/workload trend and the goal-progress
- * trend show a genuine, believable improvement across cycles.
+ * trend show a genuine, believable improvement across cycles. The de/fr
+ * prose refers to the employee/manager consistently by the same first
+ * names as their `employeeName`/`managerName` fields below (unlike the
+ * en/ru/lv/es entries above, which — pre-existing, not touched here —
+ * refer to a differently-named character in the free-text answers than
+ * the account's own display name).
  */
 
-export const DEMO_LOCALES = ['en', 'ru', 'lv', 'es'];
+export const DEMO_LOCALES = ['en', 'ru', 'lv', 'es', 'de', 'fr'];
 
 export const CONTENT = {
   en: {
@@ -104,7 +109,7 @@ export const CONTENT = {
           'Documentation for cross-team services is scattered across five different wikis — still no single source of truth, even after raising it a few times.',
         achievements: [
           'Shipped the billing export migration end to end, ahead of the original estimate.',
-          "Mentored the new hire through their first on-call rotation without a single escalation.",
+          'Mentored the new hire through their first on-call rotation without a single escalation.',
         ],
         whatElse: [
           'Interested in leading a cross-team project next quarter — want to talk about what that path looks like.',
@@ -112,7 +117,7 @@ export const CONTENT = {
       },
       manager: {
         howWasPeriod:
-          "Strong period — Priya owned the billing export migration from design through rollout and it landed cleanly. Also stepped up on mentoring without being asked to.",
+          'Strong period — Priya owned the billing export migration from design through rollout and it landed cleanly. Also stepped up on mentoring without being asked to.',
         feedback:
           "Ownership and follow-through are excellent — I don't worry about migration work once it's assigned to Priya. Would love to see more proactive updates in standup rather than waiting to be asked; the work itself is rarely the issue, it's visibility.",
         howCanIHelp:
@@ -463,6 +468,228 @@ export const CONTENT = {
         'Diego compartirá la plantilla final de recepción de solicitudes con el equipo de plataforma en cuanto el borrador de Sofía esté listo.',
       checkpoint: {
         text: 'Iniciamos las conversaciones con el equipo de plataforma.',
+        tag: 'on_track',
+      },
+    },
+  },
+
+  de: {
+    employeeEmail: 'demo-employee-de@example.com',
+    employeeName: 'Lena Hoffmann',
+    managerEmail: 'demo-manager-de@example.com',
+    managerName: 'Michael Bauer',
+    goal: {
+      title: 'Ein teamübergreifendes Projekt von Anfang bis Ende leiten',
+      description:
+        'Die Planung und Umsetzung eines Projekts verantworten, das mindestens zwei Teams umfasst.',
+    },
+    cycle1: {
+      employee: {
+        moodNow: 'neutral',
+        moodTrend: 'worse',
+        moodText:
+          'Dieses Projekt hat sich länger hingezogen als erwartet, und ich spüre den Druck eines engen Termins, während noch viele Unklarheiten offen sind.',
+        feelings: ['overwhelmed', 'anxious'],
+        feelingsText:
+          'Ich jongliere die Migrationsarbeit mit vielen spontanen Anfragen anderer Teams — es ist schwer, wirklich konzentrierte Zeit zu finden.',
+        workloadNow: 'too_much',
+        workloadTrend: 'more',
+        workloadText:
+          'Die Migration des Rechnungsexports hat sich als deutlich umfangreicher herausgestellt, als ursprünglich geplant. Hilfe dabei, was warten kann, wäre willkommen.',
+        growth: [
+          'Gelernt, wie verworren die nachgelagerten Abhängigkeiten des Rechnungsexports tatsächlich sind — ein gutes Beispiel dafür, warum Data-Lineage-Dokumentation wirklich wichtig ist.',
+          'Mit einem erfahrenen Kollegen an einem kniffligen Grenzfall der Migration zusammengearbeitet und dabei neue Debugging-Techniken gelernt.',
+        ],
+        harder:
+          'Anfragen zwischen Teams laufen immer noch über viel Hin und Her in Slack, bevor sich jemand auf einen Termin festlegt. Ein gemeinsamer Aufnahmeprozess würde viel Nachlaufen ersparen.',
+        achievements: [
+          'Den vollständigen Umfang der Rechnungsexport-Migration erfasst, einschließlich mehrerer Grenzfälle, die zuvor niemand erkannt hatte.',
+        ],
+        whatElse: [
+          'Möchte über einen realistischen Zeitplan für die Migration sprechen, jetzt, wo klar ist, wie viel größer sie tatsächlich ist.',
+        ],
+      },
+      manager: {
+        howWasPeriod:
+          'Eine schwierige Phase — die Migration des Rechnungsexports hat sich als komplexer herausgestellt, als irgendjemand erwartet hatte, und Lena musste eine hohe Last tragen, nur um den tatsächlichen Umfang zu klären.',
+        feedback:
+          'Die Gründlichkeit bei der Aufwandsschätzung war wirklich wertvoll, auch wenn das einen langsameren Start bedeutet hat, als uns lieb ist. Ich würde gerne gemeinsam mit Ihnen den Zeitplan neu festlegen, statt dass Sie den Druck allein tragen.',
+        howCanIHelp:
+          'Ich werde einige der spontanen Anfragen anderer Teams abwehren, damit mehr Raum für echte Konzentration bleibt.',
+        achievements: [
+          'Hat die harte, wenig glanzvolle Arbeit geleistet, eine von Anfang an unterschätzte Migration zu entwirren — viel besser, das jetzt zu erkennen als mitten im Rollout.',
+        ],
+        whatElse: [
+          'Möchte einen realistischen neuen Zeitplan abstimmen und klären, ob wir ein weiteres Paar Hände brauchen.',
+        ],
+      },
+      comment:
+        'Danke, dass Sie das so klar angesprochen haben — lassen Sie uns den Zeitplan gemeinsam angehen, das müssen Sie nicht allein tragen.',
+      outcome:
+        'Lena erstellt bis zum nächsten Termin den Entwurf einer schlanken Vorlage für die teamübergreifende Anfragenannahme.',
+      checkpoint: {
+        text: 'Die Abstimmungsgespräche mit dem Plattform-Team stocken — wir warten noch auf deren Priorisierung.',
+        tag: 'at_risk',
+      },
+    },
+    cycle2: {
+      employee: {
+        moodNow: 'good',
+        moodTrend: 'better',
+        moodText:
+          'Habe in diesem Zeitraum die Rechnungsexport-Migration ausgeliefert, die mir schon eine Weile im Nacken saß — fühle mich jetzt deutlich leichter, wo sie draußen ist.',
+        feelings: ['motivated', 'confident'],
+        feelingsText:
+          'Das Onboarding des neuen Kollegen ist gut gelaufen — eine schöne Erinnerung daran, dass mir die Mentoring-Seite wirklich Spaß macht.',
+        workloadNow: 'just_right',
+        workloadTrend: 'less',
+        workloadText:
+          'Die Arbeitslast ist etwas gesunken, jetzt wo die Migration abgeschlossen ist. Guter Zeitpunkt, um etwas Neues zu übernehmen, falls es passt.',
+        growth: [
+          'Gelernt, dass kurze aufgezeichnete Walkthroughs viel mehr Resonanz bekommen als schriftliche Code-Review-Kommentare — werde das künftig für die kniffligeren Reviews nutzen.',
+          'Zum ersten Mal bei einem Postmortem dabei gewesen — hilfreich zu sehen, wie das Team einen Vorfall bis zur Ursache zurückverfolgt.',
+        ],
+        harder:
+          'Die Dokumentation für teamübergreifende Services ist über fünf verschiedene Wikis verstreut — es gibt immer noch keine einzige verlässliche Quelle, obwohl ich das schon mehrmals angesprochen habe.',
+        achievements: [
+          'Die Rechnungsexport-Migration vollständig ausgeliefert, früher als ursprünglich geschätzt.',
+          'Den neuen Kollegen durch seine erste Bereitschaftsdienst-Rotation begleitet, ohne eine einzige Eskalation.',
+        ],
+        whatElse: [
+          'Interessiert daran, im nächsten Quartal ein teamübergreifendes Projekt zu leiten — möchte besprechen, wie dieser Weg aussehen könnte.',
+        ],
+      },
+      manager: {
+        howWasPeriod:
+          'Eine starke Phase — Lena hat die Rechnungsexport-Migration vom Design bis zum Rollout verantwortet, und sie ist sauber gelandet. Hat sich zudem ungefragt beim Mentoring engagiert.',
+        feedback:
+          'Verantwortungsübernahme und konsequente Umsetzung sind hervorragend — ich mache mir keine Sorgen um Migrationsarbeit, wenn sie Lena zugeteilt ist. Ich würde mir mehr proaktive Updates im Standup wünschen, statt dass danach gefragt werden muss; die Arbeit selbst ist selten das Problem, es ist die Sichtbarkeit.',
+        howCanIHelp:
+          'Ich habe die Idee einer teamübergreifenden Anfragenannahme beim Lead des Plattform-Teams angesprochen — sie sind offen für eine gemeinsame Vorlage, sobald ein Entwurf steht. Ich helfe, sie zu verbreiten, sobald sie fertig ist.',
+        achievements: [
+          'Die Rechnungsexport-Migration vom Design bis zum Release verantwortet, ohne einen einzigen Rollback.',
+          'Zum ersten Mal Mentor für die Bereitschaftsdienst-Rotation eines neuen Kollegen — reibungsloser Einstieg, keine Vorfälle.',
+        ],
+        whatElse: [
+          'Bereit zu besprechen, wie es im nächsten Quartal konkret aussehen könnte, wenn Lena ein teamübergreifendes Projekt leitet.',
+        ],
+      },
+      comment: 'Glückwunsch, dass Sie das vor dem Zeitplan ausgeliefert haben!',
+      outcomeNew:
+        'Michael teilt die finale teamübergreifende Aufnahmevorlage mit dem Plattform-Team, sobald Lenas Entwurf fertig ist.',
+      checkpoint: {
+        text: 'Die Abstimmungsgespräche mit dem Plattform-Team wurden aufgenommen.',
+        tag: 'on_track',
+      },
+    },
+  },
+
+  fr: {
+    employeeEmail: 'demo-employee-fr@example.com',
+    employeeName: 'Camille Dubois',
+    managerEmail: 'demo-manager-fr@example.com',
+    managerName: 'Nicolas Lefebvre',
+    goal: {
+      title: 'Piloter un projet transverse de bout en bout',
+      description:
+        "Prendre en charge le cadrage et la livraison d'un projet impliquant au moins deux équipes.",
+    },
+    cycle1: {
+      employee: {
+        moodNow: 'neutral',
+        moodTrend: 'worse',
+        moodText:
+          "Ce projet a traîné plus longtemps que prévu, et je ressens la pression d'une échéance serrée alors que beaucoup d'inconnues restent encore à résoudre.",
+        feelings: ['overwhelmed', 'anxious'],
+        feelingsText:
+          "Je jongle entre le travail de migration et de nombreuses demandes ponctuelles d'autres équipes — difficile de trouver de vrais moments de concentration.",
+        workloadNow: 'too_much',
+        workloadTrend: 'more',
+        workloadText:
+          "La migration de l'export de facturation s'est révélée bien plus importante que prévu initialement. Un coup de main pour déterminer ce qui peut attendre serait bienvenu.",
+        growth: [
+          "J'ai découvert à quel point les dépendances en aval de l'export de facturation sont enchevêtrées — un bon exemple de pourquoi la documentation de traçabilité des données compte vraiment.",
+          "J'ai travaillé en binôme avec un ingénieur senior sur un cas limite délicat de la migration et appris de nouvelles techniques de débogage.",
+        ],
+        harder:
+          "Les demandes entre équipes passent encore par beaucoup d'allers-retours sur Slack avant que quelqu'un ne s'engage sur un délai. Un processus commun de prise en charge des demandes ferait gagner beaucoup de temps.",
+        achievements: [
+          "Cartographié l'ensemble du périmètre de la migration de l'export de facturation, y compris plusieurs cas limites que personne n'avait signalés auparavant.",
+        ],
+        whatElse: [
+          "Je voudrais parler d'un calendrier réaliste pour la migration, maintenant que l'on sait à quel point elle est plus importante que prévu.",
+        ],
+      },
+      manager: {
+        howWasPeriod:
+          "Une période difficile — la migration de l'export de facturation s'est révélée plus complexe que prévu, et Camille a porté une lourde charge rien que pour clarifier le périmètre réel.",
+        feedback:
+          "Le sérieux apporté au cadrage a été réellement précieux, même si cela a signifié un démarrage plus lent que souhaité. J'aimerais que nous revoyions le calendrier ensemble, plutôt que vous portiez cette pression seule.",
+        howCanIHelp:
+          "Je vais filtrer certaines des demandes ponctuelles venant d'autres équipes pour vous laisser plus de place pour vous concentrer réellement.",
+        achievements: [
+          "A fait le travail difficile et peu visible de démêler une migration sous-cadrée dès le départ — bien mieux de le découvrir maintenant qu'en plein déploiement.",
+        ],
+        whatElse: [
+          "Je voudrais aligner un nouveau calendrier réaliste et voir si nous avons besoin d'une paire de mains supplémentaire.",
+        ],
+      },
+      comment:
+        "Merci d'avoir signalé cela aussi clairement — voyons le calendrier ensemble, vous n'avez pas à porter ça seule.",
+      outcome:
+        "Camille rédigera d'ici la prochaine réunion un brouillon de modèle léger de prise en charge des demandes transverses.",
+      checkpoint: {
+        text: "Les échanges de cadrage avec l'équipe plateforme sont à l'arrêt — toujours en attente de leur priorisation.",
+        tag: 'at_risk',
+      },
+    },
+    cycle2: {
+      employee: {
+        moodNow: 'good',
+        moodTrend: 'better',
+        moodText:
+          "Livré la migration de l'export de facturation ce trimestre, un sujet qui pesait depuis un moment — je me sens beaucoup plus légère maintenant que c'est fait.",
+        feelings: ['motivated', 'confident'],
+        feelingsText:
+          "L'intégration du nouvel arrivant s'est bien passée — un bon rappel que j'aime vraiment le mentorat.",
+        workloadNow: 'just_right',
+        workloadTrend: 'less',
+        workloadText:
+          'La charge de travail a un peu baissé maintenant que la migration est terminée. Bon moment pour reprendre quelque chose de nouveau si ça correspond.',
+        growth: [
+          "J'ai découvert que de courtes présentations enregistrées suscitent bien plus d'engagement que des commentaires écrits en revue de code — je vais adopter ce format pour les revues les plus délicates.",
+          "Assisté pour la première fois à un post-mortem — utile de voir comment l'équipe remonte à la cause racine d'un incident.",
+        ],
+        harder:
+          "La documentation des services transverses est éparpillée sur cinq wikis différents — toujours aucune source unique de vérité, même après l'avoir signalé plusieurs fois.",
+        achievements: [
+          "Livré la migration de l'export de facturation de bout en bout, en avance sur l'estimation initiale.",
+          "Accompagné le nouvel arrivant durant sa première rotation d'astreinte, sans aucune escalade.",
+        ],
+        whatElse: [
+          'Intéressée à piloter un projet transverse le trimestre prochain — je voudrais discuter de ce à quoi ce parcours pourrait ressembler.',
+        ],
+      },
+      manager: {
+        howWasPeriod:
+          "Un trimestre solide — Camille a pris en charge la migration de l'export de facturation, de la conception au déploiement, et tout s'est bien passé. Elle s'est aussi investie dans le mentorat sans qu'on le lui demande.",
+        feedback:
+          "La prise de responsabilité et le suivi sont excellents — je ne m'inquiète plus du travail de migration une fois qu'il est confié à Camille. J'aimerais voir plus de mises à jour proactives en standup plutôt que d'attendre qu'on les demande ; le travail lui-même est rarement le problème, c'est la visibilité.",
+        howCanIHelp:
+          "J'ai soulevé l'idée d'une prise en charge des demandes transverses auprès du responsable de l'équipe plateforme — ils sont ouverts à un modèle commun dès que vous aurez un brouillon. Je vous aiderai à le diffuser une fois prêt.",
+        achievements: [
+          "A pris en charge la migration de l'export de facturation, de la conception à la livraison, sans aucun retour arrière.",
+          "Mentor pour la première fois lors de la rotation d'astreinte d'un nouvel arrivant — démarrage fluide, aucun incident.",
+        ],
+        whatElse: [
+          "Prêt à discuter de ce à quoi ressemblerait concrètement le pilotage d'un projet transverse par Camille le trimestre prochain.",
+        ],
+      },
+      comment: "Félicitations pour l'avoir livré en avance !",
+      outcomeNew:
+        "Nicolas partagera le modèle final de prise en charge transverse avec l'équipe plateforme dès que le brouillon de Camille sera prêt.",
+      checkpoint: {
+        text: "Lancé les échanges de cadrage avec l'équipe plateforme.",
         tag: 'on_track',
       },
     },

@@ -17,14 +17,14 @@ import type { SupportedLocale } from './i18n';
  * sees a demo genuinely written in their own language, not just a
  * translated UI shell around English content.
  *
- * Not every UI locale has a demo pair yet — German (issue #34) and French
- * (issue #46) added the interface translation but not a translated demo
- * narrative, which needs its own content pass and a regenerated fixture
- * (see generate-demo-fixture.mjs). Such locales carry an explicit `null`
- * below (rather than being left out of the map) so adding a locale to
- * SUPPORTED_LOCALES without updating this map is a compile error, not a
- * silent gap — demoEmailFor() falls back to the English demo account for
- * any `null` entry rather than pointing at an account that doesn't exist.
+ * Every current UI locale has a demo pair now — German and French (issues
+ * #34/#46) were the last two to add translated demo narrative content,
+ * alongside their interface translations. A future locale added to
+ * SUPPORTED_LOCALES without demo content yet should carry an explicit
+ * `null` below (rather than being left out of the map) so the map stays a
+ * compile error, not a silent gap, until it's filled in — demoEmailFor()
+ * falls back to the English demo account for any `null` entry rather than
+ * pointing at an account that doesn't exist.
  */
 export const DEMO_MODE_ENABLED = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -37,8 +37,8 @@ const DEMO_EMPLOYEE_EMAILS: Record<SupportedLocale, string | null> = {
   ru: 'demo-employee-ru@example.com',
   lv: 'demo-employee-lv@example.com',
   es: 'demo-employee-es@example.com',
-  de: null,
-  fr: null,
+  de: 'demo-employee-de@example.com',
+  fr: 'demo-employee-fr@example.com',
 };
 
 export function demoEmailFor(locale: string): string {

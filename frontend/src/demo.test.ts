@@ -10,9 +10,9 @@ describe('demoEmailFor', () => {
     expect(demoEmailFor('en')).toBe('demo-employee@example.com');
   });
 
-  it('falls back to the English demo email for a supported locale with no demo content yet', () => {
-    expect(demoEmailFor('de')).toBe('demo-employee@example.com');
-    expect(demoEmailFor('fr')).toBe('demo-employee@example.com');
+  it('returns the matching demo email for German and French', () => {
+    expect(demoEmailFor('de')).toBe('demo-employee-de@example.com');
+    expect(demoEmailFor('fr')).toBe('demo-employee-fr@example.com');
   });
 
   it('falls back to the English demo email for an unsupported locale', () => {
