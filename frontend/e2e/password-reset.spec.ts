@@ -81,12 +81,14 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   await expect(employeeMySide.getByText('Published')).toBeVisible();
 
   // Manager confirms pre-reset access — proves the manager holds a genuinely
-  // valid sealedKey (needed later to re-seal for the employee's new key).
+  // valid sealedKey (needed later to re-seal for the employee's new key). A
+  // published/readonly text answer renders as a plain paragraph
+  // (AnswerField.svelte's `.answer-text`), not a <textarea>.
   await manager.goto(anketaUrl);
   const managerCounterpartSide = manager.locator('.side-card').nth(1);
-  await expect(managerCounterpartSide.locator('textarea').first()).toHaveValue(
-    marker,
-  );
+  await expect(
+    managerCounterpartSide.locator('.answer-text').first(),
+  ).toHaveText(marker);
 
   // AnketaController::isKeyOutdated() compares publicKeyUpdatedAt against
   // the anketa's sealedKeyUpdatedAt with a strict `>`, and both are stored
@@ -171,10 +173,11 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   ).toHaveCount(0);
 
   // Employee, now on their new keypair via a genuinely fresh session, can
-  // decrypt the pre-existing anketa content again.
+  // decrypt the pre-existing anketa content again. Own published side,
+  // not currently being edited — readonly, so a plain paragraph again.
   await newLoginPage.goto(anketaUrl);
   const employeeMySideAfterReset = newLoginPage.locator('.side-card').first();
   await expect(
-    employeeMySideAfterReset.locator('textarea').first(),
-  ).toHaveValue(marker);
+    employeeMySideAfterReset.locator('.answer-text').first(),
+  ).toHaveText(marker);
 });

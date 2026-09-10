@@ -301,7 +301,8 @@
     "confirmDelete": "Apstiprināt dzēšanu"
   },
   "answerField": {
-    "addEntryPlaceholder": "Pievienot ierakstu…"
+    "addEntryPlaceholder": "Pievienot ierakstu…",
+    "noAnswer": "Nav atbildes."
   },
   "questions": {
     "employee": {

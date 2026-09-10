@@ -301,7 +301,8 @@
     "confirmDelete": "Confirmer la suppression"
   },
   "answerField": {
-    "addEntryPlaceholder": "Ajouter une entrée…"
+    "addEntryPlaceholder": "Ajouter une entrée…",
+    "noAnswer": "Pas de réponse."
   },
   "questions": {
     "employee": {

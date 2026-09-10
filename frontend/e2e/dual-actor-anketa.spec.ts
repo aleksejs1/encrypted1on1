@@ -72,14 +72,16 @@ test('employee and manager complete an anketa across two independent sessions', 
   await expect(employeeMySide.getByText('Published')).toBeVisible();
 
   // Manager — a completely separate session — opens the same anketa and must
-  // see the employee's marker decrypt correctly on the counterpart side.
-  // .inputValue() is required here, not .textContent()/.innerText() — a
-  // <textarea>'s value is not exposed as rendered text content.
+  // see the employee's marker decrypt correctly on the counterpart side. A
+  // published/readonly text answer renders as a plain paragraph
+  // (AnswerField.svelte's `.answer-text`), not a <textarea> — only the
+  // editing state (my own unpublished/being-edited side, above) still uses
+  // a real <textarea>.
   await manager.goto(anketaUrl);
   const managerCounterpartSide = manager.locator('.side-card').nth(1);
-  await expect(managerCounterpartSide.locator('textarea').first()).toHaveValue(
-    employeeMarker,
-  );
+  await expect(
+    managerCounterpartSide.locator('.answer-text').first(),
+  ).toHaveText(employeeMarker);
 
   // Employee edits their already-published answer — the editable-after-publish
   // feature (docs/decisions/2026-09-07-editable-published-anketa-answers.md).
@@ -95,9 +97,9 @@ test('employee and manager complete an anketa across two independent sessions', 
   // original marker: the edit genuinely round-tripped through the server,
   // re-encrypted under the shared anketa key, not merely updated in local state.
   await manager.reload();
-  await expect(managerCounterpartSide.locator('textarea').first()).toHaveValue(
-    employeeEditedMarker,
-  );
+  await expect(
+    managerCounterpartSide.locator('.answer-text').first(),
+  ).toHaveText(employeeEditedMarker);
 
   // Manager publishes their own side with a second marker.
   const managerMarker = `E2E-MARKER-MANAGER-${Date.now()}`;
@@ -158,9 +160,9 @@ test('employee and manager complete an anketa across two independent sessions', 
   // edit/delete.
   await employee.reload();
   const employeeCounterpartSide = employee.locator('.side-card').nth(1);
-  await expect(employeeCounterpartSide.locator('textarea').first()).toHaveValue(
-    managerMarker,
-  );
+  await expect(
+    employeeCounterpartSide.locator('.answer-text').first(),
+  ).toHaveText(managerMarker);
 
   const employeeThread = employee
     .locator('.side-card')
