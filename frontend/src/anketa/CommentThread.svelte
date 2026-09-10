@@ -21,7 +21,11 @@
   let text = $state('');
   let submitting = $state(false);
   let error = $state<string | null>(null);
-  let expanded = $state(false);
+  // Only the initial comment count should decide the default, so a thread a user manually
+  // collapsed doesn't get silently reopened by a later comment arriving via sync, and vice
+  // versa — the one-time read below is intentional, not a missed $derived.
+  // svelte-ignore state_referenced_locally
+  let expanded = $state(comments.length > 0);
 
   let editingId = $state<string | null>(null);
   let editText = $state('');
