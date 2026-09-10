@@ -111,6 +111,10 @@ test('employee and manager complete an anketa across two independent sessions', 
   // Manager comments on the employee's marked field (still visible on the
   // counterpart side after publishing their own side).
   const managerThread = managerCounterpartSide.locator('.thread').first();
+  // No comments yet on this field — starts collapsed (CommentThread.svelte's
+  // `expanded` default), so the add-comment input isn't there until the
+  // toggle is clicked.
+  await expect(managerThread.locator('input[type=text]')).not.toBeVisible();
   await managerThread.getByRole('button', { name: /comment/i }).click();
   await managerThread.locator('input[type=text]').fill('looks good to me');
   await managerThread.getByRole('button', { name: 'Post' }).click();
@@ -169,7 +173,10 @@ test('employee and manager complete an anketa across two independent sessions', 
     .first()
     .locator('.thread')
     .first();
-  await employeeThread.getByRole('button', { name: /comment/i }).click();
+  // No click needed: this thread already has the manager's comment, so it
+  // renders expanded by default (CommentThread.svelte's `expanded` now
+  // seeds from `comments.length > 0` instead of always `false`) — clicking
+  // the toggle here would collapse it instead of opening it.
   await expect(
     employeeThread.getByText('looks good to me, approved'),
   ).toBeVisible();
