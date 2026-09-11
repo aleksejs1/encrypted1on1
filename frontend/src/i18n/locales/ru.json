@@ -302,7 +302,22 @@
   },
   "answerField": {
     "addEntryPlaceholder": "Добавить запись…",
-    "noAnswer": "Нет ответа."
+    "noAnswer": "Нет ответа.",
+    "sourceTab": "Разметка",
+    "previewTab": "Просмотр",
+    "toolbar": {
+      "label": "Форматирование",
+      "bold": "Жирный",
+      "italic": "Курсив",
+      "heading": "Заголовок",
+      "quote": "Цитата",
+      "bulletList": "Маркированный список",
+      "numberedList": "Нумерованный список",
+      "code": "Код",
+      "link": "Ссылка",
+      "linkPlaceholder": "текст ссылки",
+      "urlPlaceholder": "адрес"
+    }
   },
   "questions": {
     "employee": {

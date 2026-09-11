@@ -302,7 +302,22 @@
   },
   "answerField": {
     "addEntryPlaceholder": "Añadir una entrada…",
-    "noAnswer": "Sin respuesta."
+    "noAnswer": "Sin respuesta.",
+    "sourceTab": "Texto",
+    "previewTab": "Vista previa",
+    "toolbar": {
+      "label": "Formato",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "heading": "Encabezado",
+      "quote": "Cita",
+      "bulletList": "Lista con viñetas",
+      "numberedList": "Lista numerada",
+      "code": "Código",
+      "link": "Enlace",
+      "linkPlaceholder": "texto del enlace",
+      "urlPlaceholder": "url"
+    }
   },
   "questions": {
     "employee": {

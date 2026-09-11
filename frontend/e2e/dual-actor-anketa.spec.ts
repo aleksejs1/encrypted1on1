@@ -73,10 +73,11 @@ test('employee and manager complete an anketa across two independent sessions', 
 
   // Manager — a completely separate session — opens the same anketa and must
   // see the employee's marker decrypt correctly on the counterpart side. A
-  // published/readonly text answer renders as a plain paragraph
-  // (AnswerField.svelte's `.answer-text`), not a <textarea> — only the
-  // editing state (my own unpublished/being-edited side, above) still uses
-  // a real <textarea>.
+  // published/readonly text answer renders as sanitized Markdown inside
+  // AnswerField.svelte's `.answer-text` (frontend/src/anketa/markdown.ts),
+  // not a <textarea> — only the editing state (my own unpublished/
+  // being-edited side, above) still has a real <textarea>, inside
+  // MarkdownEditor.svelte's "Source" tab.
   await manager.goto(anketaUrl);
   const managerCounterpartSide = manager.locator('.side-card').nth(1);
   await expect(
