@@ -2,6 +2,8 @@
   import { _ } from 'svelte-i18n';
   import type { QuestionField, ListEntry, AnswerValue } from './questions';
   import { formatDisplayDate } from '../datePreference.svelte';
+  import { renderAnswerMarkdown } from './markdown';
+  import MarkdownEditor from './MarkdownEditor.svelte';
 
   let {
     field,
@@ -172,14 +174,17 @@
   {:else if field.type === 'text'}
     {#if readonly}
       {@const text = typeof value === 'string' ? value.trim() : ''}
-      <p class="answer-text" class:text-muted={!text}>
-        {text || $_('answerField.noAnswer')}
-      </p>
+      {#if text}
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderAnswerMarkdown sanitizes with a DOMPurify tag/attribute allowlist, see markdown.ts -->
+        <div class="answer-text">{@html renderAnswerMarkdown(text)}</div>
+      {:else}
+        <p class="answer-text text-muted">{$_('answerField.noAnswer')}</p>
+      {/if}
     {:else}
-      <textarea
-        class="input"
+      <MarkdownEditor
         value={typeof value === 'string' ? value : ''}
-        oninput={(e) => (value = e.currentTarget.value)}></textarea>
+        onChange={(next) => (value = next)}
+      />
     {/if}
   {:else if field.type === 'list'}
     <ul class="entries">
@@ -300,17 +305,6 @@
   .pill:disabled {
     cursor: not-allowed;
     opacity: 0.6;
-  }
-
-  textarea.input {
-    width: 100%;
-  }
-
-  .answer-text {
-    margin: 0;
-    font-size: 14px;
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
   }
 
   .entries {

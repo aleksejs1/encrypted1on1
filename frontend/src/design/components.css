@@ -362,6 +362,31 @@ textarea.input {
   color: var(--color-accent-ink);
 }
 
+/*
+ * A `role="tab"` underline-style toggle button, shared by AdminReports.svelte's report-section
+ * tabs and MarkdownEditor.svelte's source/preview toggle — one definition rather than two
+ * independently-maintained tab implementations. Each caller supplies its own container spacing
+ * (e.g. AdminReports.svelte's own `.report-tabs`) since that's genuinely page-context-specific.
+ */
+.tab-btn {
+  padding: 8px 4px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-right: 16px;
+  cursor: pointer;
+}
+.tab-btn:hover {
+  color: var(--color-accent-ink);
+}
+.tab-btn-active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
+  font-weight: var(--font-heading-weight);
+}
+
 /* — navigation — */
 .nav {
   display: flex;
@@ -406,4 +431,70 @@ textarea.input {
 }
 .table tbody tr:hover {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+/*
+ * A published anketa free-text answer's Markdown, rendered to sanitized HTML via `{@html}`
+ * (frontend/src/anketa/markdown.ts, used by AnswerField.svelte and MarkdownEditor.svelte's
+ * preview). Global rules, not component-scoped: Svelte's per-component style scoping only tags
+ * elements written literally in that component's own template — it never reaches elements
+ * injected via `{@html}`, so nested markdown output (a `<p>`/`<ul>`/`<code>` the renderer
+ * produced) needs plain global selectors like every other class in this file.
+ */
+.answer-text {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: break-word;
+}
+.answer-text > :last-child {
+  margin-bottom: 0;
+}
+.answer-text ul,
+.answer-text ol {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.4em;
+}
+.answer-text li {
+  margin-bottom: var(--space-1);
+}
+.answer-text blockquote {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-divider);
+  color: var(--color-text-muted);
+}
+.answer-text code {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.9em;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.answer-text pre {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  overflow-x: auto;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: var(--radius-sm);
+}
+.answer-text pre code {
+  background: none;
+  padding: 0;
+}
+.answer-text hr {
+  border: none;
+  border-top: 1px solid var(--color-divider);
+  margin: var(--space-3) 0;
+}
+.answer-text table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--space-3);
+  font-size: 0.95em;
+}
+.answer-text th,
+.answer-text td {
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
 }

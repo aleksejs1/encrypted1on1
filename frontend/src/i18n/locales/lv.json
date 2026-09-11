@@ -302,7 +302,22 @@
   },
   "answerField": {
     "addEntryPlaceholder": "Pievienot ierakstu…",
-    "noAnswer": "Nav atbildes."
+    "noAnswer": "Nav atbildes.",
+    "sourceTab": "Teksts",
+    "previewTab": "Priekšskatījums",
+    "toolbar": {
+      "label": "Formatējums",
+      "bold": "Treknraksts",
+      "italic": "Slīpraksts",
+      "heading": "Virsraksts",
+      "quote": "Citāts",
+      "bulletList": "Nenumurēts saraksts",
+      "numberedList": "Numurēts saraksts",
+      "code": "Kods",
+      "link": "Saite",
+      "linkPlaceholder": "saites teksts",
+      "urlPlaceholder": "adrese"
+    }
   },
   "questions": {
     "employee": {

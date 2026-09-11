@@ -82,8 +82,9 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
 
   // Manager confirms pre-reset access — proves the manager holds a genuinely
   // valid sealedKey (needed later to re-seal for the employee's new key). A
-  // published/readonly text answer renders as a plain paragraph
-  // (AnswerField.svelte's `.answer-text`), not a <textarea>.
+  // published/readonly text answer renders as sanitized Markdown inside
+  // AnswerField.svelte's `.answer-text` (frontend/src/anketa/markdown.ts),
+  // not a <textarea>.
   await manager.goto(anketaUrl);
   const managerCounterpartSide = manager.locator('.side-card').nth(1);
   await expect(
@@ -174,7 +175,7 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
 
   // Employee, now on their new keypair via a genuinely fresh session, can
   // decrypt the pre-existing anketa content again. Own published side,
-  // not currently being edited — readonly, so a plain paragraph again.
+  // not currently being edited — readonly, so rendered as Markdown again.
   await newLoginPage.goto(anketaUrl);
   const employeeMySideAfterReset = newLoginPage.locator('.side-card').first();
   await expect(

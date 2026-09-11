@@ -302,7 +302,22 @@
   },
   "answerField": {
     "addEntryPlaceholder": "Eintrag hinzufügen…",
-    "noAnswer": "Keine Antwort."
+    "noAnswer": "Keine Antwort.",
+    "sourceTab": "Text",
+    "previewTab": "Vorschau",
+    "toolbar": {
+      "label": "Formatierung",
+      "bold": "Fett",
+      "italic": "Kursiv",
+      "heading": "Überschrift",
+      "quote": "Zitat",
+      "bulletList": "Aufzählungsliste",
+      "numberedList": "Nummerierte Liste",
+      "code": "Code",
+      "link": "Link",
+      "linkPlaceholder": "Linktext",
+      "urlPlaceholder": "URL"
+    }
   },
   "questions": {
     "employee": {

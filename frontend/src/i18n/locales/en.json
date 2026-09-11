@@ -302,7 +302,22 @@
   },
   "answerField": {
     "addEntryPlaceholder": "Add an entry…",
-    "noAnswer": "No answer."
+    "noAnswer": "No answer.",
+    "sourceTab": "Source",
+    "previewTab": "Preview",
+    "toolbar": {
+      "label": "Formatting",
+      "bold": "Bold",
+      "italic": "Italic",
+      "heading": "Heading",
+      "quote": "Quote",
+      "bulletList": "Bulleted list",
+      "numberedList": "Numbered list",
+      "code": "Code",
+      "link": "Link",
+      "linkPlaceholder": "link text",
+      "urlPlaceholder": "url"
+    }
   },
   "questions": {
     "employee": {

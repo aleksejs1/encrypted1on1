@@ -400,27 +400,6 @@
     border-bottom: 1px solid var(--color-divider);
   }
 
-  .tab-btn {
-    padding: 8px 4px;
-    font-size: 14px;
-    color: var(--color-text-muted);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-right: 16px;
-    cursor: pointer;
-  }
-
-  .tab-btn:hover {
-    color: var(--color-accent-ink);
-  }
-
-  .tab-btn-active {
-    color: var(--color-text);
-    border-bottom-color: var(--color-accent);
-    font-weight: var(--font-heading-weight);
-  }
-
   .goals-in-range {
     margin-bottom: 20px;
   }
