@@ -135,6 +135,31 @@ other side never published correctly disabling the draft. Full suite (9 specs) g
 plus the two new backend functional tests. `composer stan`/`cs`/`test` (354 tests) and
 `npm run check`/`lint`/`format`/`test`/`knip` all clean.
 
+**A real CI-only failure, and a wrong first diagnosis, corrected before merge.**
+Both new e2e tests were green locally but the `e2e` CI job failed twice in a row on
+the same test's own account activation — looked exactly like this project's
+documented argon2id-under-load flakiness (`docs/history.md`'s own precedent for
+this class of issue), so the first fix applied that playbook: closed
+`dual-actor-anketa.spec.ts`'s never-closed browser contexts (a real, if unrelated,
+resource leak worth fixing regardless) and gave the two new tests a longer
+per-test timeout. CI still failed, at the same spot, for the *full* extended
+timeout — inconsistent with "just needs more headroom." Downloading the actual
+Playwright trace artifact from the failing CI run showed the real cause: the
+account-activation POST itself returned a genuine `429 Too Many Requests`. The full
+suite makes 21 real activation completions from one IP; the default
+`ACTIVATION_COMPLETE_RATE_LIMIT` (10/minute, sized for production) was already
+tight before this PR added two more activation-heavy tests, which tipped it over
+into failing (near-)deterministically instead of occasionally. Fixed at the actual
+root: `backend/.env.e2e` now overrides `ACTIVATION_COMPLETE_RATE_LIMIT=100`, using
+the exact env-var override mechanism `config/packages/rate_limiter.php` already
+provides for this class of problem (originally added for a production operator's
+invite-sending throughput, per that file's own header comment). The over-long
+per-test timeouts were reverted once the real fix was confirmed (two clean, fast
+full-suite runs) — they addressed a diagnosis that turned out to be wrong, and
+leaving them in would have hidden a real future regression under a bigger timeout
+budget than the fix actually needs. The context-closing fix was kept as a real,
+independently-justified hygiene improvement, unrelated to the actual failure.
+
 Built via a 13-round `code-review` loop (unusually long, matching this project's own
 documented precedent for concurrent-state changes — see
 `docs/decisions/2026-08-28-multi-tab-unlock-state-machine.md`). Real bugs found and

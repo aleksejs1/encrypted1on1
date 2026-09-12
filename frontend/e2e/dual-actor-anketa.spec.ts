@@ -7,12 +7,10 @@ const PASSWORD = 'correct horse battery staple 123';
 // playwright.config.ts) — activate() below never closes the contexts it
 // creates, and neither did any test here, so every one of this file's real
 // dual-actor journeys (2 contexts each) piled up for the rest of the run
-// instead of being freed. By the time the last test in the file starts, it's
-// competing with every prior test's still-open contexts for CPU/memory —
-// harmless with local headroom (where it just occasionally tipped over
-// whichever test happened to be running), but deterministic on a
-// resource-constrained CI runner, where it consistently tipped over
-// specifically the last-scheduled test's own real argon2id activation.
+// instead of being freed. General hygiene, not what actually caused a real
+// CI failure investigated alongside this — that turned out to be the
+// activation-complete rate limiter (see backend/.env.e2e's own comment on
+// ACTIVATION_COMPLETE_RATE_LIMIT), not resource contention from this.
 test.afterEach(async ({ browser }) => {
   await Promise.all(browser.contexts().map((context) => context.close()));
 });
@@ -520,13 +518,6 @@ test('published answer edits and new comments appear on an already-open tab with
 test('counterpart archiving mid-edit exits edit mode on an already-open tab without reloading', async ({
   browser,
 }) => {
-  // Both real activations' argon2id key derivation happening this late in a
-  // single-worker file (this is the 5th of 6 tests, each doing 2 real
-  // activations) leaves less CPU headroom under the default 60s test
-  // timeout than the earlier tests get — bumped, not the whole suite's
-  // default, since this and the next test are specifically the two placed
-  // latest in the file's own accumulated-load sequence.
-  test.setTimeout(120_000);
   const employeeEmail = uniqueEmail('employee-archive-live');
   const managerEmail = uniqueEmail('manager-archive-live');
   const employeeToken = createActivationLink(employeeEmail);
@@ -630,9 +621,6 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
 test('counterpart archiving an anketa the other side never published on disables the draft on an already-open tab', async ({
   browser,
 }) => {
-  // See the previous test's identical comment — same reasoning, this one's
-  // even later in the file's own accumulated-load sequence (6th of 6).
-  test.setTimeout(120_000);
   const employeeEmail = uniqueEmail('employee-archive-draft');
   const managerEmail = uniqueEmail('manager-archive-draft');
   const employeeToken = createActivationLink(employeeEmail);
