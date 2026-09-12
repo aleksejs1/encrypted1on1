@@ -76,3 +76,39 @@ export interface AnketaDetail {
   /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
   formVersion: number;
 }
+
+/**
+ * GET /api/anketas/{id}/live-state — a cheap polling target for the anketa
+ * detail page's live-update mechanism (see private/live-updates-proposal.md,
+ * not tracked in git). No blobs, so decrypting is never needed just to check
+ * for a change — a diff against the previously-seen values is what tells the
+ * page whether it needs to re-fetch AnketaDetail and decrypt anything.
+ *
+ * Not an exhaustive model of the response: the backend reuses summarize()
+ * wholesale (see AnketaController::liveState()'s own docblock) rather than
+ * trimming it down, so the real payload also carries `id`/`myRole`/
+ * `counterpartId`/`counterpartEmail`/`counterpartName`/`periodicityDays`/
+ * `counterpartKeyOutdated`/`counterpartDeleted`/`formVersion` — this
+ * interface only declares the subset this page actually reads from it.
+ *
+ * Deliberately no goal-related field, so goal creates/edits never live-update
+ * — unlike every blob here, `Goal` rows have no version counter, and goal
+ * editing has no isolated "editing" boundary the way editingMyAnswers gives
+ * post-publish answer edits (title/description/target-date are permanently-
+ * editable inline inputs with a manual Save button). Live-refreshing them
+ * could silently discard an unsaved, actively-typed edit. Out of scope for
+ * this feature — a real follow-up, not an oversight — until goal editing
+ * gets that same kind of edit-mode boundary first.
+ */
+export interface AnketaLiveState {
+  myPublishedAt: string | null;
+  counterpartPublishedAt: string | null;
+  archivedAt: string | null;
+  missed: boolean;
+  meetingDate: string;
+  employeeBlobVersion: number;
+  managerBlobVersion: number;
+  commentsVersion: number;
+  outcomesVersion: number;
+  goalCheckpointsVersion: number;
+}

@@ -2,13 +2,15 @@
   import { _ } from 'svelte-i18n';
   import type { Comment } from './comments';
 
-  const {
+  let {
     comments,
     authorNames,
     currentUserId,
     onSubmit,
     onEdit,
     onDelete,
+    hasOpenAction = $bindable<boolean | undefined>(),
+    recentlyArrivedIds = {},
   }: {
     comments: Comment[];
     authorNames: Record<string, string>;
@@ -16,16 +18,65 @@
     onSubmit: (text: string) => Promise<void>;
     onEdit: (commentId: string, text: string) => Promise<void>;
     onDelete: (commentId: string) => Promise<void>;
+    /**
+     * Mirrors whether this thread has an own-comment edit/delete open and
+     * uncommitted — the parent (Anketa.svelte) aggregates this across every
+     * CommentThread instance on the page (there can be dozens — see
+     * comments-default-open-proposal.md §2) into one "any thread busy" flag,
+     * so its live-update poll knows not to wholesale-replace `allComments`
+     * out from under an in-progress edit/delete. Same `bind:`/`$effect`
+     * shape as AnswerField's `hasOpenEntryEdit` → `fieldsWithOpenEntryEdit`.
+     * The unsent "new comment" draft (`text` below) deliberately isn't
+     * included: it's local state independent of the `comments` prop, so a
+     * wholesale list replace underneath it doesn't touch or discard it.
+     */
+    hasOpenAction?: boolean;
+    /**
+     * Comment ids that just arrived via a live update (not the initial page
+     * load) — rendered with a brief highlight, cleared by the parent a few
+     * seconds after they're added. See private/live-updates-proposal.md §7
+     * (not tracked in git) for why comments specifically get this cue while
+     * every other live-updated field stays silent.
+     */
+    recentlyArrivedIds?: Record<string, true>;
   } = $props();
 
   let text = $state('');
   let submitting = $state(false);
   let error = $state<string | null>(null);
-  // Only the initial comment count should decide the default, so a thread a user manually
-  // collapsed doesn't get silently reopened by a later comment arriving via sync, and vice
-  // versa — the one-time read below is intentional, not a missed $derived.
+  // Only the initial comment count decides the default — the one-time read below is
+  // intentional, not a missed $derived, so a later comment arriving via a live update
+  // doesn't fight a *manual* toggle (userToggled below) in either direction.
   // svelte-ignore state_referenced_locally
   let expanded = $state(comments.length > 0);
+  // Not $state — read synchronously alongside `expanded` itself, never needs to
+  // trigger a render on its own. True once the user has ever clicked the toggle,
+  // in either direction; see the auto-expand $effect below for why this matters.
+  let userToggled = false;
+
+  /**
+   * A thread that starts collapsed (no comments yet — the common case, see
+   * comments-default-open-proposal.md §2) would otherwise silently receive a
+   * live-updated comment nobody can see, defeating the point of a live
+   * update — `expanded`'s one-time initializer above never re-derives from
+   * `comments` on its own. Force it open specifically when a *newly-arrived*
+   * comment (recentlyArrivedIds, not just any change to `comments`) shows up
+   * in an untouched thread. Gated on `!userToggled` so this never overrides
+   * an explicit manual collapse — a thread the user deliberately hid stays
+   * hidden even if new content arrives, same intent the removed comment
+   * above already had for a general "sync" case, just now scoped to real
+   * live arrivals instead of applying to every `comments` change.
+   */
+  $effect(() => {
+    if (!userToggled && comments.some((c) => recentlyArrivedIds[c.id])) {
+      expanded = true;
+    }
+  });
+
+  function toggleExpanded(): void {
+    userToggled = true;
+    expanded = !expanded;
+  }
 
   let editingId = $state<string | null>(null);
   let editText = $state('');
@@ -52,6 +103,20 @@
   const anotherActionOpen = $derived(
     editingId !== null || confirmingDeleteId !== null,
   );
+
+  $effect(() => {
+    hasOpenAction = anotherActionOpen;
+    // Self-clears on unmount — belt-and-suspenders alongside Anketa.svelte's
+    // own explicit pruneStaleBusyEntries() calls (kept as-is; this doesn't
+    // replace them, since they run synchronously within the same tick that
+    // decides to prune, rather than waiting on this effect's own cleanup
+    // timing). Structurally closes the same class of "stale true left
+    // behind after an id-removal path nobody remembered to prune" bug for
+    // any *future* removal path too, not just the ones already handled.
+    return () => {
+      hasOpenAction = false;
+    };
+  });
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
@@ -113,11 +178,7 @@
 </script>
 
 <div class="thread">
-  <button
-    type="button"
-    class="btn btn-ghost toggle"
-    onclick={() => (expanded = !expanded)}
-  >
+  <button type="button" class="btn btn-ghost toggle" onclick={toggleExpanded}>
     <svg
       class="icon"
       viewBox="0 0 24 24"
@@ -138,7 +199,10 @@
   {#if expanded}
     <div class="comments">
       {#each comments as comment (comment.id)}
-        <div class="comment">
+        <div
+          class="comment"
+          class:recently-arrived={recentlyArrivedIds[comment.id]}
+        >
           {#if editingId === comment.id}
             <form
               class="edit-form"
@@ -271,6 +335,27 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: 6px;
+  }
+
+  /* Brief cue for a comment that just arrived via a live update (never on
+     initial page load) — see the recentlyArrivedIds prop doc above for why
+     comments specifically get this while every other live-updated field
+     stays silent. Fades on its own; no interaction needed to dismiss it.
+     border-radius lives here, not on the base .comment rule above, since
+     it's only needed for this rule's own background-color flash to look
+     right — every other comment stays exactly as square as before. */
+  .comment.recently-arrived {
+    border-radius: 4px;
+    animation: comment-arrived 3s ease-out;
+  }
+
+  @keyframes comment-arrived {
+    from {
+      background-color: var(--color-accent-100);
+    }
+    to {
+      background-color: transparent;
+    }
   }
 
   .author {

@@ -307,6 +307,76 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(409, $result['status']);
     }
 
+    public function testLiveStateReturnsCurrentScalarsAndVersions(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('live-state-ok');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/comments", [
+            'blob' => 'comment-blob-v1',
+            'expectedVersion' => 0,
+        ]);
+        $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/outcomes", [
+            'blob' => 'outcomes-v1',
+            'expectedVersion' => 0,
+        ]);
+
+        $result = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}/live-state");
+
+        self::assertSame(200, $result['status']);
+        self::assertSame('employee', $result['json']['myRole']);
+        self::assertSame(1, $result['json']['commentsVersion']);
+        self::assertSame(1, $result['json']['outcomesVersion']);
+        self::assertSame(0, $result['json']['goalCheckpointsVersion']);
+        self::assertSame(0, $result['json']['employeeBlobVersion']);
+        self::assertSame(0, $result['json']['managerBlobVersion']);
+        self::assertNull($result['json']['myPublishedAt']);
+        self::assertNull($result['json']['counterpartPublishedAt']);
+        self::assertNull($result['json']['archivedAt']);
+        self::assertArrayNotHasKey('commentsBlob', $result['json']);
+        self::assertArrayNotHasKey('employeeBlob', $result['json']);
+    }
+
+    public function testLiveStateReflectsCounterpartsRoleAndPublishState(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('live-state-roles');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/publish", [
+            'blob' => 'employee-answers',
+        ]);
+
+        $fromManager = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}/live-state");
+
+        self::assertSame(200, $fromManager['status']);
+        self::assertSame('manager', $fromManager['json']['myRole']);
+        self::assertNull($fromManager['json']['myPublishedAt']);
+        self::assertNotNull($fromManager['json']['counterpartPublishedAt']);
+    }
+
+    public function testLiveStateRejectsANonParticipant(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('live-state-non-participant');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $stranger = $this->secondClient();
+        $this->activateUser($stranger, $this->uniqueEmail('live-state-stranger'));
+
+        $result = $this->jsonRequest($stranger, 'GET', "/api/anketas/{$anketaId}/live-state");
+
+        self::assertSame(403, $result['status']);
+    }
+
+    public function testLiveStateReturns404ForAnUnknownId(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('live-state-unknown'));
+
+        $result = $this->jsonRequest($client, 'GET', '/api/anketas/00000000-0000-0000-0000-000000000000/live-state');
+
+        self::assertSame(404, $result['status']);
+    }
+
     public function testCreateGoalAndAuthorCanUpdateIt(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('goal-author');
@@ -368,6 +438,43 @@ class AnketaControllerTest extends ApiTestCase
 
         self::assertSame(409, $result['status']);
         self::assertSame('Already published.', $result['json']['error']);
+    }
+
+    public function testSaveDraftRejectsOnceArchivedEvenIfNeverPublished(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('draft-archived');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        // Never published — archived directly from the draft state (e.g. via
+        // "cancel as missed"), same as a real "missed meeting, no answers
+        // ever filled in" anketa.
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => true,
+            'skipNextMeeting' => true,
+        ]);
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/draft", [
+            'blob' => 'draft-after-archive',
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('Anketa is archived.', $result['json']['error']);
+    }
+
+    public function testPublishRejectsOnceArchivedEvenIfNeverPublished(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('publish-archived');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => true,
+            'skipNextMeeting' => true,
+        ]);
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/publish", [
+            'blob' => 'publish-after-archive',
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('Anketa is archived.', $result['json']['error']);
     }
 
     public function testUpdateAnswersSucceedsAndIncrementsVersionWithoutTouchingPublishedAt(): void
