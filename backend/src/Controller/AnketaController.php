@@ -222,6 +222,34 @@ class AnketaController
     }
 
     /**
+     * A cheap polling target for the anketa detail page's live-update mechanism
+     * (see private/live-updates-proposal.md, not tracked in git) — every scalar a
+     * client needs to decide "has anything changed since I last loaded," with no
+     * blobs and no goals query. Deliberately mirrors summarize()'s scalar shape
+     * plus the blob version counters rather than trimming serializeDetail() down,
+     * since the two endpoints have genuinely different jobs (full state vs. a
+     * cheap change signal) — see the "no generic CRUD" rule this controller
+     * already follows for every other route.
+     */
+    #[Route('/api/anketas/{id}/live-state', name: 'anketa_live_state', methods: ['GET'])]
+    public function liveState(string $id, Request $request): JsonResponse
+    {
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        // Read-only from here on — same reasoning as get() above.
+        $this->authSession->closeForReading($request);
+
+        return new JsonResponse([
+            ...$this->summarize($anketa, $user),
+            'employeeBlobVersion' => $anketa->getEmployeeBlobVersion(),
+            'managerBlobVersion' => $anketa->getManagerBlobVersion(),
+            'commentsVersion' => $anketa->getCommentsVersion(),
+            'outcomesVersion' => $anketa->getOutcomesVersion(),
+            'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
+        ]);
+    }
+
+    /**
      * @param Goal[] $goals
      *
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
@@ -452,6 +480,21 @@ class AnketaController
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
+        // Checked before isPublished() — once archived, both draft-saving and
+        // publishing are terminal regardless of whether this side ever
+        // published, same "archived overrides everything else" precedent
+        // updateAnswers()/saveGoalCheckpoints() already established. Without
+        // this, a side that never published could keep autosaving and even
+        // successfully publish onto an anketa the counterpart already
+        // archived, with no error — previously reachable only via not
+        // reloading after a counterpart's archive; the live-update poll (see
+        // private/live-updates-proposal.md, not tracked in git) makes an
+        // already-open, never-reloaded tab a routine occurrence instead of
+        // an edge case, so this was worth closing now rather than leaving
+        // as a pre-existing, rarely-hit gap.
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
+        }
         if ($anketa->isPublished($user)) {
             throw new ConflictHttpException($this->translator->trans('errors.already_published'));
         }
@@ -473,6 +516,11 @@ class AnketaController
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
+        // See saveDraft()'s identical check above for why this is checked
+        // before isPublished().
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
+        }
         if ($anketa->isPublished($user)) {
             throw new ConflictHttpException($this->translator->trans('errors.already_published'));
         }
@@ -675,11 +723,30 @@ class AnketaController
         return $user;
     }
 
-    /** @return array{0: Anketa, 1: User} */
+    /**
+     * Eager-joins employee/manager rather than a plain find() — same reasoning as
+     * list()/bulk()'s own eager-join (summarize()/serializeDetail() always read both
+     * sides' User), now doubly worth it since liveState() calls this every ~4s per
+     * open tab instead of once per page load, which would otherwise turn a single
+     * lazy-loaded counterpart query into a recurring per-tick one. Doctrine's
+     * identity map means every mutating caller's later flush() behaves identically
+     * to the entity find() used to return — this is a query-shape change only.
+     *
+     * @return array{0: Anketa, 1: User}
+     */
     private function findAccessible(string $id, Request $request): array
     {
         $user = $this->requireUser($request);
-        $anketa = $this->entityManager->find(Anketa::class, $id);
+        /** @var Anketa|null $anketa */
+        $anketa = $this->entityManager->createQueryBuilder()
+            ->select('a', 'e', 'm')
+            ->from(Anketa::class, 'a')
+            ->innerJoin('a.employee', 'e')
+            ->innerJoin('a.manager', 'm')
+            ->where('a.id = :id')
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
         if (null === $anketa) {
             throw new NotFoundHttpException($this->translator->trans('errors.anketa_not_found'));
         }

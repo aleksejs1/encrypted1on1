@@ -406,3 +406,263 @@ test('participant can change the meeting date on an upcoming (non-overdue) anket
     `${newDd}.${newMm}.${newYyyy}`,
   );
 });
+
+/**
+ * Coverage for the anketa page's live-update mechanism (see
+ * private/live-updates-proposal.md, not tracked in git) — a poll of
+ * GET /api/anketas/{id}/live-state that refreshes whichever sections changed
+ * without a manual page reload. Two real, independent sessions, neither
+ * reloaded once the polling starts: the manager's already-open tab picks up
+ * the employee's published-answer edit, and the employee's already-open tab
+ * picks up the manager's new comment (with the brief highlight cue —
+ * private/live-updates-proposal.md §7). Both are real re-encrypt/decrypt
+ * round trips under the real anketa key, not local state mutated directly.
+ */
+test('published answer edits and new comments appear on an already-open tab without reloading', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-live');
+  const managerEmail = uniqueEmail('manager-live');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + 3);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const anketaUrl = employee.url();
+
+  const markerA = `E2E-LIVE-MARKER-A-${Date.now()}`;
+  const employeeMySide = employee.locator('.side-card').first();
+  await employeeMySide.locator('textarea').first().fill(markerA);
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // Manager opens the anketa once (a real page load, not itself a live
+  // update) and leaves this tab open for the rest of the test — every
+  // further assertion on this page has to arrive via the poll, not a reload.
+  await manager.goto(anketaUrl);
+  const managerCounterpartSide = manager.locator('.side-card').nth(1);
+  await expect(
+    managerCounterpartSide.locator('.answer-text').first(),
+  ).toHaveText(markerA);
+
+  // Employee edits their already-published answer, in the same still-open
+  // tab. The counterpart's own answers are never locally edited, so this
+  // section has no busy-gate to wait out — it should just show up.
+  const markerB = `E2E-LIVE-MARKER-B-${Date.now()}`;
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await employeeMySide.locator('textarea').first().fill(markerB);
+  await employeeMySide.getByRole('button', { name: 'Save' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // No manager.reload() here — this has to arrive via the live-state poll.
+  await expect(
+    managerCounterpartSide.locator('.answer-text').first(),
+  ).toHaveText(markerB, { timeout: 8000 });
+
+  // Manager comments on that same field from their already-open tab.
+  const managerThread = managerCounterpartSide.locator('.thread').first();
+  await managerThread.getByRole('button', { name: /comment/i }).click();
+  await managerThread.locator('input[type=text]').fill('nice progress');
+  await managerThread.getByRole('button', { name: 'Post' }).click();
+  await expect(managerThread.getByText('nice progress')).toBeVisible();
+
+  // Employee's own tab (still open on the same field, myPublished so its own
+  // CommentThread instance is rendered) picks up the new comment without a
+  // reload, and briefly highlights it (private/live-updates-proposal.md §7).
+  const employeeThread = employeeMySide.locator('.thread').first();
+  const newComment = employeeThread.locator('.comment', {
+    hasText: 'nice progress',
+  });
+  await expect(newComment).toBeVisible({ timeout: 8000 });
+  await expect(newComment).toHaveClass(/recently-arrived/, { timeout: 2000 });
+});
+
+/**
+ * Regression coverage for a real bug an independent review round caught in this
+ * same feature: the live-update poll flipping `archived` to true never reset an
+ * in-progress `editingMyAnswers` session, so a field stayed editable (a real
+ * `<textarea>`) with no Save/Cancel button left to reach — the exact "independent
+ * booleans combining into a state nothing else produces" pattern CLAUDE.md's
+ * working-style section calls out from the multi-tab-unlock incident. Drives the
+ * real archive flow from a separate session while the first tab has an unsaved
+ * edit open, with no reload on the edited tab — this has to arrive via the poll.
+ */
+test('counterpart archiving mid-edit exits edit mode on an already-open tab without reloading', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-archive-live');
+  const managerEmail = uniqueEmail('manager-archive-live');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + 3);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const anketaUrl = employee.url();
+
+  const originalMarker = `E2E-ARCHIVE-ORIGINAL-${Date.now()}`;
+  const employeeMySide = employee.locator('.side-card').first();
+  await employeeMySide.locator('textarea').first().fill(originalMarker);
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // Employee opens edit mode and types a change, but never clicks Save —
+  // this has to still be sitting open when the counterpart archives below.
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await employeeMySide
+    .locator('textarea')
+    .first()
+    .fill(`${originalMarker}-UNSAVED-EDIT`);
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Save' }),
+  ).toBeVisible();
+
+  // Manager — a separate session — archives the anketa (skipping next-cycle
+  // creation, which needs no client-side key generation and keeps this test
+  // focused on the archive-mid-edit race itself).
+  await manager.goto(anketaUrl);
+  // force: true — the checkbox's own wrapping <label> intercepts the
+  // pointer event for its custom styling, same as a real user clicking
+  // anywhere on the label still toggles the underlying native checkbox.
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+
+  // No employee.reload() — this has to arrive via the live-state poll. Once
+  // it does, editingMyAnswers must have been reset: no Save/Cancel/Edit
+  // button left reachable, and the field itself is back to its readonly,
+  // rendered-as-text form (AnswerField swaps the real <textarea> out for
+  // `.answer-text` once readonly — see AnswerField.svelte) — not still an
+  // editable textarea with nothing able to reach it, which is exactly the
+  // bug this test guards against.
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Save' }),
+  ).toHaveCount(0, { timeout: 8000 });
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Cancel' }),
+  ).toHaveCount(0);
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Edit' }),
+  ).toHaveCount(0);
+  await expect(employeeMySide.locator('textarea')).toHaveCount(0);
+  // The unsaved edit was never sent anywhere (no more editable field to send
+  // it from) — it just stays displayed, readonly, exactly matching the
+  // existing pre-this-feature behavior for the same "archived mid-edit"
+  // case discovered reactively via a 409 (handleSaveAnswersEdit's own catch
+  // block leaves myAnswers as-is too, rather than reverting to
+  // answersBeforeEdit) — this test isn't asserting new revert behavior, only
+  // that edit mode itself was correctly exited.
+  await expect(employeeMySide.locator('.answer-text').first()).toHaveText(
+    `${originalMarker}-UNSAVED-EDIT`,
+  );
+});
+
+/**
+ * Regression coverage for a second real bug an independent review round
+ * caught: the *pre-publish* draft view never consulted `archived` at all —
+ * `{#if !myPublished}` always won regardless of archived state, so a side
+ * that never published could keep autosaving a draft and even successfully
+ * publish onto an anketa the counterpart had already archived, with no
+ * error anywhere (saveDraft()/publish() on the backend only checked
+ * isPublished(), never isArchived()). The diff had modeled and tested the
+ * symmetric post-publish case in depth but missed this pre-publish half of
+ * the same "editing never offered once archived" rule. Fixed at the root
+ * (backend now rejects both with 409) and in the UI (the draft/Publish area
+ * now shows an "archived" tag instead once archived, checked ahead of
+ * `!myPublished`). No reload on the drafting tab — this has to arrive via
+ * the live-state poll, exactly the routine-not-edge-case scenario this
+ * whole feature creates.
+ */
+test('counterpart archiving an anketa the other side never published on disables the draft on an already-open tab', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-archive-draft');
+  const managerEmail = uniqueEmail('manager-archive-draft');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + 3);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const anketaUrl = employee.url();
+
+  // Employee starts drafting but never publishes — this tab stays open,
+  // never reloaded, for the rest of the test.
+  const employeeMySide = employee.locator('.side-card').first();
+  await employeeMySide
+    .locator('textarea')
+    .first()
+    .fill('a draft nobody will ever publish');
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Publish' }),
+  ).toBeVisible();
+
+  // Manager — a separate session — archives the anketa (skipping next-cycle
+  // creation, same as the other archive-mid-edit test above).
+  await manager.goto(anketaUrl);
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+
+  // No employee.reload() — this has to arrive via the live-state poll. The
+  // draft textarea and Publish button must both disappear, replaced by the
+  // "archived" tag — not still an editable, publishable draft with nothing
+  // able to reach the fact it's now closed.
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Publish' }),
+  ).toHaveCount(0, { timeout: 8000 });
+  await expect(employeeMySide.locator('textarea')).toHaveCount(0);
+  await expect(
+    employeeMySide.getByText('archived', { exact: false }),
+  ).toBeVisible();
+});

@@ -37,7 +37,7 @@
   } from '../anketa/questions';
   import { updateBlobWithRetry } from '../anketa/blobSync';
   import { isOverdue as computeIsOverdue } from '../anketa/isOverdue';
-  import type { AnketaDetail } from '../api/types';
+  import type { AnketaDetail, AnketaLiveState } from '../api/types';
   import {
     decryptBlob,
     encryptBlob,
@@ -102,6 +102,11 @@
   let myBlobVersion = $state(0);
   let answersBeforeEdit: Answers | null = null;
 
+  /** Shared by every "is anything in this keyed record currently open/in-progress" derived below (anyEntryEditOpen, anyCommentThreadBusy, anyCheckpointAdding). */
+  function anyTrue(record: Record<string, boolean>): boolean {
+    return Object.values(record).some(Boolean);
+  }
+
   /**
    * Keyed by field.id, mirrored from each AnswerField's own hasOpenEntryEdit
    * (list fields only — non-list fields never set theirs true). The outer
@@ -111,9 +116,7 @@
    * anotherOutcomeActionOpen, one level up.
    */
   let fieldsWithOpenEntryEdit = $state<Record<string, boolean>>({});
-  const anyEntryEditOpen = $derived(
-    Object.values(fieldsWithOpenEntryEdit).some(Boolean),
-  );
+  const anyEntryEditOpen = $derived(anyTrue(fieldsWithOpenEntryEdit));
 
   let saveState = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let publishing = $state(false);
@@ -154,6 +157,68 @@
     editingOutcomeId !== null || confirmingDeleteOutcomeId !== null,
   );
 
+  /**
+   * Live updates (poll a cheap endpoint, refresh whichever sections changed
+   * without a manual reload) — see private/live-updates-proposal.md (not
+   * tracked in git) for the full design. The `applied*` variables below are
+   * the last value each section was actually refreshed to, not merely the
+   * last value seen from a poll — kept distinct on purpose (see
+   * pollLiveState()) so a section skipped for being locally busy keeps
+   * showing up as "changed" on every subsequent tick until it's finally
+   * applied, rather than being silently marked "seen" and never retried.
+   */
+  let appliedCommentsVersion = $state(0);
+  let appliedOutcomesVersion = $state(0);
+  let appliedGoalCheckpointsVersion = $state(0);
+  let appliedCounterpartBlobVersion = $state(0);
+
+  /**
+   * Aggregates every CommentThread instance's own open-edit/delete/draft
+   * state (there can be dozens on one page — comments-default-open-proposal.md
+   * §2) up to this page level, the same `bind:`/keyed-record shape as
+   * `fieldsWithOpenEntryEdit`/`anyEntryEditOpen` above. Comments share one
+   * blob for the whole anketa, so this gate is necessarily page-wide, not
+   * per-thread: one open reply box anywhere pauses live-refresh for every
+   * comment thread until it closes — a bounded, self-healing trade-off
+   * (resolves the moment that one box closes), not a per-thread merge.
+   *
+   * One flat record shared across four different id namespaces at once
+   * (question-field, outcome, goal, and checkpoint ids) — every place an id
+   * can stop existing (currently: outcome deletion, both the self-initiated
+   * path and the live-poll-applied one) must explicitly call
+   * pruneStaleBusyEntries() for it, or a stale `true` left behind
+   * permanently blocks anyCommentThreadBusy-gated live refresh for the rest
+   * of the session. A future id-bearing removal path (e.g. goal deletion,
+   * if that's ever added) needs the same treatment — namespacing the keys
+   * (e.g. prefixing by type) would make this structural instead of
+   * per-call-site, but wasn't worth the churn for what's currently exactly
+   * one removable namespace.
+   */
+  let commentThreadsBusy = $state<Record<string, boolean>>({});
+  const anyCommentThreadBusy = $derived(anyTrue(commentThreadsBusy));
+
+  /** Ids highlighted for a few seconds after arriving via a live update (never on initial load) — see CommentThread's recentlyArrivedIds prop doc. Record, not a Set, matching this file's existing keyed-flag convention (fieldsWithOpenEntryEdit et al.) — always reassigned wholesale, never mutated in place. */
+  let recentlyArrivedCommentIds = $state<Record<string, true>>({});
+
+  function markRecentlyArrived(pollId: string, ids: string[]): void {
+    if (ids.length === 0) return;
+    recentlyArrivedCommentIds = {
+      ...recentlyArrivedCommentIds,
+      ...Object.fromEntries(ids.map((commentId) => [commentId, true as const])),
+    };
+    setTimeout(() => {
+      // Guards against the same currently-unreachable same-page anketa-switch
+      // case pollLiveStateFor's own pollId checks defend against (see that
+      // function's docblock) — without this, a pending clear from the old
+      // anketa could fire after switching to a new one and mutate this
+      // Record for a since-abandoned session.
+      if (id !== pollId) return;
+      const next = { ...recentlyArrivedCommentIds };
+      for (const commentId of ids) delete next[commentId];
+      recentlyArrivedCommentIds = next;
+    }, 3000);
+  }
+
   let goals = $state<Goal[]>([]);
   let allCheckpoints = $state<GoalCheckpoint[]>([]);
   let newGoalTitle = $state('');
@@ -167,6 +232,9 @@
   >({});
   let addingCheckpoint = $state<Record<string, boolean>>({});
   let goalsInfoOpen = $state(false);
+
+  /** Same "don't refresh out from under an open draft" reasoning as anyCommentThreadBusy/anotherOutcomeActionOpen. */
+  const anyCheckpointAdding = $derived(anyTrue(addingCheckpoint));
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
@@ -190,6 +258,8 @@
     savingAnswersEdit = false;
     answersBeforeEdit = null;
     fieldsWithOpenEntryEdit = {};
+    commentThreadsBusy = {};
+    recentlyArrivedCommentIds = {};
     try {
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
@@ -240,6 +310,9 @@
         return;
       }
       anketaKey = key;
+      appliedCommentsVersion = anketa.commentsVersion;
+      appliedOutcomesVersion = anketa.outcomesVersion;
+      appliedGoalCheckpointsVersion = anketa.goalCheckpointsVersion;
 
       if (anketa.commentsBlob) {
         const envelope = await decryptBlob<Comment[]>(anketa.commentsBlob, key);
@@ -296,6 +369,10 @@
           ? anketa.managerPublishedAt
           : anketa.employeePublishedAt;
       counterpartPublished = counterpartPublishedAt !== null;
+      appliedCounterpartBlobVersion =
+        anketa.myRole === 'employee'
+          ? anketa.managerBlobVersion
+          : anketa.employeeBlobVersion;
       if (counterpartBlob && counterpartPublished) {
         const envelope = await decryptBlob<Answers>(counterpartBlob, key);
         counterpartAnswers = envelope.data;
@@ -305,6 +382,433 @@
     } catch (error) {
       loadError =
         error instanceof ApiError ? error.message : $_('anketa.errorLoad');
+    }
+  }
+
+  const LIVE_STATE_POLL_INTERVAL_MS = 4000;
+  let livePollTimer: ReturnType<typeof setInterval> | undefined;
+
+  /**
+   * Starts/stops the live-update poll — see private/live-updates-proposal.md
+   * (not tracked in git) for the full design. Runs while this page has a
+   * usable anketaKey (nothing to decrypt, nothing worth polling for, before
+   * that), paused via the Page Visibility API while the tab isn't visible,
+   * and restarted whenever `id` changes (a same-page anketa switch).
+   *
+   * That last case is currently unreachable, not just theoretically safe:
+   * `docs/decisions/2026-09-10-comment-thread-reuse-state-deferred.md`
+   * confirmed no in-app navigation ever moves this mounted page from one
+   * anketa id directly to another without an intervening full page load, so
+   * `load()` never actually needs to reset `anketaKey`/`detail`/`archived`/
+   * etc. mid-session today — same reasoning that decision already applied to
+   * CommentThread's own local state. `pollLiveStateFor`'s `pollId` checks
+   * below are cheap enough to keep as defense-in-depth regardless, but
+   * building out a full cross-anketa reset of every piece of state this
+   * feature reads would be exactly the speculative work against a
+   * non-existent transition that decision already declined to do — revisit
+   * together if that ever changes.
+   */
+  $effect(() => {
+    void id;
+    if (!anketaKey) return;
+
+    function tick() {
+      // pollLiveState() fully handles its own errors (including logging)
+      // internally and never rejects — void, not .catch(), since a .catch()
+      // here would be dead code that can never actually run.
+      void pollLiveState();
+    }
+
+    function armInterval() {
+      if (document.hidden || livePollTimer) return;
+      livePollTimer = setInterval(tick, LIVE_STATE_POLL_INTERVAL_MS);
+    }
+
+    // Ticks immediately, then arms the interval — used for resuming after
+    // real time has passed (the tab was hidden, or regained focus), where an
+    // immediate check is actually likely to find something. Not used for the
+    // very first start below: load() just fetched everything moments ago, so
+    // an immediate tick there would only ever find "nothing changed."
+    function resumePolling() {
+      if (document.hidden || livePollTimer) return;
+      tick();
+      armInterval();
+    }
+
+    function stop() {
+      clearInterval(livePollTimer);
+      livePollTimer = undefined;
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stop();
+      } else {
+        resumePolling();
+      }
+    }
+
+    armInterval();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', resumePolling);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', resumePolling);
+    };
+  });
+
+  /**
+   * Guards against two ticks running concurrently — if a tick's own fetch/
+   * decrypt work is still in flight when the next setInterval fire happens
+   * (a slow connection, a large blob), that next fire just no-ops instead of
+   * starting a second overlapping pollLiveState() call. Without this, two
+   * in-flight calls could resolve out of order and the slower one's stale
+   * write could land after and clobber the faster one's newer applied state.
+   */
+  let pollInFlight = false;
+
+  /**
+   * One poll tick: fetch the cheap scalar-only live-state, and only if
+   * something actually differs from what's currently applied, fetch the
+   * full (still-encrypted) detail once and apply whichever sections changed.
+   * Never merges — every section is either replaced wholesale with the
+   * fresh decrypted value, or skipped entirely for this tick because the
+   * user has a local draft/in-flight action open for it (the next tick
+   * re-checks for free). On any request failure (expired session, blocked
+   * account, network blip), stop polling silently rather than retry-looping
+   * or interrupting whatever the user is doing — their next explicit action
+   * already surfaces an expired session the normal way.
+   *
+   * Captures `id` up front and re-checks it after every `await` — this page
+   * is reused across a same-page anketa switch with no remount (see load()'s
+   * own docblock), so without this a tick that straddles that switch could
+   * mix live-state from the old anketa with full detail from the new one, or
+   * decrypt the new anketa's blob for display under the stale scalars.
+   */
+  async function pollLiveState(): Promise<void> {
+    if (!anketaKey || !detail || pollInFlight) return;
+    const pollId = id;
+    pollInFlight = true;
+    try {
+      await pollLiveStateFor(pollId);
+    } catch (error) {
+      // Any failure here — the live-state fetch, the full-detail fetch, or a
+      // decrypt — stops the *current* interval silently rather than retry-
+      // looping every 4s, matching this function's own documented intent. A
+      // single try/catch around the whole tick, not just the first fetch, so
+      // a transient failure partway through can't slip past it. Still logged
+      // (unlike a user-facing error) — nothing else here ever surfaces a
+      // failure, so without this, a live update silently ceasing to work
+      // would leave no trace anywhere to debug from.
+      //
+      // Not a *permanent* stop: the next genuine visibility/focus event
+      // (resumePolling(), not a tight loop) gets its own fresh attempt — for
+      // a transient blip that's exactly the self-healing behavior wanted;
+      // for a truly expired session, each such attempt just fails and stops
+      // again, at the pace of the user actually switching tabs, never a
+      // tight retry loop.
+      console.error(error);
+      clearInterval(livePollTimer);
+      livePollTimer = undefined;
+    } finally {
+      pollInFlight = false;
+    }
+  }
+
+  /**
+   * Removes ids that no longer exist after a wholesale list replace —
+   * otherwise a stale `true` left over from an item deleted elsewhere (self
+   * or the counterpart) would permanently block anyCommentThreadBusy-gated
+   * live refresh for the rest of the session, since nothing else ever prunes
+   * this record.
+   *
+   * `commentThreadsBusy` is one shared record spanning several different id
+   * namespaces at once (question-field ids, outcome ids, goal ids,
+   * checkpoint ids), so this only ever clears ids the caller explicitly says
+   * it owned *before* its own replace (`previousIds`) and no longer does
+   * (`remainingIds`) — never anything else already `true` in the record. An
+   * earlier version scanned the whole record for "true but not in
+   * remainingIds," which looked right in isolation but actually cleared any
+   * *other* namespace's busy id too (e.g. an outcome-scoped call wiping out
+   * a field's own open comment edit) purely because that id wasn't an
+   * outcome id — exactly the kind of shared-function-behavior-not-re-derived-
+   * per-caller bug CLAUDE.md's working-style section calls out from the
+   * multi-tab-unlock incident.
+   */
+  function pruneStaleBusyEntries(
+    record: Record<string, boolean>,
+    previousIds: string[],
+    remainingIds: Set<string>,
+  ): Record<string, boolean> {
+    const removed = previousIds.filter((id) => !remainingIds.has(id));
+    if (removed.length === 0) return record;
+    const next = { ...record };
+    for (const removedId of removed) next[removedId] = false;
+    return next;
+  }
+
+  const EMPLOYEE_KEYS = {
+    blob: 'employeeBlob',
+    blobVersion: 'employeeBlobVersion',
+    publishedAt: 'employeePublishedAt',
+  } as const;
+  const MANAGER_KEYS = {
+    blob: 'managerBlob',
+    blobVersion: 'managerBlobVersion',
+    publishedAt: 'managerPublishedAt',
+  } as const;
+
+  async function pollLiveStateFor(pollId: string): Promise<void> {
+    const live = await apiGet<AnketaLiveState>(
+      `/api/anketas/${pollId}/live-state`,
+    );
+    if (id !== pollId || !detail || !anketaKey) return;
+
+    // Captured before anything below can mutate editingMyAnswers (the
+    // archivedChanged branch's exitAnswersEditSession() included) — the
+    // whole point of gating myBlob's apply on "was there an active edit
+    // session" is to protect whatever's unsaved in *this* tick; reading a
+    // live value that this same tick may have already reset behind its back
+    // would defeat that gate for exactly the tick that needs it most (an
+    // own-blob version bump landing in the same tick as archival).
+    const wasEditingMyAnswers = editingMyAnswers;
+
+    // One computed key set per side, reused everywhere below instead of
+    // re-deriving the same employee/manager ternary at each use site.
+    const myKeys = detail.myRole === 'employee' ? EMPLOYEE_KEYS : MANAGER_KEYS;
+    const counterpartKeys =
+      detail.myRole === 'employee' ? MANAGER_KEYS : EMPLOYEE_KEYS;
+
+    const archivedChanged = (live.archivedAt !== null) !== archived;
+    const missedChanged = live.missed !== missed;
+    const meetingDateChanged = live.meetingDate !== detail.meetingDate;
+    const counterpartPublishedChanged =
+      (live.counterpartPublishedAt !== null) !== counterpartPublished;
+    // My own side is deliberately excluded from a publishedAt-transition trigger
+    // here (only a post-publish blob edit, myBlobChanged below, is handled) —
+    // before my own first publish, this page has no isolated "editing" boundary
+    // the way editingMyAnswers gives post-publish edits (the draft form is always
+    // directly editable), so silently overwriting myAnswers because *another of my
+    // own tabs* published first could discard whatever this tab still has typed
+    // but unsaved. That race already exists today (surfaced via publish()'s
+    // existing 409 "already published" on this tab's own next Publish click), not
+    // a new gap this feature needs to close.
+    //
+    // Also gated on `myPublished` itself, not just on the version differing —
+    // this side's own myBlobVersion tracker is only ever advanced by the apply
+    // block below, which itself only runs once myPublished is true (see the
+    // reasoning above). Without this, the same "another of my own tabs
+    // published+edited first" race that this page correctly declines to
+    // auto-apply would leave myBlobChanged permanently true (since nothing
+    // would ever move myBlobVersion to match), forcing an unbounded, never-
+    // self-healing full-detail re-fetch every tick for the rest of the
+    // session — unlike every other skip-while-busy case here, which clears
+    // the moment the local busy state does.
+    const myBlobChanged =
+      myPublished && live[myKeys.blobVersion] !== myBlobVersion;
+    const counterpartBlobChanged =
+      live[counterpartKeys.blobVersion] !== appliedCounterpartBlobVersion;
+    const commentsChanged = live.commentsVersion !== appliedCommentsVersion;
+    const outcomesChanged = live.outcomesVersion !== appliedOutcomesVersion;
+    const checkpointsChanged =
+      live.goalCheckpointsVersion !== appliedGoalCheckpointsVersion;
+
+    if (
+      !archivedChanged &&
+      !missedChanged &&
+      !meetingDateChanged &&
+      !counterpartPublishedChanged &&
+      !myBlobChanged &&
+      !counterpartBlobChanged &&
+      !commentsChanged &&
+      !outcomesChanged &&
+      !checkpointsChanged
+    ) {
+      return;
+    }
+
+    // Scalars/banners: nothing on this page edits them inline, so always apply
+    // immediately regardless of any other in-progress local action.
+    if (archivedChanged) {
+      archived = live.archivedAt !== null;
+      if (archived) exitAnswersEditSession();
+    }
+    if (missedChanged) missed = live.missed;
+    if (meetingDateChanged) {
+      detail.meetingDate = live.meetingDate;
+    }
+
+    // Each busy-gated section's "will this tick actually apply it" flag is
+    // computed once here and reused both to decide whether the full-detail
+    // fetch below is even worth making, and (unchanged, further down) as the
+    // apply block's own condition — a single source of truth, not two
+    // independent copies of the same gate that could silently drift apart
+    // (one loosened without the other, permanently stopping live updates for
+    // that section with no error). A section that's changed but currently
+    // busy would just have its result discarded unapplied anyway, so there's
+    // no point fetching+decrypting the full detail for it alone. (The two
+    // ungated ones, counterpart published/blob, have no busy gate at all —
+    // always safe, always worth fetching for.) This tick still self-heals
+    // the moment the busy section clears, same as always — nothing here
+    // marks it "seen."
+    // Outcomes/checkpoints are also gated on !anyCommentThreadBusy, not just
+    // their own list-editing state — deleting an outcome/checkpoint whose
+    // attached CommentThread has an open edit/delete would otherwise unmount
+    // that thread mid-edit, silently discarding whatever wasn't saved yet.
+    // Broader than strictly necessary (any comment thread busy anywhere
+    // pauses outcome/checkpoint replacement too, not just a busy thread on
+    // the specific item that would be removed), but the same bounded,
+    // self-healing trade-off comments' own page-wide busy-gating already
+    // accepts, not a new one invented for this.
+    const willApplyComments = commentsChanged && !anyCommentThreadBusy;
+    const willApplyOutcomes =
+      outcomesChanged &&
+      !anotherOutcomeActionOpen &&
+      !addingOutcome &&
+      !anyCommentThreadBusy;
+    const willApplyCheckpoints =
+      checkpointsChanged && !anyCheckpointAdding && !anyCommentThreadBusy;
+    const willApplyMyBlob = myBlobChanged && !wasEditingMyAnswers;
+
+    const needsFullDetail =
+      counterpartPublishedChanged ||
+      counterpartBlobChanged ||
+      willApplyMyBlob ||
+      willApplyComments ||
+      willApplyOutcomes ||
+      willApplyCheckpoints;
+    if (!needsFullDetail) return;
+
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${pollId}`);
+    if (id !== pollId || !detail || !anketaKey) return;
+
+    // The decrypt-and-apply blocks below run sequentially, not Promise.all'd,
+    // even though each operates on independent data — deliberately: every
+    // decryptBlob call here is a fast, in-memory WASM operation on a small
+    // blob (microseconds, not a network round trip), so the real time saved
+    // by parallelizing is negligible, while doing it would mean re-deriving
+    // the `id !== pollId`/`anketaKey` re-validation per branch instead of
+    // once, for a tick that already returned early above unless something
+    // actually changed. Not worth the complexity for this.
+    //
+    // Every commit below re-checks two things immediately before its
+    // synchronous writes, *after* decrypting rather than merely as a
+    // pre-condition for starting the decrypt:
+    //
+    // - "is fresh's version still at least as new as what's already
+    //   applied" — a self-initiated save (updateComments/updateOutcomes/
+    //   updateGoalCheckpoints) can complete during the `await
+    //   decryptBlob(...)` below and bump the applied* tracker itself.
+    // - "is this section still not busy" — the user can just as easily
+    //   *start* a local edit during that same await window as finish one;
+    //   the willApply* flags above were only ever a snapshot from before
+    //   these awaits started.
+    //
+    // Re-checking only *before* the await (and trusting it to still hold
+    // after) wouldn't close either window — both have to be read fresh,
+    // after the await, right before the writes, since nothing else runs
+    // between that check and the writes themselves.
+    if (willApplyComments) {
+      const decrypted = fresh.commentsBlob
+        ? (await decryptBlob<Comment[]>(fresh.commentsBlob, anketaKey)).data
+        : [];
+      if (
+        fresh.commentsVersion >= appliedCommentsVersion &&
+        !anyCommentThreadBusy
+      ) {
+        const existingIds = new Set(allComments.map((c) => c.id));
+        const newIds = decrypted
+          .filter((c) => !existingIds.has(c.id))
+          .map((c) => c.id);
+        allComments = decrypted;
+        appliedCommentsVersion = fresh.commentsVersion;
+        markRecentlyArrived(pollId, newIds);
+      }
+    }
+
+    if (willApplyOutcomes) {
+      const previousIds = allOutcomes.map((o) => o.id);
+      const decrypted = fresh.outcomesBlob
+        ? (await decryptBlob<OutcomeItem[]>(fresh.outcomesBlob, anketaKey)).data
+        : [];
+      if (
+        fresh.outcomesVersion >= appliedOutcomesVersion &&
+        !anotherOutcomeActionOpen &&
+        !addingOutcome &&
+        !anyCommentThreadBusy
+      ) {
+        allOutcomes = decrypted;
+        appliedOutcomesVersion = fresh.outcomesVersion;
+        commentThreadsBusy = pruneStaleBusyEntries(
+          commentThreadsBusy,
+          previousIds,
+          new Set(decrypted.map((o) => o.id)),
+        );
+      }
+    }
+
+    if (willApplyCheckpoints) {
+      const previousIds = allCheckpoints.map((c) => c.id);
+      const decrypted = fresh.goalCheckpointsBlob
+        ? (
+            await decryptBlob<GoalCheckpoint[]>(
+              fresh.goalCheckpointsBlob,
+              anketaKey,
+            )
+          ).data
+        : [];
+      if (
+        fresh.goalCheckpointsVersion >= appliedGoalCheckpointsVersion &&
+        !anyCheckpointAdding &&
+        !anyCommentThreadBusy
+      ) {
+        allCheckpoints = decrypted;
+        appliedGoalCheckpointsVersion = fresh.goalCheckpointsVersion;
+        commentThreadsBusy = pruneStaleBusyEntries(
+          commentThreadsBusy,
+          previousIds,
+          new Set(decrypted.map((c) => c.id)),
+        );
+      }
+    }
+
+    if (willApplyMyBlob) {
+      // myBlobChanged already implies myPublished (see its own definition
+      // above), so nothing further to check here for that.
+      const myVersion = fresh[myKeys.blobVersion];
+      const myBlob = fresh[myKeys.blob];
+      const decrypted = myBlob
+        ? (await decryptBlob<Answers>(myBlob, anketaKey)).data
+        : undefined;
+      if (myVersion >= myBlobVersion && !editingMyAnswers) {
+        if (decrypted) myAnswers = decrypted;
+        myBlobVersion = myVersion;
+      }
+    }
+
+    if (counterpartPublishedChanged || counterpartBlobChanged) {
+      // Always safe, no busy gate needed: the counterpart's own answers are
+      // never edited from this session, so there's no local draft to protect.
+      const counterpartVersion = fresh[counterpartKeys.blobVersion];
+      const counterpartBlob = fresh[counterpartKeys.blob];
+      const counterpartPublishedNow =
+        fresh[counterpartKeys.publishedAt] !== null;
+      const decrypted =
+        counterpartBlob && counterpartPublishedNow
+          ? (await decryptBlob<Answers>(counterpartBlob, anketaKey)).data
+          : undefined;
+      // Same "re-check right before the synchronous commit" guard every
+      // other section above has, kept here too even though nothing in this
+      // tab currently writes appliedCounterpartBlobVersion except this block
+      // itself and load() — no reachable race today, but no reason for this
+      // one commit to be the exception to a pattern every sibling follows.
+      if (counterpartVersion >= appliedCounterpartBlobVersion) {
+        counterpartPublished = counterpartPublishedNow;
+        if (decrypted) counterpartAnswers = decrypted;
+        appliedCounterpartBlobVersion = counterpartVersion;
+      }
     }
   }
 
@@ -365,6 +869,26 @@
   }
 
   /**
+   * Exits an in-progress answers-edit session because the anketa just
+   * became archived — either discovered reactively (handleSaveAnswersEdit's
+   * own 409 "already archived" branch) or proactively (the live-update
+   * poll's archivedChanged branch). Deliberately narrower than
+   * cancelEditingAnswers(): it doesn't touch myAnswers (the counterpart-
+   * archives-mid-edit case leaves whatever was locally typed displayed,
+   * readonly, unsaved — matching this page's own documented state model,
+   * editingMyAnswers' docblock, "Archived" state) or actionError (each
+   * caller sets/doesn't set that on its own terms). Shared so a third such
+   * call site, if one is ever added, can't independently drift by resetting
+   * only some of these three — same reasoning CLAUDE.md's working-style
+   * section gives for not re-deriving shared invalidation logic per site.
+   */
+  function exitAnswersEditSession(): void {
+    editingMyAnswers = false;
+    savingAnswersEdit = false;
+    answersBeforeEdit = null;
+  }
+
+  /**
    * No merge/retry-on-conflict here unlike updateField()'s comments/outcomes/
    * checkpoints pattern — those are shared blobs where reapplying the same edit to
    * fresh state is safe; myAnswers is a full-overwrite of the whole side; automatically
@@ -413,8 +937,7 @@
         } else {
           archived = true;
         }
-        answersBeforeEdit = null;
-        editingMyAnswers = false;
+        exitAnswersEditSession();
         actionError = error.message;
       } else {
         actionError =
@@ -455,8 +978,18 @@
           nextKey,
           await fromBase64(detail.counterpartPublicKey),
         );
+        // Carries forward from the current in-memory `allOutcomes`, not
+        // `detail.outcomesBlob` (a page-load snapshot never written back to
+        // after a save — self-initiated or, since this page now polls for
+        // live updates, the counterpart's too) — archiving straight from a
+        // stale snapshot would silently drop any outcome added/edited after
+        // this page first loaded. Re-encrypting the current list under the
+        // same (old) anketaKey first, then handing that fresh ciphertext to
+        // carryForwardOutcomes, is simpler than giving that function a
+        // separate already-decrypted-input code path for one caller.
+        const currentOutcomesBlob = await encryptBlob(allOutcomes, anketaKey);
         const outcomesBlobNext = await carryForwardOutcomes(
-          detail.outcomesBlob,
+          currentOutcomesBlob,
           anketaKey,
           nextKey,
         );
@@ -487,8 +1020,21 @@
     actionError = null;
     try {
       const isoDate = new Date(rescheduleDate).toISOString();
-      await apiPut(`/api/anketas/${id}/meeting-date`, { meetingDate: isoDate });
-      detail = { ...detail, meetingDate: isoDate };
+      // Reads the server's own DATE_ATOM-formatted value back from the
+      // response rather than reusing the client's isoDate string for
+      // detail.meetingDate — the two formats differ (ISO-with-millis vs.
+      // DATE_ATOM), and live-state's own meetingDate always comes back in
+      // the server's format, so comparing against a client-formatted string
+      // here would never match, causing the poll's meetingDateChanged to
+      // spuriously fire on the very next tick. (No separate applied*
+      // tracker for this one, unlike the version counters — meetingDate is
+      // compared directly against detail.meetingDate, which this is the
+      // single source of truth for.)
+      const result = await apiPut<{ meetingDate: string }>(
+        `/api/anketas/${id}/meeting-date`,
+        { meetingDate: isoDate },
+      );
+      detail = { ...detail, meetingDate: result.meetingDate };
       rescheduleDate = '';
       showReschedule = false;
     } catch (error) {
@@ -541,6 +1087,17 @@
    * concurrency blobs (comments, outcomes, goal checkpoints — see blobSync.ts):
    * refetch, apply the caller's mutation, save, and on a 409 retry once
    * against whatever the conflict response carries under the same field names.
+   *
+   * Also returns the version this save actually landed on (read straight from
+   * the save endpoint's own success response, not guessed by incrementing the
+   * pre-save value) so the caller can keep its live-update `applied*Version`
+   * tracker (see pollLiveState()) in sync with a save it made itself. Without
+   * this, a self-initiated save would leave that tracker one version behind
+   * until the next poll tick's own full-detail fetch happened to catch it up
+   * — and if this page's comments are all busy right at that moment (a page-
+   * wide gate, see anyCommentThreadBusy), that catch-up never runs, so every
+   * subsequent tick keeps re-fetching the full anketa for nothing, for as
+   * long as anything anywhere stays busy.
    */
   async function updateField<T>(
     blobKey: 'commentsBlob' | 'outcomesBlob' | 'goalCheckpointsBlob',
@@ -548,18 +1105,27 @@
       'commentsVersion' | 'outcomesVersion' | 'goalCheckpointsVersion',
     endpoint: string,
     apply: (current: T) => T,
-  ): Promise<T | undefined> {
+  ): Promise<{ items: T; version: number } | undefined> {
     if (!anketaKey) return undefined;
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
-    return await updateBlobWithRetry<T>(
+    let savedVersion = fresh[versionKey];
+    const items = await updateBlobWithRetry<T>(
       anketaKey,
       { blob: fresh[blobKey], version: fresh[versionKey] },
       apply,
       async (blob, expectedVersion) => {
-        await apiPut(`/api/anketas/${id}/${endpoint}`, {
-          blob,
-          expectedVersion,
-        });
+        // Partial<Record<...>>, not a bare Record<string, number> — the real
+        // response only ever has the one versionKey matching whichever
+        // endpoint this call actually hit, and the `?? savedVersion`
+        // fallback means an unexpectedly-missing key (a typo pairing the
+        // wrong versionKey with the wrong endpoint, or a future backend
+        // response-shape change) leaves the pre-save version in place
+        // instead of silently writing undefined/NaN into it.
+        const result = await apiPut<Partial<Record<typeof versionKey, number>>>(
+          `/api/anketas/${id}/${endpoint}`,
+          { blob, expectedVersion },
+        );
+        savedVersion = result[versionKey] ?? savedVersion;
       },
       (error) => {
         if (!(error instanceof ApiError) || error.status !== 409)
@@ -571,6 +1137,7 @@
         };
       },
     );
+    return { items, version: savedVersion };
   }
 
   async function updateComments(
@@ -582,7 +1149,10 @@
       'comments',
       apply,
     );
-    if (result !== undefined) allComments = result;
+    if (result !== undefined) {
+      allComments = result.items;
+      appliedCommentsVersion = result.version;
+    }
   }
 
   async function handleAddOutcome(event: SubmitEvent): Promise<void> {
@@ -667,6 +1237,20 @@
         deleteOutcome(current, itemId, myUserId),
       );
       confirmingDeleteOutcomeId = null;
+      // The deleted outcome's own CommentThread instance unmounts right along
+      // with it — without this, an id left `true` here (e.g. a comment edit
+      // was open on this outcome's thread when it got deleted) would stay
+      // stuck forever, since nothing else ever prunes commentThreadsBusy, and
+      // anyCommentThreadBusy would then block live comment refresh for the
+      // rest of the session over an id that no longer exists anywhere. Same
+      // helper pollLiveStateFor uses for the equivalent counterpart-deletes-
+      // it-via-live-refresh case — allOutcomes above is already the post-
+      // delete list by this point.
+      commentThreadsBusy = pruneStaleBusyEntries(
+        commentThreadsBusy,
+        [itemId],
+        new Set(allOutcomes.map((o) => o.id)),
+      );
     } catch (error) {
       deleteOutcomeError =
         error instanceof ApiError
@@ -686,7 +1270,10 @@
       'outcomes',
       apply,
     );
-    if (result !== undefined) allOutcomes = result;
+    if (result !== undefined) {
+      allOutcomes = result.items;
+      appliedOutcomesVersion = result.version;
+    }
   }
 
   async function handleAddGoal(event: SubmitEvent): Promise<void> {
@@ -799,7 +1386,10 @@
       'goal-checkpoints',
       apply,
     );
-    if (result !== undefined) allCheckpoints = result;
+    if (result !== undefined) {
+      allCheckpoints = result.items;
+      appliedGoalCheckpointsVersion = result.version;
+    }
   }
 
   /** "You" for the current viewer's own items, otherwise the counterpart's short name — used for outcome-item and goal author tags. */
@@ -1001,8 +1591,8 @@
               <AnswerField
                 {field}
                 bind:value={myAnswers[field.id]}
-                readonly={myPublished &&
-                  (!editingMyAnswers || savingAnswersEdit)}
+                readonly={archived ||
+                  (myPublished && (!editingMyAnswers || savingAnswersEdit))}
                 bind:hasOpenEntryEdit={fieldsWithOpenEntryEdit[field.id]}
                 anketaId={id}
               />
@@ -1014,6 +1604,8 @@
                   onSubmit={(text) => submitComment(field.id, text)}
                   onEdit={handleEditComment}
                   onDelete={handleDeleteComment}
+                  bind:hasOpenAction={commentThreadsBusy[field.id]}
+                  recentlyArrivedIds={recentlyArrivedCommentIds}
                 />
               {/if}
             {/each}
@@ -1021,7 +1613,22 @@
         {/each}
       </div>
 
-      {#if !myPublished}
+      {#if archived && !myPublished}
+        <!-- Never published before the anketa closed — a distinct message
+             from the "published, then archived" branch below, not the same
+             badgePublished text, since this side genuinely never published.
+             Checked ahead of `!myPublished` so archived always wins here,
+             matching the same "editing never offered once archived" rule
+             editingMyAnswers' docblock already states for the post-publish
+             side — this closes the pre-publish half of that same rule,
+             which a real gap let a never-reloaded tab (routine now that the
+             live-update poll can flip `archived` mid-session) slip past:
+             the draft stayed editable and Publish stayed enabled with
+             nothing checking archived here at all. -->
+        <span class="tag tag-neutral side-publish-btn"
+          >{$_('anketa.badgeArchived')}</span
+        >
+      {:else if !myPublished}
         <p class="text-muted save-state">
           {#if saveState === 'saving'}{$_(
               'anketa.savingDraft',
@@ -1119,6 +1726,8 @@
                   onSubmit={(text) => submitComment(field.id, text)}
                   onEdit={handleEditComment}
                   onDelete={handleDeleteComment}
+                  bind:hasOpenAction={commentThreadsBusy[field.id]}
+                  recentlyArrivedIds={recentlyArrivedCommentIds}
                 />
               {/each}
             </div>
@@ -1237,6 +1846,8 @@
               onSubmit={(text) => submitComment(item.id, text)}
               onEdit={handleEditComment}
               onDelete={handleDeleteComment}
+              bind:hasOpenAction={commentThreadsBusy[item.id]}
+              recentlyArrivedIds={recentlyArrivedCommentIds}
             />
           </div>
         {:else}
@@ -1401,6 +2012,8 @@
               onSubmit={(text) => submitComment(goal.id, text)}
               onEdit={handleEditComment}
               onDelete={handleDeleteComment}
+              bind:hasOpenAction={commentThreadsBusy[goal.id]}
+              recentlyArrivedIds={recentlyArrivedCommentIds}
             />
 
             <h4 class="checkpoints-heading">
@@ -1433,6 +2046,8 @@
                     onSubmit={(text) => submitComment(checkpoint.id, text)}
                     onEdit={handleEditComment}
                     onDelete={handleDeleteComment}
+                    bind:hasOpenAction={commentThreadsBusy[checkpoint.id]}
+                    recentlyArrivedIds={recentlyArrivedCommentIds}
                   />
                 </div>
               {:else}
