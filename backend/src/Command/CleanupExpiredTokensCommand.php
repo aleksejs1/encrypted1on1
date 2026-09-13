@@ -40,6 +40,10 @@ class CleanupExpiredTokensCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        if ($this->entityManager->getFilters()->isEnabled(\App\Doctrine\CompanyFilter::NAME)) {
+            $this->entityManager->getFilters()->disable(\App\Doctrine\CompanyFilter::NAME);
+        }
+
         $io = new SymfonyStyle($input, $output);
         $now = new \DateTimeImmutable();
 

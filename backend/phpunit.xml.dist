@@ -27,6 +27,7 @@
     </source>
 
     <php>
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="test" force="true"/>
         <!-- Debug mode's built-in fallback logger (symfony/http-kernel's Logger,
              used since this app has no monolog bundle) floods stdout with every

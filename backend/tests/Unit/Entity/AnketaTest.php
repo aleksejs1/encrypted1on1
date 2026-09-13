@@ -236,4 +236,67 @@ class AnketaTest extends TestCase
         self::assertSame('sealed-m', $anketa->sealedKeyFor($manager));
         self::assertEquals($managerUpdatedAtBefore, $anketa->sealedKeyUpdatedAtFor($manager));
     }
+
+    public function testCompanyIsDerivedFromParticipants(): void
+    {
+        $company = new Company('Acme');
+        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $company);
+
+        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30);
+
+        self::assertSame($company, $anketa->getCompany());
+    }
+
+    public function testCompanyCanBePassedExplicitlyWhenMatching(): void
+    {
+        $company = new Company('Acme');
+        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $company);
+
+        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $company);
+
+        self::assertSame($company, $anketa->getCompany());
+    }
+
+    public function testConstructorThrowsWhenEmployeeAndManagerBelongToDifferentCompanies(): void
+    {
+        $companyA = new Company('Acme');
+        $companyB = new Company('Other');
+        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $companyA);
+        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $companyB);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/Employee and manager must belong to the same company/');
+
+        new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30);
+    }
+
+    public function testConstructorThrowsWhenExplicitCompanyDoesNotMatchParticipants(): void
+    {
+        $companyA = new Company('Acme');
+        $companyB = new Company('Other');
+        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $companyA);
+        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $companyA);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/Anketa company must match participants company/');
+
+        new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $companyB);
+    }
+
+    public function testConstructorAcceptsDistinctCompanyInstancesWithMatchingId(): void
+    {
+        $company1 = new Company('Acme');
+        $company2 = new Company('Acme Replica');
+        $refl = new \ReflectionProperty(Company::class, 'id');
+        $refl->setValue($company1, 'same-id-123');
+        $refl->setValue($company2, 'same-id-123');
+
+        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $company1);
+        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $company2);
+
+        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30);
+        self::assertSame('same-id-123', $anketa->getCompany()->getId());
+    }
 }

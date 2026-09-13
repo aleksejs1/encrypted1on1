@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Anketa;
+use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
@@ -114,6 +115,7 @@ class AnketaController
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             carryFrom: $previousAnketa,
+            company: $user->getCompany(),
         );
 
         $this->entityManager->flush();
@@ -646,6 +648,7 @@ class AnketaController
                 periodicityDays: $periodicityDays,
                 outcomesBlob: $outcomesBlob,
                 carryFrom: $anketa,
+                company: $anketa->getCompany(),
             );
             // The recipient is the participant who *didn't* trigger this archive request —
             // same "creator notifies the other side" shape as manual creation in create().
@@ -774,6 +777,7 @@ class AnketaController
         int $periodicityDays,
         ?string $outcomesBlob,
         ?Anketa $carryFrom,
+        ?Company $company = null,
     ): Anketa {
         $anketa = new Anketa(
             employee: $employee,
@@ -782,6 +786,7 @@ class AnketaController
             employeeSealedKey: $employeeSealedKey,
             managerSealedKey: $managerSealedKey,
             periodicityDays: $periodicityDays,
+            company: $company ?? $employee->getCompany(),
         );
 
         if (null !== $outcomesBlob) {
