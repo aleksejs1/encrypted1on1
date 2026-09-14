@@ -2,11 +2,13 @@
 
 namespace App\Controller;
 
+use App\Anketa\AnketaLifecycleService;
+use App\Anketa\AnketaPresenter;
 use App\Entity\Anketa;
-use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\User;
-use App\Notification\AnketaNotifier;
+use App\Repository\AnketaRepository;
+use App\Repository\GoalRepository;
 use App\Security\AuthSession;
 use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
@@ -22,9 +24,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 /**
  * Every route here has real per-side logic (ownership checks, one-way
  * publish) rather than generic CRUD — same reasoning as AuthController,
- * so this is a plain controller, not an API Platform resource. See the
- * Phase 5 plan for the crypto shape (sealed keys, draft-vs-published blob
- * states) this implements.
+ * so this is a plain controller, not an API Platform resource.
  */
 class AnketaController
 {
@@ -32,8 +32,11 @@ class AnketaController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly CsrfGuard $csrfGuard,
-        private readonly AnketaNotifier $notifier,
         private readonly TranslatorInterface $translator,
+        private readonly AnketaRepository $anketaRepository,
+        private readonly GoalRepository $goalRepository,
+        private readonly AnketaLifecycleService $lifecycleService,
+        private readonly AnketaPresenter $presenter,
     ) {
     }
 
@@ -91,7 +94,7 @@ class AnketaController
         // Periodicity (Phase 6d) is set once, on a pair's first anketa, and inherited by
         // every later one — same "most recent anketa for this pair" lookup goal carry-forward
         // already needed (6c), reused here rather than a second query for the same concept.
-        $previousAnketa = $this->findMostRecentArchivedAnketaForPair($employee, $manager);
+        $previousAnketa = $this->anketaRepository->findMostRecentArchivedForPair($employee, $manager);
 
         $periodicityDays = $previousAnketa?->getPeriodicityDays();
         if (null === $periodicityDays) {
@@ -106,7 +109,7 @@ class AnketaController
             return new JsonResponse(['error' => $this->translator->trans('errors.outcomes_blob_must_be_string')], 400);
         }
 
-        $anketa = $this->createAnketaWithCarryForward(
+        $anketa = $this->lifecycleService->createAnketa(
             employee: $employee,
             manager: $manager,
             meetingDate: $meetingDate,
@@ -116,13 +119,8 @@ class AnketaController
             outcomesBlob: $outcomesBlob,
             carryFrom: $previousAnketa,
             company: $user->getCompany(),
+            creator: $user,
         );
-
-        $this->entityManager->flush();
-
-        // Sent after the flush — only for an anketa that actually made it to the DB.
-        // Best-effort (see AnketaNotifier); never blocks the response on a mail failure.
-        $this->notifier->notifyAnketaCreated($anketa, $counterpart, $user);
 
         return new JsonResponse(['id' => $anketa->getId()], 201);
     }
@@ -137,22 +135,9 @@ class AnketaController
         // AuthSession::closeForReading()'s docblock for why this isn't automatic.
         $this->authSession->closeForReading($request);
 
-        /** @var Anketa[] $anketas */
-        $anketas = $this->entityManager->createQueryBuilder()
-            ->select('a', 'e', 'm')
-            ->from(Anketa::class, 'a')
-            // summarize() reads both sides' User below — eager-join them here instead of
-            // letting Doctrine lazy-load one per anketa (an N+1 for anyone with more than
-            // a couple of meetings).
-            ->innerJoin('a.employee', 'e')
-            ->innerJoin('a.manager', 'm')
-            ->where('a.employee = :user OR a.manager = :user')
-            ->setParameter('user', $user)
-            ->orderBy('a.meetingDate', 'DESC')
-            ->getQuery()
-            ->getResult();
+        $anketas = $this->anketaRepository->findAllForUser($user);
 
-        return new JsonResponse(array_map(fn (Anketa $anketa) => $this->summarize($anketa, $user), $anketas));
+        return new JsonResponse(array_map(fn (Anketa $anketa) => $this->presenter->summarize($anketa, $user), $anketas));
     }
 
     /**
@@ -175,37 +160,11 @@ class AnketaController
         // for why this isn't automatic.
         $this->authSession->closeForReading($request);
 
-        /** @var Anketa[] $anketas */
-        $anketas = $this->entityManager->createQueryBuilder()
-            ->select('a', 'e', 'm')
-            ->from(Anketa::class, 'a')
-            // Same eager-join as list() — serializeDetail()/summarize() below both read
-            // employee and manager, which would otherwise lazy-load one at a time.
-            ->innerJoin('a.employee', 'e')
-            ->innerJoin('a.manager', 'm')
-            ->where('a.employee = :user OR a.manager = :user')
-            ->setParameter('user', $user)
-            ->orderBy('a.meetingDate', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        // One query for every anketa's goals, grouped in PHP — otherwise this endpoint
-        // would just trade an HTTP-level N+1 for a SQL-level one.
-        $goalsByAnketaId = [];
-        if ([] !== $anketas) {
-            /** @var Goal[] $allGoals */
-            $allGoals = $this->goalRepository()->createQueryBuilder('g')
-                ->where('g.anketa IN (:anketas)')
-                ->setParameter('anketas', $anketas)
-                ->getQuery()
-                ->getResult();
-            foreach ($allGoals as $goal) {
-                $goalsByAnketaId[$goal->getAnketa()->getId()][] = $goal;
-            }
-        }
+        $anketas = $this->anketaRepository->findAllForUser($user);
+        $goalsByAnketaId = $this->goalRepository->findByAnketasGroupedByAnketaId($anketas);
 
         return new JsonResponse(array_map(
-            fn (Anketa $anketa) => $this->serializeDetail($anketa, $user, $goalsByAnketaId[$anketa->getId()] ?? []),
+            fn (Anketa $anketa) => $this->presenter->serializeDetail($anketa, $user, $goalsByAnketaId[$anketa->getId()] ?? []),
             $anketas,
         ));
     }
@@ -220,7 +179,7 @@ class AnketaController
         // for why this isn't automatic.
         $this->authSession->closeForReading($request);
 
-        return new JsonResponse($this->serializeDetail($anketa, $user, $this->goalRepository()->findBy(['anketa' => $anketa])));
+        return new JsonResponse($this->presenter->serializeDetail($anketa, $user, $this->goalRepository->findByAnketa($anketa)));
     }
 
     /**
@@ -241,54 +200,7 @@ class AnketaController
         // Read-only from here on — same reasoning as get() above.
         $this->authSession->closeForReading($request);
 
-        return new JsonResponse([
-            ...$this->summarize($anketa, $user),
-            'employeeBlobVersion' => $anketa->getEmployeeBlobVersion(),
-            'managerBlobVersion' => $anketa->getManagerBlobVersion(),
-            'commentsVersion' => $anketa->getCommentsVersion(),
-            'outcomesVersion' => $anketa->getOutcomesVersion(),
-            'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
-        ]);
-    }
-
-    /**
-     * @param Goal[] $goals
-     *
-     * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
-     *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
-     *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, formVersion: int, mySealedKey: string, counterpartPublicKey: string,
-     *     employeeBlob: string|null, employeePublishedAt: string|null, employeeBlobVersion: int,
-     *     managerBlob: string|null, managerPublishedAt: string|null, managerBlobVersion: int,
-     *     commentsBlob: string|null, commentsVersion: int,
-     *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
-     *     authorId: string, title: string, description: string|null, targetDate: string|null, status: string,
-     *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int}
-     */
-    private function serializeDetail(Anketa $anketa, User $user, array $goals): array
-    {
-        $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
-
-        return [
-            ...$this->summarize($anketa, $user),
-            'mySealedKey' => $anketa->sealedKeyFor($user),
-            // Needed client-side to seal the auto-recreated next anketa's key on archive
-            // (Phase 6d) without a separate /api/users round trip — public keys aren't secret.
-            'counterpartPublicKey' => $counterpart->getPublicKey(),
-            'employeeBlob' => $anketa->getEmployeeBlob(),
-            'employeePublishedAt' => $anketa->getEmployeePublishedAt()?->format(\DATE_ATOM),
-            'employeeBlobVersion' => $anketa->getEmployeeBlobVersion(),
-            'managerBlob' => $anketa->getManagerBlob(),
-            'managerPublishedAt' => $anketa->getManagerPublishedAt()?->format(\DATE_ATOM),
-            'managerBlobVersion' => $anketa->getManagerBlobVersion(),
-            'commentsBlob' => $anketa->getCommentsBlob(),
-            'commentsVersion' => $anketa->getCommentsVersion(),
-            'outcomesBlob' => $anketa->getOutcomesBlob(),
-            'outcomesVersion' => $anketa->getOutcomesVersion(),
-            'goals' => array_values(array_map(fn (Goal $goal) => $this->serializeGoal($goal), $goals)),
-            'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
-            'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
-        ];
+        return new JsonResponse($this->presenter->serializeLiveState($anketa, $user));
     }
 
     #[Route('/api/anketas/{id}/comments', name: 'anketa_comments', methods: ['PUT'])]
@@ -418,7 +330,7 @@ class AnketaController
         $this->entityManager->persist($goal);
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializeGoal($goal), 201);
+        return new JsonResponse($this->presenter->serializeGoal($goal), 201);
     }
 
     #[Route('/api/anketas/{id}/goals/{goalId}', name: 'anketa_goal_update', methods: ['PUT'])]
@@ -427,7 +339,7 @@ class AnketaController
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
-        $goal = $this->entityManager->find(Goal::class, $goalId);
+        $goal = $this->goalRepository->find($goalId);
         if (null === $goal || $goal->getAnketa()->getId() !== $anketa->getId()) {
             throw new NotFoundHttpException($this->translator->trans('errors.goal_not_found'));
         }
@@ -473,7 +385,7 @@ class AnketaController
 
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializeGoal($goal));
+        return new JsonResponse($this->presenter->serializeGoal($goal));
     }
 
     #[Route('/api/anketas/{id}/draft', name: 'anketa_draft', methods: ['PUT'])]
@@ -485,15 +397,7 @@ class AnketaController
         // Checked before isPublished() — once archived, both draft-saving and
         // publishing are terminal regardless of whether this side ever
         // published, same "archived overrides everything else" precedent
-        // updateAnswers()/saveGoalCheckpoints() already established. Without
-        // this, a side that never published could keep autosaving and even
-        // successfully publish onto an anketa the counterpart already
-        // archived, with no error — previously reachable only via not
-        // reloading after a counterpart's archive; the live-update poll (see
-        // private/live-updates-proposal.md, not tracked in git) makes an
-        // already-open, never-reloaded tab a routine occurrence instead of
-        // an edge case, so this was worth closing now rather than leaving
-        // as a pre-existing, rarely-hit gap.
+        // updateAnswers()/saveGoalCheckpoints() already established.
         if ($anketa->isArchived()) {
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
@@ -506,8 +410,7 @@ class AnketaController
             return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob')], 400);
         }
 
-        $anketa->saveDraft($user, $blob);
-        $this->entityManager->flush();
+        $this->lifecycleService->saveDraft($anketa, $user, $blob);
 
         return new JsonResponse(['ok' => true]);
     }
@@ -532,8 +435,7 @@ class AnketaController
             return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob')], 400);
         }
 
-        $anketa->publish($user, $blob);
-        $this->entityManager->flush();
+        $this->lifecycleService->publish($anketa, $user, $blob);
 
         return new JsonResponse(['ok' => true]);
     }
@@ -565,15 +467,13 @@ class AnketaController
         }
 
         $isEmployee = $anketa->isEmployee($user);
-        if (!$anketa->updateAnswers($user, $blob, $expectedVersion)) {
+        if (!$this->lifecycleService->updatePublishedAnswers($anketa, $user, $blob, $expectedVersion)) {
             return new JsonResponse([
                 'error' => $this->translator->trans('errors.answers_conflict'),
                 'blob' => $isEmployee ? $anketa->getEmployeeBlob() : $anketa->getManagerBlob(),
                 'blobVersion' => $isEmployee ? $anketa->getEmployeeBlobVersion() : $anketa->getManagerBlobVersion(),
             ], 409);
         }
-
-        $this->entityManager->flush();
 
         return new JsonResponse(['blobVersion' => $isEmployee ? $anketa->getEmployeeBlobVersion() : $anketa->getManagerBlobVersion()]);
     }
@@ -608,12 +508,10 @@ class AnketaController
             return new JsonResponse(['error' => $this->translator->trans('errors.outcomes_blob_must_be_string')], 400);
         }
 
-        // Closes the Phase 6d deferred item: if either participant is now blocked
-        // (Phase 6g), auto-recreation stops for this pair — same effect as
-        // skipNextMeeting, but forced, regardless of what the client asked for.
-        $eitherBlocked = $anketa->getEmployee()->isBlocked() || $anketa->getManager()->isBlocked();
-        $createNext = !$skipNextMeeting && !$eitherBlocked;
+        $createNext = $this->lifecycleService->shouldCreateNext($anketa, $skipNextMeeting);
 
+        $mySealedKey = null;
+        $counterpartSealedKey = null;
         if ($createNext) {
             $periodicityDays = $anketa->getPeriodicityDays();
             if (null === $periodicityDays) {
@@ -626,42 +524,16 @@ class AnketaController
             }
         }
 
-        // Auto-recreation (Phase 6d) is triggered by *this* request, from the archiving
-        // user's own already-unlocked browser session — never a server-side background
-        // job. The server never generates or even transiently holds an anketa key; the
-        // client seals mySealedKey/counterpartSealedKey itself before sending them, exactly
-        // like a manually created anketa (see the Phase 6d plan's security-design note).
-        $anketa->archive($missed);
-        $archivedAt = $anketa->getArchivedAt();
-        \assert(null !== $archivedAt); // archive() just set this, unconditionally, on the line above.
-
-        $nextAnketa = null;
-        $nextRecipient = null;
-        if ($createNext) {
-            $isEmployee = $anketa->isEmployee($user);
-            $nextAnketa = $this->createAnketaWithCarryForward(
-                employee: $anketa->getEmployee(),
-                manager: $anketa->getManager(),
-                meetingDate: $nextMeetingDate ?? $archivedAt->modify(sprintf('+%d days', $periodicityDays)),
-                employeeSealedKey: $isEmployee ? $mySealedKey : $counterpartSealedKey,
-                managerSealedKey: $isEmployee ? $counterpartSealedKey : $mySealedKey,
-                periodicityDays: $periodicityDays,
-                outcomesBlob: $outcomesBlob,
-                carryFrom: $anketa,
-                company: $anketa->getCompany(),
-            );
-            // The recipient is the participant who *didn't* trigger this archive request —
-            // same "creator notifies the other side" shape as manual creation in create().
-            $nextRecipient = $isEmployee ? $anketa->getManager() : $anketa->getEmployee();
-        }
-
-        $this->entityManager->flush();
-
-        // $nextAnketa and $nextRecipient are always assigned together, above, inside the
-        // same `if ($createNext)` block — checking one implies the other.
-        if (null !== $nextAnketa) {
-            $this->notifier->notifyAnketaCreated($nextAnketa, $nextRecipient, $user);
-        }
+        $this->lifecycleService->archive(
+            anketa: $anketa,
+            actor: $user,
+            missed: $missed,
+            skipNextMeeting: $skipNextMeeting,
+            nextMeetingDate: $nextMeetingDate,
+            mySealedKey: $mySealedKey,
+            counterpartSealedKey: $counterpartSealedKey,
+            outcomesBlob: $outcomesBlob,
+        );
 
         return new JsonResponse(['ok' => true]);
     }
@@ -695,7 +567,7 @@ class AnketaController
      * Restores a counterpart's access after their public key changed (most commonly a
      * password reset — password-reset plan, part 2). The caller must already have a
      * working copy of the anketa key (their own side is unaffected) and does the actual
-     * unseal/reseal client-side; this just stores the result for the *other*
+     * unseal/reseal client-side; this just stores the result for the other
      * participant's side, never the caller's own.
      */
     #[Route('/api/anketas/{id}/reshare-key', name: 'anketa_reshare_key', methods: ['PUT'])]
@@ -709,9 +581,7 @@ class AnketaController
             return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'sealedKey'])], 400);
         }
 
-        $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
-        $anketa->resealKeyFor($counterpart, $sealedKey);
-        $this->entityManager->flush();
+        $this->lifecycleService->reshareKey($anketa, $user, $sealedKey);
 
         return new JsonResponse(['ok' => true]);
     }
@@ -727,29 +597,14 @@ class AnketaController
     }
 
     /**
-     * Eager-joins employee/manager rather than a plain find() — same reasoning as
-     * list()/bulk()'s own eager-join (summarize()/serializeDetail() always read both
-     * sides' User), now doubly worth it since liveState() calls this every ~4s per
-     * open tab instead of once per page load, which would otherwise turn a single
-     * lazy-loaded counterpart query into a recurring per-tick one. Doctrine's
-     * identity map means every mutating caller's later flush() behaves identically
-     * to the entity find() used to return — this is a query-shape change only.
+     * Eager-joins employee/manager rather than a plain find().
      *
      * @return array{0: Anketa, 1: User}
      */
     private function findAccessible(string $id, Request $request): array
     {
         $user = $this->requireUser($request);
-        /** @var Anketa|null $anketa */
-        $anketa = $this->entityManager->createQueryBuilder()
-            ->select('a', 'e', 'm')
-            ->from(Anketa::class, 'a')
-            ->innerJoin('a.employee', 'e')
-            ->innerJoin('a.manager', 'm')
-            ->where('a.id = :id')
-            ->setParameter('id', $id)
-            ->getQuery()
-            ->getOneOrNullResult();
+        $anketa = $this->anketaRepository->findWithParticipants($id);
         if (null === $anketa) {
             throw new NotFoundHttpException($this->translator->trans('errors.anketa_not_found'));
         }
@@ -758,148 +613,5 @@ class AnketaController
         }
 
         return [$anketa, $user];
-    }
-
-    /**
-     * Builds a new Anketa (optionally seeded with a client-carried outcomesBlob) and
-     * copies in_progress goals from $carryFrom into it, if given. Shared by create()
-     * (carryFrom = the pair's most recent archived anketa, found by query) and
-     * archive()'s auto-recreation (carryFrom = the anketa just archived, already in
-     * hand — no query needed there). Persists the new Anketa and any copied Goals;
-     * does not flush, callers do that once after whatever else they need to persist.
-     */
-    private function createAnketaWithCarryForward(
-        User $employee,
-        User $manager,
-        \DateTimeImmutable $meetingDate,
-        string $employeeSealedKey,
-        string $managerSealedKey,
-        int $periodicityDays,
-        ?string $outcomesBlob,
-        ?Anketa $carryFrom,
-        ?Company $company = null,
-    ): Anketa {
-        $anketa = new Anketa(
-            employee: $employee,
-            manager: $manager,
-            meetingDate: $meetingDate,
-            employeeSealedKey: $employeeSealedKey,
-            managerSealedKey: $managerSealedKey,
-            periodicityDays: $periodicityDays,
-            company: $company ?? $employee->getCompany(),
-        );
-
-        if (null !== $outcomesBlob) {
-            $anketa->seedOutcomes($outcomesBlob);
-        }
-
-        $this->entityManager->persist($anketa);
-
-        if (null !== $carryFrom) {
-            foreach ($this->goalRepository()->findBy(['anketa' => $carryFrom, 'status' => Goal::STATUS_IN_PROGRESS]) as $previousGoal) {
-                $this->entityManager->persist(new Goal(
-                    goalUuid: $previousGoal->getGoalUuid(),
-                    anketa: $anketa,
-                    author: $previousGoal->getAuthor(),
-                    title: $previousGoal->getTitle(),
-                    description: $previousGoal->getDescription(),
-                    targetDate: $previousGoal->getTargetDate(),
-                    status: Goal::STATUS_IN_PROGRESS,
-                ));
-            }
-        }
-
-        return $anketa;
-    }
-
-    /** @return \Doctrine\ORM\EntityRepository<Goal> */
-    private function goalRepository(): \Doctrine\ORM\EntityRepository
-    {
-        return $this->entityManager->getRepository(Goal::class);
-    }
-
-    /**
-     * "Pair" is the unordered set of two users — roles aren't verified, they're just a
-     * per-anketa choice (see the Phase 5 plan), so carry-forward must match regardless
-     * of which one played employee/manager last time.
-     */
-    private function findMostRecentArchivedAnketaForPair(User $a, User $b): ?Anketa
-    {
-        /** @var Anketa|null $anketa */
-        $anketa = $this->entityManager->createQueryBuilder()
-            ->select('anketa')
-            ->from(Anketa::class, 'anketa')
-            ->where('(anketa.employee = :a AND anketa.manager = :b) OR (anketa.employee = :b AND anketa.manager = :a)')
-            ->andWhere('anketa.archivedAt IS NOT NULL')
-            ->setParameter('a', $a)
-            ->setParameter('b', $b)
-            ->orderBy('anketa.meetingDate', 'DESC')
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $anketa;
-    }
-
-    /**
-     * @return array{id: string, goalUuid: string, authorId: string, title: string,
-     *     description: string|null, targetDate: string|null, status: string, createdAt: string}
-     */
-    private function serializeGoal(Goal $goal): array
-    {
-        return [
-            'id' => $goal->getId(),
-            'goalUuid' => $goal->getGoalUuid(),
-            'authorId' => $goal->getAuthor()->getId(),
-            'title' => $goal->getTitle(),
-            'description' => $goal->getDescription(),
-            'targetDate' => $goal->getTargetDate()?->format('Y-m-d'),
-            'status' => $goal->getStatus(),
-            'createdAt' => $goal->getCreatedAt()->format(\DATE_ATOM),
-        ];
-    }
-
-    /**
-     * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
-     *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
-     *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, formVersion: int}
-     */
-    private function summarize(Anketa $anketa, User $user): array
-    {
-        $isEmployee = $anketa->isEmployee($user);
-        $counterpart = $isEmployee ? $anketa->getManager() : $anketa->getEmployee();
-
-        return [
-            'id' => $anketa->getId(),
-            'myRole' => $isEmployee ? 'employee' : 'manager',
-            'counterpartId' => $counterpart->getId(),
-            'counterpartEmail' => $counterpart->getEmail(),
-            'counterpartName' => $counterpart->getDisplayName(),
-            'meetingDate' => $anketa->getMeetingDate()->format(\DATE_ATOM),
-            'myPublishedAt' => ($isEmployee ? $anketa->getEmployeePublishedAt() : $anketa->getManagerPublishedAt())?->format(\DATE_ATOM),
-            'counterpartPublishedAt' => ($isEmployee ? $anketa->getManagerPublishedAt() : $anketa->getEmployeePublishedAt())?->format(\DATE_ATOM),
-            'archivedAt' => $anketa->getArchivedAt()?->format(\DATE_ATOM),
-            'missed' => $anketa->isMissed(),
-            'periodicityDays' => $anketa->getPeriodicityDays(),
-            'counterpartKeyOutdated' => $this->isKeyOutdated($anketa, $counterpart),
-            'counterpartDeleted' => null !== $counterpart->getDeletedAt(),
-            'formVersion' => $anketa->getFormVersion(),
-        ];
-    }
-
-    /**
-     * True when $participant's public key has changed (password-reset plan, part 2)
-     * since their side of $anketa's sealed key was last set — i.e. their copy of the
-     * anketa key was sealed to a public key that's no longer current, so whoever's
-     * looking at this (the *other* participant, whose own key is unaffected) can offer
-     * to re-seal it. Self-correcting: resealKeyFor() bumps the anketa-side timestamp
-     * past the reset, a later reset moves publicKeyUpdatedAt forward again.
-     */
-    private function isKeyOutdated(Anketa $anketa, User $participant): bool
-    {
-        $publicKeyUpdatedAt = $participant->getPublicKeyUpdatedAt();
-
-        return null !== $publicKeyUpdatedAt && $publicKeyUpdatedAt > $anketa->sealedKeyUpdatedAtFor($participant);
     }
 }
