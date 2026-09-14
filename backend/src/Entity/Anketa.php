@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Repository\AnketaRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -11,7 +12,7 @@ use Symfony\Component\Uid\Uuid;
  * one-way publish) has real logic, same reasoning as the Phase 4 auth
  * endpoints. See the Phase 5 plan for the crypto shape this implements.
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: AnketaRepository::class)]
 #[ORM\Table(name: 'anketas')]
 // Covers list()/bulk()'s `WHERE employee = :u OR manager = :u ORDER BY meetingDate DESC` —
 // a composite index lets either branch of the OR use it for both the filter and the sort.

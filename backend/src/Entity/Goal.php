@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Repository\GoalRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -17,7 +18,7 @@ use Symfony\Component\Uid\Uuid;
  * `anketa`. `goalUuid` is what stays stable — it's what a checkpoint
  * references, and what a future report aggregates progress history by.
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: GoalRepository::class)]
 #[ORM\Table(name: 'goals')]
 class Goal
 {
