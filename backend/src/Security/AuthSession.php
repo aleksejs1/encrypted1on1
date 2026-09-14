@@ -26,6 +26,9 @@ class AuthSession
         $session->set(self::SESSION_KEY, $user->getId());
         // Regenerate the session id on privilege change to prevent session fixation.
         $session->migrate();
+
+        $filter = $this->entityManager->getFilters()->enable(\App\Doctrine\CompanyFilter::NAME);
+        $filter->setParameter(\App\Doctrine\CompanyFilter::PARAMETER_NAME, $user->getCompany()->getId());
     }
 
     public function getCurrentUser(Request $request): ?User
@@ -61,6 +64,10 @@ class AuthSession
     public function logOut(Request $request): void
     {
         $request->getSession()->invalidate();
+
+        if ($this->entityManager->getFilters()->isEnabled(\App\Doctrine\CompanyFilter::NAME)) {
+            $this->entityManager->getFilters()->disable(\App\Doctrine\CompanyFilter::NAME);
+        }
     }
 
     /**

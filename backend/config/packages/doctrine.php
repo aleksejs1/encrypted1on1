@@ -16,6 +16,12 @@ return static function (ContainerConfigurator $container): void {
                     'prefix' => 'App\\Entity',
                 ],
             ],
+            'filters' => [
+                'company_filter' => [
+                    'class' => App\Doctrine\CompanyFilter::class,
+                    'enabled' => false,
+                ],
+            ],
         ],
     ]);
 };

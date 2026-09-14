@@ -39,6 +39,10 @@ class GrantPlatformAdminCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        if ($this->entityManager->getFilters()->isEnabled(\App\Doctrine\CompanyFilter::NAME)) {
+            $this->entityManager->getFilters()->disable(\App\Doctrine\CompanyFilter::NAME);
+        }
+
         $io = new SymfonyStyle($input, $output);
         $email = $input->getArgument('email');
         \assert(\is_string($email)); // InputArgument::REQUIRED (not ARRAY mode) — always a string.

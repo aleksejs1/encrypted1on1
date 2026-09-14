@@ -264,6 +264,10 @@ class PlatformAdminController
             throw new AccessDeniedHttpException($this->translator->trans('errors.platform_admin_only'));
         }
 
+        if ($this->entityManager->getFilters()->isEnabled(\App\Doctrine\CompanyFilter::NAME)) {
+            $this->entityManager->getFilters()->disable(\App\Doctrine\CompanyFilter::NAME);
+        }
+
         return $user;
     }
 

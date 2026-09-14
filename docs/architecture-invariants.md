@@ -106,27 +106,27 @@ deliberately cross-tenant by design (`PlatformAdminController` and its
 supporting services — the platform admin role exists specifically to operate
 across companies).
 
-**Current mechanism:** there is no repository layer or ORM-level listener
-in this codebase — controllers call
-`$entityManager->createQueryBuilder()`/`->find()`/`->getRepository()->findBy()`
-directly, and tenant scoping is an explicit `->andWhere('... = :company')`
-clause or a same-company comparison after `find()`, written by hand at each
-call site (see `AdminController`, `AnketaController`,
-`AdminReportController`, `PasswordResetController`). A prior draft of this
-document proposed a `CompanyIsolationListener` and an AST rule
-(`EnforceTenantScopeQueryRule`) enforcing it — dropped after checking the
-codebase: no such listener exists, there's no repository abstraction to hook
-a rule into, and a purely textual/heuristic AST check (e.g. "flag any
-`createQueryBuilder()` call with no `company` token nearby") would have to
-special-case `PlatformAdminController`'s legitimately cross-tenant queries by
-class name, is easy to defeat with a differently-shaped but still-scoped
-query, and risks training reviewers to trust a green check instead of
-reading the query — false confidence CLAUDE.md explicitly warns against
-introducing.
+**Mechanism:** automated at the ORM level via Doctrine `SQLFilter`
+(`App\Doctrine\CompanyFilter`, GitHub issue #69). `Anketa` carries a
+denormalized `company_id` foreign key relation alongside `User`,
+`InviteRecord`, and `ActivationToken`, ensuring all primary tenant-scoped
+entities carry a direct `company_id` column. When a user is authenticated via
+`AuthSession`, `CompanyFilterListener` (`KernelEvents::REQUEST`, priority 5)
+configures and enables `company_filter` with `$currentUser->getCompany()->getId()`,
+automatically appending `{$targetTableAlias}.company_id = '...'` to every
+query targeting entities with a `company` association. When a request is
+unauthenticated (or on logout), the filter is disabled. Manual query scoping
+(`->andWhere('... = :company')` or same-company comparison) remains in place
+at controller call sites as defense-in-depth.
 
-**Enforcement:** manual, via the review heuristic in §4. If this codebase
-grows a repository layer later, revisit whether a real, sound rule becomes
-buildable at that point.
+**Deliberate cross-tenant exceptions:** in `PlatformAdminController` (which
+guards all actions with `requirePlatformAdmin()`) and platform CLI commands
+(`CleanupExpiredTokensCommand`, `GrantPlatformAdminCommand`, `SendRemindersCommand`),
+`$entityManager->getFilters()->disable('company_filter')` is called explicitly
+because cross-tenant operations are intentional by design.
+
+**Enforcement:** machine-enforced via `CompanyFilter` across the ORM, plus
+manual review heuristic in §4 as defense-in-depth.
 
 ## 4. Adversarial code-review heuristics
 

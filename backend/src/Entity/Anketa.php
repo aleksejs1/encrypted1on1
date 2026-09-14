@@ -49,6 +49,10 @@ class Anketa
     #[ORM\JoinColumn(nullable: false)]
     private User $manager;
 
+    #[ORM\ManyToOne(targetEntity: Company::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private Company $company;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $meetingDate;
 
@@ -164,10 +168,22 @@ class Anketa
         string $employeeSealedKey,
         string $managerSealedKey,
         int $periodicityDays,
+        ?Company $company = null,
     ) {
+        $employeeCompany = $employee->getCompany();
+        $managerCompany = $manager->getCompany();
+        if ($employeeCompany !== $managerCompany && $employeeCompany->getId() !== $managerCompany->getId()) {
+            throw new \InvalidArgumentException('Employee and manager must belong to the same company.');
+        }
+
+        if (null !== $company && $company !== $employeeCompany && $company->getId() !== $employeeCompany->getId()) {
+            throw new \InvalidArgumentException('Anketa company must match participants company.');
+        }
+
         $this->id = Uuid::v7()->toRfc4122();
         $this->employee = $employee;
         $this->manager = $manager;
+        $this->company = $company ?? $employeeCompany;
         $this->meetingDate = $meetingDate;
         $this->employeeSealedKey = $employeeSealedKey;
         $this->managerSealedKey = $managerSealedKey;
@@ -176,6 +192,11 @@ class Anketa
         $this->employeeSealedKeyUpdatedAt = $this->createdAt;
         $this->managerSealedKeyUpdatedAt = $this->createdAt;
         $this->formVersion = self::CURRENT_FORM_VERSION;
+    }
+
+    public function getCompany(): Company
+    {
+        return $this->company;
     }
 
     public function getFormVersion(): int
