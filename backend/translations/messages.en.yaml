@@ -98,3 +98,4 @@ errors:
     user_already_deleted: 'This account has already been deleted.'
     user_must_be_blocked_before_deletion: 'Block this user before deleting their account.'
     missing_or_invalid_seat_limit: '"seatLimit" must be null or a positive integer.'
+    internal_server_error: 'Internal server error.'

@@ -95,3 +95,4 @@ errors:
     user_already_deleted: 'Ce compte a déjà été supprimé.'
     user_must_be_blocked_before_deletion: 'Bloquez cet utilisateur avant de supprimer son compte.'
     missing_or_invalid_seat_limit: '"seatLimit" doit être null ou un entier positif.'
+    internal_server_error: 'Erreur interne du serveur.'

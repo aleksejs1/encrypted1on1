@@ -91,3 +91,4 @@ errors:
     user_already_deleted: 'Šis konts jau ir dzēsts.'
     user_must_be_blocked_before_deletion: 'Pirms lietotāja konta dzēšanas tas jābloķē.'
     missing_or_invalid_seat_limit: '"seatLimit" jābūt null vai pozitīvam veselam skaitlim.'
+    internal_server_error: 'Iekšēja servera kļūda.'

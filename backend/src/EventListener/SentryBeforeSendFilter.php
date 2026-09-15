@@ -11,10 +11,12 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
  * HttpException(s) throughout for expected control flow, not just genuine failures —
  * a wrong password, a 404 on someone else's anketa, a 409 on an already-published
  * cycle (see JsonExceptionListener's own docblock for why the app leans on
- * HttpException this way). The <500 cutoff that turns that into "don't report it" is
- * this class's own call, made here rather than in JsonExceptionListener, which has no
- * status-code branching of its own. Reporting every one of those to Sentry as an
- * "error" would bury the 5xx bugs Sentry actually exists to catch.
+ * HttpException this way).
+ * The <500 cutoff that turns that into "don't report it" is this class's own call,
+ * made here rather than in JsonExceptionListener (which formats all /api/ exceptions
+ * into JSON responses — 4xx for expected HttpExceptions and 500 for unhandled
+ * Throwables — but does not govern Sentry reporting). Reporting every one of those
+ * to Sentry as an "error" would bury the 5xx bugs Sentry actually exists to catch.
  *
  * Separately: Sentry attaches the full request URL to every event unconditionally,
  * through two independent mechanisms — RequestIntegration's `request.url`

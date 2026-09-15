@@ -13,12 +13,26 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class JsonExceptionListenerTest extends TestCase
 {
+    private function createTranslator(): TranslatorInterface
+    {
+        $translator = self::createStub(TranslatorInterface::class);
+        $translator->method('trans')->willReturnCallback(
+            static fn (string $id, array $parameters = [], ?string $domain = null, ?string $locale = null): string => match ($id) {
+                'errors.internal_server_error' => 'de' === $locale ? 'Interner Serverfehler.' : 'Internal server error.',
+                default => $id,
+            }
+        );
+
+        return $translator;
+    }
+
     public function testIgnoresNonApiRequests(): void
     {
-        $listener = new JsonExceptionListener();
+        $listener = new JsonExceptionListener($this->createTranslator());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/health');
         $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new AccessDeniedHttpException('Forbidden'));
@@ -28,12 +42,12 @@ class JsonExceptionListenerTest extends TestCase
         self::assertNull($event->getResponse());
     }
 
-    public function testIgnoresNonHttpExceptions(): void
+    public function testIgnoresNonApiNonHttpExceptions(): void
     {
-        $listener = new JsonExceptionListener();
+        $listener = new JsonExceptionListener($this->createTranslator());
         $kernel = self::createStub(HttpKernelInterface::class);
-        $request = Request::create('/api/test');
-        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('Boom'));
+        $request = Request::create('/health');
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('Database unreachable'));
 
         $listener($event);
 
@@ -42,7 +56,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testHandlesStandardHttpException(): void
     {
-        $listener = new JsonExceptionListener();
+        $listener = new JsonExceptionListener($this->createTranslator());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $exception = new AccessDeniedHttpException('Access denied.');
@@ -56,9 +70,84 @@ class JsonExceptionListenerTest extends TestCase
         self::assertSame('{"error":"Access denied."}', $response->getContent());
     }
 
+    public function testFormatsNonHttpExceptionAs500JsonWithSafeLocalizedMessage(): void
+    {
+        $translator = self::createMock(TranslatorInterface::class);
+        $translator->expects(self::once())
+            ->method('trans')
+            ->with('errors.internal_server_error', [], null, 'en')
+            ->willReturn('Internal server error.');
+
+        $listener = new JsonExceptionListener($translator);
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+        $request->setLocale('en');
+        $exception = new \RuntimeException('Sensitive DB deadlock: query table anketas locked');
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception);
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(Response::HTTP_INTERNAL_SERVER_ERROR, $response->getStatusCode());
+
+        $content = (string) $response->getContent();
+        self::assertSame('{"error":"Internal server error."}', $content);
+        self::assertStringNotContainsString('Sensitive DB deadlock', $content);
+        self::assertStringNotContainsString('anketas locked', $content);
+    }
+
+    public function testFormatsFatalErrorAs500Json(): void
+    {
+        $translator = self::createMock(TranslatorInterface::class);
+        $translator->expects(self::once())
+            ->method('trans')
+            ->with('errors.internal_server_error', [], null, 'en')
+            ->willReturn('Internal server error.');
+
+        $listener = new JsonExceptionListener($translator);
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+        $request->setLocale('en');
+        $error = new \TypeError('Argument #1 must be of type string, int given');
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $error);
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(Response::HTTP_INTERNAL_SERVER_ERROR, $response->getStatusCode());
+
+        $content = (string) $response->getContent();
+        self::assertSame('{"error":"Internal server error."}', $content);
+        self::assertStringNotContainsString('Argument #1', $content);
+    }
+
+    public function testRespectsRequestLocaleFor500Message(): void
+    {
+        $translator = self::createMock(TranslatorInterface::class);
+        $translator->expects(self::once())
+            ->method('trans')
+            ->with('errors.internal_server_error', [], null, 'de')
+            ->willReturn('Interner Serverfehler.');
+
+        $listener = new JsonExceptionListener($translator);
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+        $request->setLocale('de');
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('Crash'));
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(Response::HTTP_INTERNAL_SERVER_ERROR, $response->getStatusCode());
+        self::assertSame('{"error":"Interner Serverfehler."}', $response->getContent());
+    }
+
     public function testMaps422To400WithViolations(): void
     {
-        $listener = new JsonExceptionListener();
+        $listener = new JsonExceptionListener($this->createTranslator());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -88,7 +177,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testFindsNestedValidationFailedExceptionInDeepChain(): void
     {
-        $listener = new JsonExceptionListener();
+        $listener = new JsonExceptionListener($this->createTranslator());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
