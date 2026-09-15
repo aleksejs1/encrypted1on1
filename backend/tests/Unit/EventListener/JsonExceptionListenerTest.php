@@ -70,6 +70,22 @@ class JsonExceptionListenerTest extends TestCase
         self::assertSame('{"error":"Access denied."}', $response->getContent());
     }
 
+    public function testEmptyHttpExceptionMessageFallsBackToDefault(): void
+    {
+        $listener = new JsonExceptionListener($this->createTranslator());
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+        $exception = new AccessDeniedHttpException('');
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception);
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(Response::HTTP_FORBIDDEN, $response->getStatusCode());
+        self::assertSame('{"error":"An error occurred."}', $response->getContent());
+    }
+
     public function testFormatsNonHttpExceptionAs500JsonWithSafeLocalizedMessage(): void
     {
         $translator = self::createMock(TranslatorInterface::class);
@@ -145,6 +161,23 @@ class JsonExceptionListenerTest extends TestCase
         self::assertSame('{"error":"Interner Serverfehler."}', $response->getContent());
     }
 
+    public function testMaps422WithoutValidationExceptionTo400(): void
+    {
+        $listener = new JsonExceptionListener($this->createTranslator());
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+        $httpException = new UnprocessableEntityHttpException('Cannot process entity');
+
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $httpException);
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(Response::HTTP_BAD_REQUEST, $response->getStatusCode());
+        self::assertSame('{"error":"Cannot process entity"}', $response->getContent());
+    }
+
     public function testMaps422To400WithViolations(): void
     {
         $listener = new JsonExceptionListener($this->createTranslator());
@@ -201,5 +234,73 @@ class JsonExceptionListenerTest extends TestCase
         self::assertCount(1, $data['violations']);
         self::assertSame('email', $data['violations'][0]['property']);
         self::assertSame('Invalid value.', $data['violations'][0]['message']);
+    }
+
+    public function testStopsAtFirstValidationFailedExceptionInChain(): void
+    {
+        $listener = new JsonExceptionListener($this->createTranslator());
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+
+        $innerViolations = new ConstraintViolationList([
+            new ConstraintViolation('Inner violation.', null, [], null, 'innerField', null),
+        ]);
+        $innerValidation = new ValidationFailedException('inner data', $innerViolations);
+
+        $outerViolations = new ConstraintViolationList([
+            new ConstraintViolation('Outer violation.', null, [], null, 'outerField', null),
+        ]);
+        $outerValidation = new ValidationFailedException('outer data', $outerViolations);
+        $prevProp = new \ReflectionProperty(\Exception::class, 'previous');
+        $prevProp->setValue($outerValidation, $innerValidation);
+
+        $httpException = new UnprocessableEntityHttpException('Outer error', $outerValidation);
+
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $httpException);
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(Response::HTTP_BAD_REQUEST, $response->getStatusCode());
+
+        $data = json_decode((string) $response->getContent(), true);
+        self::assertSame('Outer error', $data['error']);
+        self::assertCount(1, $data['violations']);
+        self::assertSame('outerField', $data['violations'][0]['property']);
+        self::assertSame('Outer violation.', $data['violations'][0]['message']);
+    }
+
+    public function testStringableViolationMessageIsCastedToString(): void
+    {
+        $listener = new JsonExceptionListener($this->createTranslator());
+        $kernel = self::createStub(HttpKernelInterface::class);
+        $request = Request::create('/api/test');
+
+        $stringableMessage = new class implements \Stringable {
+            public function __toString(): string
+            {
+                return 'Stringable violation message';
+            }
+        };
+
+        $violations = new ConstraintViolationList([
+            new ConstraintViolation($stringableMessage, null, [], null, 'field', null),
+        ]);
+        $validationException = new ValidationFailedException('invalid data', $violations);
+        $httpException = new UnprocessableEntityHttpException('Validation failed', $validationException);
+
+        $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $httpException);
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        $data = json_decode((string) $response->getContent(), true);
+        self::assertSame('Validation failed', $data['error']);
+        self::assertCount(1, $data['violations']);
+        self::assertSame('field', $data['violations'][0]['property']);
+        self::assertSame('Stringable violation message', $data['violations'][0]['message']);
+        self::assertIsString($data['violations'][0]['message']);
     }
 }

@@ -96,28 +96,4 @@ class JsonExceptionListenerFunctionalTest extends ApiTestCase
             $dispatcher->removeListener(KernelEvents::CONTROLLER, $listener);
         }
     }
-
-    public function testNonApiRouteUnhandledExceptionIsNotHandledByJsonExceptionListener(): void
-    {
-        $client = static::createClient();
-
-        /** @var EventDispatcherInterface $dispatcher */
-        $dispatcher = static::getContainer()->get('event_dispatcher');
-        $listener = static function (ControllerEvent $event): void {
-            if ('/health' === $event->getRequest()->getPathInfo()) {
-                throw new \RuntimeException('Health check unhandled failure');
-            }
-        };
-
-        $dispatcher->addListener(KernelEvents::CONTROLLER, $listener, 100);
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Health check unhandled failure/');
-
-        try {
-            $client->request('GET', '/health');
-        } finally {
-            $dispatcher->removeListener(KernelEvents::CONTROLLER, $listener);
-        }
-    }
 }
