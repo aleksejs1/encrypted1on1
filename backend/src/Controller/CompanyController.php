@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Dto\CreateCompanyRequest;
 use App\Entity\ActivationToken;
 use App\Entity\Company;
 use App\Entity\User;
@@ -12,6 +13,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -54,8 +56,10 @@ class CompanyController
     }
 
     #[Route('/api/companies', name: 'company_create', methods: ['POST'])]
-    public function create(Request $request): JsonResponse
-    {
+    public function create(
+        #[MapRequestPayload] CreateCompanyRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         // Consumed before the mode check, not after — same reasoning
@@ -70,16 +74,8 @@ class CompanyController
             return new JsonResponse(['error' => $this->translator->trans('errors.cloud_signup_not_open')], 400);
         }
 
-        $body = $request->toArray();
-        $name = $body['name'] ?? null;
-        if (!\is_string($name) || '' === trim($name)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'name'])], 400);
-        }
-
-        $email = $body['adminEmail'] ?? null;
-        if (!\is_string($email) || '' === $email) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_email')], 400);
-        }
+        $name = trim($payload->name);
+        $email = $payload->adminEmail;
 
         // Same enumeration-avoidance discipline as SignupController::signup()/
         // PasswordResetController::request(): the response never reveals whether the

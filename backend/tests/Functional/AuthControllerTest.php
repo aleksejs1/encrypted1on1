@@ -80,6 +80,18 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(401, $result['status']);
     }
 
+    public function testLoginRejectsInvalidEmailFormat(): void
+    {
+        $client = static::createClient();
+        $result = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => 'not-an-email',
+            'authKey' => str_repeat('a', 44),
+        ]);
+
+        self::assertSame(400, $result['status']);
+        self::assertArrayHasKey('violations', $result['json']);
+    }
+
     public function testLoginRejectsABlockedAccountAfterProvingTheCorrectPassword(): void
     {
         $email = $this->uniqueEmail('auth-login-blocked');

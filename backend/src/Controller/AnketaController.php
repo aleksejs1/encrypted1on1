@@ -4,6 +4,14 @@ namespace App\Controller;
 
 use App\Anketa\AnketaLifecycleService;
 use App\Anketa\AnketaPresenter;
+use App\Dto\ArchiveAnketaRequest;
+use App\Dto\CreateAnketaRequest;
+use App\Dto\CreateGoalRequest;
+use App\Dto\RescheduleAnketaRequest;
+use App\Dto\ReshareKeyRequest;
+use App\Dto\SaveBlobRequest;
+use App\Dto\SaveVersionedBlobRequest;
+use App\Dto\UpdateGoalRequest;
 use App\Entity\Anketa;
 use App\Entity\Goal;
 use App\Entity\User;
@@ -14,6 +22,7 @@ use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -41,22 +50,14 @@ class AnketaController
     }
 
     #[Route('/api/anketas', name: 'anketa_create', methods: ['POST'])]
-    public function create(Request $request): JsonResponse
-    {
+    public function create(
+        #[MapRequestPayload] CreateAnketaRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         $user = $this->requireUser($request);
 
-        $body = $request->toArray();
-        foreach (['counterpartId', 'myRole', 'meetingDate', 'mySealedKey', 'counterpartSealedKey'] as $field) {
-            if (!\is_string($body[$field] ?? null) || '' === $body[$field]) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
-            }
-        }
-        if (!\in_array($body['myRole'], ['employee', 'manager'], true)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.invalid_role')], 400);
-        }
-
-        $counterpart = $this->entityManager->find(User::class, $body['counterpartId']);
+        $counterpart = $this->entityManager->find(User::class, $payload->counterpartId);
         if (null === $counterpart) {
             return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
         }
@@ -79,15 +80,11 @@ class AnketaController
             return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
         }
 
-        try {
-            // The constructor (unlike createFromFormat(DATE_ATOM, ...)) accepts the
-            // milliseconds + "Z" suffix that JS's Date.toISOString() actually produces.
-            $meetingDate = new \DateTimeImmutable($body['meetingDate']);
-        } catch (\Exception) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.meeting_date_must_be_valid_date')], 400);
-        }
+        // The constructor (unlike createFromFormat(DATE_ATOM, ...)) accepts the
+        // milliseconds + "Z" suffix that JS's Date.toISOString() actually produces.
+        $meetingDate = new \DateTimeImmutable($payload->meetingDate);
 
-        $isEmployee = 'employee' === $body['myRole'];
+        $isEmployee = 'employee' === $payload->myRole;
         $employee = $isEmployee ? $user : $counterpart;
         $manager = $isEmployee ? $counterpart : $user;
 
@@ -98,25 +95,20 @@ class AnketaController
 
         $periodicityDays = $previousAnketa?->getPeriodicityDays();
         if (null === $periodicityDays) {
-            $periodicityDays = $body['periodicityDays'] ?? null;
-            if (!\is_int($periodicityDays) || $periodicityDays < 1) {
+            $periodicityDays = $payload->periodicityDays;
+            if (null === $periodicityDays) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.periodicity_required')], 400);
             }
-        }
-
-        $outcomesBlob = $body['outcomesBlob'] ?? null;
-        if (null !== $outcomesBlob && !\is_string($outcomesBlob)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.outcomes_blob_must_be_string')], 400);
         }
 
         $anketa = $this->lifecycleService->createAnketa(
             employee: $employee,
             manager: $manager,
             meetingDate: $meetingDate,
-            employeeSealedKey: $isEmployee ? $body['mySealedKey'] : $body['counterpartSealedKey'],
-            managerSealedKey: $isEmployee ? $body['counterpartSealedKey'] : $body['mySealedKey'],
+            employeeSealedKey: $isEmployee ? $payload->mySealedKey : $payload->counterpartSealedKey,
+            managerSealedKey: $isEmployee ? $payload->counterpartSealedKey : $payload->mySealedKey,
             periodicityDays: $periodicityDays,
-            outcomesBlob: $outcomesBlob,
+            outcomesBlob: $payload->outcomesBlob,
             carryFrom: $previousAnketa,
             company: $user->getCompany(),
             creator: $user,
@@ -204,19 +196,15 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/comments', name: 'anketa_comments', methods: ['PUT'])]
-    public function saveComments(string $id, Request $request): JsonResponse
-    {
+    public function saveComments(
+        string $id,
+        #[MapRequestPayload] SaveVersionedBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
-        $body = $request->toArray();
-        $blob = $body['blob'] ?? null;
-        $expectedVersion = $body['expectedVersion'] ?? null;
-        if (!\is_string($blob) || !\is_int($expectedVersion)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob_or_expected_version')], 400);
-        }
-
-        if (!$anketa->saveComments($blob, $expectedVersion)) {
+        if (!$anketa->saveComments((string) $payload->blob, (int) $payload->expectedVersion)) {
             // Conflict: hand back the current state so the client can merge without a second round-trip.
             return new JsonResponse([
                 'error' => $this->translator->trans('errors.comments_conflict'),
@@ -231,19 +219,15 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/outcomes', name: 'anketa_outcomes', methods: ['PUT'])]
-    public function saveOutcomes(string $id, Request $request): JsonResponse
-    {
+    public function saveOutcomes(
+        string $id,
+        #[MapRequestPayload] SaveVersionedBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
-        $body = $request->toArray();
-        $blob = $body['blob'] ?? null;
-        $expectedVersion = $body['expectedVersion'] ?? null;
-        if (!\is_string($blob) || !\is_int($expectedVersion)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob_or_expected_version')], 400);
-        }
-
-        if (!$anketa->saveOutcomes($blob, $expectedVersion)) {
+        if (!$anketa->saveOutcomes((string) $payload->blob, (int) $payload->expectedVersion)) {
             return new JsonResponse([
                 'error' => $this->translator->trans('errors.outcomes_conflict'),
                 'outcomesBlob' => $anketa->getOutcomesBlob(),
@@ -257,8 +241,11 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/goal-checkpoints', name: 'anketa_goal_checkpoints', methods: ['PUT'])]
-    public function saveGoalCheckpoints(string $id, Request $request): JsonResponse
-    {
+    public function saveGoalCheckpoints(
+        string $id,
+        #[MapRequestPayload] SaveVersionedBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
@@ -266,14 +253,7 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $body = $request->toArray();
-        $blob = $body['blob'] ?? null;
-        $expectedVersion = $body['expectedVersion'] ?? null;
-        if (!\is_string($blob) || !\is_int($expectedVersion)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob_or_expected_version')], 400);
-        }
-
-        if (!$anketa->saveGoalCheckpoints($blob, $expectedVersion)) {
+        if (!$anketa->saveGoalCheckpoints((string) $payload->blob, (int) $payload->expectedVersion)) {
             return new JsonResponse([
                 'error' => $this->translator->trans('errors.goal_checkpoints_conflict'),
                 'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
@@ -287,8 +267,11 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/goals', name: 'anketa_goal_create', methods: ['POST'])]
-    public function createGoal(string $id, Request $request): JsonResponse
-    {
+    public function createGoal(
+        string $id,
+        #[MapRequestPayload] CreateGoalRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
@@ -296,35 +279,16 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $body = $request->toArray();
-        foreach (['goalUuid', 'title'] as $field) {
-            if (!\is_string($body[$field] ?? null) || '' === $body[$field]) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
-            }
-        }
-        $description = $body['description'] ?? null;
-        if (null !== $description && !\is_string($description)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.description_must_be_string')], 400);
-        }
-
-        $targetDate = null;
-        if (isset($body['targetDate']) && '' !== $body['targetDate']) {
-            if (!\is_string($body['targetDate'])) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.target_date_must_be_string')], 400);
-            }
-            try {
-                $targetDate = new \DateTimeImmutable($body['targetDate']);
-            } catch (\Exception) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.target_date_must_be_valid_date')], 400);
-            }
-        }
+        $targetDate = (null !== $payload->targetDate && '' !== $payload->targetDate)
+            ? new \DateTimeImmutable($payload->targetDate)
+            : null;
 
         $goal = new Goal(
-            goalUuid: $body['goalUuid'],
+            goalUuid: $payload->goalUuid,
             anketa: $anketa,
             author: $user,
-            title: $body['title'],
-            description: $description,
+            title: $payload->title,
+            description: $payload->description,
             targetDate: $targetDate,
         );
         $this->entityManager->persist($goal);
@@ -334,8 +298,12 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/goals/{goalId}', name: 'anketa_goal_update', methods: ['PUT'])]
-    public function updateGoal(string $id, string $goalId, Request $request): JsonResponse
-    {
+    public function updateGoal(
+        string $id,
+        string $goalId,
+        #[MapRequestPayload] UpdateGoalRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
@@ -350,37 +318,21 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $body = $request->toArray();
-        if (isset($body['title'])) {
-            if (!\is_string($body['title']) || '' === $body['title']) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.title_must_be_non_empty')], 400);
-            }
-            $goal->setTitle($body['title']);
+        if ($payload->hasTitle() && \is_string($payload->title)) {
+            $goal->setTitle($payload->title);
         }
-        if (\array_key_exists('description', $body)) {
-            if (null !== $body['description'] && !\is_string($body['description'])) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.description_must_be_string')], 400);
-            }
-            $goal->setDescription($body['description']);
+        if ($payload->hasDescription()) {
+            $goal->setDescription(\is_string($payload->description) ? $payload->description : null);
         }
-        if (\array_key_exists('targetDate', $body)) {
-            if (null === $body['targetDate']) {
+        if ($payload->hasTargetDate()) {
+            if (null === $payload->targetDate || '' === $payload->targetDate) {
                 $goal->setTargetDate(null);
-            } elseif (\is_string($body['targetDate'])) {
-                try {
-                    $goal->setTargetDate(new \DateTimeImmutable($body['targetDate']));
-                } catch (\Exception) {
-                    return new JsonResponse(['error' => $this->translator->trans('errors.target_date_must_be_valid_date')], 400);
-                }
-            } else {
-                return new JsonResponse(['error' => $this->translator->trans('errors.target_date_must_be_string_or_null')], 400);
+            } elseif (\is_string($payload->targetDate)) {
+                $goal->setTargetDate(new \DateTimeImmutable($payload->targetDate));
             }
         }
-        if (isset($body['status'])) {
-            if (!\in_array($body['status'], Goal::STATUSES, true)) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.status_must_be_one_of', ['%statuses%' => implode(', ', Goal::STATUSES)])], 400);
-            }
-            $goal->setStatus($body['status']);
+        if ($payload->hasStatus() && \is_string($payload->status)) {
+            $goal->setStatus($payload->status);
         }
 
         $this->entityManager->flush();
@@ -389,8 +341,11 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/draft', name: 'anketa_draft', methods: ['PUT'])]
-    public function saveDraft(string $id, Request $request): JsonResponse
-    {
+    public function saveDraft(
+        string $id,
+        #[MapRequestPayload] SaveBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
@@ -405,19 +360,17 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.already_published'));
         }
 
-        $blob = $request->toArray()['blob'] ?? null;
-        if (!\is_string($blob)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob')], 400);
-        }
-
-        $this->lifecycleService->saveDraft($anketa, $user, $blob);
+        $this->lifecycleService->saveDraft($anketa, $user, (string) $payload->blob);
 
         return new JsonResponse(['ok' => true]);
     }
 
     #[Route('/api/anketas/{id}/publish', name: 'anketa_publish', methods: ['POST'])]
-    public function publish(string $id, Request $request): JsonResponse
-    {
+    public function publish(
+        string $id,
+        #[MapRequestPayload] SaveBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
@@ -430,12 +383,7 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.already_published'));
         }
 
-        $blob = $request->toArray()['blob'] ?? null;
-        if (!\is_string($blob)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob')], 400);
-        }
-
-        $this->lifecycleService->publish($anketa, $user, $blob);
+        $this->lifecycleService->publish($anketa, $user, (string) $payload->blob);
 
         return new JsonResponse(['ok' => true]);
     }
@@ -447,8 +395,11 @@ class AnketaController
      * edit can never look like a fresh publish to anything reading that timestamp.
      */
     #[Route('/api/anketas/{id}/answers', name: 'anketa_update_answers', methods: ['PUT'])]
-    public function updateAnswers(string $id, Request $request): JsonResponse
-    {
+    public function updateAnswers(
+        string $id,
+        #[MapRequestPayload] SaveVersionedBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
@@ -459,15 +410,8 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $body = $request->toArray();
-        $blob = $body['blob'] ?? null;
-        $expectedVersion = $body['expectedVersion'] ?? null;
-        if (!\is_string($blob) || !\is_int($expectedVersion)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blob_or_expected_version')], 400);
-        }
-
         $isEmployee = $anketa->isEmployee($user);
-        if (!$this->lifecycleService->updatePublishedAnswers($anketa, $user, $blob, $expectedVersion)) {
+        if (!$this->lifecycleService->updatePublishedAnswers($anketa, $user, (string) $payload->blob, (int) $payload->expectedVersion)) {
             return new JsonResponse([
                 'error' => $this->translator->trans('errors.answers_conflict'),
                 'blob' => $isEmployee ? $anketa->getEmployeeBlob() : $anketa->getManagerBlob(),
@@ -479,36 +423,20 @@ class AnketaController
     }
 
     #[Route('/api/anketas/{id}/archive', name: 'anketa_archive', methods: ['POST'])]
-    public function archive(string $id, Request $request): JsonResponse
-    {
+    public function archive(
+        string $id,
+        #[MapRequestPayload] ArchiveAnketaRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
-        $body = $request->toArray();
-        $missed = $body['missed'] ?? false;
-        $skipNextMeeting = $body['skipNextMeeting'] ?? false;
-        if (!\is_bool($missed) || !\is_bool($skipNextMeeting)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missed_skip_must_be_booleans')], 400);
-        }
-
         $nextMeetingDate = null;
-        if (!$skipNextMeeting && isset($body['nextMeetingDate'])) {
-            if (!\is_string($body['nextMeetingDate'])) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.next_meeting_date_must_be_string')], 400);
-            }
-            try {
-                $nextMeetingDate = new \DateTimeImmutable($body['nextMeetingDate']);
-            } catch (\Exception) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.next_meeting_date_must_be_valid_date')], 400);
-            }
+        if (!$payload->skipNextMeeting && null !== $payload->nextMeetingDate && '' !== $payload->nextMeetingDate) {
+            $nextMeetingDate = new \DateTimeImmutable($payload->nextMeetingDate);
         }
 
-        $outcomesBlob = $body['outcomesBlob'] ?? null;
-        if (null !== $outcomesBlob && !\is_string($outcomesBlob)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.outcomes_blob_must_be_string')], 400);
-        }
-
-        $createNext = $this->lifecycleService->shouldCreateNext($anketa, $skipNextMeeting);
+        $createNext = $this->lifecycleService->shouldCreateNext($anketa, $payload->skipNextMeeting);
 
         $mySealedKey = null;
         $counterpartSealedKey = null;
@@ -517,9 +445,9 @@ class AnketaController
             if (null === $periodicityDays) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.no_periodicity_on_record')], 400);
             }
-            $mySealedKey = $body['mySealedKey'] ?? null;
-            $counterpartSealedKey = $body['counterpartSealedKey'] ?? null;
-            if (!\is_string($mySealedKey) || !\is_string($counterpartSealedKey)) {
+            $mySealedKey = $payload->mySealedKey;
+            $counterpartSealedKey = $payload->counterpartSealedKey;
+            if (null === $mySealedKey || null === $counterpartSealedKey) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_sealed_keys')], 400);
             }
         }
@@ -527,20 +455,23 @@ class AnketaController
         $this->lifecycleService->archive(
             anketa: $anketa,
             actor: $user,
-            missed: $missed,
-            skipNextMeeting: $skipNextMeeting,
+            missed: $payload->missed,
+            skipNextMeeting: $payload->skipNextMeeting,
             nextMeetingDate: $nextMeetingDate,
             mySealedKey: $mySealedKey,
             counterpartSealedKey: $counterpartSealedKey,
-            outcomesBlob: $outcomesBlob,
+            outcomesBlob: $payload->outcomesBlob,
         );
 
         return new JsonResponse(['ok' => true]);
     }
 
     #[Route('/api/anketas/{id}/meeting-date', name: 'anketa_reschedule', methods: ['PUT'])]
-    public function reschedule(string $id, Request $request): JsonResponse
-    {
+    public function reschedule(
+        string $id,
+        #[MapRequestPayload] RescheduleAnketaRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
@@ -548,15 +479,7 @@ class AnketaController
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $meetingDate = $request->toArray()['meetingDate'] ?? null;
-        if (!\is_string($meetingDate)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_meeting_date')], 400);
-        }
-        try {
-            $anketa->reschedule(new \DateTimeImmutable($meetingDate));
-        } catch (\Exception) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.meeting_date_must_be_valid_date')], 400);
-        }
+        $anketa->reschedule(new \DateTimeImmutable($payload->meetingDate));
 
         $this->entityManager->flush();
 
@@ -571,17 +494,15 @@ class AnketaController
      * participant's side, never the caller's own.
      */
     #[Route('/api/anketas/{id}/reshare-key', name: 'anketa_reshare_key', methods: ['PUT'])]
-    public function reshareKey(string $id, Request $request): JsonResponse
-    {
+    public function reshareKey(
+        string $id,
+        #[MapRequestPayload] ReshareKeyRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
-        $sealedKey = $request->toArray()['sealedKey'] ?? null;
-        if (!\is_string($sealedKey) || '' === $sealedKey) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'sealedKey'])], 400);
-        }
-
-        $this->lifecycleService->reshareKey($anketa, $user, $sealedKey);
+        $this->lifecycleService->reshareKey($anketa, $user, $payload->sealedKey);
 
         return new JsonResponse(['ok' => true]);
     }

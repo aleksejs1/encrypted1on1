@@ -30,6 +30,19 @@ class CompanyControllerTest extends ApiTestCase
         self::assertSame('Company sign-up is not available on this instance.', $result['json']['error']);
     }
 
+    public function testCreateCompanyRejectsBlankName(): void
+    {
+        $client = static::createClient();
+
+        $result = $this->jsonRequest($client, 'POST', '/api/companies', [
+            'name' => '   ',
+            'adminEmail' => $this->uniqueEmail('company-blank-name'),
+        ]);
+
+        self::assertSame(400, $result['status']);
+        self::assertArrayHasKey('violations', $result['json']);
+    }
+
     public function testCreateCompanyIsRateLimitedAfterTooManyAttempts(): void
     {
         $client = static::createClient();

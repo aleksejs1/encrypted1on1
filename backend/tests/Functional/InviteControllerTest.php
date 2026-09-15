@@ -46,6 +46,17 @@ class InviteControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
     }
 
+    public function testInviteRejectsInvalidEmailFormat(): void
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('invite-sender-invalid'));
+
+        $result = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => 'not-an-email']);
+
+        self::assertSame(400, $result['status']);
+        self::assertArrayHasKey('violations', $result['json']);
+    }
+
     public function testInviteRejectsAnEmailThatAlreadyHasAnAccount(): void
     {
         $client = static::createClient();

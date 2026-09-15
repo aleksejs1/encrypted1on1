@@ -4,9 +4,11 @@ namespace App\EventListener;
 
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Component\Validator\Exception\ValidationFailedException;
 
 /**
  * Every controller in this app is a JSON API, but Symfony's default error
@@ -17,6 +19,10 @@ use Symfony\Component\HttpKernel\KernelEvents;
  * an HTML comment, not `{"error": ...}`, which broke the frontend's
  * ApiError (falls back to a generic status text instead of the real
  * message). This makes every /api/ route consistent, not just the new ones.
+ *
+ * For validation errors (MapRequestPayload / ValidationFailedException), standardizes
+ * error responses to HTTP 400 Bad Request with an error string matching the frontend's
+ * ApiError expectation plus structured violations.
  */
 #[AsEventListener(event: KernelEvents::EXCEPTION)]
 class JsonExceptionListener
@@ -32,9 +38,36 @@ class JsonExceptionListener
             return;
         }
 
+        $validationException = null;
+        for ($curr = $exception->getPrevious(); null !== $curr; $curr = $curr->getPrevious()) {
+            if ($curr instanceof ValidationFailedException) {
+                $validationException = $curr;
+                break;
+            }
+        }
+
+        $statusCode = $exception->getStatusCode();
+        if (Response::HTTP_UNPROCESSABLE_ENTITY === $statusCode || null !== $validationException) {
+            $statusCode = Response::HTTP_BAD_REQUEST;
+        }
+
+        $message = '' !== $exception->getMessage() ? $exception->getMessage() : 'An error occurred.';
+        $payload = ['error' => $message];
+
+        if (null !== $validationException) {
+            $violations = [];
+            foreach ($validationException->getViolations() as $violation) {
+                $violations[] = [
+                    'property' => $violation->getPropertyPath(),
+                    'message' => (string) $violation->getMessage(),
+                ];
+            }
+            $payload['violations'] = $violations;
+        }
+
         $event->setResponse(new JsonResponse(
-            ['error' => '' !== $exception->getMessage() ? $exception->getMessage() : 'An error occurred.'],
-            $exception->getStatusCode(),
+            $payload,
+            $statusCode,
             $exception->getHeaders(),
         ));
     }
