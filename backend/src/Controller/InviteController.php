@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Billing\SeatLimitChecker;
+use App\Dto\CreateInviteRequest;
 use App\Entity\ActivationToken;
 use App\Entity\InviteRecord;
 use App\Entity\User;
@@ -15,6 +16,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
@@ -46,8 +48,10 @@ class InviteController
     }
 
     #[Route('/api/invites', name: 'invite_create', methods: ['POST'])]
-    public function create(Request $request): JsonResponse
-    {
+    public function create(
+        #[MapRequestPayload] CreateInviteRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         $inviter = $this->authSession->getCurrentUser($request);
@@ -67,10 +71,7 @@ class InviteController
             return RateLimitResponse::create($limit, $this->translator);
         }
 
-        $email = $request->toArray()['email'] ?? null;
-        if (!\is_string($email) || '' === $email) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_email')], 400);
-        }
+        $email = $payload->email;
 
         $allowedEmailDomain = $company->getAllowedEmailDomain();
         if ('' !== $allowedEmailDomain && !str_ends_with($email, '@'.$allowedEmailDomain)) {

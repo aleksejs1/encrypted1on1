@@ -2,6 +2,10 @@
 
 namespace App\Controller;
 
+use App\Dto\SetCompanySeatLimitRequest;
+use App\Dto\SetCompanySuspendedRequest;
+use App\Dto\SetPlatformAdminRequest;
+use App\Dto\SetUserBlockedRequest;
 use App\Entity\Company;
 use App\Entity\InviteRecord;
 use App\Entity\User;
@@ -10,6 +14,7 @@ use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -92,19 +97,17 @@ class PlatformAdminController
      * that's deliberate: this is also the right tool for a non-billing reason, like abuse).
      */
     #[Route('/api/platform-admin/companies/{id}/suspended', name: 'platform_admin_company_set_suspended', methods: ['PUT'])]
-    public function setCompanySuspended(string $id, Request $request): JsonResponse
-    {
+    public function setCompanySuspended(
+        string $id,
+        #[MapRequestPayload] SetCompanySuspendedRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         $this->requirePlatformAdmin($request);
 
         $company = $this->findCompany($id);
 
-        $suspended = $request->toArray()['suspended'] ?? null;
-        if (!\is_bool($suspended)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_suspended')], 400);
-        }
-
-        if ($suspended) {
+        if (true === $payload->suspended) {
             $company->suspend();
         } else {
             $company->unsuspend();
@@ -122,19 +125,17 @@ class PlatformAdminController
      * `null` means unlimited, same convention as everywhere else this field is read.
      */
     #[Route('/api/platform-admin/companies/{id}/seat-limit', name: 'platform_admin_company_set_seat_limit', methods: ['PUT'])]
-    public function setCompanySeatLimit(string $id, Request $request): JsonResponse
-    {
+    public function setCompanySeatLimit(
+        string $id,
+        #[MapRequestPayload] SetCompanySeatLimitRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         $this->requirePlatformAdmin($request);
 
         $company = $this->findCompany($id);
 
-        $body = $request->toArray();
-        if (!\array_key_exists('seatLimit', $body) || (null !== $body['seatLimit'] && (!\is_int($body['seatLimit']) || $body['seatLimit'] < 1))) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_seat_limit')], 400);
-        }
-
-        $company->setSeatLimit($body['seatLimit']);
+        $company->setSeatLimit(\is_int($payload->seatLimit) ? $payload->seatLimit : null);
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $company->getId(), 'seatLimit' => $company->getSeatLimit()]);
@@ -173,8 +174,11 @@ class PlatformAdminController
     }
 
     #[Route('/api/platform-admin/users/{id}/blocked', name: 'platform_admin_user_set_blocked', methods: ['PUT'])]
-    public function setBlocked(string $id, Request $request): JsonResponse
-    {
+    public function setBlocked(
+        string $id,
+        #[MapRequestPayload] SetUserBlockedRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         $platformAdmin = $this->requirePlatformAdmin($request);
 
@@ -183,12 +187,7 @@ class PlatformAdminController
             return new JsonResponse(['error' => $this->translator->trans('errors.cannot_block_own_account')], 400);
         }
 
-        $blocked = $request->toArray()['blocked'] ?? null;
-        if (!\is_bool($blocked)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_blocked')], 400);
-        }
-
-        $target->setBlocked($blocked);
+        $target->setBlocked(true === $payload->blocked);
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $target->getId(), 'isBlocked' => $target->isBlocked()]);
@@ -201,19 +200,17 @@ class PlatformAdminController
      * setAdmin() precedent: always recoverable via the CLI command either way.
      */
     #[Route('/api/platform-admin/users/{id}/platform-admin', name: 'platform_admin_user_set_platform_admin', methods: ['PUT'])]
-    public function setPlatformAdmin(string $id, Request $request): JsonResponse
-    {
+    public function setPlatformAdmin(
+        string $id,
+        #[MapRequestPayload] SetPlatformAdminRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
         $this->requirePlatformAdmin($request);
 
         $target = $this->findUser($id);
 
-        $isPlatformAdmin = $request->toArray()['isPlatformAdmin'] ?? null;
-        if (!\is_bool($isPlatformAdmin)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_is_platform_admin')], 400);
-        }
-
-        $target->setPlatformAdmin($isPlatformAdmin);
+        $target->setPlatformAdmin(true === $payload->isPlatformAdmin);
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $target->getId(), 'isPlatformAdmin' => $target->isPlatformAdmin()]);

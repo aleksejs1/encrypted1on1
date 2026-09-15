@@ -3,6 +3,12 @@
 namespace App\Controller;
 
 use App\Account\AccountDeleter;
+use App\Dto\ChangePasswordRequest;
+use App\Dto\DeleteAccountRequest;
+use App\Dto\LoginRequest;
+use App\Dto\SetDisplayNameRequest;
+use App\Dto\SetLocaleRequest;
+use App\Dto\SetNotificationPreferencesRequest;
 use App\Entity\User;
 use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
@@ -12,6 +18,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -36,8 +43,10 @@ class AuthController
     }
 
     #[Route('/api/login', name: 'login', methods: ['POST'])]
-    public function login(Request $request): JsonResponse
-    {
+    public function login(
+        #[MapRequestPayload] LoginRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         // Keyed by IP, not email — the point is slowing down automated guessing
@@ -48,12 +57,8 @@ class AuthController
             return RateLimitResponse::create($limit, $this->translator);
         }
 
-        $body = $request->toArray();
-        $email = $body['email'] ?? null;
-        $authKey = $body['authKey'] ?? null;
-        if (!\is_string($email) || !\is_string($authKey)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_email_or_auth_key')], 400);
-        }
+        $email = $payload->email;
+        $authKey = $payload->authKey;
 
         $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
 
@@ -146,8 +151,10 @@ class AuthController
      * the UI displays (that stays a client-only preference, see the Phase 6i plan).
      */
     #[Route('/api/me/locale', name: 'me_set_locale', methods: ['PUT'])]
-    public function setLocale(Request $request): JsonResponse
-    {
+    public function setLocale(
+        #[MapRequestPayload] SetLocaleRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         $user = $this->authSession->getCurrentUser($request);
@@ -155,12 +162,7 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
         }
 
-        $locale = $request->toArray()['locale'] ?? null;
-        if (!\is_string($locale) || !\in_array($locale, User::SUPPORTED_LOCALES, true)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.locale_must_be_one_of', ['%locales%' => implode(', ', User::SUPPORTED_LOCALES)])], 400);
-        }
-
-        $user->setLocale($locale);
+        $user->setLocale($payload->locale);
         $this->entityManager->flush();
 
         return new JsonResponse(['locale' => $user->getLocale()]);
@@ -173,8 +175,10 @@ class AuthController
      * docblock) — nothing here touches any encrypted content.
      */
     #[Route('/api/me/display-name', name: 'me_set_display_name', methods: ['PUT'])]
-    public function setDisplayName(Request $request): JsonResponse
-    {
+    public function setDisplayName(
+        #[MapRequestPayload] SetDisplayNameRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         $user = $this->authSession->getCurrentUser($request);
@@ -182,7 +186,7 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
         }
 
-        $displayName = DisplayNameField::parse($request->toArray()['displayName'] ?? null, $this->translator);
+        $displayName = DisplayNameField::parse($payload->displayName, $this->translator);
         if ($displayName instanceof JsonResponse) {
             return $displayName;
         }
@@ -199,8 +203,10 @@ class AuthController
      * stays mandatory regardless, per the Account Settings plan.
      */
     #[Route('/api/me/notification-preferences', name: 'me_set_notification_preferences', methods: ['PUT'])]
-    public function setNotificationPreferences(Request $request): JsonResponse
-    {
+    public function setNotificationPreferences(
+        #[MapRequestPayload] SetNotificationPreferencesRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         $user = $this->authSession->getCurrentUser($request);
@@ -208,12 +214,7 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
         }
 
-        $enabled = $request->toArray()['meetingRemindersEnabled'] ?? null;
-        if (!\is_bool($enabled)) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'meetingRemindersEnabled'])], 400);
-        }
-
-        $user->setMeetingRemindersEnabled($enabled);
+        $user->setMeetingRemindersEnabled(true === $payload->meetingRemindersEnabled);
         $this->entityManager->flush();
 
         return new JsonResponse(['meetingRemindersEnabled' => $user->wantsMeetingReminders()]);
@@ -226,8 +227,10 @@ class AuthController
      * key, so there's no anketa re-sharing consequence. See User::changePassword().
      */
     #[Route('/api/me/password', name: 'me_change_password', methods: ['PUT'])]
-    public function changePassword(Request $request): JsonResponse
-    {
+    public function changePassword(
+        #[MapRequestPayload] ChangePasswordRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         $user = $this->authSession->getCurrentUser($request);
@@ -243,18 +246,11 @@ class AuthController
             return RateLimitResponse::create($limit, $this->translator);
         }
 
-        $body = $request->toArray();
-        foreach (['currentAuthKey', 'newAuthKey', 'newEncryptedPrivateKey'] as $field) {
-            if (!\is_string($body[$field] ?? null) || '' === $body[$field]) {
-                return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => $field])], 400);
-            }
-        }
-
-        if (!hash_equals($user->getAuthHash(), $body['currentAuthKey'])) {
+        if (!hash_equals($user->getAuthHash(), $payload->currentAuthKey)) {
             return new JsonResponse(['error' => $this->translator->trans('errors.invalid_current_password')], 401);
         }
 
-        $user->changePassword($body['newAuthKey'], $body['newEncryptedPrivateKey']);
+        $user->changePassword($payload->newAuthKey, $payload->newEncryptedPrivateKey);
         $this->entityManager->flush();
 
         return new JsonResponse(['ok' => true]);
@@ -268,8 +264,10 @@ class AuthController
      * shouldn't be able to destroy the account without proving the password is known.
      */
     #[Route('/api/me', name: 'me_delete', methods: ['DELETE'])]
-    public function deleteAccount(Request $request): JsonResponse
-    {
+    public function deleteAccount(
+        #[MapRequestPayload] DeleteAccountRequest $payload,
+        Request $request,
+    ): JsonResponse {
         $this->csrfGuard->assertValid($request);
 
         $user = $this->authSession->getCurrentUser($request);
@@ -282,12 +280,7 @@ class AuthController
             return RateLimitResponse::create($limit, $this->translator);
         }
 
-        $currentAuthKey = $request->toArray()['currentAuthKey'] ?? null;
-        if (!\is_string($currentAuthKey) || '' === $currentAuthKey) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.missing_or_invalid_field', ['%field%' => 'currentAuthKey'])], 400);
-        }
-
-        if (!hash_equals($user->getAuthHash(), $currentAuthKey)) {
+        if (!hash_equals($user->getAuthHash(), $payload->currentAuthKey)) {
             return new JsonResponse(['error' => $this->translator->trans('errors.invalid_current_password')], 401);
         }
 
