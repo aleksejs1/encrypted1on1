@@ -91,3 +91,4 @@ errors:
     user_already_deleted: 'Эта учётная запись уже удалена.'
     user_must_be_blocked_before_deletion: 'Перед удалением учётной записи пользователя нужно заблокировать.'
     missing_or_invalid_seat_limit: '«seatLimit» должно быть null или положительным целым числом.'
+    internal_server_error: 'Внутренняя ошибка сервера.'
