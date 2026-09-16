@@ -71,6 +71,7 @@ errors:
     target_date_must_be_string: '"targetDate" doit être une chaîne de caractères.'
     target_date_must_be_string_or_null: '"targetDate" doit être une chaîne de caractères ou null.'
     title_must_be_non_empty: '"title" doit être une chaîne de caractères non vide.'
+    title_too_long: '"title" doit comporter au plus %max% caractères.'
     status_must_be_one_of: '"status" doit être l''une des valeurs suivantes : %statuses%.'
     goal_not_found: 'Objectif introuvable.'
     goal_author_only: "Seul l'auteur de l'objectif peut le modifier."

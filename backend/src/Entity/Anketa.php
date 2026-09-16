@@ -169,7 +169,6 @@ class Anketa
         string $employeeSealedKey,
         string $managerSealedKey,
         int $periodicityDays,
-        ?Company $company = null,
     ) {
         $employeeCompany = $employee->getCompany();
         $managerCompany = $manager->getCompany();
@@ -177,14 +176,10 @@ class Anketa
             throw new \InvalidArgumentException('Employee and manager must belong to the same company.');
         }
 
-        if (null !== $company && $company !== $employeeCompany && $company->getId() !== $employeeCompany->getId()) {
-            throw new \InvalidArgumentException('Anketa company must match participants company.');
-        }
-
         $this->id = Uuid::v7()->toRfc4122();
         $this->employee = $employee;
         $this->manager = $manager;
-        $this->company = $company ?? $employeeCompany;
+        $this->company = $employeeCompany;
         $this->meetingDate = $meetingDate;
         $this->employeeSealedKey = $employeeSealedKey;
         $this->managerSealedKey = $managerSealedKey;

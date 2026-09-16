@@ -20,9 +20,7 @@ readonly class RescheduleAnketaRequest
             try {
                 new \DateTimeImmutable($this->meetingDate);
             } catch (\Exception) {
-                $context->buildViolation('Meeting date must be a valid date.')
-                    ->atPath('meetingDate')
-                    ->addViolation();
+                DtoViolation::add($context, 'meetingDate', 'errors.meeting_date_must_be_valid_date');
             }
         }
     }
