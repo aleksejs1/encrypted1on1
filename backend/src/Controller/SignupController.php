@@ -9,7 +9,6 @@ use App\Entity\InviteRecord;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
 use App\Notification\InvitationNotifier;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -43,7 +42,6 @@ class SignupController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly InvitationNotifier $notifier,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly SingleCompanyProvider $singleCompanyProvider,
         private readonly SeatLimitChecker $seatLimitChecker,
@@ -88,8 +86,6 @@ class SignupController
     #[Route('/api/signup', name: 'signup', methods: ['POST'])]
     public function signup(Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
-
         // Consumed before the mode check, not after — keeps this limiter exercisable
         // regardless of which mode happens to be configured.
         $limit = $this->signupLimiter->create($request->getClientIp())->consume();

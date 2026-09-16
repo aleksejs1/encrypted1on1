@@ -67,6 +67,7 @@ errors:
     target_date_must_be_string: '"targetDate" debe ser una cadena de texto.'
     target_date_must_be_string_or_null: '"targetDate" debe ser una cadena de texto o null.'
     title_must_be_non_empty: '"title" debe ser una cadena de texto no vacía.'
+    title_too_long: '"title" no puede tener más de %max% caracteres.'
     status_must_be_one_of: '"status" debe ser uno de: %statuses%.'
     goal_not_found: 'Objetivo no encontrado.'
     goal_author_only: 'Solo el autor del objetivo puede editarlo.'
