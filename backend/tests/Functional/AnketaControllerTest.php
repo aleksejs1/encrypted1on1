@@ -608,6 +608,129 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame($before + 1, $after);
     }
 
+    /**
+     * An explicit nextMeetingDate must actually be used for the new anketa, not silently
+     * ignored in favor of periodicityDays' own "archivedAt + periodicityDays" default —
+     * the two are deliberately made to land on very different days here so a bug that
+     * dropped the explicit date would produce a visibly wrong result, not a coincidental match.
+     */
+    public function testArchiveWithAutoRecreationUsesTheExplicitNextMeetingDate(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-next-explicit-date');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['periodicityDays' => 30])['json']['id'];
+
+        $beforeIds = array_column($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'], 'id');
+
+        $explicitNextMeetingDate = new \DateTimeImmutable('+200 days');
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'nextMeetingDate' => $explicitNextMeetingDate->format(\DateTimeImmutable::ATOM),
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $afterList = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        $newIds = array_values(array_diff(array_column($afterList, 'id'), $beforeIds));
+        self::assertCount(1, $newIds);
+
+        $nextAnketa = self::findById($afterList, $newIds[0]);
+        $nextMeetingDate = new \DateTimeImmutable($nextAnketa['meetingDate']);
+        self::assertSame($explicitNextMeetingDate->format('Y-m-d'), $nextMeetingDate->format('Y-m-d'));
+    }
+
+    /** Omitting "missed" must default to false, the same as the old manual-parsing code's `?? false`. */
+    public function testArchiveDefaultsMissedToFalseWhenOmitted(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-missed-default');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'skipNextMeeting' => true,
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertFalse(self::findById($list, $anketaId)['missed']);
+    }
+
+    /** The counterpart to the default-false tests below: an explicit `true` must actually take effect. */
+    public function testArchiveSetsMissedToTrueWhenExplicitlyTrue(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-missed-true');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => true,
+            'skipNextMeeting' => true,
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertTrue(self::findById($list, $anketaId)['missed']);
+    }
+
+    /**
+     * An explicit JSON `null` (not just an omitted key) must also default to false —
+     * ArchiveAnketaRequest::$missed is nullable specifically so this doesn't 400, and
+     * AnketaController::archive()'s own `$payload->missed ?? false` is what actually
+     * applies the default once the DTO lets a null value through.
+     */
+    public function testArchiveDefaultsMissedToFalseWhenExplicitlyNull(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-missed-null');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => null,
+            'skipNextMeeting' => true,
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertFalse(self::findById($list, $anketaId)['missed']);
+    }
+
+    /** Omitting "skipNextMeeting" must default to false (auto-recreation happens), same as "missed" above. */
+    public function testArchiveDefaultsSkipNextMeetingToFalseWhenOmitted(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-skip-default');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $before = \count($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $after = \count($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+        self::assertSame($before + 1, $after);
+    }
+
+    /** Same as testArchiveDefaultsMissedToFalseWhenExplicitlyNull() above, for skipNextMeeting. */
+    public function testArchiveDefaultsSkipNextMeetingToFalseWhenExplicitlyNull(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-skip-null');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $before = \count($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => null,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $after = \count($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+        self::assertSame($before + 1, $after);
+    }
+
     public function testArchiveSkipsAutoRecreationWhenTheCounterpartIsBlocked(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('archive-blocked-cp');

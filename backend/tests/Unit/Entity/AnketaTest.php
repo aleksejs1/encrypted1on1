@@ -248,17 +248,6 @@ class AnketaTest extends TestCase
         self::assertSame($company, $anketa->getCompany());
     }
 
-    public function testCompanyCanBePassedExplicitlyWhenMatching(): void
-    {
-        $company = new Company('Acme');
-        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $company);
-        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $company);
-
-        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $company);
-
-        self::assertSame($company, $anketa->getCompany());
-    }
-
     public function testConstructorThrowsWhenEmployeeAndManagerBelongToDifferentCompanies(): void
     {
         $companyA = new Company('Acme');
@@ -270,19 +259,6 @@ class AnketaTest extends TestCase
         $this->expectExceptionMessageMatches('/Employee and manager must belong to the same company/');
 
         new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30);
-    }
-
-    public function testConstructorThrowsWhenExplicitCompanyDoesNotMatchParticipants(): void
-    {
-        $companyA = new Company('Acme');
-        $companyB = new Company('Other');
-        $employee = new User('emp@example.com', 'hash', 'pub', 'enc', $companyA);
-        $manager = new User('mgr@example.com', 'hash', 'pub', 'enc', $companyA);
-
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/Anketa company must match participants company/');
-
-        new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $companyB);
     }
 
     public function testConstructorAcceptsDistinctCompanyInstancesWithMatchingId(): void

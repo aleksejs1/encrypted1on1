@@ -29,24 +29,24 @@ const IN_SCOPE_RULES = ['Too complex class code', 'Too complex method code', 'To
 // class => [rule => reason]
 const ALLOWED = [
     'App\\Controller\\AnketaController' => [
-        'Too complex class code' => 'One controller per resource area with real, distinct per-endpoint logic (ADR 2, docs/adr/0002-hand-composed-symfony.md) — many real routes in one file, not tangled logic.',
-        'Too complex method code' => "archive()'s real cyclomatic complexity (26) comes from several genuine, linearly-sequenced concerns (input validation, blocked-participant eligibility, conditional carry-forward, notification) — read directly against the source before allowlisting; splitting it would fragment one coherent request handler across several methods for no real readability gain.",
-        'Too long' => 'Direct consequence of the same one-controller-per-resource-area design (many real endpoints in one file), not accidental bloat.',
+        'Too complex class code' => 'One controller per resource area with real, distinct per-endpoint logic (ADR 2, docs/adr/0002-hand-composed-symfony.md) — many real routes (19 methods) in one file, not tangled logic. Verified against GitHub issue #70\'s decomposition (repositories, AnketaLifecycleService, AnketaPresenter extracted): class-level total CCN 56, down from before the split, but still flagged at this class\'s real per-endpoint count.',
+        'Too complex method code' => "Real cyclomatic complexity: this class's ccnMethodMax is 15 (re-verified after GitHub issue #70's decomposition moved most domain orchestration into AnketaLifecycleService/AnketaRepository/GoalRepository — read directly against the current source, not carried over from the pre-decomposition figure) — a genuinely sequential request handler (guard clauses, conditional branches, delegating to the extracted services), not tangled logic; splitting further would fragment one coherent request handler for no real readability gain.",
+        'Too long' => 'Direct consequence of the same one-controller-per-resource-area design (many real endpoints in one file — 389 LOC post-decomposition, down from ~900 before GitHub issue #70), not accidental bloat.',
     ],
     'App\\Entity\\Anketa' => [
-        'Too long' => "Many small, simple accessor/mutator methods (ccnMethodMax=3, genuinely low) for the entity's real number of distinct fields (per-side blobs, sealed keys, comments, outcomes, checkpoints) — length reflects real domain shape, not tangled logic.",
+        'Too long' => "Many small, simple accessor/mutator methods (ccnMethodMax=4, genuinely low) for the entity's real number of distinct fields (per-side blobs, sealed keys, comments, outcomes, checkpoints) — length reflects real domain shape, not tangled logic.",
     ],
     'App\\Controller\\InviteController' => [
-        'Too complex method code' => 'create() is one linear sequence of independent guard clauses (auth, admin-mode gate, rate limit, email validation, domain restriction, existing-user check) before its real side effects — the same stacked-guard-clause shape used throughout this app\'s controllers, not tangled branching.',
+        'Too complex method code' => 'create() is one linear sequence of independent guard clauses (auth, admin-mode gate, rate limit, email validation, domain restriction, existing-user check) before its real side effects — the same stacked-guard-clause shape used throughout this app\'s controllers, not tangled branching. CSRF is no longer one of these guard clauses (GitHub issue #71 fallout — centralized into CsrfProtectionListener, see docs/decisions/), which is why this method\'s complexity (ccnMethodMax=10) reads slightly lower than it once did.',
     ],
     'App\\Controller\\SignupController' => [
-        'Too complex method code' => "signup()'s complexity (11, same level as InviteController::create() above) grew by exactly one guard clause — Phase D's seat-limit check (private/cloud-service-plan.md, not tracked in git) — added to the same already-linear stacked-guard-clause sequence (CSRF, rate limit, cloud-mode gate, registration-mode gate, email validation, domain restriction, existing-user check), not a new branch that muddies the logic.",
+        'Too complex method code' => "signup()'s complexity (ccnMethodMax=12) is the same already-linear stacked-guard-clause sequence (rate limit, cloud-mode gate, registration-mode gate, email validation, domain restriction, existing-user check, Phase D's seat-limit check), not a new branch that muddies the logic. CSRF used to be one more guard clause in this same list before GitHub issue #71's centralization (CsrfProtectionListener) moved it out of the method body entirely.",
     ],
     'App\\Controller\\AuthController' => [
-        'Too complex method code' => "login()'s complexity (11, same level as InviteController::create() above) grew by exactly one guard clause — Phase D's company-suspension check (private/cloud-service-plan.md, not tracked in git), added immediately after the existing isBlocked() guard it mirrors — the same stacked-guard-clause shape, not tangled branching.",
+        'Too complex method code' => "login()'s complexity (ccnMethodMax=7) is the same stacked-guard-clause shape (rate limit, credential check, blocked-account gate, Phase D's company-suspension gate), not tangled branching — lower than earlier recorded here because both CSRF (GitHub issue #71's CsrfProtectionListener) and the manual field-presence checks (issue #71's LoginRequest DTO/validator) moved out of this method's body.",
     ],
     'App\\Controller\\ActivationController' => [
-        'Too complex method code' => "complete()'s complexity (11, same level as AuthController::login() and SignupController::signup() above) comes from the same linear sequence of independent guard clauses (CSRF, rate limit, token usability, required fields, display-name validation) before persisting the activated user, not tangled branching.",
+        'Too complex method code' => "complete()'s complexity (ccnMethodMax=12) comes from the same linear sequence of independent guard clauses (rate limit, token usability, required fields, display-name validation) before persisting the activated user, not tangled branching. CSRF is no longer one of these guard clauses (GitHub issue #71's CsrfProtectionListener centralized it out of the method body).",
     ],
 ];
 
