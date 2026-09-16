@@ -71,6 +71,7 @@ errors:
     target_date_must_be_string: '"targetDate" muss eine Zeichenkette sein.'
     target_date_must_be_string_or_null: '"targetDate" muss eine Zeichenkette oder null sein.'
     title_must_be_non_empty: '"title" muss eine nicht leere Zeichenkette sein.'
+    title_too_long: '"title" darf höchstens %max% Zeichen lang sein.'
     status_must_be_one_of: '"status" muss eines der folgenden sein: %statuses%.'
     goal_not_found: 'Ziel nicht gefunden.'
     goal_author_only: 'Nur der Autor des Ziels kann es bearbeiten.'

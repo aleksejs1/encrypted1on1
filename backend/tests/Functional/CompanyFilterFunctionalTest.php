@@ -144,6 +144,37 @@ class CompanyFilterFunctionalTest extends ApiTestCase
         self::assertContains($userB['id'], $returnedUserIds, 'Platform admin must see users across all companies');
     }
 
+    /**
+     * Regression test for a real bug found in review (docs/decisions/2026-09-15-anketa-controller-decomposition-and-dto-validation.md):
+     * a first attempt at restoring the filter called a restore method manually before
+     * each action's own `return`, which never ran when findCompany()/findUser() threw
+     * NotFoundHttpException first — a routine typo'd id, not an edge case. The filter
+     * must be re-enabled by the time this response is sent, regardless of which path
+     * requirePlatformAdmin()'s caller took to get there.
+     */
+    public function testFilterIsRestoredAfterAPlatformAdminActionThrowsNotFound(): void
+    {
+        $client = static::createClient();
+        $companyA = $this->makeCompany('Filter PA Throws Co A');
+
+        $platformAdmin = $this->activateUser($client, $this->uniqueEmail('filter-pa-throws'), company: $companyA);
+
+        $paEntity = $this->entityManager()->find(User::class, $platformAdmin['id']);
+        \assert($paEntity instanceof User);
+        $paEntity->setPlatformAdmin(true);
+        $this->entityManager()->flush();
+
+        $response = $this->jsonRequest($client, 'PUT', '/api/platform-admin/companies/nonexistent-id/suspended', ['suspended' => true]);
+        self::assertSame(404, $response['status']);
+
+        $requestContainerEm = $client->getContainer()->get('doctrine.orm.entity_manager');
+        \assert($requestContainerEm instanceof \Doctrine\ORM\EntityManagerInterface);
+        self::assertTrue(
+            $requestContainerEm->getFilters()->isEnabled(CompanyFilter::NAME),
+            'CompanyFilter must be re-enabled once the response is built, even when the platform-admin action threw NotFoundHttpException',
+        );
+    }
+
     private function makeCompany(string $name): Company
     {
         $company = new Company($name);

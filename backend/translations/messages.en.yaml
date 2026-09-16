@@ -74,6 +74,7 @@ errors:
     target_date_must_be_string: '"targetDate" must be a string.'
     target_date_must_be_string_or_null: '"targetDate" must be a string or null.'
     title_must_be_non_empty: '"title" must be a non-empty string.'
+    title_too_long: '"title" must be at most %max% characters.'
     status_must_be_one_of: '"status" must be one of: %statuses%.'
     goal_not_found: 'Goal not found.'
     goal_author_only: "Only the goal's author can edit it."
