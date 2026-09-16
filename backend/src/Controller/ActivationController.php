@@ -8,7 +8,6 @@ use App\Entity\User;
 use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -28,7 +27,6 @@ class ActivationController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         #[Autowire(service: 'limiter.activation_complete')]
         private readonly RateLimiterFactory $activationCompleteLimiter,
@@ -49,8 +47,6 @@ class ActivationController
     #[Route('/api/activation-tokens/{token}/complete', name: 'activation_token_complete', methods: ['POST'])]
     public function complete(string $token, Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
-
         // Token brute-forcing itself is already infeasible (256-bit random tokens,
         // see ActivationToken::issue()) — this is defense-in-depth against generic
         // automated abuse of account creation, not the primary defense.

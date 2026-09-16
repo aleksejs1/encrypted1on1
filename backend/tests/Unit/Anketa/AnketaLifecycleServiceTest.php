@@ -11,6 +11,7 @@ use App\Notification\AnketaNotifier;
 use App\Repository\GoalRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class AnketaLifecycleServiceTest extends TestCase
 {
@@ -338,7 +339,7 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $service = $this->createService();
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(BadRequestHttpException::class);
         $this->expectExceptionMessageMatches('/Next anketa requires sealed keys\./');
 
         $service->archive(
@@ -387,7 +388,7 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $service = $this->createService();
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(BadRequestHttpException::class);
         $this->expectExceptionMessageMatches('/Next anketa requires periodicity\./');
 
         $service->archive(

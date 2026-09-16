@@ -6,7 +6,9 @@ use App\Doctrine\CompanyFilter;
 use App\Security\AuthSession;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
+use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 
@@ -20,8 +22,19 @@ use Symfony\Contracts\Service\ResetInterface;
  * ResetInterface for kernel.reset lifecycle integration.
  */
 #[AsEventListener(event: KernelEvents::REQUEST, priority: 5)]
+#[AsEventListener(event: KernelEvents::RESPONSE, method: 'onResponse')]
 class CompanyFilterListener implements ResetInterface
 {
+    /**
+     * Set by PlatformAdminController::requirePlatformAdmin() on the request attributes
+     * (not restored inline at each of its call sites) so restoration is guaranteed on
+     * every exit path — a normal return, an early guard-clause return, or an uncaught
+     * exception turned into a response by JsonExceptionListener — rather than depending
+     * on every current and future platform-admin action remembering to call a restore
+     * method before each of its own returns.
+     */
+    public const string RESTORE_FOR_COMPANY_ID_ATTRIBUTE = 'app.restore_company_filter_for_company_id';
+
     public function __construct(
         private readonly AuthSession $authSession,
         private readonly EntityManagerInterface $entityManager,
@@ -51,8 +64,27 @@ class CompanyFilterListener implements ResetInterface
 
         $user = $this->authSession->getCurrentUser($request);
         if (null !== $user) {
-            $filter = $this->entityManager->getFilters()->enable(CompanyFilter::NAME);
-            $filter->setParameter(CompanyFilter::PARAMETER_NAME, $user->getCompany()->getId());
+            $this->enableFor($request, $user->getCompany()->getId());
         }
+    }
+
+    public function onResponse(ResponseEvent $event): void
+    {
+        if (!$event->isMainRequest()) {
+            return;
+        }
+
+        $companyId = $event->getRequest()->attributes->get(self::RESTORE_FOR_COMPANY_ID_ATTRIBUTE);
+        if (null !== $companyId) {
+            \assert(\is_string($companyId));
+            $this->enableFor($event->getRequest(), $companyId);
+        }
+    }
+
+    private function enableFor(Request $request, string $companyId): void
+    {
+        $filter = $this->entityManager->getFilters()->enable(CompanyFilter::NAME);
+        $filter->setParameter(CompanyFilter::PARAMETER_NAME, $companyId);
+        $request->attributes->remove(self::RESTORE_FOR_COMPANY_ID_ATTRIBUTE);
     }
 }
