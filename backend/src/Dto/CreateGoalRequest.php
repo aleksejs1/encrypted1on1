@@ -31,9 +31,7 @@ readonly class CreateGoalRequest
             try {
                 new \DateTimeImmutable($this->targetDate);
             } catch (\Exception) {
-                $context->buildViolation('Target date must be a valid date.')
-                    ->atPath('targetDate')
-                    ->addViolation();
+                DtoViolation::add($context, 'targetDate', 'errors.target_date_must_be_valid_date');
             }
         }
     }

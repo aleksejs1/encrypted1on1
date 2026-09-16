@@ -8,7 +8,6 @@ use App\Entity\Company;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
 use App\Notification\InvitationNotifier;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -34,7 +33,6 @@ class CompanyController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly InvitationNotifier $notifier,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly bool $cloudMode,
         /**
@@ -60,8 +58,6 @@ class CompanyController
         #[MapRequestPayload] CreateCompanyRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         // Consumed before the mode check, not after — same reasoning
         // SignupController::signup() already documents: keeps this limiter
         // exercisable regardless of whether CLOUD_MODE happens to be on.

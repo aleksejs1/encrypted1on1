@@ -3,12 +3,12 @@
 namespace App\Anketa;
 
 use App\Entity\Anketa;
-use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
 use App\Repository\GoalRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 /**
  * Domain orchestration service managing anketa lifecycle transitions:
@@ -39,7 +39,6 @@ class AnketaLifecycleService
         int $periodicityDays,
         ?string $outcomesBlob = null,
         ?Anketa $carryFrom = null,
-        ?Company $company = null,
     ): Anketa {
         $anketa = new Anketa(
             employee: $employee,
@@ -48,7 +47,6 @@ class AnketaLifecycleService
             employeeSealedKey: $employeeSealedKey,
             managerSealedKey: $managerSealedKey,
             periodicityDays: $periodicityDays,
-            company: $company ?? $employee->getCompany(),
         );
 
         if (null !== $outcomesBlob) {
@@ -87,7 +85,6 @@ class AnketaLifecycleService
         int $periodicityDays,
         ?string $outcomesBlob = null,
         ?Anketa $carryFrom = null,
-        ?Company $company = null,
         ?User $creator = null,
     ): Anketa {
         $anketa = $this->createWithCarryForward(
@@ -99,7 +96,6 @@ class AnketaLifecycleService
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             carryFrom: $carryFrom,
-            company: $company,
         );
 
         $this->entityManager->flush();
@@ -133,7 +129,12 @@ class AnketaLifecycleService
         $nextAnketa = null;
         if ($this->shouldCreateNext($anketa, $skipNextMeeting)) {
             if (null === $mySealedKey || null === $counterpartSealedKey) {
-                throw new \InvalidArgumentException('Next anketa requires sealed keys.');
+                // AnketaController::archive() already returns a translated 400 before ever
+                // calling this — this is a defensive re-check for any future caller that
+                // skips that pre-check, so it must itself surface as a 400 (via
+                // JsonExceptionListener's HttpExceptionInterface handling), not an opaque
+                // untranslated 500 the way a bare \InvalidArgumentException would.
+                throw new BadRequestHttpException('Next anketa requires sealed keys.');
             }
 
             $nextAnketa = $this->createNextAnketa(
@@ -180,7 +181,9 @@ class AnketaLifecycleService
     ): Anketa {
         $periodicityDays = $anketa->getPeriodicityDays();
         if (null === $periodicityDays) {
-            throw new \InvalidArgumentException('Next anketa requires periodicity.');
+            // Same reasoning as archive()'s own sealed-keys check above: a defensive
+            // re-check that must surface as a 400, not a 500, if ever reached.
+            throw new BadRequestHttpException('Next anketa requires periodicity.');
         }
 
         $isEmployee = $anketa->isEmployee($actor);
@@ -194,7 +197,6 @@ class AnketaLifecycleService
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             carryFrom: $anketa,
-            company: $anketa->getCompany(),
         );
     }
 

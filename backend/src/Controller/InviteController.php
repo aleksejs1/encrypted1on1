@@ -10,7 +10,6 @@ use App\Entity\User;
 use App\Http\RateLimitResponse;
 use App\Notification\InvitationNotifier;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -38,7 +37,6 @@ class InviteController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly InvitationNotifier $notifier,
         private readonly TranslatorInterface $translator,
         private readonly SeatLimitChecker $seatLimitChecker,
@@ -52,8 +50,6 @@ class InviteController
         #[MapRequestPayload] CreateInviteRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         $inviter = $this->authSession->getCurrentUser($request);
         if (null === $inviter) {
             throw new UnauthorizedHttpException('', $this->translator->trans('errors.not_authenticated'));

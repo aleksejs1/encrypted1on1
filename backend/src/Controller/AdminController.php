@@ -6,7 +6,6 @@ use App\Account\AccountDeleter;
 use App\Entity\Company;
 use App\Entity\User;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -35,7 +34,6 @@ class AdminController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly bool $cloudMode,
         private readonly AccountDeleter $accountDeleter,
@@ -71,7 +69,6 @@ class AdminController
     #[Route('/api/admin/users/{id}/blocked', name: 'admin_user_set_blocked', methods: ['PUT'])]
     public function setBlocked(string $id, Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
         $admin = $this->requireAdmin($request);
 
         $target = $this->findUser($id, $admin);
@@ -93,7 +90,6 @@ class AdminController
     #[Route('/api/admin/users/{id}/admin', name: 'admin_user_set_admin', methods: ['PUT'])]
     public function setAdmin(string $id, Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
         $admin = $this->requireAdmin($request);
 
         $target = $this->findUser($id, $admin);
@@ -125,7 +121,6 @@ class AdminController
     #[Route('/api/admin/users/{id}', name: 'admin_user_delete', methods: ['DELETE'])]
     public function deleteUser(string $id, Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
         $admin = $this->requireAdmin($request);
 
         $target = $this->findUser($id, $admin);
@@ -168,7 +163,6 @@ class AdminController
     #[Route('/api/admin/company-settings', name: 'admin_company_settings_update', methods: ['PUT'])]
     public function updateCompanySettings(Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
         $admin = $this->requireAdmin($request);
 
         $body = $request->toArray();
