@@ -126,6 +126,30 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(403, $client->getResponse()->getStatusCode());
     }
 
+    /**
+     * Regression test for a real bug found in review (GitHub issues #69-73's
+     * retrospective, docs/decisions/2026-09-15-anketa-controller-decomposition-and-dto-validation.md):
+     * #[MapRequestPayload]'s validation runs before the controller method body, so a
+     * CSRF check placed as the method's first line ran *after* payload validation —
+     * a request with no CSRF token but a body that also fails LoginRequest's own
+     * validation got a 400 (validation error) instead of a 403 (CSRF error), letting
+     * malformed requests skip the CSRF gate entirely. Fixed by CsrfProtectionListener
+     * (KernelEvents::CONTROLLER, before argument resolution) — this must still be 403,
+     * not 400, even though the body below (empty email/authKey) is itself invalid.
+     */
+    public function testCsrfIsCheckedBeforePayloadValidationEvenWithAnInvalidBody(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST',
+            '/api/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => '', 'authKey' => ''], \JSON_THROW_ON_ERROR),
+        );
+
+        self::assertSame(403, $client->getResponse()->getStatusCode());
+    }
+
     public function testErrorMessagesAreTranslatedByTheXLocaleHeader(): void
     {
         $client = static::createClient();

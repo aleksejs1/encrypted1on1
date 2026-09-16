@@ -67,6 +67,7 @@ errors:
     target_date_must_be_string: '«targetDate» должно быть строкой.'
     target_date_must_be_string_or_null: '«targetDate» должно быть строкой или null.'
     title_must_be_non_empty: '«title» должно быть непустой строкой.'
+    title_too_long: '«title» должно быть не длиннее %max% символов.'
     status_must_be_one_of: '«status» должно быть одним из: %statuses%.'
     goal_not_found: 'Цель не найдена.'
     goal_author_only: 'Редактировать цель может только её автор.'

@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Doctrine\CompanyFilter;
 use App\Dto\SetCompanySeatLimitRequest;
 use App\Dto\SetCompanySuspendedRequest;
 use App\Dto\SetPlatformAdminRequest;
@@ -9,8 +10,8 @@ use App\Dto\SetUserBlockedRequest;
 use App\Entity\Company;
 use App\Entity\InviteRecord;
 use App\Entity\User;
+use App\EventListener\CompanyFilterListener;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -41,7 +42,6 @@ class PlatformAdminController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -102,7 +102,6 @@ class PlatformAdminController
         #[MapRequestPayload] SetCompanySuspendedRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         $this->requirePlatformAdmin($request);
 
         $company = $this->findCompany($id);
@@ -130,7 +129,6 @@ class PlatformAdminController
         #[MapRequestPayload] SetCompanySeatLimitRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         $this->requirePlatformAdmin($request);
 
         $company = $this->findCompany($id);
@@ -179,7 +177,6 @@ class PlatformAdminController
         #[MapRequestPayload] SetUserBlockedRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         $platformAdmin = $this->requirePlatformAdmin($request);
 
         $target = $this->findUser($id);
@@ -205,7 +202,6 @@ class PlatformAdminController
         #[MapRequestPayload] SetPlatformAdminRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         $this->requirePlatformAdmin($request);
 
         $target = $this->findUser($id);
@@ -251,6 +247,16 @@ class PlatformAdminController
         ], $inviteRecords));
     }
 
+    /**
+     * Disables the tenant filter for this action's deliberately cross-tenant queries.
+     * Restoration is handled centrally by CompanyFilterListener::onResponse() — keyed
+     * off a request attribute set here, not a per-action call at each of this
+     * controller's returns — so it fires exactly once regardless of which of an
+     * action's returns (or thrown exceptions) actually ends the request. An early
+     * per-call-site restore was tried first and reverted: findUser()/findCompany()
+     * throwing NotFoundHttpException left the filter disabled for the rest of the
+     * request on every not-found path, since the restore call never ran.
+     */
     private function requirePlatformAdmin(Request $request): User
     {
         $user = $this->authSession->getCurrentUser($request);
@@ -261,9 +267,10 @@ class PlatformAdminController
             throw new AccessDeniedHttpException($this->translator->trans('errors.platform_admin_only'));
         }
 
-        if ($this->entityManager->getFilters()->isEnabled(\App\Doctrine\CompanyFilter::NAME)) {
-            $this->entityManager->getFilters()->disable(\App\Doctrine\CompanyFilter::NAME);
+        if ($this->entityManager->getFilters()->isEnabled(CompanyFilter::NAME)) {
+            $this->entityManager->getFilters()->disable(CompanyFilter::NAME);
         }
+        $request->attributes->set(CompanyFilterListener::RESTORE_FOR_COMPANY_ID_ATTRIBUTE, $user->getCompany()->getId());
 
         return $user;
     }
