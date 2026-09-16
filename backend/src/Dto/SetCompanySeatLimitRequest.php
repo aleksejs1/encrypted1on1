@@ -16,9 +16,7 @@ readonly class SetCompanySeatLimitRequest
     public function validate(ExecutionContextInterface $context): void
     {
         if ('__NOT_SET__' === $this->seatLimit || (!\is_null($this->seatLimit) && (!\is_int($this->seatLimit) || $this->seatLimit < 1))) {
-            $context->buildViolation('Missing or invalid seat limit.')
-                ->atPath('seatLimit')
-                ->addViolation();
+            DtoViolation::add($context, 'seatLimit', 'errors.missing_or_invalid_seat_limit');
         }
     }
 }

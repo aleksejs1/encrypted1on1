@@ -41,10 +41,18 @@ readonly class UpdateGoalRequest
     #[Assert\Callback]
     public function validateTitle(ExecutionContextInterface $context): void
     {
-        if ($this->hasTitle() && (!\is_string($this->title) || '' === trim($this->title) || \mb_strlen($this->title) > 255)) {
-            $context->buildViolation('Title must be a non-empty string up to 255 characters.')
-                ->atPath('title')
-                ->addViolation();
+        if (!$this->hasTitle()) {
+            return;
+        }
+
+        if (!\is_string($this->title) || '' === trim($this->title)) {
+            DtoViolation::add($context, 'title', 'errors.title_must_be_non_empty');
+
+            return;
+        }
+
+        if (\mb_strlen($this->title) > 255) {
+            DtoViolation::add($context, 'title', 'errors.title_too_long', ['%max%' => '255']);
         }
     }
 
@@ -52,9 +60,7 @@ readonly class UpdateGoalRequest
     public function validateDescription(ExecutionContextInterface $context): void
     {
         if ($this->hasDescription() && null !== $this->description && !\is_string($this->description)) {
-            $context->buildViolation('Description must be a string or null.')
-                ->atPath('description')
-                ->addViolation();
+            DtoViolation::add($context, 'description', 'errors.description_must_be_string');
         }
     }
 
@@ -66,9 +72,7 @@ readonly class UpdateGoalRequest
         }
 
         if (!\is_string($this->targetDate)) {
-            $context->buildViolation('Target date must be a string or null.')
-                ->atPath('targetDate')
-                ->addViolation();
+            DtoViolation::add($context, 'targetDate', 'errors.target_date_must_be_string_or_null');
 
             return;
         }
@@ -76,9 +80,7 @@ readonly class UpdateGoalRequest
         try {
             new \DateTimeImmutable($this->targetDate);
         } catch (\Exception) {
-            $context->buildViolation('Target date must be a valid date.')
-                ->atPath('targetDate')
-                ->addViolation();
+            DtoViolation::add($context, 'targetDate', 'errors.target_date_must_be_valid_date');
         }
     }
 
@@ -86,9 +88,7 @@ readonly class UpdateGoalRequest
     public function validateStatus(ExecutionContextInterface $context): void
     {
         if ($this->hasStatus() && (!\is_string($this->status) || !\in_array($this->status, Goal::STATUSES, true))) {
-            $context->buildViolation('Status must be one of: '.implode(', ', Goal::STATUSES).'.')
-                ->atPath('status')
-                ->addViolation();
+            DtoViolation::add($context, 'status', 'errors.status_must_be_one_of', ['%statuses%' => implode(', ', Goal::STATUSES)]);
         }
     }
 }
