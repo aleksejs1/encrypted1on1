@@ -39,6 +39,7 @@ class AuthController
         private readonly RateLimiterFactory $changePasswordLimiter,
         #[Autowire(service: 'limiter.delete_account')]
         private readonly RateLimiterFactory $deleteAccountLimiter,
+        private readonly AccountDeleter $accountDeleter,
     ) {
     }
 
@@ -284,7 +285,7 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.invalid_current_password')], 401);
         }
 
-        AccountDeleter::delete($user, $this->entityManager);
+        $this->accountDeleter->delete($user);
         $this->authSession->logOut($request);
         $this->entityManager->flush();
 

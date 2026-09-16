@@ -20,10 +20,15 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class AccountDeleter
 {
-    public static function delete(User $user, EntityManagerInterface $entityManager): void
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+    ) {
+    }
+
+    public function delete(User $user): void
     {
         /** @var Anketa[] $anketas */
-        $anketas = $entityManager->createQueryBuilder()
+        $anketas = $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Anketa::class, 'a')
             ->where('a.employee = :user OR a.manager = :user')
@@ -61,7 +66,7 @@ final class AccountDeleter
         $now = new \DateTimeImmutable();
 
         /** @var InviteRecord[] $inviteRecords */
-        $inviteRecords = $entityManager->createQueryBuilder()
+        $inviteRecords = $this->entityManager->createQueryBuilder()
             ->select('i')
             ->from(InviteRecord::class, 'i')
             ->where('i.email = :email')
