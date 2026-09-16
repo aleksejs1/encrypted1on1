@@ -38,6 +38,7 @@ class AdminController
         private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly bool $cloudMode,
+        private readonly AccountDeleter $accountDeleter,
     ) {
     }
 
@@ -135,7 +136,7 @@ class AdminController
             return new JsonResponse(['error' => $this->translator->trans('errors.user_must_be_blocked_before_deletion')], 400);
         }
 
-        AccountDeleter::delete($target, $this->entityManager);
+        $this->accountDeleter->delete($target);
         $this->entityManager->flush();
 
         // email/displayName are returned post-anonymization (not just deletedAt) so the
