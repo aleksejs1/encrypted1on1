@@ -18,7 +18,6 @@ use App\Entity\User;
 use App\Repository\AnketaRepository;
 use App\Repository\GoalRepository;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,7 +39,6 @@ class AnketaController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly AnketaRepository $anketaRepository,
         private readonly GoalRepository $goalRepository,
@@ -54,7 +52,6 @@ class AnketaController
         #[MapRequestPayload] CreateAnketaRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         $user = $this->requireUser($request);
 
         $counterpart = $this->entityManager->find(User::class, $payload->counterpartId);
@@ -110,7 +107,6 @@ class AnketaController
             periodicityDays: $periodicityDays,
             outcomesBlob: $payload->outcomesBlob,
             carryFrom: $previousAnketa,
-            company: $user->getCompany(),
             creator: $user,
         );
 
@@ -201,7 +197,6 @@ class AnketaController
         #[MapRequestPayload] SaveVersionedBlobRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
         if (!$anketa->saveComments((string) $payload->blob, (int) $payload->expectedVersion)) {
@@ -224,7 +219,6 @@ class AnketaController
         #[MapRequestPayload] SaveVersionedBlobRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
         if (!$anketa->saveOutcomes((string) $payload->blob, (int) $payload->expectedVersion)) {
@@ -246,7 +240,6 @@ class AnketaController
         #[MapRequestPayload] SaveVersionedBlobRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
         if ($anketa->isArchived()) {
@@ -272,7 +265,6 @@ class AnketaController
         #[MapRequestPayload] CreateGoalRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
         if ($anketa->isArchived()) {
@@ -304,7 +296,6 @@ class AnketaController
         #[MapRequestPayload] UpdateGoalRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
         $goal = $this->goalRepository->find($goalId);
@@ -346,7 +337,6 @@ class AnketaController
         #[MapRequestPayload] SaveBlobRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
         // Checked before isPublished() — once archived, both draft-saving and
@@ -371,7 +361,6 @@ class AnketaController
         #[MapRequestPayload] SaveBlobRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
         // See saveDraft()'s identical check above for why this is checked
@@ -400,7 +389,6 @@ class AnketaController
         #[MapRequestPayload] SaveVersionedBlobRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
         if (!$anketa->isPublished($user)) {
@@ -428,15 +416,17 @@ class AnketaController
         #[MapRequestPayload] ArchiveAnketaRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
+        $missed = $payload->missed ?? false;
+        $skipNextMeeting = $payload->skipNextMeeting ?? false;
+
         $nextMeetingDate = null;
-        if (!$payload->skipNextMeeting && null !== $payload->nextMeetingDate && '' !== $payload->nextMeetingDate) {
+        if (!$skipNextMeeting && null !== $payload->nextMeetingDate && '' !== $payload->nextMeetingDate) {
             $nextMeetingDate = new \DateTimeImmutable($payload->nextMeetingDate);
         }
 
-        $createNext = $this->lifecycleService->shouldCreateNext($anketa, $payload->skipNextMeeting);
+        $createNext = $this->lifecycleService->shouldCreateNext($anketa, $skipNextMeeting);
 
         $mySealedKey = null;
         $counterpartSealedKey = null;
@@ -455,8 +445,8 @@ class AnketaController
         $this->lifecycleService->archive(
             anketa: $anketa,
             actor: $user,
-            missed: $payload->missed,
-            skipNextMeeting: $payload->skipNextMeeting,
+            missed: $missed,
+            skipNextMeeting: $skipNextMeeting,
             nextMeetingDate: $nextMeetingDate,
             mySealedKey: $mySealedKey,
             counterpartSealedKey: $counterpartSealedKey,
@@ -472,7 +462,6 @@ class AnketaController
         #[MapRequestPayload] RescheduleAnketaRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa] = $this->findAccessible($id, $request);
 
         if ($anketa->isArchived()) {
@@ -499,7 +488,6 @@ class AnketaController
         #[MapRequestPayload] ReshareKeyRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
         [$anketa, $user] = $this->findAccessible($id, $request);
 
         $this->lifecycleService->reshareKey($anketa, $user, $payload->sealedKey);

@@ -13,7 +13,6 @@ use App\Entity\User;
 use App\Http\DisplayNameField;
 use App\Http\RateLimitResponse;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,7 +30,6 @@ class AuthController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         #[Autowire(service: 'limiter.login')]
         private readonly RateLimiterFactory $loginLimiter,
@@ -48,8 +46,6 @@ class AuthController
         #[MapRequestPayload] LoginRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         // Keyed by IP, not email — the point is slowing down automated guessing
         // from one source, not punishing a specific account for someone else's
         // attempts against it.
@@ -99,7 +95,6 @@ class AuthController
     #[Route('/api/logout', name: 'logout', methods: ['POST'])]
     public function logout(Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
         $this->authSession->logOut($request);
 
         return new JsonResponse(['ok' => true]);
@@ -156,8 +151,6 @@ class AuthController
         #[MapRequestPayload] SetLocaleRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
@@ -180,8 +173,6 @@ class AuthController
         #[MapRequestPayload] SetDisplayNameRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
@@ -208,8 +199,6 @@ class AuthController
         #[MapRequestPayload] SetNotificationPreferencesRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
@@ -232,8 +221,6 @@ class AuthController
         #[MapRequestPayload] ChangePasswordRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);
@@ -269,8 +256,6 @@ class AuthController
         #[MapRequestPayload] DeleteAccountRequest $payload,
         Request $request,
     ): JsonResponse {
-        $this->csrfGuard->assertValid($request);
-
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
             return new JsonResponse(['error' => $this->translator->trans('errors.not_authenticated')], 401);

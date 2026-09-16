@@ -67,6 +67,7 @@ errors:
     target_date_must_be_string: '"targetDate" jābūt virknei.'
     target_date_must_be_string_or_null: '"targetDate" jābūt virknei vai null.'
     title_must_be_non_empty: '"title" jābūt netukšai virknei.'
+    title_too_long: '"title" nedrīkst pārsniegt %max% rakstzīmes.'
     status_must_be_one_of: '"status" jābūt vienam no: %statuses%.'
     goal_not_found: 'Mērķis nav atrasts.'
     goal_author_only: 'Mērķi var rediģēt tikai tā autors.'

@@ -6,7 +6,6 @@ use App\Billing\BillingNotConfiguredException;
 use App\Billing\BillingProviderInterface;
 use App\Entity\Company;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,7 +25,6 @@ class BillingController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly TranslatorInterface $translator,
         private readonly BillingProviderInterface $billingProvider,
         private readonly string $frontendBaseUrl,
@@ -38,8 +36,6 @@ class BillingController
     #[Route('/api/billing/checkout-session', name: 'billing_checkout_session', methods: ['POST'])]
     public function createCheckoutSession(Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
-
         $user = $this->authSession->getCurrentUser($request);
         if (null === $user) {
             throw new UnauthorizedHttpException('', $this->translator->trans('errors.not_authenticated'));

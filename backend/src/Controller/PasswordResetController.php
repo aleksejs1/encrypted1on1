@@ -8,7 +8,6 @@ use App\Entity\User;
 use App\Http\RateLimitResponse;
 use App\Notification\PasswordResetNotifier;
 use App\Security\AuthSession;
-use App\Security\CsrfGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,7 +31,6 @@ class PasswordResetController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
-        private readonly CsrfGuard $csrfGuard,
         private readonly PasswordResetNotifier $notifier,
         private readonly TranslatorInterface $translator,
         #[Autowire(service: 'limiter.password_reset_request')]
@@ -45,8 +43,6 @@ class PasswordResetController
     #[Route('/api/password-reset', name: 'password_reset_request', methods: ['POST'])]
     public function request(Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
-
         // Keyed by IP — there's no authenticated actor here, unlike invite's per-user limit.
         $limit = $this->requestLimiter->create($request->getClientIp())->consume();
         if (!$limit->isAccepted()) {
@@ -87,8 +83,6 @@ class PasswordResetController
     #[Route('/api/password-reset-tokens/{token}/complete', name: 'password_reset_token_complete', methods: ['POST'])]
     public function complete(string $token, Request $request): JsonResponse
     {
-        $this->csrfGuard->assertValid($request);
-
         // Token brute-forcing itself is already infeasible (256-bit random tokens,
         // see PasswordResetToken::issue()) — defense-in-depth against generic abuse,
         // same reasoning as ActivationController::complete().

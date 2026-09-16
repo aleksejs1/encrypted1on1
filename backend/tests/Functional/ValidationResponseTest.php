@@ -97,6 +97,24 @@ class ValidationResponseTest extends ApiTestCase
         self::assertContains('nextMeetingDate', $properties);
     }
 
+    /**
+     * The counterpart to testArchiveRejectsInvalidNextMeetingDate() above: when
+     * skipNextMeeting is true, nextMeetingDate is never read by the archive flow, so a
+     * garbage value in it must be silently ignored, not rejected.
+     */
+    public function testArchiveIgnoresInvalidNextMeetingDateWhenSkippingNextMeeting(): void
+    {
+        [$client, $anketaId] = $this->setupAnketa('archive-skip-date');
+
+        $result = $this->jsonRequest($client, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => true,
+            'nextMeetingDate' => 'not-a-date',
+        ]);
+
+        self::assertSame(200, $result['status']);
+    }
+
     public function testCreateGoalRejectsInvalidTargetDate(): void
     {
         [$client, $anketaId] = $this->setupAnketa('create-goal-date');
@@ -166,6 +184,54 @@ class ValidationResponseTest extends ApiTestCase
         self::assertContains('targetDate', $properties);
     }
 
+    /** A title of only whitespace trims to empty and must be rejected the same as an empty string. */
+    public function testUpdateGoalRejectsAWhitespaceOnlyTitle(): void
+    {
+        [$client, $anketaId] = $this->setupAnketa('update-goal-blank-title');
+
+        $goalCreated = $this->jsonRequest($client, 'POST', "/api/anketas/{$anketaId}/goals", [
+            'goalUuid' => 'goal-uuid-blank-title-test',
+            'title' => 'Initial Title',
+        ]);
+        self::assertSame(201, $goalCreated['status']);
+        $goalId = $goalCreated['json']['id'];
+
+        $result = $this->jsonRequest($client, 'PUT', "/api/anketas/{$anketaId}/goals/{$goalId}", [
+            'title' => '   ',
+        ]);
+
+        self::assertSame(400, $result['status']);
+        self::assertIsArray($result['json']);
+        $properties = array_column($result['json']['violations'], 'property');
+        self::assertContains('title', $properties);
+    }
+
+    /**
+     * The error message for an invalid status must actually list the valid ones
+     * (the %statuses% placeholder must be substituted, not dropped).
+     */
+    public function testUpdateGoalInvalidStatusMessageListsValidStatuses(): void
+    {
+        [$client, $anketaId] = $this->setupAnketa('update-goal-status-message');
+
+        $goalCreated = $this->jsonRequest($client, 'POST', "/api/anketas/{$anketaId}/goals", [
+            'goalUuid' => 'goal-uuid-status-message-test',
+            'title' => 'Initial Title',
+        ]);
+        self::assertSame(201, $goalCreated['status']);
+        $goalId = $goalCreated['json']['id'];
+
+        $result = $this->jsonRequest($client, 'PUT', "/api/anketas/{$anketaId}/goals/{$goalId}", [
+            'status' => 'not-a-real-status',
+        ]);
+
+        self::assertSame(400, $result['status']);
+        self::assertIsArray($result['json']);
+        $violation = self::findViolation($result['json']['violations'], 'status');
+        self::assertStringNotContainsString('%statuses%', $violation['message']);
+        self::assertStringContainsString('in_progress', $violation['message']);
+    }
+
     public function testSaveVersionedBlobRejectsNegativeExpectedVersion(): void
     {
         [$client, $anketaId] = $this->setupAnketa('negative-version');
@@ -179,6 +245,24 @@ class ValidationResponseTest extends ApiTestCase
         self::assertIsArray($result['json']);
         $properties = array_column($result['json']['violations'], 'property');
         self::assertContains('expectedVersion', $properties);
+    }
+
+    /**
+     * @return array{0: KernelBrowser, 1: array{id: string, email: string, isAdmin: bool}, 2: array{id: string, email: string, isAdmin: bool}}
+     */
+    /**
+     * @param array<int, array{property: string, message: string}> $violations
+     *
+     * @return array{property: string, message: string}
+     */
+    private static function findViolation(array $violations, string $property): array
+    {
+        foreach ($violations as $violation) {
+            if ($violation['property'] === $property) {
+                return $violation;
+            }
+        }
+        self::fail("no violation for property \"{$property}\" found");
     }
 
     /**
