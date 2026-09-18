@@ -20,12 +20,16 @@
     onDelete: (commentId: string) => Promise<void>;
     /**
      * Mirrors whether this thread has an own-comment edit/delete open and
-     * uncommitted — the parent (Anketa.svelte) aggregates this across every
-     * CommentThread instance on the page (there can be dozens — see
-     * comments-default-open-proposal.md §2) into one "any thread busy" flag,
-     * so its live-update poll knows not to wholesale-replace `allComments`
-     * out from under an in-progress edit/delete. Same `bind:`/`$effect`
-     * shape as AnswerField's `hasOpenEntryEdit` → `fieldsWithOpenEntryEdit`.
+     * uncommitted — bound straight through to Anketa.svelte's
+     * `commentThreadsBusy` regardless of which component actually renders
+     * this instance (Anketa.svelte itself for the two answer sides,
+     * AnketaOutcomes.svelte/AnketaGoals.svelte for outcomes/goals/
+     * checkpoints), which aggregates it across every CommentThread instance
+     * on the page (there can be dozens — see comments-default-open-
+     * proposal.md §2) into one "any thread busy" flag, so its live-update
+     * poll knows not to wholesale-replace `allComments` out from under an
+     * in-progress edit/delete. Same `bind:`/`$effect` shape as AnswerField's
+     * `hasOpenEntryEdit` → `fieldsWithOpenEntryEdit`.
      * The unsent "new comment" draft (`text` below) deliberately isn't
      * included: it's local state independent of the `comments` prop, so a
      * wholesale list replace underneath it doesn't touch or discard it.
@@ -106,8 +110,9 @@
 
   $effect(() => {
     hasOpenAction = anotherActionOpen;
-    // Self-clears on unmount — belt-and-suspenders alongside Anketa.svelte's
-    // own explicit pruneStaleBusyEntries() calls (kept as-is; this doesn't
+    // Self-clears on unmount — belt-and-suspenders alongside the explicit
+    // pruneStaleBusyEntries() calls in Anketa.svelte's live-update poll and
+    // AnketaOutcomes.svelte's delete handler (kept as-is; this doesn't
     // replace them, since they run synchronously within the same tick that
     // decides to prune, rather than waiting on this effect's own cleanup
     // timing). Structurally closes the same class of "stale true left

@@ -37,9 +37,9 @@ export function daysUntilMeeting(
  * right at a local-midnight boundary.
  */
 export function isOverdue(
-  anketa: { archivedAt: string | null; meetingDate: string },
+  anketa: { archived: boolean; meetingDate: string },
   now: Date = new Date(),
 ): boolean {
-  if (anketa.archivedAt !== null) return false;
+  if (anketa.archived) return false;
   return daysUntilMeeting(anketa.meetingDate, now) < 0;
 }
