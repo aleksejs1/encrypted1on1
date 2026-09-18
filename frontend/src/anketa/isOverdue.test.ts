@@ -14,7 +14,7 @@ describe('isOverdue', () => {
   it('is not overdue when the meeting is today, regardless of time of day', () => {
     expect(
       isOverdue(
-        { archivedAt: null, meetingDate: '2026-08-25T00:00:00.000Z' },
+        { archived: false, meetingDate: '2026-08-25T00:00:00.000Z' },
         NOW,
       ),
     ).toBe(false);
@@ -23,7 +23,7 @@ describe('isOverdue', () => {
   it('is not overdue when the meeting is tomorrow', () => {
     expect(
       isOverdue(
-        { archivedAt: null, meetingDate: '2026-08-26T00:00:00.000Z' },
+        { archived: false, meetingDate: '2026-08-26T00:00:00.000Z' },
         NOW,
       ),
     ).toBe(false);
@@ -32,7 +32,7 @@ describe('isOverdue', () => {
   it('is overdue when the meeting was yesterday', () => {
     expect(
       isOverdue(
-        { archivedAt: null, meetingDate: '2026-08-24T00:00:00.000Z' },
+        { archived: false, meetingDate: '2026-08-24T00:00:00.000Z' },
         NOW,
       ),
     ).toBe(true);
@@ -42,7 +42,7 @@ describe('isOverdue', () => {
     expect(
       isOverdue(
         {
-          archivedAt: '2026-01-01T00:00:00.000Z',
+          archived: true,
           meetingDate: '2026-01-01T00:00:00.000Z',
         },
         NOW,
@@ -77,7 +77,7 @@ describe('daysUntilMeeting', () => {
     vi.stubEnv('TZ', 'Pacific/Kiritimati');
     const now = new Date('2026-08-24T20:00:00Z');
     const anketa = {
-      archivedAt: null,
+      archived: false,
       meetingDate: '2026-08-25T00:00:00.000Z',
     };
 
@@ -92,7 +92,7 @@ describe('daysUntilMeeting', () => {
     vi.stubEnv('TZ', 'Pacific/Midway');
     const now = new Date('2026-08-25T05:00:00Z');
     const anketa = {
-      archivedAt: null,
+      archived: false,
       meetingDate: '2026-08-25T00:00:00.000Z',
     };
 

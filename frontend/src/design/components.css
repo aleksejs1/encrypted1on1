@@ -336,6 +336,22 @@ textarea.input {
   box-shadow: var(--shadow-lg);
 }
 
+/* A card section's own heading row (title + optional LockIcon/toggle) —
+   shared across the anketa page's several section components
+   (Anketa.svelte, AnketaOutcomes.svelte, AnketaGoals.svelte) instead of each
+   keeping its own identical copy, per issue #64's decomposition. */
+.heading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.heading-row h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
 /* — tags — */
 .tag {
   display: inline-flex;

@@ -19,7 +19,7 @@ export interface DecryptedAnketaForReport {
   managerAnswers: Answers | null;
   /** This anketa's own goal snapshots (Phase 6c: a fresh row per anketa, sharing `goalUuid` across cycles). */
   goals: Goal[];
-  /** This anketa's own checkpoints, keyed by `goalUuid` (see Anketa.svelte's handleAddCheckpoint). */
+  /** This anketa's own checkpoints, keyed by `goalUuid` (see AnketaGoals.svelte's handleAddCheckpoint). */
   checkpoints: GoalCheckpoint[];
 }
 
