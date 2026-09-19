@@ -18,7 +18,7 @@
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
   import AppFooter from './design/AppFooter.svelte';
-  import { untrack } from 'svelte';
+  import { onMount } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
@@ -27,21 +27,18 @@
   // from the same /api/me response, authState.unlockStatus — see its own
   // docblock. A same-tab relogin after logOut() goes through
   // markAuthenticated() instead (Login/Activate/ResetPassword.svelte),
-  // which resolves unlockStatus directly; this effect only ever needs to
-  // run once, at mount.
-  $effect(() => {
+  // which resolves unlockStatus directly; this only ever needs to run once,
+  // at mount — onMount (unlike an $effect) doesn't track reactive reads
+  // inside it, so checkAuth()'s synchronous read of getGeneration() can't
+  // re-trigger this when an unauthenticated 401 triggers
+  // markSessionExpired() -> invalidateIdentity() (generation++).
+  onMount(() => {
     // checkAuth() re-throws any unexpected (non-session-expired) error after
     // already setting authState.checked, so this tab still renders correctly
     // either way — but nothing else here awaits/catches it, so the rejection
     // itself needs handling to avoid a silent unhandled promise rejection.
-    // untrack() ensures synchronous reads inside checkAuth() (such as
-    // getGeneration()) do not register as reactive dependencies, which would
-    // otherwise cause an infinite loop when an unauthenticated 401 triggers
-    // markSessionExpired() -> invalidateIdentity() (generation++).
-    untrack(() => {
-      checkAuth().catch((error: unknown) => {
-        console.error(error);
-      });
+    checkAuth().catch((error: unknown) => {
+      console.error(error);
     });
   });
 
