@@ -542,5 +542,10 @@
   "theme": {
     "switchToLight": "Pārslēgt uz gaišo tēmu",
     "switchToDark": "Pārslēgt uz tumšo tēmu"
+  },
+  "notFound": {
+    "title": "Lapa nav atrasta",
+    "message": "Meklētā lapa neeksistē vai varētu būt pārvietota.",
+    "backHome": "Uz sākumu"
   }
 }
