@@ -11,6 +11,7 @@
   import CreateCompany from './pages/CreateCompany.svelte';
   import Report from './pages/Report.svelte';
   import AccountSettings from './pages/AccountSettings.svelte';
+  import NotFound from './pages/NotFound.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
   import AdminReports from './admin/AdminReports.svelte';
   import AdminInvites from './admin/AdminInvites.svelte';
@@ -22,6 +23,14 @@
   import { _ } from 'svelte-i18n';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
+  import {
+    PATHS,
+    MIGRATED_AUTHED_PATHS,
+    ACTIVATION_PATTERN,
+    RESET_PASSWORD_PATTERN,
+    ANKETA_PATTERN,
+    isKnownPath,
+  } from './routes';
 
   // checkAuth() (auth.svelte.ts) resolves both authState.authenticated and,
   // from the same /api/me response, authState.unlockStatus — see its own
@@ -42,33 +51,18 @@
     });
   });
 
-  const activationMatch = $derived(
-    routerState.path.match(/^\/activate\/(.+)$/),
-  );
-  const anketaMatch = $derived(routerState.path.match(/^\/anketas\/([^/]+)$/));
+  const activationMatch = $derived(routerState.path.match(ACTIVATION_PATTERN));
+  const anketaMatch = $derived(routerState.path.match(ANKETA_PATTERN));
   const resetPasswordMatch = $derived(
-    routerState.path.match(/^\/reset-password\/(.+)$/),
+    routerState.path.match(RESET_PASSWORD_PATTERN),
   );
-
-  /**
-   * Named once and reused by both `showAppHeader` and the routing chain
-   * below, rather than repeating the literal strings in each place — two
-   * independently-typed copies of the same path is exactly what let a typo,
-   * or a forgotten update to one side, silently show/hide the header on the
-   * wrong route.
-   */
-  const PATHS = {
-    forgotPassword: '/forgot-password',
-    signup: '/signup',
-    createCompany: '/create-company',
-    anketaList: '/',
-    report: '/report',
-    admin: '/admin',
-    adminReports: '/admin/reports',
-    adminInvites: '/admin/invites',
-    account: '/account',
-    platformAdmin: '/platform-admin',
-  } as const;
+  // NotFound is the terminal fallback for an authenticated, unlocked user on
+  // an unrecognized path — see the routing chain below. It deliberately does
+  // NOT gate the auth/unlock loading states above it (checked/authenticated/
+  // unlockStatus): a locked tab or a not-yet-authenticated visitor must
+  // still reach UnlockTab/Login from ANY path, known or not, rather than
+  // dead-ending on a 404 with no way to unlock or log in.
+  const knownPath = $derived(isKnownPath(routerState.path));
 
   // The redesigned header started with Login/Activate (Phase 8a), then covered
   // AnketaList/CreateAnketa/Report/AdminPanel (Phase 8b), and now Anketa.svelte
@@ -81,15 +75,11 @@
   // /platform-admin (Phase C) is deliberately included here — same authenticated-page
   // header treatment as every other page — but AppHeader itself never links to it
   // (see PlatformAdminController's own docblock: reachable by URL, not discoverable).
-  const MIGRATED_AUTHED_PATHS: string[] = [
-    PATHS.anketaList,
-    PATHS.report,
-    PATHS.admin,
-    PATHS.adminReports,
-    PATHS.adminInvites,
-    PATHS.account,
-    PATHS.platformAdmin,
-  ];
+  // The last clause covers an unrecognized path once authenticated —
+  // NotFound itself once unlocked, but also UnlockTab/the loading state on
+  // the way there — the same header treatment MIGRATED_AUTHED_PATHS already
+  // gives every *known* authenticated path regardless of lock state, rather
+  // than only once unlocked.
   const showAppHeader = $derived(
     !!activationMatch ||
       !!resetPasswordMatch ||
@@ -98,7 +88,8 @@
       routerState.path === PATHS.createCompany ||
       !authState.authenticated ||
       !!anketaMatch ||
-      MIGRATED_AUTHED_PATHS.includes(routerState.path),
+      MIGRATED_AUTHED_PATHS.includes(routerState.path) ||
+      (authState.authenticated && !knownPath),
   );
 </script>
 
@@ -143,8 +134,10 @@
     <AdminInvites />
   {:else if routerState.path === PATHS.platformAdmin}
     <PlatformAdminPanel />
-  {:else}
+  {:else if routerState.path === PATHS.anketaList}
     <AnketaList />
+  {:else}
+    <NotFound />
   {/if}
 
   <AppFooter />

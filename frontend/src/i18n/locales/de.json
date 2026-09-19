@@ -540,5 +540,10 @@
   "theme": {
     "switchToLight": "Zum hellen Design wechseln",
     "switchToDark": "Zum dunklen Design wechseln"
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "message": "Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.",
+    "backHome": "Zurück zur Startseite"
   }
 }
