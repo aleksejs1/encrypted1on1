@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
+  import { onMount } from 'svelte';
   import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
@@ -54,7 +55,11 @@
   // an invite form on AdminPanel.svelte regardless of this flag.
   let showInvite = $state(false);
 
-  $effect(() => {
+  // onMount (unlike an $effect) doesn't track reactive reads inside it, so
+  // ensureUnlocked()'s synchronous read of getGeneration() can't re-trigger
+  // this when an unrelated 401 elsewhere bumps the identity generation —
+  // see App.svelte's own checkAuth() mount check and GitHub issue #62/#94.
+  onMount(() => {
     ensureUnlocked()
       .then((identity) => {
         showInvite = identity.registrationMode === 'invite';

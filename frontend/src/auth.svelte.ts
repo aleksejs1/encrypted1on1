@@ -99,7 +99,7 @@ export async function checkAuth(): Promise<void> {
  *
  * - unlockStatus back to 'unknown', not just `authenticated` — a same-tab
  *   relogin's markAuthenticated() only flips `authenticated`, so
- *   App.svelte's effect needs unlockStatus === 'unknown' to know to call
+ *   App.svelte's onMount check needs unlockStatus === 'unknown' to know to call
  *   checkUnlocked() again; leaving it stale at 'locked' here would strand
  *   that relogin on UnlockTab despite a valid password.
  * - the sessionStorage master key (crypto/session.ts) — this tab's session
@@ -201,7 +201,7 @@ export async function checkUnlocked(
  * can't fail to unwrap. checkAuth()'s own checkUnlocked() call (for the
  * genuinely uncertain case — a second tab, or a page load with an existing
  * cookie) never runs a second time for a login in the same tab: it only
- * fires from App.svelte's mount effect, which has already completed by the
+ * fires from App.svelte's onMount check, which has already completed by the
  * time a user gets through the login form.
  *
  * Also invalidates any already-cached identity (invalidateIdentity()):

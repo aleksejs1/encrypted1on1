@@ -2,7 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { ApiError } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity.svelte';
-  import type { Snippet } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
 
   /**
    * The isAdmin/loadError gate shared by every admin-only page
@@ -27,7 +27,11 @@
   let isAdmin = $state<boolean | null>(null);
   let loadError = $state<string | null>(null);
 
-  $effect(() => {
+  // onMount (unlike an $effect) doesn't track reactive reads inside it, so
+  // ensureUnlocked()'s synchronous read of getGeneration() can't re-trigger
+  // this when an unrelated 401 elsewhere bumps the identity generation —
+  // see App.svelte's own checkAuth() mount check and GitHub issue #62/#94.
+  onMount(() => {
     ensureUnlocked()
       .then((identity) => {
         isAdmin = identity.isAdmin;
