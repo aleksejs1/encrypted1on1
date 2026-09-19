@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
+  import { onMount } from 'svelte';
   import { apiGet, apiPut, ApiError } from '../api/client';
   import { ensureUnlocked } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
@@ -52,7 +53,11 @@
   /** Empty string means "unlimited" (null) — undrafted companies fall back to their current seatLimit in seatLimitDraft(). */
   let seatLimitDrafts = $state<Record<string, string>>({});
 
-  $effect(() => {
+  // onMount (unlike an $effect) doesn't track reactive reads inside it, so
+  // ensureUnlocked()'s synchronous read of getGeneration() can't re-trigger
+  // this when an unrelated 401 elsewhere bumps the identity generation —
+  // see App.svelte's own checkAuth() mount check and GitHub issue #62/#94.
+  onMount(() => {
     ensureUnlocked()
       .then((identity) => {
         myUserId = identity.userId;
