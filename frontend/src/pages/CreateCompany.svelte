@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
 
   interface RegistrationInfo {
     cloudMode: boolean;
@@ -9,12 +10,16 @@
   let registrationInfo = $state<RegistrationInfo | null>(null);
   let infoError = $state<string | null>(null);
 
+  // Cancels the mount-time fetch below on unmount — see GitHub issue #95.
+  const readAbort = abortOnDestroy();
+
   $effect(() => {
-    apiGet<RegistrationInfo>('/api/registration-info')
+    apiGet<RegistrationInfo>('/api/registration-info', { signal: readAbort })
       .then((info) => {
         registrationInfo = info;
       })
       .catch((err: unknown) => {
+        if (isAbortError(err)) return;
         infoError =
           err instanceof ApiError
             ? err.message

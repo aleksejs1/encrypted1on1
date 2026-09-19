@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { formatDisplayDate } from '../datePreference.svelte';
   import {
     inviteSenderLabel,
@@ -13,10 +14,16 @@
   let invites = $state<Invite[]>([]);
   let loadError = $state<string | null>(null);
 
+  // Cancels loadInvites()'s fetch below on unmount — see GitHub issue #95.
+  const readAbort = abortOnDestroy();
+
   async function loadInvites(): Promise<void> {
     try {
-      invites = await apiGet<Invite[]>('/api/admin/invites');
+      invites = await apiGet<Invite[]>('/api/admin/invites', {
+        signal: readAbort,
+      });
     } catch (error) {
+      if (isAbortError(error)) return;
       loadError =
         error instanceof ApiError
           ? error.message

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import type { MeResponse } from '../api/types';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
@@ -20,11 +21,17 @@
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
+  // Cancels loadMe()'s fetch below on unmount — see GitHub issue #95. Reused
+  // across both the mount-time call and the manual retry button click, same
+  // as AnketaList.svelte's readAbort — it only fires once, at actual unmount.
+  const readAbort = abortOnDestroy();
+
   async function loadMe(): Promise<void> {
     meLoadFailed = false;
     try {
-      me = await apiGet<MeResponse>('/api/me');
+      me = await apiGet<MeResponse>('/api/me', { signal: readAbort });
     } catch (err) {
+      if (isAbortError(err)) return;
       if (isSessionExpiredError(err)) {
         // The server session died (expired/revoked) before this tab even
         // got to ask for a password — same as checkUnlocked()'s own 401
