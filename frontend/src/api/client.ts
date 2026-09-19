@@ -12,11 +12,29 @@ export class ApiError extends Error {
   }
 }
 
+export interface RequestOptions {
+  /**
+   * Lets a caller abort an in-flight request (e.g. on unmount or when
+   * superseded by a newer request). Aborting only stops the client from
+   * waiting on the response — for apiPost/apiPut/apiDelete it does *not*
+   * guarantee the server never received/applied the request, so only use it
+   * to discard a response the caller no longer needs, never to rely on the
+   * write itself having been cancelled.
+   */
+  signal?: AbortSignal;
+}
+
 let csrfToken: string | null = null;
 
-async function getCsrfToken(): Promise<string> {
-  if (csrfToken) return csrfToken;
-  const response = await fetch('/api/csrf-token', { credentials: 'include' });
+async function getCsrfToken(options?: RequestOptions): Promise<string> {
+  if (csrfToken) {
+    options?.signal?.throwIfAborted();
+    return csrfToken;
+  }
+  const response = await fetch('/api/csrf-token', {
+    credentials: 'include',
+    signal: options?.signal,
+  });
   const data = (await response.json()) as { token: string };
   csrfToken = data.token;
   return csrfToken;
@@ -46,10 +64,14 @@ async function toApiError(response: Response): Promise<ApiError> {
   }
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+export async function apiGet<T>(
+  path: string,
+  options?: RequestOptions,
+): Promise<T> {
   const response = await fetch(path, {
     credentials: 'include',
     headers: { 'X-Locale': get(locale) ?? 'en' },
+    signal: options?.signal,
   });
   if (!response.ok) {
     throw await toApiError(response);
@@ -65,11 +87,14 @@ export async function apiGet<T>(path: string): Promise<T> {
  * own `fetchAllUserEmails()`). A single unpaginated `apiGet` silently truncates
  * at 30 items once a resource has more rows than that.
  */
-export async function apiGetAllPages<T>(path: string): Promise<T[]> {
+export async function apiGetAllPages<T>(
+  path: string,
+  options?: RequestOptions,
+): Promise<T[]> {
   const separator = path.includes('?') ? '&' : '?';
   const results: T[] = [];
   for (let page = 1; ; page += 1) {
-    const rows = await apiGet<T[]>(`${path}${separator}page=${page}`);
+    const rows = await apiGet<T[]>(`${path}${separator}page=${page}`, options);
     if (rows.length === 0) break;
     results.push(...rows);
   }
@@ -81,8 +106,9 @@ async function send<T>(
   method: 'POST' | 'PUT' | 'DELETE',
   path: string,
   body: unknown,
+  options?: RequestOptions,
 ): Promise<T> {
-  const token = await getCsrfToken();
+  const token = await getCsrfToken(options);
   const response = await fetch(path, {
     method,
     credentials: 'include',
@@ -94,6 +120,7 @@ async function send<T>(
       'X-Locale': get(locale) ?? 'en',
     },
     body: JSON.stringify(body),
+    signal: options?.signal,
   });
   if (!response.ok) {
     throw await toApiError(response);
@@ -101,14 +128,26 @@ async function send<T>(
   return response.json() as Promise<T>;
 }
 
-export function apiPost<T>(path: string, body: unknown): Promise<T> {
-  return send<T>('POST', path, body);
+export function apiPost<T>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  return send<T>('POST', path, body, options);
 }
 
-export function apiPut<T>(path: string, body: unknown): Promise<T> {
-  return send<T>('PUT', path, body);
+export function apiPut<T>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  return send<T>('PUT', path, body, options);
 }
 
-export function apiDelete<T>(path: string, body: unknown): Promise<T> {
-  return send<T>('DELETE', path, body);
+export function apiDelete<T>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  return send<T>('DELETE', path, body, options);
 }

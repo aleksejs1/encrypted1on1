@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiGetAllPages, apiPost, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import type { AnketaDetail, AnketaSummary, UserSummary } from '../api/types';
   import {
     generateAnketaKey,
@@ -49,17 +50,21 @@
     counterpartId !== '' && meetingDate !== '' && !submitting,
   );
 
+  // Cancels the two mount-time reads below on unmount — see GitHub issue #66.
+  const readAbort = abortOnDestroy();
+
   $effect(() => {
     Promise.all([
       ensureUnlocked(),
-      apiGetAllPages<UserSummary>('/api/users'),
-      apiGet<AnketaSummary[]>('/api/anketas'),
+      apiGetAllPages<UserSummary>('/api/users', { signal: readAbort }),
+      apiGet<AnketaSummary[]>('/api/anketas', { signal: readAbort }),
     ])
       .then(([identity, allUsers, allAnketas]) => {
         users = allUsers.filter((u) => u.id !== identity.userId);
         priorAnketas = allAnketas;
       })
       .catch((error: unknown) => {
+        if (isAbortError(error)) return;
         loadError =
           error instanceof ApiError
             ? error.message
