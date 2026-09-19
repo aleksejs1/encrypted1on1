@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import type {
     AnketaDetail as AnketaDetailFull,
     AnketaSummary,
@@ -145,7 +146,14 @@
     return { badges, daysLabel };
   }
 
-  let anketas = $state(apiGet<AnketaSummary[]>('/api/anketas'));
+  // Cancels this page's own passive read fetches (this one and
+  // loadTrendData's below) on unmount — see abortOnDestroy's own docblock
+  // for why reshareAll below is deliberately excluded.
+  const readAbort = abortOnDestroy();
+
+  let anketas = $state(
+    apiGet<AnketaSummary[]>('/api/anketas', { signal: readAbort }),
+  );
 
   let groupBy = $state<'date' | 'counterpart'>('date');
   let resharing = $state(false);
@@ -165,10 +173,16 @@
     trendLoaded = true;
     try {
       const identity = await ensureUnlocked();
-      const bulk = await apiGet<BulkAnketaForTrend[]>('/api/anketas/bulk');
+      const bulk = await apiGet<BulkAnketaForTrend[]>('/api/anketas/bulk', {
+        signal: readAbort,
+      });
       const rows: TrendRow[] = [];
 
       for (const anketa of bulk) {
+        // Stop doing decrypt work for a page that's already gone — this loop
+        // can run long on a big history, and the fetch above being
+        // readAbort-scoped only cancels waiting on the response, not this.
+        if (readAbort.aborted) return;
         if (
           anketa.archivedAt === null ||
           anketa.employeePublishedAt === null ||
@@ -226,6 +240,7 @@
     );
   }
 
+  /** Its own apiGet/apiPut calls aren't readAbort-scoped — see reshareAll's own comment below on why this write flow is left to run to completion regardless of navigation. */
   async function reshareOne(anketaId: string): Promise<void> {
     const identity = await ensureUnlocked();
     const detail = await apiGet<AnketaDetail>(`/api/anketas/${anketaId}`);
@@ -257,7 +272,18 @@
 
     reshareResult = failures === 0 ? 'success' : 'partial';
     resharing = false;
-    anketas = apiGet<AnketaSummary[]>('/api/anketas');
+    // The write loop above is deliberately not readAbort-scoped — once a
+    // reshare is in progress it should finish regardless of navigation. This
+    // trailing call is a pure read, though, so it *is* readAbort-scoped like
+    // every other read on this page. A no-op .catch() is attached directly
+    // (rather than relying on {#await}'s own handling) because if the page
+    // was unmounted mid-loop, readAbort has already fired and {#await} has
+    // no live subscriber left to catch the resulting rejection itself.
+    const refreshed = apiGet<AnketaSummary[]>('/api/anketas', {
+      signal: readAbort,
+    });
+    refreshed.catch(() => {});
+    anketas = refreshed;
   }
 </script>
 
@@ -441,7 +467,9 @@
       {/if}
     {/if}
   {:catch error}
-    <p class="banner-error">{error.message}</p>
+    {#if !isAbortError(error)}
+      <p class="banner-error">{error.message}</p>
+    {/if}
   {/await}
 </main>
 

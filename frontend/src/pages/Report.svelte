@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { formatDate } from '../dateFormat';
   import DateInput from '../design/DateInput.svelte';
@@ -84,12 +85,17 @@
     ].map(([id, { email, name }]) => ({ id, email, name })),
   );
 
+  // Cancels the bulk fetch below on unmount so navigating away mid-fetch
+  // doesn't leave it running for nothing — see GitHub issue #66.
+  const bulkAbort = abortOnDestroy();
+
   $effect(() => {
-    apiGet<AnketaBulkRow[]>('/api/anketas/bulk')
+    apiGet<AnketaBulkRow[]>('/api/anketas/bulk', { signal: bulkAbort })
       .then((list) => {
         anketas = list;
       })
       .catch((error: unknown) => {
+        if (isAbortError(error)) return;
         loadError =
           error instanceof ApiError ? error.message : $_('report.errorLoad');
       });
