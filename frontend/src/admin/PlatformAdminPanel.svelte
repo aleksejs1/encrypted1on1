@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { onMount } from 'svelte';
   import { apiGet, apiPut, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { ensureUnlocked } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
   import {
@@ -53,6 +54,9 @@
   /** Empty string means "unlimited" (null) — undrafted companies fall back to their current seatLimit in seatLimitDraft(). */
   let seatLimitDrafts = $state<Record<string, string>>({});
 
+  // Cancels the three mount-time list fetches below on unmount — see GitHub issue #95.
+  const readAbort = abortOnDestroy();
+
   // onMount (unlike an $effect) doesn't track reactive reads inside it, so
   // ensureUnlocked()'s synchronous read of getGeneration() can't re-trigger
   // this when an unrelated 401 elsewhere bumps the identity generation —
@@ -64,22 +68,25 @@
         isPlatformAdmin = identity.isPlatformAdmin;
         if (!identity.isPlatformAdmin) return;
         return Promise.all([
-          apiGet<PlatformCompany[]>('/api/platform-admin/companies').then(
-            (list) => {
-              companies = list;
-            },
-          ),
-          apiGet<PlatformUser[]>('/api/platform-admin/users').then((list) => {
+          apiGet<PlatformCompany[]>('/api/platform-admin/companies', {
+            signal: readAbort,
+          }).then((list) => {
+            companies = list;
+          }),
+          apiGet<PlatformUser[]>('/api/platform-admin/users', {
+            signal: readAbort,
+          }).then((list) => {
             users = list;
           }),
-          apiGet<PlatformInvite[]>('/api/platform-admin/invites').then(
-            (list) => {
-              invites = list;
-            },
-          ),
+          apiGet<PlatformInvite[]>('/api/platform-admin/invites', {
+            signal: readAbort,
+          }).then((list) => {
+            invites = list;
+          }),
         ]);
       })
       .catch((error: unknown) => {
+        if (isAbortError(error)) return;
         loadError =
           error instanceof ApiError
             ? error.message

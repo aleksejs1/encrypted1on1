@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { onMount } from 'svelte';
   import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
   import { packWrappedPrivateKey, wrapPrivateKey } from '../crypto/keypair';
@@ -35,12 +36,18 @@
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
+  // Cancels the mount-time fetch below on unmount — see GitHub issue #95.
+  const readAbort = abortOnDestroy();
+
   $effect(() => {
-    apiGet<{ meetingRemindersEnabled: boolean }>('/api/me')
+    apiGet<{ meetingRemindersEnabled: boolean }>('/api/me', {
+      signal: readAbort,
+    })
       .then((me) => {
         meetingRemindersEnabled = me.meetingRemindersEnabled;
       })
       .catch((error: unknown) => {
+        if (isAbortError(error)) return;
         // Leaves meetingRemindersEnabled at its initial null — the toggle below
         // stays disabled (disabled={meetingRemindersEnabled === null}) rather
         // than showing an error banner for a non-critical preference load. Still

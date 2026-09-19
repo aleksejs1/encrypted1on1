@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import AnswerField from '../anketa/AnswerField.svelte';
   import CommentThread from '../anketa/CommentThread.svelte';
   import LockIcon from '../anketa/LockIcon.svelte';
@@ -234,6 +235,14 @@
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
 
+  // Cancels load()'s own detail fetch on unmount — see GitHub issue #95. Not
+  // extended to pollLiveState's fetches below: those are already bounded by
+  // the interval being cleared on unmount/id-change (see that $effect's own
+  // cleanup), and a single readAbort here would only ever fire once (at
+  // actual component destroy), not per id-change, so it wouldn't help there
+  // even if applied.
+  const readAbort = abortOnDestroy();
+
   $effect(() => {
     void id;
     // load() catches every error itself today, setting loadError — .catch() here
@@ -259,7 +268,7 @@
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
         loadMasterKey(),
-        apiGet<AnketaDetail>(`/api/anketas/${id}`),
+        apiGet<AnketaDetail>(`/api/anketas/${id}`, { signal: readAbort }),
       ]);
       if (!mk) throw new Error($_('anketa.errorNotLoggedIn'));
 
@@ -375,6 +384,7 @@
 
       loaded = true;
     } catch (error) {
+      if (isAbortError(error)) return;
       loadError =
         error instanceof ApiError ? error.message : $_('anketa.errorLoad');
     }

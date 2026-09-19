@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { formatDisplayMonth } from '../datePreference.svelte';
   import { formatDate } from '../dateFormat';
   import { dateRangeForQuarterPreset } from '../anketa/report';
@@ -78,6 +79,12 @@
   // land after a newer request's, no matter which resolves first.
   let goalsRequestSequence = 0;
 
+  // Cancels the two report fetches below on unmount — see GitHub issue #95.
+  // Both are plain reads (unlike a user-started write flow), so this applies
+  // regardless of whether a given call was triggered by AdminGate's onReady,
+  // the "Generate report" submit, or a tab switch.
+  const readAbort = abortOnDestroy();
+
   async function loadInitialReport(): Promise<void> {
     applyQuarterPreset();
     await loadReport();
@@ -108,12 +115,15 @@
       const query = new URLSearchParams({ from: rangeStart, to: rangeEnd });
       report = await apiGet<OverviewReport>(
         `/api/admin/reports/overview?${query}`,
+        { signal: readAbort },
       );
     } catch (error) {
-      reportError =
-        error instanceof ApiError
-          ? error.message
-          : $_('adminReports.errorLoad');
+      if (!isAbortError(error)) {
+        reportError =
+          error instanceof ApiError
+            ? error.message
+            : $_('adminReports.errorLoad');
+      }
     } finally {
       loading = false;
     }
@@ -135,12 +145,13 @@
       const query = new URLSearchParams({ from: rangeStart, to: rangeEnd });
       const result = await apiGet<GoalsReport>(
         `/api/admin/reports/goals?${query}`,
+        { signal: readAbort },
       );
       if (requestId !== goalsRequestSequence) return; // superseded by a newer request
       goalsReport = result;
       goalsReportStale = false;
     } catch (error) {
-      if (requestId !== goalsRequestSequence) return;
+      if (requestId !== goalsRequestSequence || isAbortError(error)) return;
       goalsError =
         error instanceof ApiError
           ? error.message

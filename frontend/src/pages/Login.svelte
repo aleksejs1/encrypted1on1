@@ -2,6 +2,7 @@
   import { _, locale } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import { apiGet, apiPost, ApiError } from '../api/client';
+  import { abortOnDestroy } from '../api/abortOnDestroy';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
   import { unpackWrappedPrivateKey, unwrapPrivateKey } from '../crypto/keypair';
@@ -13,9 +14,13 @@
   let signupOpen = $state(false);
   let cloudMode = $state(false);
 
+  // Cancels the mount-time fetch below on unmount — see GitHub issue #95.
+  const readAbort = abortOnDestroy();
+
   $effect(() => {
     apiGet<{ registrationMode: string; cloudMode: boolean }>(
       '/api/registration-info',
+      { signal: readAbort },
     )
       .then((info) => {
         signupOpen = info.registrationMode === 'domain';

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
   import {
@@ -30,12 +31,18 @@
   let submitError = $state<string | null>(null);
   let done = $state(false);
 
+  // Cancels the mount-time lookup fetch below on unmount — see GitHub issue #95.
+  const readAbort = abortOnDestroy();
+
   $effect(() => {
-    apiGet<{ email: string }>(`/api/activation-tokens/${token}`)
+    apiGet<{ email: string }>(`/api/activation-tokens/${token}`, {
+      signal: readAbort,
+    })
       .then((result) => {
         email = result.email;
       })
       .catch((error: unknown) => {
+        if (isAbortError(error)) return;
         lookupError =
           error instanceof ApiError
             ? error.message

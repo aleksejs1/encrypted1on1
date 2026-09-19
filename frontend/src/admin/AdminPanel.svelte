@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
+  import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { ensureUnlocked, clearIdentity } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
   import InviteForm from './InviteForm.svelte';
@@ -44,6 +45,13 @@
   let settingsSaved = $state(false);
   let settingsError = $state<string | null>(null);
 
+  // Cancels loadPanelData()'s user-list fetch below on unmount — see GitHub
+  // issue #95. Not extended to toggleBlocked/toggleAdmin/deletePermanently/
+  // saveInviteSettings below: those are writes a user explicitly started via
+  // a button click, which should finish regardless of navigation, same as
+  // AnketaList.svelte's reshareAll (see abortOnDestroy's own docblock).
+  const readAbort = abortOnDestroy();
+
   /** AdminGate has already confirmed isAdmin — ensureUnlocked() is memoized (see its own docblock), so calling it again here to get the rest of the identity is cheap, not a second real fetch. */
   async function loadPanelData(): Promise<void> {
     try {
@@ -51,8 +59,11 @@
       myUserId = identity.userId;
       registrationMode = identity.registrationMode;
       allowedEmailDomain = identity.allowedEmailDomain;
-      users = await apiGet<AdminUser[]>('/api/admin/users');
+      users = await apiGet<AdminUser[]>('/api/admin/users', {
+        signal: readAbort,
+      });
     } catch (error) {
+      if (isAbortError(error)) return;
       panelDataError =
         error instanceof ApiError ? error.message : $_('admin.errorLoad');
     }
