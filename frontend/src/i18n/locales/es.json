@@ -544,5 +544,10 @@
   "theme": {
     "switchToLight": "Cambiar a tema claro",
     "switchToDark": "Cambiar a tema oscuro"
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "message": "La página que buscas no existe o puede haber sido movida.",
+    "backHome": "Volver al inicio"
   }
 }

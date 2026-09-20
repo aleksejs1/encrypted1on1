@@ -546,5 +546,10 @@
   "theme": {
     "switchToLight": "Passer au thème clair",
     "switchToDark": "Passer au thème sombre"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "message": "La page que vous recherchez n'existe pas ou a peut-être été déplacée.",
+    "backHome": "Retour à l'accueil"
   }
 }
