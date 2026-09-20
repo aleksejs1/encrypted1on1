@@ -1153,7 +1153,7 @@
 
 <main>
   {#if loadError}
-    <p class="banner-error">{loadError}</p>
+    <p role="alert" class="banner-error">{loadError}</p>
   {:else if !detail}
     <p class="text-muted">{$_('anketa.loading')}</p>
   {:else}
@@ -1378,7 +1378,7 @@
     />
 
     {#if actionError}
-      <p class="banner-error">{actionError}</p>
+      <p role="alert" class="banner-error">{actionError}</p>
     {/if}
 
     {#if !archived}

@@ -276,10 +276,10 @@
           {/if}
         </div>
         {#if editingOutcomeId === item.id && editOutcomeError}
-          <p class="banner-error">{editOutcomeError}</p>
+          <p role="alert" class="banner-error">{editOutcomeError}</p>
         {/if}
         {#if confirmingDeleteOutcomeId === item.id && deleteOutcomeError}
-          <p class="banner-error">{deleteOutcomeError}</p>
+          <p role="alert" class="banner-error">{deleteOutcomeError}</p>
         {/if}
         <CommentThread
           comments={allComments.filter((c) => c.targetId === item.id)}

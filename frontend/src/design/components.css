@@ -100,6 +100,21 @@ a {
   background: var(--color-divider);
 }
 
+/* Visually hidden but still reachable by assistive tech — unlike
+   display:none/visibility:hidden, which would drop the element (and any
+   aria-live region on it) from the accessibility tree along with the page. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* — banners — */
 .banner-error {
   font-size: 13px;
