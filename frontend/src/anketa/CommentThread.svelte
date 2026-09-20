@@ -77,6 +77,20 @@
     }
   });
 
+  /**
+   * Text for the aria-live announcer below — every comment `recentlyArrivedIds`
+   * currently flags, joined. Derived (not written imperatively) so it stays in
+   * sync however that Record changes, and goes back to '' once the parent
+   * clears it a few seconds later — nothing left for a screen reader to
+   * re-announce on the next unrelated re-render.
+   */
+  const newlyArrivedAnnouncement = $derived(
+    comments
+      .filter((c) => recentlyArrivedIds[c.id])
+      .map((c) => `${authorNames[c.authorId] ?? c.authorId}: ${c.text}`)
+      .join('. '),
+  );
+
   function toggleExpanded(): void {
     userToggled = true;
     expanded = !expanded;
@@ -201,6 +215,18 @@
     {$_('commentThread.toggle', { values: { count: comments.length } })}
   </button>
 
+  <!-- Always mounted (unlike .comments below, which unmounts while
+       collapsed) so the live region already exists in the accessibility
+       tree before a new comment's text lands in it — a region that mounts
+       with its content already inside is often not announced at all. The
+       recently-arrived highlight above is a CSS-only cue; this is what
+       actually reaches a screen reader for a comment that arrives via the
+       live-update poll, including one that auto-expands a collapsed
+       thread. -->
+  <div class="sr-only" aria-live="polite" aria-atomic="true">
+    {newlyArrivedAnnouncement}
+  </div>
+
   {#if expanded}
     <div class="comments">
       {#each comments as comment (comment.id)}
@@ -236,7 +262,7 @@
               </button>
             </form>
             {#if editError}
-              <p class="banner-error">{editError}</p>
+              <p role="alert" class="banner-error">{editError}</p>
             {/if}
           {:else}
             <span class="author"
@@ -288,7 +314,7 @@
         </div>
       {/each}
       {#if deleteError}
-        <p class="banner-error">{deleteError}</p>
+        <p role="alert" class="banner-error">{deleteError}</p>
       {/if}
     </div>
 
@@ -308,7 +334,7 @@
       </button>
     </form>
     {#if error}
-      <p class="banner-error">{error}</p>
+      <p role="alert" class="banner-error">{error}</p>
     {/if}
   {/if}
 </div>
