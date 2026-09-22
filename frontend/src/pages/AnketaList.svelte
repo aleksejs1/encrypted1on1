@@ -59,9 +59,13 @@
   // trend scale (private/init.txt: "график трендов по radio-полям") — no
   // separate chart library, per the same spec section (hand-rolled SVG only).
   // Neither field has ever varied by form version — any version works here.
+  // Explicitly 'regular': this is building a static chart legend, not reading any
+  // one anketa's own template, and 'regular' is the only template with mood/workload
+  // fields shaped this way (see frontend/src/anketa/questions.ts).
   const employeeQuestions = getQuestionsForSide(
     'employee',
     CURRENT_ANKETA_FORM_VERSION,
+    'regular',
   );
   const MOOD_OPTIONS = employeeQuestions
     .find((q) => q.id === 'mood')!

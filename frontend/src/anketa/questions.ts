@@ -306,13 +306,60 @@ const managerQuestions: Question[] = [
 ];
 
 /**
- * The question set for one side of an anketa at a given form version — the manager side
- * has never varied by version, but takes the same parameter for a uniform call shape.
+ * Which built-in meeting-type template an anketa uses — see
+ * private/anketa-meeting-templates-proposal.md (not tracked in git) for the full design.
+ * `'regular'` is the only key today; more are added one at a time as their own template
+ * lands (e.g. an 'onboarding'/'career_growth' template for a different kind of meeting).
+ * Must match the backend's `Anketa::TEMPLATE_KEYS` — no automated cross-check exists yet
+ * (see that constant's own docblock), since a single shared key can't drift from itself;
+ * worth adding once a second template makes drift possible. `TemplateKey` is derived from
+ * `ANKETA_TEMPLATES` itself (same `as const` + `(typeof X)[number]` shape
+ * `frontend/src/i18n/index.ts`'s `SUPPORTED_LOCALES`/`SupportedLocale` already
+ * establishes) rather than declared independently, so the type and the runtime list of
+ * valid keys can't drift apart from each other, at least.
+ */
+export const ANKETA_TEMPLATES = ['regular'] as const;
+export type TemplateKey = (typeof ANKETA_TEMPLATES)[number];
+
+/**
+ * The question set for one side of an anketa at a given form version and template — the
+ * manager side has never varied by version, but takes the same parameter for a uniform
+ * call shape. An unrecognized templateKey (stale client after a server rollback, or bad
+ * data) degrades to the default template rather than throwing.
+ *
+ * A plain `switch` rather than a keyed lookup table on purpose: with a single template
+ * key today, a `Record<TemplateKey, ...>` registry is speculative complexity this
+ * codebase's own "boring solution, fewer abstractions" convention argues against — and
+ * a `switch` on a string literal never does a dynamic property lookup at all, sidestepping
+ * the prototype-pollution-shaped bug that kind of lookup would otherwise need a
+ * `hasOwnProperty` guard for (see frontend/src/demo.ts's `demoEmailFor()` for a case that
+ * genuinely does need one, because it really is a keyed table). Revisit this shape once a
+ * second template actually exists — a real registry may earn its keep then, not before.
+ *
+ * The switch below doesn't select different behavior yet — every known key already
+ * resolves to the same question set, and `default` is reached only by a runtime value
+ * TypeScript can't see (bad data, a stale client after a server rollback), never by a
+ * known `TemplateKey` this function forgot to implement. Its `const exhaustiveCheck:
+ * never = templateKey` line is a compile-time trip-wire, not dead code: if `TemplateKey`
+ * ever gains a member with no matching `case`, that value stops being assignable to
+ * `never` and `npm run check` fails — catching the omission at build time instead of it
+ * silently falling through to the default template's questions at runtime. One shared
+ * `return` after the switch (rather than one per case) avoids restating the same
+ * fallback logic twice for something that, by design, isn't different yet.
  */
 export function getQuestionsForSide(
   side: Side,
   formVersion: number,
+  templateKey: TemplateKey,
 ): Question[] {
+  switch (templateKey) {
+    case 'regular':
+      break;
+    default: {
+      const exhaustiveCheck: never = templateKey;
+      void exhaustiveCheck;
+    }
+  }
   return side === 'employee'
     ? employeeQuestions(formVersion)
     : managerQuestions;

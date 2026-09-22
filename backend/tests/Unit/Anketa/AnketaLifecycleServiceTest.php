@@ -92,6 +92,27 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertSame('carried-uuid', $persistedObjects[1]->getGoalUuid());
         self::assertSame('Carry me', $persistedObjects[1]->getTitle());
         self::assertSame('initial-outcomes', $anketa->getOutcomesBlob());
+        self::assertSame('regular', $anketa->getTemplateKey());
+    }
+
+    public function testCreateWithCarryForwardUsesTheGivenTemplateKey(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('persist');
+
+        $service = $this->createService(entityManager: $entityManager);
+
+        $anketa = $service->createWithCarryForward(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'onboarding',
+        );
+
+        self::assertSame('onboarding', $anketa->getTemplateKey());
     }
 
     public function testCreateAnketaFlushesAndNotifies(): void
@@ -177,6 +198,11 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertNotNull($nextAnketa);
         self::assertSame('next-emp-key', $nextAnketa->sealedKeyFor($this->employee));
         self::assertSame('next-mgr-key', $nextAnketa->sealedKeyFor($this->manager));
+        // No per-template recurrence rule exists yet (that's a later, separate issue —
+        // see private/anketa-meeting-templates-proposal.md §7.3, not tracked in git) —
+        // for now, every auto-recreated anketa is 'regular', the only template that
+        // exists, regardless of what the just-archived one was.
+        self::assertSame('regular', $nextAnketa->getTemplateKey());
     }
 
     public function testArchiveWithSkipNextMeetingDoesNotCreateNext(): void

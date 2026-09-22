@@ -90,6 +90,7 @@ class AnketaPresenterTest extends TestCase
         self::assertFalse($summary['counterpartKeyOutdated']);
         self::assertFalse($summary['counterpartDeleted']);
         self::assertSame(Anketa::CURRENT_FORM_VERSION, $summary['formVersion']);
+        self::assertSame('regular', $summary['templateKey']);
     }
 
     public function testSummarizeFromManagerPerspective(): void
@@ -139,6 +140,7 @@ class AnketaPresenterTest extends TestCase
 
         $detail = $this->presenter->serializeDetail($anketa, $this->employee, [$goal]);
 
+        self::assertSame('regular', $detail['templateKey']);
         self::assertSame('sealed-emp', $detail['mySealedKey']);
         self::assertSame('mgr-pub-key', $detail['counterpartPublicKey']);
         self::assertNull($detail['employeeBlob']);
@@ -171,6 +173,11 @@ class AnketaPresenterTest extends TestCase
         self::assertSame(0, $liveState['goalCheckpointsVersion']);
         self::assertArrayNotHasKey('commentsBlob', $liveState);
         self::assertArrayNotHasKey('mySealedKey', $liveState);
+        // Immutable once created, so it has nothing to poll for — explicitly stripped
+        // back out in serializeLiveState() even though summarize() (which this spreads)
+        // returns it. See private/anketa-meeting-templates-proposal.md §8.2 (not tracked
+        // in git).
+        self::assertArrayNotHasKey('templateKey', $liveState);
     }
 
     public function testIsKeyOutdated(): void

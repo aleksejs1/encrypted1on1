@@ -35,7 +35,7 @@ class AnketaPresenter
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, formVersion: int}
+     *     counterpartDeleted: bool, formVersion: int, templateKey: string}
      */
     public function summarize(Anketa $anketa, User $user): array
     {
@@ -57,6 +57,7 @@ class AnketaPresenter
             'counterpartKeyOutdated' => $this->isKeyOutdated($anketa, $counterpart),
             'counterpartDeleted' => null !== $counterpart->getDeletedAt(),
             'formVersion' => $anketa->getFormVersion(),
+            'templateKey' => $anketa->getTemplateKey(),
         ];
     }
 
@@ -66,7 +67,7 @@ class AnketaPresenter
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, formVersion: int, mySealedKey: string, counterpartPublicKey: string,
+     *     counterpartDeleted: bool, formVersion: int, templateKey: string, mySealedKey: string, counterpartPublicKey: string,
      *     employeeBlob: string|null, employeePublishedAt: string|null, employeeBlobVersion: int,
      *     managerBlob: string|null, managerPublishedAt: string|null, managerBlobVersion: int,
      *     commentsBlob: string|null, commentsVersion: int,
@@ -109,7 +110,7 @@ class AnketaPresenter
      */
     public function serializeLiveState(Anketa $anketa, User $user): array
     {
-        return [
+        $state = [
             ...$this->summarize($anketa, $user),
             'employeeBlobVersion' => $anketa->getEmployeeBlobVersion(),
             'managerBlobVersion' => $anketa->getManagerBlobVersion(),
@@ -117,6 +118,16 @@ class AnketaPresenter
             'outcomesVersion' => $anketa->getOutcomesVersion(),
             'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
         ];
+        // templateKey is immutable once an anketa is created, so it has nothing to poll
+        // for — dropped explicitly rather than left in as wasted payload on every 4s
+        // tick. summarize() still returns it (serializeDetail() wants it), so it has to
+        // be removed here rather than never added in the first place. formVersion is
+        // equally immutable and stays in this response regardless — a pre-existing part
+        // of this endpoint's shape this issue doesn't touch, not a precedent this
+        // exclusion is claiming to follow.
+        unset($state['templateKey']);
+
+        return $state;
     }
 
     /**

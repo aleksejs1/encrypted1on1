@@ -232,6 +232,28 @@ class ValidationResponseTest extends ApiTestCase
         self::assertStringContainsString('in_progress', $violation['message']);
     }
 
+    /** Same DtoViolation::add()/%templateKeys% substitution as testUpdateGoalInvalidStatusMessageListsValidStatuses above — a regression here (e.g. a translation-domain mismatch) would otherwise only be caught by a status-code check, not by the message content actually being right. */
+    public function testCreateAnketaInvalidTemplateKeyMessageListsValidTemplateKeys(): void
+    {
+        [$client, , $manager] = $this->setupPair('template-key-message');
+
+        $result = $this->jsonRequest($client, 'POST', '/api/anketas', [
+            'counterpartId' => $manager['id'],
+            'myRole' => 'employee',
+            'meetingDate' => (new \DateTimeImmutable('+1 day'))->format(\DateTimeImmutable::ATOM),
+            'mySealedKey' => str_repeat('e', 44),
+            'counterpartSealedKey' => str_repeat('m', 44),
+            'periodicityDays' => 30,
+            'templateKey' => 'not-a-real-template',
+        ]);
+
+        self::assertSame(400, $result['status']);
+        self::assertIsArray($result['json']);
+        $violation = self::findViolation($result['json']['violations'], 'templateKey');
+        self::assertStringNotContainsString('%templateKeys%', $violation['message']);
+        self::assertStringContainsString('regular', $violation['message']);
+    }
+
     public function testSaveVersionedBlobRejectsNegativeExpectedVersion(): void
     {
         [$client, $anketaId] = $this->setupAnketa('negative-version');

@@ -108,6 +108,7 @@ class AnketaController
             outcomesBlob: $payload->outcomesBlob,
             carryFrom: $previousAnketa,
             creator: $user,
+            templateKey: $payload->templateKey,
         );
 
         return new JsonResponse(['id' => $anketa->getId()], 201);

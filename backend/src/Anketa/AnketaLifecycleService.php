@@ -39,6 +39,7 @@ class AnketaLifecycleService
         int $periodicityDays,
         ?string $outcomesBlob = null,
         ?Anketa $carryFrom = null,
+        string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
     ): Anketa {
         $anketa = new Anketa(
             employee: $employee,
@@ -47,6 +48,7 @@ class AnketaLifecycleService
             employeeSealedKey: $employeeSealedKey,
             managerSealedKey: $managerSealedKey,
             periodicityDays: $periodicityDays,
+            templateKey: $templateKey,
         );
 
         if (null !== $outcomesBlob) {
@@ -86,6 +88,7 @@ class AnketaLifecycleService
         ?string $outcomesBlob = null,
         ?Anketa $carryFrom = null,
         ?User $creator = null,
+        string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
     ): Anketa {
         $anketa = $this->createWithCarryForward(
             employee: $employee,
@@ -96,6 +99,7 @@ class AnketaLifecycleService
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             carryFrom: $carryFrom,
+            templateKey: $templateKey,
         );
 
         $this->entityManager->flush();
@@ -188,6 +192,16 @@ class AnketaLifecycleService
 
         $isEmployee = $anketa->isEmployee($actor);
 
+        // Deliberately NOT $anketa->getTemplateKey() here, unlike periodicityDays two
+        // lines below — a template choice should not blindly carry forward the way
+        // periodicity does: a one-off template (a first 1:1) auto-recreating itself
+        // forever would be wrong the moment a second, non-recurring template exists.
+        // Every auto-recreated anketa uses the default ('regular') until a real
+        // per-template recurrence rule is built — a small, separate, later piece of work
+        // (private/anketa-meeting-templates-proposal.md §7.3, not tracked in git), not an
+        // oversight here. Currently unobservable either way: 'regular' is the only
+        // template that exists, so this and "carry it forward" produce identical results
+        // today — see AnketaLifecycleServiceTest::testArchiveWithNextMeetingAutoRecreation.
         return $this->createWithCarryForward(
             employee: $anketa->getEmployee(),
             manager: $anketa->getManager(),

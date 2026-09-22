@@ -1190,7 +1190,7 @@
       </div>
 
       <div class="blocks">
-        {#each getQuestionsForSide(detail.myRole, detail.formVersion) as question (question.id)}
+        {#each getQuestionsForSide(detail.myRole, detail.formVersion, detail.templateKey) as question (question.id)}
           <div class="block">
             <h4>{$_(question.titleKey)}</h4>
             {#each question.fields as field (field.id)}
@@ -1315,7 +1315,7 @@
         <p class="text-muted">{$_('anketa.notPublishedYet')}</p>
       {:else if counterpartSide}
         <div class="blocks">
-          {#each getQuestionsForSide(counterpartSide, detail.formVersion) as question (question.id)}
+          {#each getQuestionsForSide(counterpartSide, detail.formVersion, detail.templateKey) as question (question.id)}
             <div class="block">
               <h4>{$_(question.titleKey)}</h4>
               {#each question.fields as field (field.id)}
