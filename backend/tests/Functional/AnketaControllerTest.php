@@ -68,6 +68,28 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
     }
 
+    public function testCreateAndGetReturnTheDefaultTemplateKeyWhenOmitted(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('template-key-default');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        $listRow = self::findById($list['json'], $anketaId);
+        self::assertSame('regular', $listRow['templateKey']);
+
+        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
+        self::assertSame('regular', $get['json']['templateKey']);
+    }
+
+    public function testCreateRejectsAnInvalidTemplateKey(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('bad-template-key');
+
+        $result = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'made-up-template']);
+
+        self::assertSame(400, $result['status']);
+    }
+
     public function testCreateRejectsAnUnknownCounterpart(): void
     {
         $employeeClient = static::createClient();
@@ -335,6 +357,10 @@ class AnketaControllerTest extends ApiTestCase
         self::assertNull($result['json']['archivedAt']);
         self::assertArrayNotHasKey('commentsBlob', $result['json']);
         self::assertArrayNotHasKey('employeeBlob', $result['json']);
+        // templateKey is immutable once an anketa is created, so it has nothing to poll
+        // for — AnketaPresenter::serializeLiveState() explicitly excludes it, unlike
+        // every other summarize() field, which this endpoint otherwise reuses wholesale.
+        self::assertArrayNotHasKey('templateKey', $result['json']);
     }
 
     public function testLiveStateReflectsCounterpartsRoleAndPublishState(): void

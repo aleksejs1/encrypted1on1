@@ -64,6 +64,7 @@ errors:
     invalid_role: '"myRole" muss "employee" oder "manager" sein.'
     counterpart_not_found: 'Gegenüber nicht gefunden.'
     periodicity_required: '"periodicityDays" muss für ein neues Paar eine positive Ganzzahl sein.'
+    template_key_must_be_one_of: '"templateKey" muss eines der folgenden sein: %templateKeys%.'
     comments_conflict: 'Die Kommentare haben sich geändert, seit Sie sie zuletzt gelesen haben.'
     answers_conflict: 'Ihre Antworten haben sich geändert, seit Sie sie zuletzt gelesen haben.'
     outcomes_conflict: 'Die Ergebnisse haben sich geändert, seit Sie sie zuletzt gelesen haben.'

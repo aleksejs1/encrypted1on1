@@ -5,7 +5,7 @@
  * copy, so a backend field rename is a compile error everywhere it's used
  * instead of a silent `undefined` in whichever copy nobody updated.
  */
-import type { Side } from '../anketa/questions';
+import type { Side, TemplateKey } from '../anketa/questions';
 import type { Goal } from '../anketa/goals';
 
 /** GET /api/me */
@@ -45,6 +45,8 @@ export interface AnketaSummary {
   counterpartDeleted: boolean;
   /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
   formVersion: number;
+  /** Which built-in meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
+  templateKey: TemplateKey;
 }
 
 /** GET /api/anketas/{id} */
@@ -75,6 +77,8 @@ export interface AnketaDetail {
   missed: boolean;
   /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
   formVersion: number;
+  /** Which built-in meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
+  templateKey: TemplateKey;
 }
 
 /**
@@ -90,6 +94,10 @@ export interface AnketaDetail {
  * `counterpartId`/`counterpartEmail`/`counterpartName`/`periodicityDays`/
  * `counterpartKeyOutdated`/`counterpartDeleted`/`formVersion` — this
  * interface only declares the subset this page actually reads from it.
+ *
+ * The one exception: `templateKey` is NOT in the real payload, unlike everything else
+ * summarize() returns — AnketaPresenter::serializeLiveState() explicitly strips it back
+ * out, since it's immutable once an anketa is created and has nothing to poll for.
  *
  * Deliberately no goal-related field, so goal creates/edits never live-update
  * — unlike every blob here, `Goal` rows have no version counter, and goal

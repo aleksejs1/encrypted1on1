@@ -38,6 +38,39 @@ class Anketa
      */
     public const int CURRENT_FORM_VERSION = 2;
 
+    /**
+     * Which built-in question-set template this anketa uses (e.g. a different
+     * agenda for a first 1:1 vs. a regular check-in vs. a career-growth
+     * conversation) — a classifier the server needs to pick which question set
+     * to serve, never an answer to any question. Same category as
+     * `meetingDate`/`periodicityDays`/`formVersion`, all three already
+     * plaintext on this entity for the identical reason (the server runs the
+     * product using them: scheduling, auto-recreating cycles, serving the
+     * right form) — not the separate, narrower Goal title/description/status/
+     * target-date exception CLAUDE.md's non-negotiable constraints carve out
+     * for actual content, which this doesn't touch or extend. A template
+     * choice is never exposed in any admin/company report (this repo's own
+     * `AllowPlaintext` isn't a license to surface a plaintext field just
+     * because it exists) — see
+     * private/anketa-meeting-templates-proposal.md §3 (not tracked in git,
+     * this repo's own established place for this kind of product-decision
+     * writeup) for the full accounting, including why that admin-visibility
+     * restriction specifically matters here. `'regular'` is the only key that
+     * exists today; more are added one at a time as their own template lands.
+     * Must match `ANKETA_TEMPLATES` in `frontend/src/anketa/questions.ts` — no automated
+     * cross-check exists yet (unlike this repo's locale lists, e.g.
+     * `TranslationConsistencyTest`/`ResetDemoDataCommandTest`, which do cross-check each
+     * other), since with a single shared key today nothing can actually drift. Worth
+     * adding once a second template makes that a real possibility, not before.
+     */
+    public const TEMPLATE_KEYS = ['regular'];
+
+    /** The template a new anketa gets when none is explicitly chosen — one named
+     * constant instead of the literal `'regular'` repeated across this class,
+     * `CreateAnketaRequest`, and `AnketaLifecycleService`'s two creation methods, so
+     * changing the default later is one edit, not a search for every copy. */
+    public const DEFAULT_TEMPLATE_KEY = 'regular';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
     private string $id;
@@ -162,6 +195,14 @@ class Anketa
     #[ORM\Column(type: 'integer')]
     private int $formVersion;
 
+    /** See TEMPLATE_KEYS's own docblock. DB-level default backfills every pre-existing
+     * row for free on migration and, per docs/deployment.md's own documented MySQL
+     * populated-table footgun (a bare NOT NULL silently zero-value-backfills instead of
+     * rejecting), is what makes the auto-generated MySQL migration safe as-is. */
+    #[ORM\Column(type: 'string', length: 40, options: ['default' => 'regular'])]
+    #[AllowPlaintext(reason: 'Which built-in question-set template this anketa uses — a classifier like formVersion/meetingDate, never anketa content. See TEMPLATE_KEYS\'s own docblock.')]
+    private string $templateKey;
+
     public function __construct(
         User $employee,
         User $manager,
@@ -169,6 +210,7 @@ class Anketa
         string $employeeSealedKey,
         string $managerSealedKey,
         int $periodicityDays,
+        string $templateKey = self::DEFAULT_TEMPLATE_KEY,
     ) {
         $employeeCompany = $employee->getCompany();
         $managerCompany = $manager->getCompany();
@@ -188,6 +230,7 @@ class Anketa
         $this->employeeSealedKeyUpdatedAt = $this->createdAt;
         $this->managerSealedKeyUpdatedAt = $this->createdAt;
         $this->formVersion = self::CURRENT_FORM_VERSION;
+        $this->templateKey = $templateKey;
     }
 
     public function getCompany(): Company
@@ -198,6 +241,11 @@ class Anketa
     public function getFormVersion(): int
     {
         return $this->formVersion;
+    }
+
+    public function getTemplateKey(): string
+    {
+        return $this->templateKey;
     }
 
     public function getId(): string

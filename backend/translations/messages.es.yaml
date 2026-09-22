@@ -60,6 +60,7 @@ errors:
     invalid_role: '"myRole" debe ser "employee" o "manager".'
     counterpart_not_found: 'No se encontró a la otra persona.'
     periodicity_required: '"periodicityDays" debe ser un entero positivo para una nueva pareja.'
+    template_key_must_be_one_of: '"templateKey" debe ser uno de: %templateKeys%.'
     comments_conflict: 'Los comentarios han cambiado desde la última vez que los leíste.'
     answers_conflict: 'Tus respuestas han cambiado desde la última vez que las leíste.'
     outcomes_conflict: 'Los resultados de la reunión han cambiado desde la última vez que los leíste.'

@@ -221,6 +221,24 @@ class AnketaTest extends TestCase
         self::assertSame(Anketa::CURRENT_FORM_VERSION, $anketa->getFormVersion());
     }
 
+    public function testNewAnketaDefaultsToTheRegularTemplateWhenOmitted(): void
+    {
+        $anketa = $this->makeAnketa();
+
+        self::assertSame('regular', $anketa->getTemplateKey());
+    }
+
+    public function testNewAnketaUsesTheExplicitlyGivenTemplateKey(): void
+    {
+        $company = new Company('Test Co');
+        $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
+
+        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, 'onboarding');
+
+        self::assertSame('onboarding', $anketa->getTemplateKey());
+    }
+
     public function testResealKeyForUpdatesOnlyTheTargetedSide(): void
     {
         $anketa = $this->makeAnketa();
