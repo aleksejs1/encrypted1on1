@@ -198,18 +198,34 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertNotNull($nextAnketa);
         self::assertSame('next-emp-key', $nextAnketa->sealedKeyFor($this->employee));
         self::assertSame('next-mgr-key', $nextAnketa->sealedKeyFor($this->manager));
-        // 'regular' maps to itself in Anketa::NEXT_CYCLE_TEMPLATE_KEY — the only
-        // template that exists today, so this and "just carry it forward" produce
-        // identical results, but via the real recurrence-rule mechanism, not by luck.
+        // 'regular' maps to itself in Anketa::NEXT_CYCLE_TEMPLATE_KEY.
+        // testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap proves archive() goes
+        // through the map; AnketaTest::testNextCycleTemplateKeyFor has the full table.
         self::assertSame('regular', $nextAnketa->getTemplateKey());
     }
 
-    public function testArchiveWithNextMeetingUsesNextCycleTemplateKeyMapNotBlindCarryForward(): void
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function nextCycleTemplateKeyProvider(): array
     {
-        // 'onboarding' (GitHub issue #104) is a one-off template — a first 1:1 only
-        // happens once — so its auto-recreated successor must use Anketa::NEXT_CYCLE_
-        // TEMPLATE_KEY's explicit 'onboarding' => 'regular' entry rather than being
-        // blindly carried forward the way periodicityDays is.
+        return [
+            // One non-identity mapping is enough to prove archive() goes through the
+            // map; the full per-template table is AnketaTest::testNextCycleTemplateKeyFor's.
+            'onboarding' => ['onboarding', 'regular'],
+            // The entity accepts any string (the DTO layer rejects an unrecognized key
+            // as user input) — stale data from a retired template, or bad data.
+            'unrecognized key' => ['not-a-real-key', 'regular'],
+        ];
+    }
+
+    /**
+     * The auto-recreated successor's template comes from Anketa::NEXT_CYCLE_TEMPLATE_KEY,
+     * not a blind carry-forward the way periodicityDays is.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('nextCycleTemplateKeyProvider')]
+    public function testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap(string $templateKey, string $expectedNextTemplateKey): void
+    {
         $anketa = new Anketa(
             employee: $this->employee,
             manager: $this->manager,
@@ -217,7 +233,7 @@ class AnketaLifecycleServiceTest extends TestCase
             employeeSealedKey: 'emp-key',
             managerSealedKey: 'mgr-key',
             periodicityDays: 14,
-            templateKey: 'onboarding',
+            templateKey: $templateKey,
         );
 
         $goalRepository = self::createStub(GoalRepository::class);
@@ -237,44 +253,7 @@ class AnketaLifecycleServiceTest extends TestCase
         );
 
         self::assertNotNull($nextAnketa);
-        self::assertSame('regular', $nextAnketa->getTemplateKey());
-    }
-
-    public function testArchiveWithNextMeetingDegradesAnUnrecognizedTemplateKeyToTheDefault(): void
-    {
-        // The entity itself accepts any string (the DTO layer is what rejects an
-        // unrecognized key as user input at creation time) — this exercises
-        // Anketa::NEXT_CYCLE_TEMPLATE_KEY's fallback path for a key with no entry in the
-        // map at all (stale data from a retired template, or bad data), as distinct from
-        // 'onboarding' above, which has its own explicit (non-identity) entry.
-        $anketa = new Anketa(
-            employee: $this->employee,
-            manager: $this->manager,
-            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
-            employeeSealedKey: 'emp-key',
-            managerSealedKey: 'mgr-key',
-            periodicityDays: 14,
-            templateKey: 'not-a-real-key',
-        );
-
-        $goalRepository = self::createStub(GoalRepository::class);
-        $goalRepository->method('findInProgressForAnketa')->willReturn([]);
-
-        $service = $this->createService(goalRepository: $goalRepository);
-
-        $nextAnketa = $service->archive(
-            anketa: $anketa,
-            actor: $this->employee,
-            missed: false,
-            skipNextMeeting: false,
-            nextMeetingDate: null,
-            mySealedKey: 'next-emp-key',
-            counterpartSealedKey: 'next-mgr-key',
-            outcomesBlob: null,
-        );
-
-        self::assertNotNull($nextAnketa);
-        self::assertSame('regular', $nextAnketa->getTemplateKey());
+        self::assertSame($expectedNextTemplateKey, $nextAnketa->getTemplateKey());
     }
 
     public function testArchiveWithSkipNextMeetingDoesNotCreateNext(): void

@@ -199,6 +199,8 @@
     "templateRegularDescription": "Le point récurrent standard — humeur, sentiments, charge de travail, réussites.",
     "templateOnboarding": "Premier 1:1 / Intégration",
     "templateOnboardingDescription": "Pour la première rencontre d'une nouvelle relation de travail — accord de travail, style de travail et un audit à l'œil neuf à la place des champs habituels du point régulier.",
+    "templateCareerGrowth": "Évolution de carrière",
+    "templateCareerGrowthDescription": "Un échange sur la carrière (par exemple une fois par trimestre) — rétrospective d'énergie, trajectoire, missions stimulantes et un plan de développement à 90 jours à la place des champs habituels du point régulier.",
     "meetingDateLabel": "Date de la réunion",
     "periodicityLabel": "À quelle fréquence vous rencontrerez-vous ?",
     "periodicityWeekly": "Chaque semaine",
@@ -343,7 +345,14 @@
       "workStyle": { "title": "Votre style de travail" },
       "freshEyesAudit": {
         "title": "Regard neuf : qu'est-ce qui reste flou ou pose problème pour l'instant"
-      }
+      },
+      "energyRetrospective": {
+        "title": "Rétrospective d'énergie : sources de fierté, sources d'épuisement"
+      },
+      "trajectory": {
+        "title": "Trajectoire : dans quelle direction souhaitez-vous évoluer ?"
+      },
+      "developmentPlan": { "title": "Plan de développement à 90 jours" }
     },
     "manager": {
       "periodSummary": {
@@ -359,7 +368,8 @@
       "managerDiscuss": { "title": "Quoi d'autre à aborder" },
       "readinessCheck": {
         "title": "Vérification de préparation : accès, outils et contexte"
-      }
+      },
+      "sponsorshipOffer": { "title": "Mission stimulante et parrainage" }
     },
     "fields": {
       "moodNow": "Comment vous sentez-vous ?",
@@ -373,7 +383,15 @@
       "feedbackChannel": "Canal de feedback préféré",
       "focusTimeNeeds": "Besoins en temps de concentration",
       "stressSignals": "Signaux de stress et comment aider",
-      "readinessLevel": "Cette personne a-t-elle ce dont elle a besoin ?"
+      "readinessLevel": "Cette personne a-t-elle ce dont elle a besoin ?",
+      "energizingWork": "Un travail récent dont vous tirez une vraie fierté",
+      "drainingWork": "Ce qui vous a pris de l'énergie ou ressemblait à une corvée",
+      "trajectoryDirection": "Quelle direction vous attire le plus en ce moment ?",
+      "capabilityGap": "Quelle lacune de compétences bloque votre prochaine étape ?",
+      "developmentGoal": "L'objectif unique pour les 90 prochains jours",
+      "developmentSteps": "Premières étapes concrètes",
+      "stretchAssignment": "Une mission stimulante concrète que je propose",
+      "managerBacking": "Le soutien auquel je m'engage (coaching, parrainage, temps protégé)"
     },
     "options": {
       "moodNow": { "bad": "Mauvaise", "neutral": "Neutre", "good": "Bonne" },
@@ -411,6 +429,11 @@
         "yes": "Oui",
         "partial": "Partiellement",
         "no": "Non"
+      },
+      "trajectoryDirection": {
+        "icDepth": "Approfondir l'expertise individuelle (sans management)",
+        "peopleLeadership": "Management d'équipe",
+        "undecided": "Pas encore décidé — j'explore encore"
       }
     }
   },

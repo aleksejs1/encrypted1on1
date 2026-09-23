@@ -239,21 +239,38 @@ class AnketaTest extends TestCase
         self::assertSame('onboarding', $anketa->getTemplateKey());
     }
 
-    public function testNextCycleTemplateKeyForRegularMapsToItself(): void
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function nextCycleTemplateKeyProvider(): array
     {
-        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('regular'));
+        return [
+            'regular recurs' => ['regular', 'regular'],
+            // A first 1:1 only happens once.
+            'onboarding is one-off' => ['onboarding', 'regular'],
+            // The next cycle lands at the pair's weekly/biweekly/monthly periodicity,
+            // not quarterly — see NEXT_CYCLE_TEMPLATE_KEY's docblock.
+            'career_growth is one-off' => ['career_growth', 'regular'],
+            'unrecognized key degrades to the default' => ['not-a-real-key', 'regular'],
+        ];
     }
 
-    public function testNextCycleTemplateKeyForOnboardingIsRegularNotItself(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('nextCycleTemplateKeyProvider')]
+    public function testNextCycleTemplateKeyFor(string $templateKey, string $expected): void
     {
-        // A first 1:1 only happens once — unlike 'regular', its auto-recreated
-        // successor must not repeat the onboarding questions forever for the pair.
-        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('onboarding'));
+        self::assertSame($expected, Anketa::nextCycleTemplateKeyFor($templateKey));
     }
 
-    public function testNextCycleTemplateKeyForAnUnrecognizedKeyDegradesToTheDefault(): void
+    public function testEveryTemplateKeyHasAnExplicitNextCycleEntry(): void
     {
-        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('not-a-real-key'));
+        // nextCycleTemplateKeyFor() silently degrades a key missing from the map to the
+        // default, so a new template forgotten there would lose its recurrence rule
+        // without any other test failing. Only one direction: an extra map entry (e.g.
+        // for a retired template's stale data) is harmless.
+        $map = (new \ReflectionClassConstant(Anketa::class, 'NEXT_CYCLE_TEMPLATE_KEY'))->getValue();
+        self::assertIsArray($map);
+
+        self::assertSame([], array_values(array_diff(Anketa::TEMPLATE_KEYS, array_keys($map))));
     }
 
     public function testResealKeyForUpdatesOnlyTheTargetedSide(): void

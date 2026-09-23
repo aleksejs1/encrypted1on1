@@ -1,10 +1,16 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ANKETA_TEMPLATES,
   CURRENT_ANKETA_FORM_VERSION,
   getQuestionsForSide,
+  templatePickerKeys,
   type TemplateKey,
 } from './questions';
+import en from '../i18n/locales/en.json';
+import { messageAt } from '../i18n/testUtils';
 
 function feelingsOptionValues(side: 'employee' | 'manager', version: number) {
   const feelings = getQuestionsForSide(side, version, 'regular').find(
@@ -13,6 +19,14 @@ function feelingsOptionValues(side: 'employee' | 'manager', version: number) {
   const field = feelings?.fields.find((f) => f.id === 'feelingsList');
 
   return field?.options?.map((o) => o.value);
+}
+
+function questionIds(side: 'employee' | 'manager', templateKey: TemplateKey) {
+  return getQuestionsForSide(
+    side,
+    CURRENT_ANKETA_FORM_VERSION,
+    templateKey,
+  ).map((q) => q.id);
 }
 
 describe('getQuestionsForSide', () => {
@@ -96,6 +110,72 @@ describe('getQuestionsForSide', () => {
     }
   });
 
+  // src/i18n/locales.test.ts already checks every locale has the same keys as en.json,
+  // so resolving against en.json alone covers all six — this catches a typo'd key in
+  // this module, which would otherwise render as the raw key string at runtime.
+  it('uses only i18n keys that exist in the locale files, for every registered template and its picker label', () => {
+    const resolves = (key: string) => typeof messageAt(en, key) === 'string';
+
+    for (const templateKey of ANKETA_TEMPLATES) {
+      const { labelKey, descriptionKey } = templatePickerKeys(templateKey);
+      expect(
+        [labelKey, descriptionKey].filter((key) => !resolves(key)),
+      ).toEqual([]);
+      for (const [side, formVersion] of (
+        ['employee', 'manager'] as const
+      ).flatMap((side) =>
+        Array.from(
+          { length: CURRENT_ANKETA_FORM_VERSION },
+          (_, i) => [side, i + 1] as const,
+        ),
+      )) {
+        for (const question of getQuestionsForSide(
+          side,
+          formVersion,
+          templateKey,
+        )) {
+          const keys = [
+            question.titleKey,
+            ...question.fields.flatMap((f) => [
+              f.labelKey,
+              ...(f.options ?? []).map((o) => o.labelKey),
+            ]),
+          ];
+          expect(keys.filter((key) => !resolves(key))).toEqual([]);
+        }
+      }
+    }
+  });
+
+  // The backend validates templateKey against its own hand-kept list; drift either way
+  // means a template the picker offers gets rejected, or one the backend accepts
+  // silently renders as 'regular'. Reads the PHP source directly rather than adding a
+  // shared generated file for a three-entry list — unlike src/design/contrast.test.ts's
+  // readFileSync, this reaches outside the frontend package, so it needs the whole repo
+  // checked out (CI does), and TEMPLATE_KEYS written as a literal array of single-quoted
+  // strings.
+  it("matches the backend's Anketa::TEMPLATE_KEYS", () => {
+    const php = readFileSync(
+      fileURLToPath(
+        new URL('../../../backend/src/Entity/Anketa.php', import.meta.url),
+      ),
+      'utf-8',
+    );
+    const list = /const\s+(?:array\s+)?TEMPLATE_KEYS\s*=\s*\[([^\]]*)\]/.exec(
+      php,
+    )?.[1];
+
+    expect(
+      list,
+      'Anketa::TEMPLATE_KEYS not found as a literal array in Anketa.php — update this regex',
+    ).toBeDefined();
+    // Sorted: membership is what matters (the backend only uses in_array), and
+    // ANKETA_TEMPLATES' own order is the picker's display order.
+    expect(
+      [...(list ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]).sort(),
+    ).toEqual([...ANKETA_TEMPLATES].sort());
+  });
+
   it('degrades an unrecognized templateKey to regular rather than throwing', () => {
     const unknown = 'made-up-template' as TemplateKey;
 
@@ -140,17 +220,6 @@ describe('getQuestionsForSide', () => {
   });
 
   describe("the 'onboarding' template", () => {
-    function questionIds(
-      side: 'employee' | 'manager',
-      templateKey: TemplateKey,
-    ) {
-      return getQuestionsForSide(
-        side,
-        CURRENT_ANKETA_FORM_VERSION,
-        templateKey,
-      ).map((q) => q.id);
-    }
-
     it('replaces feelings/workload/growth/friction with workingAgreement/workStyle/freshEyesAudit on the employee side', () => {
       expect(questionIds('employee', 'onboarding')).toEqual([
         'mood',
@@ -262,6 +331,117 @@ describe('getQuestionsForSide', () => {
     it("does not vary by formVersion (no 'feelings'-style field exists)", () => {
       expect(getQuestionsForSide('employee', 1, 'onboarding')).toEqual(
         getQuestionsForSide('employee', 2, 'onboarding'),
+      );
+    });
+  });
+
+  describe("the 'career_growth' template", () => {
+    function question(side: 'employee' | 'manager', id: string) {
+      return getQuestionsForSide(
+        side,
+        CURRENT_ANKETA_FORM_VERSION,
+        'career_growth',
+      ).find((q) => q.id === id);
+    }
+
+    it('replaces the period-status fields with energyRetrospective/trajectory/developmentPlan on the employee side', () => {
+      expect(questionIds('employee', 'career_growth')).toEqual([
+        'mood',
+        'energyRetrospective',
+        'trajectory',
+        'developmentPlan',
+        'discuss',
+      ]);
+    });
+
+    it('keeps feedback/managerDiscuss and adds sponsorshipOffer on the manager side', () => {
+      expect(questionIds('manager', 'career_growth')).toEqual([
+        'feedback',
+        'sponsorshipOffer',
+        'managerDiscuss',
+      ]);
+    });
+
+    it('keeps mood/discuss and feedback/managerDiscuss identical to the regular template', () => {
+      for (const [side, ids] of [
+        ['employee', ['mood', 'discuss']],
+        ['manager', ['feedback', 'managerDiscuss']],
+      ] as const) {
+        const regular = getQuestionsForSide(
+          side,
+          CURRENT_ANKETA_FORM_VERSION,
+          'regular',
+        );
+        for (const id of ids) {
+          expect(question(side, id)).toEqual(regular.find((q) => q.id === id));
+        }
+      }
+    });
+
+    it('gives energyRetrospective two free-text fields', () => {
+      expect(
+        question('employee', 'energyRetrospective')?.fields.map((f) => [
+          f.id,
+          f.type,
+        ]),
+      ).toEqual([
+        ['energizingWork', 'text'],
+        ['drainingWork', 'text'],
+      ]);
+    });
+
+    it('gives trajectory a three-way (not binary IC-vs-manager) radio plus a capability-gap field', () => {
+      const trajectory = question('employee', 'trajectory');
+
+      expect(trajectory?.fields.map((f) => f.id)).toEqual([
+        'trajectoryDirection',
+        'capabilityGap',
+      ]);
+      expect(
+        trajectory?.fields.find((f) => f.id === 'trajectoryDirection')?.options,
+      ).toEqual([
+        {
+          value: 'ic_depth',
+          labelKey: 'questions.options.trajectoryDirection.icDepth',
+        },
+        {
+          value: 'people_leadership',
+          labelKey: 'questions.options.trajectoryDirection.peopleLeadership',
+        },
+        {
+          value: 'undecided',
+          labelKey: 'questions.options.trajectoryDirection.undecided',
+        },
+      ]);
+    });
+
+    it('gives developmentPlan a single-goal text field plus a list of steps', () => {
+      expect(
+        question('employee', 'developmentPlan')?.fields.map((f) => [
+          f.id,
+          f.type,
+        ]),
+      ).toEqual([
+        ['developmentGoal', 'text'],
+        ['developmentSteps', 'list'],
+      ]);
+    });
+
+    it('gives sponsorshipOffer a stretch-assignment and a backing text field', () => {
+      expect(
+        question('manager', 'sponsorshipOffer')?.fields.map((f) => [
+          f.id,
+          f.type,
+        ]),
+      ).toEqual([
+        ['stretchAssignment', 'text'],
+        ['managerBacking', 'text'],
+      ]);
+    });
+
+    it("does not vary by formVersion (no 'feelings'-style field exists)", () => {
+      expect(getQuestionsForSide('employee', 1, 'career_growth')).toEqual(
+        getQuestionsForSide('employee', 2, 'career_growth'),
       );
     });
   });

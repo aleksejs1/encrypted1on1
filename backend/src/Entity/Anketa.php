@@ -57,12 +57,12 @@ class Anketa
      * writeup) for the full accounting, including why that admin-visibility
      * restriction specifically matters here. More are added one at a time as their own
      * template lands (see GitHub issue #104 for `'onboarding'`, the first). Must match
-     * `ANKETA_TEMPLATES` in `frontend/src/anketa/questions.ts` — no automated cross-check
-     * exists yet (unlike this repo's locale lists, e.g.
-     * `TranslationConsistencyTest`/`ResetDemoDataCommandTest`, which do cross-check each
-     * other); worth adding now that a second key makes drift an actual possibility.
+     * `ANKETA_TEMPLATES` in `frontend/src/anketa/questions.ts` —
+     * `frontend/src/anketa/questions.test.ts` cross-checks the two lists by reading this
+     * file, and `AnketaTest` checks every key here has an explicit
+     * `NEXT_CYCLE_TEMPLATE_KEY` entry.
      */
-    public const TEMPLATE_KEYS = ['regular', 'onboarding'];
+    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth'];
 
     /** The template a new anketa gets when none is explicitly chosen — one named
      * constant instead of the literal `'regular'` repeated across this class,
@@ -74,20 +74,26 @@ class Anketa
      * What `AnketaLifecycleService::createNextAnketa()` (the auto-recreation on
      * `archive()`) should stamp the next cycle's anketa with, keyed by the
      * just-archived anketa's own `templateKey` — deliberately **not** a blind carry-
-     * forward the way `periodicityDays` is. A one-off template (e.g. a first 1:1)
-     * auto-recreating itself forever would be wrong the moment such a template
-     * exists; a genuinely recurring template (e.g. a quarterly career-growth
-     * check-in) should repeat itself. `'regular' => 'regular'` was this map's only
+     * forward the way `periodicityDays` is. A one-off template auto-recreating itself
+     * forever would be wrong (see `'onboarding'`/`'career_growth'` below).
+     * `'regular' => 'regular'` was this map's only
      * real entry before a second template existed, per
      * private/anketa-meeting-templates-proposal.md §7.3/§14 (not tracked in git).
      * `'onboarding'` (GitHub issue #104) is the first template to actually exercise the
      * one-off branch: a first 1:1 only happens once, so its auto-recreated successor
      * degrades back to `'regular'` rather than repeating the onboarding questions
-     * forever for that pair.
+     * forever for that pair. `'career_growth'` (GitHub issue #105) degrades to
+     * `'regular'` too, deliberately deviating from that issue's own "repeats itself"
+     * sketch: the next cycle is scheduled at the pair's inherited `periodicityDays`,
+     * which the UI only ever sets to 7/14/30, so self-recurrence would turn a
+     * quarterly career conversation into a weekly/monthly one and permanently replace
+     * the pair's regular check-in. See
+     * docs/decisions/2026-09-23-career-growth-template-does-not-recur.md.
      */
     private const NEXT_CYCLE_TEMPLATE_KEY = [
         'regular' => 'regular',
         'onboarding' => 'regular',
+        'career_growth' => 'regular',
     ];
 
     /**

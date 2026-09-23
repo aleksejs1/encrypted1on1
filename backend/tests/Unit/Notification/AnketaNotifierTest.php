@@ -74,10 +74,9 @@ class AnketaNotifierTest extends TestCase
      * A template choice must never leak into an email — a channel with real exposure
      * risk (mail server logs, lock-screen previews, a shared inbox), unlike an in-app
      * admin view that can at least be access-controlled. See
-     * private/anketa-meeting-templates-proposal.md §3 (not tracked in git). Deliberately
-     * exercises templateKey values beyond today's only real one ('regular') — the
-     * invariant this locks in must keep holding as more templates are added later, not
-     * just for the one key that exists right now.
+     * private/anketa-meeting-templates-proposal.md §3 (not tracked in git). Exercises
+     * every registered template plus one not-yet-real key ('support_checkin'), so the
+     * invariant keeps holding as templates are added without editing this list.
      */
     public function testNotifyAnketaCreatedNeverIncludesTemplateInformation(): void
     {
@@ -101,7 +100,7 @@ class AnketaNotifierTest extends TestCase
         $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
         $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
 
-        foreach (['regular', 'onboarding', 'support_checkin'] as $templateKey) {
+        foreach ([...Anketa::TEMPLATE_KEYS, 'support_checkin'] as $templateKey) {
             $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $templateKey);
             $notifier->notifyAnketaCreated($anketa, $employee, $manager);
         }

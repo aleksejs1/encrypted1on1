@@ -194,12 +194,11 @@ class AnketaLifecycleService
 
         // Deliberately NOT $anketa->getTemplateKey() here, unlike periodicityDays two
         // lines below — a template choice should not blindly carry forward the way
-        // periodicity does: a one-off template (a first 1:1) auto-recreating itself
-        // forever would be wrong the moment such a template exists. Anketa::
+        // periodicity does: a one-off template ('onboarding', 'career_growth')
+        // auto-recreating itself forever would be wrong. Anketa::
         // nextCycleTemplateKeyFor() looks up the per-template recurrence rule (see its
-        // own docblock) — currently unobservable from "just carry it forward", since
-        // 'regular' is the only template that exists and it maps to itself — see
-        // AnketaLifecycleServiceTest::testArchiveWithNextMeetingAutoRecreation.
+        // own docblock) — see AnketaLifecycleServiceTest::
+        // testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap.
         return $this->createWithCarryForward(
             employee: $anketa->getEmployee(),
             manager: $anketa->getManager(),

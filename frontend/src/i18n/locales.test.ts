@@ -5,6 +5,7 @@ import lv from './locales/lv.json';
 import es from './locales/es.json';
 import de from './locales/de.json';
 import fr from './locales/fr.json';
+import { messageAt } from './testUtils';
 
 /**
  * Cheap substitute for the "lint check for missing keys" the spec calls
@@ -29,13 +30,7 @@ describe('locale files', () => {
 
     it(`${code}.json has no empty string values`, () => {
       const empties = flattenKeys(messages).filter((key) => {
-        const value = key
-          .split('.')
-          .reduce<unknown>(
-            (obj, part) => (obj as Record<string, unknown>)?.[part],
-            messages,
-          );
-        return value === '';
+        return messageAt(messages, key) === '';
       });
       expect(empties).toEqual([]);
     });
