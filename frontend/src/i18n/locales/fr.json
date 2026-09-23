@@ -201,6 +201,8 @@
     "templateOnboardingDescription": "Pour la première rencontre d'une nouvelle relation de travail — accord de travail, style de travail et un audit à l'œil neuf à la place des champs habituels du point régulier.",
     "templateCareerGrowth": "Évolution de carrière",
     "templateCareerGrowthDescription": "Un échange sur la carrière (par exemple une fois par trimestre) — rétrospective d'énergie, trajectoire, missions stimulantes et un plan de développement à 90 jours à la place des champs habituels du point régulier.",
+    "templateSupportCheckin": "Point soutien et charge de travail",
+    "templateSupportCheckinDescription": "Un échange sur l'énergie et la charge de travail — ce qui peut être mis en pause ou délégué, ce qui aiderait à protéger le temps de concentration et de repos, et des prochaines étapes concrètes, en plus des questions habituelles sur l'humeur et la charge de travail.",
     "meetingDateLabel": "Date de la réunion",
     "periodicityLabel": "À quelle fréquence vous rencontrerez-vous ?",
     "periodicityWeekly": "Chaque semaine",
@@ -354,7 +356,12 @@
       "trajectory": {
         "title": "Trajectoire : dans quelle direction souhaitez-vous évoluer ?"
       },
-      "developmentPlan": { "title": "Plan de développement à 90 jours" }
+      "developmentPlan": { "title": "Plan de développement à 90 jours" },
+      "energyLevel": { "title": "Énergie" },
+      "workloadTriage": { "title": "Qu'est-ce qui pourrait être allégé ?" },
+      "boundaries": {
+        "title": "Qu'est-ce qui aiderait à protéger votre temps ?"
+      }
     },
     "manager": {
       "periodSummary": {
@@ -371,7 +378,13 @@
       "readinessCheck": {
         "title": "Vérification de préparation : accès, outils et contexte"
       },
-      "sponsorshipOffer": { "title": "Mission stimulante et parrainage" }
+      "sponsorshipOffer": { "title": "Mission stimulante et parrainage" },
+      "commitments": {
+        "title": "Ce que je prends en charge pour vous soulager"
+      },
+      "checkInCadence": {
+        "title": "Comment nous ferons le point entre les réunions"
+      }
     },
     "fields": {
       "moodNow": "Comment vous sentez-vous ?",
@@ -393,7 +406,13 @@
       "developmentGoal": "L'objectif unique pour les 90 prochains jours",
       "developmentSteps": "Premières étapes concrètes",
       "stretchAssignment": "Une mission stimulante concrète que je propose",
-      "managerBacking": "Le soutien auquel je m'engage (coaching, parrainage, temps protégé)"
+      "managerBacking": "Le soutien auquel je m'engage (coaching, parrainage, temps protégé)",
+      "energyLevelNow": "Comment va votre énergie ces derniers temps ?",
+      "energyDrivers": "Qu'est-ce qui l'influence le plus ?",
+      "triageEntries": "Ce qu'il serait le plus utile de mettre en pause, de déléguer ou d'abandonner",
+      "boundariesNotes": "Ce qui aiderait (par exemple, des plages calmes, des journées sans réunion, une pause dans les astreintes)",
+      "commitmentEntries": "Ce qui change, et pour quand (la date affichée est celle de l'ajout)",
+      "checkInCadenceNotes": "Comment et à quelle fréquence je prendrai de vos nouvelles, sans insister"
     },
     "options": {
       "moodNow": { "bad": "Mauvaise", "neutral": "Neutre", "good": "Bonne" },
@@ -436,6 +455,11 @@
         "icDepth": "Approfondir l'expertise individuelle (sans management)",
         "peopleLeadership": "Management d'équipe",
         "undecided": "Pas encore décidé — j'explore encore"
+      },
+      "energyLevelNow": {
+        "low": "Plutôt basse",
+        "manageable": "Gérable",
+        "good": "Bonne"
       }
     }
   },

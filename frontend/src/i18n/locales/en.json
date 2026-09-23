@@ -201,6 +201,8 @@
     "templateOnboardingDescription": "For a new working relationship's first meeting — working agreement, work style, and a fresh-eyes audit instead of the regular check-in fields.",
     "templateCareerGrowth": "Career growth",
     "templateCareerGrowthDescription": "A career conversation (e.g. once a quarter) — energy retrospective, trajectory, stretch opportunities, and a 90-day development plan instead of the regular check-in fields.",
+    "templateSupportCheckin": "Support & workload check-in",
+    "templateSupportCheckinDescription": "A conversation about energy and workload — what to pause or hand off, what would help protect focus and rest, and concrete next steps, alongside the regular mood and workload questions.",
     "meetingDateLabel": "Meeting date",
     "periodicityLabel": "How often will you meet?",
     "periodicityWeekly": "Weekly",
@@ -348,7 +350,10 @@
         "title": "Energy retrospective: what made you proud, what drained you?"
       },
       "trajectory": { "title": "Trajectory: where do you want to grow?" },
-      "developmentPlan": { "title": "90-day development plan" }
+      "developmentPlan": { "title": "90-day development plan" },
+      "energyLevel": { "title": "Energy" },
+      "workloadTriage": { "title": "What could come off your plate?" },
+      "boundaries": { "title": "What would help protect your time?" }
     },
     "manager": {
       "periodSummary": {
@@ -363,7 +368,9 @@
       "readinessCheck": {
         "title": "Readiness check: access, tools, and context"
       },
-      "sponsorshipOffer": { "title": "Stretch opportunity and sponsorship" }
+      "sponsorshipOffer": { "title": "Stretch opportunity and sponsorship" },
+      "commitments": { "title": "What I'm taking off your plate" },
+      "checkInCadence": { "title": "How we'll check in between meetings" }
     },
     "fields": {
       "moodNow": "How are you feeling?",
@@ -385,7 +392,13 @@
       "developmentGoal": "The one goal for the next 90 days",
       "developmentSteps": "First concrete steps",
       "stretchAssignment": "A concrete stretch assignment I'm proposing",
-      "managerBacking": "The backing I'm committing to (coaching, sponsorship, protected time)"
+      "managerBacking": "The backing I'm committing to (coaching, sponsorship, protected time)",
+      "energyLevelNow": "How's your energy been lately?",
+      "energyDrivers": "What's been shaping it most?",
+      "triageEntries": "Things it would help most to pause, hand off, or drop",
+      "boundariesNotes": "What would help (e.g. quiet hours, meeting-free days, a break from on-call)",
+      "commitmentEntries": "What's changing, and by when (the date shown is when the entry was added)",
+      "checkInCadenceNotes": "How and how often I'll check in, without hovering"
     },
     "options": {
       "moodNow": { "bad": "Bad", "neutral": "Neutral", "good": "Good" },
@@ -428,6 +441,11 @@
         "icDepth": "Deeper expertise as an individual contributor",
         "peopleLeadership": "People leadership",
         "undecided": "Undecided — still exploring"
+      },
+      "energyLevelNow": {
+        "low": "Running low",
+        "manageable": "Manageable",
+        "good": "Good"
       }
     }
   },

@@ -55,14 +55,17 @@ class Anketa
      * private/anketa-meeting-templates-proposal.md §3 (not tracked in git,
      * this repo's own established place for this kind of product-decision
      * writeup) for the full accounting, including why that admin-visibility
-     * restriction specifically matters here. More are added one at a time as their own
+     * restriction specifically matters here. Not every key is equally neutral: a
+     * `'support_checkin'` anketa does hint at why a pair met, which is accepted and
+     * disclosed in docs/encryption.md's threat model rather than hidden behind the
+     * "classifier" framing. More are added one at a time as their own
      * template lands (see GitHub issue #104 for `'onboarding'`, the first). Must match
      * `ANKETA_TEMPLATES` in `frontend/src/anketa/questions.ts` —
      * `frontend/src/anketa/questions.test.ts` cross-checks the two lists by reading this
      * file, and `AnketaTest` checks every key here has an explicit
      * `NEXT_CYCLE_TEMPLATE_KEY` entry.
      */
-    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth'];
+    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth', 'support_checkin'];
 
     /** The template a new anketa gets when none is explicitly chosen — one named
      * constant instead of the literal `'regular'` repeated across this class,
@@ -75,7 +78,7 @@ class Anketa
      * `archive()`) should stamp the next cycle's anketa with, keyed by the
      * just-archived anketa's own `templateKey` — deliberately **not** a blind carry-
      * forward the way `periodicityDays` is. A non-recurring template auto-recreating itself
-     * forever would be wrong (see `'onboarding'`/`'career_growth'` below).
+     * forever would be wrong (see the per-template notes below).
      * `'regular' => 'regular'` was this map's only
      * real entry before a second template existed, per
      * private/anketa-meeting-templates-proposal.md §7.3/§14 (not tracked in git).
@@ -89,11 +92,17 @@ class Anketa
      * quarterly career conversation into a weekly/monthly one and permanently replace
      * the pair's regular check-in. See
      * docs/decisions/2026-09-23-career-growth-template-does-not-recur.md.
+     * `'support_checkin'` (GitHub issue #106) degrades to `'regular'` for the second
+     * half of that reason, deviating from its issue's "repeats itself" sketch too: a
+     * weekly/biweekly support check-in is a fine cadence, but self-recurrence would
+     * still keep the pair on it indefinitely, until someone noticed and switched back
+     * by hand. See docs/decisions/2026-09-23-support-checkin-template-does-not-recur.md.
      */
     private const NEXT_CYCLE_TEMPLATE_KEY = [
         'regular' => 'regular',
         'onboarding' => 'regular',
         'career_growth' => 'regular',
+        'support_checkin' => 'regular',
     ];
 
     /**
@@ -239,7 +248,7 @@ class Anketa
      * populated-table footgun (a bare NOT NULL silently zero-value-backfills instead of
      * rejecting), is what makes the auto-generated MySQL migration safe as-is. */
     #[ORM\Column(type: 'string', length: 40, options: ['default' => 'regular'])]
-    #[AllowPlaintext(reason: 'Which built-in question-set template this anketa uses — a classifier like formVersion/meetingDate, never anketa content. See TEMPLATE_KEYS\'s own docblock.')]
+    #[AllowPlaintext(reason: 'Which built-in question-set template this anketa uses — a classifier like formVersion/meetingDate, never anketa content, though some keys hint at why a pair met (docs/encryption.md). See TEMPLATE_KEYS\'s own docblock.')]
     private string $templateKey;
 
     /**

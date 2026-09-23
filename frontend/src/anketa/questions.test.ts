@@ -29,6 +29,18 @@ function questionIds(side: 'employee' | 'manager', templateKey: TemplateKey) {
   ).map((q) => q.id);
 }
 
+function questionFor(
+  side: 'employee' | 'manager',
+  templateKey: TemplateKey,
+  id: string,
+) {
+  return getQuestionsForSide(
+    side,
+    CURRENT_ANKETA_FORM_VERSION,
+    templateKey,
+  ).find((q) => q.id === id);
+}
+
 describe('getQuestionsForSide', () => {
   it('gives version 1 anketas the original six feelings options', () => {
     expect(feelingsOptionValues('employee', 1)).toEqual([
@@ -110,6 +122,41 @@ describe('getQuestionsForSide', () => {
     }
   });
 
+  // Only 'regular' has a 'feelings'-style field whose options vary by version.
+  it('does not vary any non-regular template by formVersion', () => {
+    for (const templateKey of ANKETA_TEMPLATES.filter((k) => k !== 'regular')) {
+      for (const side of ['employee', 'manager'] as const) {
+        const latest = getQuestionsForSide(
+          side,
+          CURRENT_ANKETA_FORM_VERSION,
+          templateKey,
+        );
+        for (let v = 1; v < CURRENT_ANKETA_FORM_VERSION; v++) {
+          expect(
+            getQuestionsForSide(side, v, templateKey),
+            `${templateKey}/${side}/v${v}`,
+          ).toEqual(latest);
+        }
+      }
+    }
+  });
+
+  // Field ids are the keys of a side's Answers object, and comment threads
+  // (comments.ts's targetId) are keyed by the bare field id with no side, so a
+  // clash — within one side or across the two — would merge answers or threads.
+  it('uses unique field ids across both sides of every registered template, at every form version', () => {
+    for (const templateKey of ANKETA_TEMPLATES) {
+      for (let v = 1; v <= CURRENT_ANKETA_FORM_VERSION; v++) {
+        const ids = (['employee', 'manager'] as const).flatMap((side) =>
+          getQuestionsForSide(side, v, templateKey).flatMap((q) =>
+            q.fields.map((f) => f.id),
+          ),
+        );
+        expect(new Set(ids).size, `${templateKey}/v${v}`).toBe(ids.length);
+      }
+    }
+  });
+
   // src/i18n/locales.test.ts already checks every locale has the same keys as en.json,
   // so resolving against en.json alone covers all six — this catches a typo'd key in
   // this module, which would otherwise render as the raw key string at runtime.
@@ -150,7 +197,7 @@ describe('getQuestionsForSide', () => {
   // The backend validates templateKey against its own hand-kept list; drift either way
   // means a template the picker offers gets rejected, or one the backend accepts
   // silently renders as 'regular'. Reads the PHP source directly rather than adding a
-  // shared generated file for a three-entry list — unlike src/design/contrast.test.ts's
+  // shared generated file for a short hand-kept list — unlike src/design/contrast.test.ts's
   // readFileSync, this reaches outside the frontend package, so it needs the whole repo
   // checked out (CI does), and TEMPLATE_KEYS written as a literal array of single-quoted
   // strings.
@@ -327,22 +374,11 @@ describe('getQuestionsForSide', () => {
         { value: 'no', labelKey: 'questions.options.readinessLevel.no' },
       ]);
     });
-
-    it("does not vary by formVersion (no 'feelings'-style field exists)", () => {
-      expect(getQuestionsForSide('employee', 1, 'onboarding')).toEqual(
-        getQuestionsForSide('employee', 2, 'onboarding'),
-      );
-    });
   });
 
   describe("the 'career_growth' template", () => {
-    function question(side: 'employee' | 'manager', id: string) {
-      return getQuestionsForSide(
-        side,
-        CURRENT_ANKETA_FORM_VERSION,
-        'career_growth',
-      ).find((q) => q.id === id);
-    }
+    const question = (side: 'employee' | 'manager', id: string) =>
+      questionFor(side, 'career_growth', id);
 
     it('replaces the period-status fields with energyRetrospective/trajectory/developmentPlan on the employee side', () => {
       expect(questionIds('employee', 'career_growth')).toEqual([
@@ -438,11 +474,86 @@ describe('getQuestionsForSide', () => {
         ['managerBacking', 'text'],
       ]);
     });
+  });
 
-    it("does not vary by formVersion (no 'feelings'-style field exists)", () => {
-      expect(getQuestionsForSide('employee', 1, 'career_growth')).toEqual(
-        getQuestionsForSide('employee', 2, 'career_growth'),
-      );
+  describe("the 'support_checkin' template", () => {
+    const question = (side: 'employee' | 'manager', id: string) =>
+      questionFor(side, 'support_checkin', id);
+
+    it('keeps mood, then energyLevel/workload/workloadTriage/boundaries/discuss on the employee side', () => {
+      expect(questionIds('employee', 'support_checkin')).toEqual([
+        'mood',
+        'energyLevel',
+        'workload',
+        'workloadTriage',
+        'boundaries',
+        'discuss',
+      ]);
+    });
+
+    it('gives the manager side commitments/checkInCadence/managerDiscuss', () => {
+      expect(questionIds('manager', 'support_checkin')).toEqual([
+        'commitments',
+        'checkInCadence',
+        'managerDiscuss',
+      ]);
+    });
+
+    it('keeps mood/workload/discuss and managerDiscuss identical to the regular template', () => {
+      for (const [side, id] of [
+        ['employee', 'mood'],
+        ['employee', 'workload'],
+        ['employee', 'discuss'],
+        ['manager', 'managerDiscuss'],
+      ] as const) {
+        expect(question(side, id)).toEqual(questionFor(side, 'regular', id));
+      }
+    });
+
+    it('gives energyLevel a plain low/manageable/good radio (not a numeric score) plus a free-text field', () => {
+      const energyLevel = question('employee', 'energyLevel');
+
+      expect(energyLevel?.fields.map((f) => [f.id, f.type])).toEqual([
+        ['energyLevelNow', 'radio'],
+        ['energyDrivers', 'text'],
+      ]);
+      expect(
+        energyLevel?.fields.find((f) => f.id === 'energyLevelNow')?.options,
+      ).toEqual([
+        { value: 'low', labelKey: 'questions.options.energyLevelNow.low' },
+        {
+          value: 'manageable',
+          labelKey: 'questions.options.energyLevelNow.manageable',
+        },
+        { value: 'good', labelKey: 'questions.options.energyLevelNow.good' },
+      ]);
+    });
+
+    it('gives workloadTriage a list field rather than a single blank prompt', () => {
+      expect(
+        question('employee', 'workloadTriage')?.fields.map((f) => [
+          f.id,
+          f.type,
+        ]),
+      ).toEqual([['triageEntries', 'list']]);
+    });
+
+    it('gives boundaries a single free-text field', () => {
+      expect(
+        question('employee', 'boundaries')?.fields.map((f) => [f.id, f.type]),
+      ).toEqual([['boundariesNotes', 'text']]);
+    });
+
+    it('gives commitments a list field and checkInCadence a free-text field', () => {
+      expect(
+        question('manager', 'commitments')?.fields.map((f) => [f.id, f.type]),
+      ).toEqual([['commitmentEntries', 'list']]);
+      expect(
+        question('manager', 'checkInCadence')?.fields.map((f) => [
+          f.id,
+          f.type,
+        ]),
+      ).toEqual([['checkInCadenceNotes', 'text']]);
     });
   });
 });
