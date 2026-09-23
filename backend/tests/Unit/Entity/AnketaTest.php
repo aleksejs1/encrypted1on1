@@ -239,6 +239,17 @@ class AnketaTest extends TestCase
         self::assertSame('onboarding', $anketa->getTemplateKey());
     }
 
+    public function testNextCycleTemplateKeyForRegularMapsToItself(): void
+    {
+        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('regular'));
+    }
+
+    public function testNextCycleTemplateKeyForAnUnrecognizedKeyDegradesToTheDefault(): void
+    {
+        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('onboarding'));
+        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('not-a-real-key'));
+    }
+
     public function testResealKeyForUpdatesOnlyTheTargetedSide(): void
     {
         $anketa = $this->makeAnketa();
