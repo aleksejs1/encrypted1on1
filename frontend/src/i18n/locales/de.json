@@ -201,12 +201,15 @@
     "templateOnboardingDescription": "Für das erste Treffen einer neuen Arbeitsbeziehung — Arbeitsvereinbarung, Arbeitsstil und ein Audit mit frischem Blick anstelle der üblichen Felder des regulären Check-ins.",
     "templateCareerGrowth": "Karriereentwicklung",
     "templateCareerGrowthDescription": "Ein Karrieregespräch (z. B. einmal pro Quartal) — Energie-Rückblick, Entwicklungsrichtung, Stretch-Aufgaben und ein 90-Tage-Entwicklungsplan anstelle der üblichen Felder des regulären Check-ins.",
+    "templateSupportCheckin": "Check-in zu Unterstützung und Arbeitsbelastung",
+    "templateSupportCheckinDescription": "Ein Gespräch über Energie und Arbeitsbelastung — was pausiert oder abgegeben werden kann, was hilft, Zeit für konzentriertes Arbeiten und Erholung zu schützen, und konkrete nächste Schritte, zusätzlich zu den üblichen Fragen zu Stimmung und Arbeitsbelastung.",
     "meetingDateLabel": "Meeting-Datum",
     "periodicityLabel": "Wie oft werden Sie sich treffen?",
     "periodicityWeekly": "Wöchentlich",
     "periodicityBiweekly": "Alle 2 Wochen",
     "periodicityMonthly": "Monatlich",
     "periodicityInherited": "Sie haben sich bereits getroffen — die Periodizität dieses Paares ist bereits festgelegt und wird übernommen.",
+    "pairHasOpenAnketa": "Dieses Paar hat bereits eine offene Anketa, daher ist diese eine einmalige: Es wird nichts in sie übernommen, hier hinzugefügte Ziele und Ergebnisse gehen nicht in das nächste Meeting des Paares über, und beim Archivieren wird kein nächstes Meeting geplant. Die regelmäßigen Meetings des Paares gehen in der anderen Anketa weiter.",
     "submit": "Anketa erstellen",
     "submitting": "Wird erstellt…",
     "errorLoad": "Nutzer konnten nicht geladen werden.",
@@ -275,6 +278,7 @@
     "addingGoal": "Wird hinzugefügt…",
     "archiveHeading": "Archivieren",
     "skipNextMeeting": "Kein nächstes Meeting erstellen",
+    "archiveOneOff": "Dies ist eine einmalige Anketa (erstellt, als das Paar bereits eine andere offene hatte): Beim Archivieren wird kein nächstes Meeting geplant, und ihre Ziele und offenen Ergebnisse gehen nicht in die regelmäßigen Meetings des Paares über.",
     "nextMeetingDateLabel": "Datum des nächsten Meetings",
     "archive": "Archivieren",
     "archiving": "Wird archiviert…",
@@ -348,7 +352,10 @@
       "trajectory": {
         "title": "Entwicklungsrichtung: Wohin möchten Sie wachsen?"
       },
-      "developmentPlan": { "title": "90-Tage-Entwicklungsplan" }
+      "developmentPlan": { "title": "90-Tage-Entwicklungsplan" },
+      "energyLevel": { "title": "Energie" },
+      "workloadTriage": { "title": "Was könnte Ihnen abgenommen werden?" },
+      "boundaries": { "title": "Was würde helfen, Ihre Zeit zu schützen?" }
     },
     "manager": {
       "periodSummary": {
@@ -363,7 +370,11 @@
       "readinessCheck": {
         "title": "Bereitschaftscheck: Zugang, Werkzeuge und Kontext"
       },
-      "sponsorshipOffer": { "title": "Stretch-Aufgabe und Förderung" }
+      "sponsorshipOffer": { "title": "Stretch-Aufgabe und Förderung" },
+      "commitments": { "title": "Was ich Ihnen abnehme" },
+      "checkInCadence": {
+        "title": "Wie wir zwischen den Treffen in Kontakt bleiben"
+      }
     },
     "fields": {
       "moodNow": "Wie fühlen Sie sich?",
@@ -385,7 +396,13 @@
       "developmentGoal": "Das eine Ziel für die nächsten 90 Tage",
       "developmentSteps": "Erste konkrete Schritte",
       "stretchAssignment": "Eine konkrete Stretch-Aufgabe, die ich vorschlage",
-      "managerBacking": "Die Unterstützung, die ich zusage (Coaching, Förderung, geschützte Zeit)"
+      "managerBacking": "Die Unterstützung, die ich zusage (Coaching, Förderung, geschützte Zeit)",
+      "energyLevelNow": "Wie steht es in letzter Zeit um Ihre Energie?",
+      "energyDrivers": "Was beeinflusst das am meisten?",
+      "triageEntries": "Was Sie am ehesten pausieren, abgeben oder streichen könnten",
+      "boundariesNotes": "Was helfen würde (z. B. ruhige Stunden, meetingfreie Tage, eine Pause von der Rufbereitschaft)",
+      "commitmentEntries": "Was sich ändert und bis wann (das angezeigte Datum ist das Eintragsdatum)",
+      "checkInCadenceNotes": "Wie und wie oft ich mich unaufdringlich nach Ihnen erkundige"
     },
     "options": {
       "moodNow": { "bad": "Schlecht", "neutral": "Neutral", "good": "Gut" },
@@ -428,6 +445,11 @@
         "icDepth": "Mehr fachliche Tiefe (Fachlaufbahn)",
         "peopleLeadership": "Personalverantwortung",
         "undecided": "Noch offen — ich orientiere mich noch"
+      },
+      "energyLevelNow": {
+        "low": "Eher niedrig",
+        "manageable": "Mittel",
+        "good": "Gut"
       }
     }
   },

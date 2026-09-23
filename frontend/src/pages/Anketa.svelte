@@ -937,6 +937,10 @@
    * AnketaArchiveSection for editing) precisely so this function keeps reading
    * whatever's currently set in that form regardless of which button triggered it,
    * matching the behavior before either component existed.
+   *
+   * A one-off anketa (GitHub issue #111) never gets a successor — the server
+   * forces that regardless of the request — so it's sent as an explicit skip,
+   * with no next key to generate; the form hides the "skip" checkbox for it.
    */
   async function handleArchive(missedFlag: boolean): Promise<void> {
     if (!detail) return;
@@ -945,7 +949,7 @@
     try {
       let body: Record<string, unknown> = { missed: missedFlag };
 
-      if (skipNextMeeting) {
+      if (skipNextMeeting || detail.oneOff) {
         body.skipNextMeeting = true;
       } else {
         if (!anketaKey) throw new Error($_('anketa.errorNotReadyToArchive'));
@@ -1384,6 +1388,7 @@
     {#if !archived}
       <AnketaArchiveSection
         {archiving}
+        oneOff={detail.oneOff}
         bind:skipNextMeeting
         bind:nextMeetingDate
         onArchive={handleArchive}

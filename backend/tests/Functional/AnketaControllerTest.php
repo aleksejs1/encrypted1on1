@@ -90,30 +90,26 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
     }
 
-    public function testCreateAndGetAcceptTheOnboardingTemplateKey(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function templateKeyProvider(): array
     {
-        [$employeeClient, , , $manager] = $this->makePair('template-key-onboarding');
-        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'onboarding'])['json']['id'];
-
-        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
-        $listRow = self::findById($list['json'], $anketaId);
-        self::assertSame('onboarding', $listRow['templateKey']);
-
-        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
-        self::assertSame('onboarding', $get['json']['templateKey']);
+        return array_combine(Anketa::TEMPLATE_KEYS, array_map(static fn (string $key): array => [$key], Anketa::TEMPLATE_KEYS));
     }
 
-    public function testCreateAndGetAcceptTheCareerGrowthTemplateKey(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('templateKeyProvider')]
+    public function testCreateAndGetAcceptEveryRegisteredTemplateKey(string $templateKey): void
     {
-        [$employeeClient, , , $manager] = $this->makePair('template-key-career-growth');
-        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'career_growth'])['json']['id'];
+        [$employeeClient, , , $manager] = $this->makePair('template-key-'.str_replace('_', '-', $templateKey));
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => $templateKey])['json']['id'];
 
         $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
         $listRow = self::findById($list['json'], $anketaId);
-        self::assertSame('career_growth', $listRow['templateKey']);
+        self::assertSame($templateKey, $listRow['templateKey']);
 
         $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
-        self::assertSame('career_growth', $get['json']['templateKey']);
+        self::assertSame($templateKey, $get['json']['templateKey']);
     }
 
     public function testCreateRejectsAnUnknownCounterpart(): void
@@ -387,6 +383,7 @@ class AnketaControllerTest extends ApiTestCase
         // for — AnketaPresenter::serializeLiveState() explicitly excludes it, unlike
         // every other summarize() field, which this endpoint otherwise reuses wholesale.
         self::assertArrayNotHasKey('templateKey', $result['json']);
+        self::assertArrayNotHasKey('oneOff', $result['json'], 'equally immutable (GitHub issue #111)');
     }
 
     public function testLiveStateReflectsCounterpartsRoleAndPublishState(): void
@@ -873,6 +870,163 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame('in_progress', $carried['status']);
     }
 
+    /**
+     * GitHub issue #111, the full scenario: archive auto-creates the next anketa, then a
+     * second one is created by hand next to it. The hand-created one is a one-off: no
+     * carry-forward, and archiving it with the form's defaults creates no successor.
+     */
+    public function testAHandCreatedAnketaNextToAnOpenOneIsAOneOff(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('one-off');
+        $firstId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$firstId}/goals", [
+            'goalUuid' => 'one-off-goal-uuid',
+            'title' => 'Still working on it',
+        ]);
+        self::assertFalse($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$firstId}")['json']['oneOff']);
+
+        $regularId = $this->archiveWithNextAndReturnTheNewId($employeeClient, $firstId);
+        $regular = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$regularId}")['json'];
+        self::assertFalse($regular['oneOff'], 'an auto-created successor is never a one-off');
+        self::assertContains('one-off-goal-uuid', array_column($regular['goals'], 'goalUuid'));
+
+        $second = $this->createAnketaAsEmployee($employeeClient, $manager['id'], [
+            'templateKey' => 'career_growth',
+            'outcomesBlob' => 'client-carried-outcomes',
+            'periodicityDays' => 7,
+        ]);
+        self::assertSame(201, $second['status']);
+        $secondId = $second['json']['id'];
+
+        $secondDetail = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$secondId}")['json'];
+        self::assertTrue($secondDetail['oneOff']);
+        self::assertSame([], $secondDetail['goals'], 'the already-open anketa got the carry-forward; this one must not duplicate it');
+        self::assertNull($secondDetail['outcomesBlob'], 'a client-carried outcomesBlob must be dropped for the same reason');
+        self::assertSame(30, $secondDetail['periodicityDays'], 'periodicity is inherited, a sent one ignored');
+
+        // Archived with the form's defaults (skipNextMeeting unchecked, keys sent) — the
+        // server still refuses to fork the chain.
+        $archiveSecond = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$secondId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+        self::assertSame(200, $archiveSecond['status']);
+        self::assertSame([$regularId], $this->openAnketaIds($employeeClient));
+    }
+
+    /**
+     * The review finding that moved this from a dynamic "does the pair have another open
+     * anketa" check to the persisted flag: archiving the regular anketa *first*, while a
+     * one-off is still open, must still continue the chain with the regular anketa's
+     * carried goals — not hand the chain to the empty one-off.
+     */
+    public function testArchivingTheRegularAnketaWhileAOneOffIsOpenStillContinuesTheChain(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('one-off-regular-first');
+        $regularId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$regularId}/goals", [
+            'goalUuid' => 'regular-first-goal-uuid',
+            'title' => 'Still working on it',
+        ]);
+        $oneOffId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'career_growth'])['json']['id'];
+
+        $nextId = $this->archiveWithNextAndReturnTheNewId($employeeClient, $regularId);
+
+        $next = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$nextId}")['json'];
+        self::assertFalse($next['oneOff']);
+        self::assertSame('regular', $next['templateKey']);
+        self::assertContains('regular-first-goal-uuid', array_column($next['goals'], 'goalUuid'));
+        $openIds = $this->openAnketaIds($employeeClient);
+        sort($openIds);
+        $expected = [$nextId, $oneOffId];
+        sort($expected);
+        self::assertSame($expected, $openIds);
+    }
+
+    /**
+     * An open one-off isn't the pair's chain: once the regular chain has ended (archived
+     * with "skip next meeting"), a hand-created anketa restarts it — not a one-off, with
+     * the ended chain's carry-forward.
+     */
+    public function testAPairWhoseChainEndedCanRestartItWhileAOneOffIsOpen(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('one-off-restart');
+        $regularId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$regularId}/goals", [
+            'goalUuid' => 'restart-goal-uuid',
+            'title' => 'Still working on it',
+        ]);
+        $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'career_growth']);
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$regularId}/archive", ['missed' => false, 'skipNextMeeting' => true]);
+
+        $restarted = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['periodicityDays' => null]);
+        self::assertSame(201, $restarted['status']);
+        $detail = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$restarted['json']['id']}")['json'];
+        self::assertFalse($detail['oneOff']);
+        self::assertContains('restart-goal-uuid', array_column($detail['goals'], 'goalUuid'));
+    }
+
+    /**
+     * An archived one-off is never the carry-forward source, even when its meeting date is
+     * the pair's most recent — otherwise restarting a chain would copy the one-off's
+     * (empty) state and drop the chain's own open goals.
+     */
+    public function testCarryForwardSkipsAnArchivedOneOff(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('one-off-not-carried');
+        $regularId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$regularId}/goals", [
+            'goalUuid' => 'chain-goal-uuid',
+            'title' => 'Still working on it',
+        ]);
+        $oneOffId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], [
+            'templateKey' => 'career_growth',
+            'meetingDate' => (new \DateTimeImmutable('+10 days'))->format(\DateTimeImmutable::ATOM),
+        ])['json']['id'];
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$oneOffId}/goals", [
+            'goalUuid' => 'one-off-only-goal-uuid',
+            'title' => 'Only in the one-off',
+        ]);
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$regularId}/archive", ['missed' => false, 'skipNextMeeting' => true]);
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$oneOffId}/archive", ['missed' => false, 'skipNextMeeting' => true]);
+
+        $next = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['periodicityDays' => null]);
+        $goalUuids = array_column($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$next['json']['id']}")['json']['goals'], 'goalUuid');
+        self::assertSame(['chain-goal-uuid'], $goalUuids);
+    }
+
+    /**
+     * A pair whose very first anketa is still open: the hand-created second one is a
+     * one-off too, and inherits the open one's periodicity rather than setting its own.
+     * The pair is matched regardless of which side played employee/manager, and another
+     * pair's open anketa doesn't count.
+     */
+    public function testASecondAnketaForANewPairIsAOneOffWithRolesSwapped(): void
+    {
+        [$employeeClient, $employee, $managerClient, $manager] = $this->makePair('one-off-new-pair');
+        $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['periodicityDays' => 7]);
+
+        $otherManager = $this->activateUser($this->secondClient(), $this->uniqueEmail('anketa-one-off-unrelated-mgr'));
+        $unrelated = $this->createAnketaAsEmployee($employeeClient, $otherManager['id']);
+        self::assertFalse($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$unrelated['json']['id']}")['json']['oneOff']);
+
+        $swapped = $this->jsonRequest($managerClient, 'POST', '/api/anketas', [
+            'counterpartId' => $employee['id'],
+            'myRole' => 'employee',
+            'meetingDate' => (new \DateTimeImmutable('+2 days'))->format(\DateTimeImmutable::ATOM),
+            'mySealedKey' => str_repeat('e', 44),
+            'counterpartSealedKey' => str_repeat('m', 44),
+            'periodicityDays' => 30,
+        ]);
+        self::assertSame(201, $swapped['status']);
+
+        $detail = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$swapped['json']['id']}")['json'];
+        self::assertTrue($detail['oneOff']);
+        self::assertSame(7, $detail['periodicityDays']);
+    }
+
     public function testListShowsNoCounterpartKeyOutdatedByDefault(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('key-outdated-default');
@@ -1075,6 +1229,35 @@ class AnketaControllerTest extends ApiTestCase
         $body = array_filter($body, static fn ($value) => null !== $value);
 
         return $this->jsonRequest($employeeClient, 'POST', '/api/anketas', $body);
+    }
+
+    /** Archives $anketaId with auto-recreation and returns the auto-created anketa's id. */
+    private function archiveWithNextAndReturnTheNewId(KernelBrowser $client, string $anketaId): string
+    {
+        $beforeIds = array_column($this->jsonRequest($client, 'GET', '/api/anketas')['json'], 'id');
+        $result = $this->jsonRequest($client, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $newIds = array_values(array_diff(array_column($this->jsonRequest($client, 'GET', '/api/anketas')['json'], 'id'), $beforeIds));
+        self::assertCount(1, $newIds);
+
+        return $newIds[0];
+    }
+
+    /** @return list<string> */
+    private function openAnketaIds(KernelBrowser $client): array
+    {
+        $open = array_filter(
+            $this->jsonRequest($client, 'GET', '/api/anketas')['json'],
+            static fn (array $row) => null === $row['archivedAt'],
+        );
+
+        return array_column($open, 'id');
     }
 
     /**
