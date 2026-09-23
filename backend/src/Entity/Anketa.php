@@ -74,13 +74,13 @@ class Anketa
      * What `AnketaLifecycleService::createNextAnketa()` (the auto-recreation on
      * `archive()`) should stamp the next cycle's anketa with, keyed by the
      * just-archived anketa's own `templateKey` — deliberately **not** a blind carry-
-     * forward the way `periodicityDays` is. A one-off template auto-recreating itself
+     * forward the way `periodicityDays` is. A non-recurring template auto-recreating itself
      * forever would be wrong (see `'onboarding'`/`'career_growth'` below).
      * `'regular' => 'regular'` was this map's only
      * real entry before a second template existed, per
      * private/anketa-meeting-templates-proposal.md §7.3/§14 (not tracked in git).
      * `'onboarding'` (GitHub issue #104) is the first template to actually exercise the
-     * one-off branch: a first 1:1 only happens once, so its auto-recreated successor
+     * non-recurring branch: a first 1:1 only happens once, so its auto-recreated successor
      * degrades back to `'regular'` rather than repeating the onboarding questions
      * forever for that pair. `'career_growth'` (GitHub issue #105) degrades to
      * `'regular'` too, deliberately deviating from that issue's own "repeats itself"
@@ -242,6 +242,22 @@ class Anketa
     #[AllowPlaintext(reason: 'Which built-in question-set template this anketa uses — a classifier like formVersion/meetingDate, never anketa content. See TEMPLATE_KEYS\'s own docblock.')]
     private string $templateKey;
 
+    /**
+     * Set once, at creation, when the anketa was created by hand while the pair already
+     * had another open one (typically an ad-hoc template next to the auto-created regular
+     * anketa) — AnketaController::create(). A one-off anketa gets no carry-forward and
+     * never auto-recreates a successor (AnketaLifecycleService::shouldCreateNext()), so a
+     * pair's chain can't fork into two. Persisted rather than re-derived at archive time
+     * from "does the pair have another open anketa right now", which would let the
+     * regular anketa's own successor be suppressed by the one-off — see GitHub issue #111
+     * and docs/decisions/2026-09-23-one-open-anketa-chain-per-pair.md. DB-level default
+     * for the same populated-table reason as templateKey's. Not the same thing as a
+     * non-recurring *template* (NEXT_CYCLE_TEMPLATE_KEY): that decides which template a
+     * chain anketa's successor gets; this decides whether there's a successor at all.
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $oneOff;
+
     public function __construct(
         User $employee,
         User $manager,
@@ -250,6 +266,7 @@ class Anketa
         string $managerSealedKey,
         int $periodicityDays,
         string $templateKey = self::DEFAULT_TEMPLATE_KEY,
+        bool $oneOff = false,
     ) {
         $employeeCompany = $employee->getCompany();
         $managerCompany = $manager->getCompany();
@@ -270,6 +287,7 @@ class Anketa
         $this->managerSealedKeyUpdatedAt = $this->createdAt;
         $this->formVersion = self::CURRENT_FORM_VERSION;
         $this->templateKey = $templateKey;
+        $this->oneOff = $oneOff;
     }
 
     public function getCompany(): Company
@@ -285,6 +303,11 @@ class Anketa
     public function getTemplateKey(): string
     {
         return $this->templateKey;
+    }
+
+    public function isOneOff(): bool
+    {
+        return $this->oneOff;
     }
 
     public function getId(): string

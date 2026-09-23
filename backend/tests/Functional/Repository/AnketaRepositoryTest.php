@@ -128,6 +128,92 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertSame($newerId, $archivedReversed->getId());
     }
 
+    public function testFindOpenForPairIgnoresOneOffs(): void
+    {
+        [$empClient, $employee, , $manager] = $this->makePair('open-for-pair');
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+
+        $empUser = $em->find(User::class, $employee['id']);
+        $mgrUser = $em->find(User::class, $manager['id']);
+        \assert($empUser instanceof User && $mgrUser instanceof User);
+
+        $regularId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+        // Created next to the open regular one, so it's a one-off (GitHub issue #111).
+        $this->createAnketaAsEmployee($empClient, $manager['id']);
+
+        $open = $anketaRepo->findOpenForPair($empUser, $mgrUser);
+        $openReversed = $anketaRepo->findOpenForPair($mgrUser, $empUser);
+        self::assertNotNull($open);
+        self::assertNotNull($openReversed);
+        self::assertSame($regularId, $open->getId());
+        self::assertSame($regularId, $openReversed->getId());
+
+        $this->jsonRequest($empClient, 'POST', "/api/anketas/{$regularId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => true,
+        ]);
+        $em->clear();
+
+        self::assertNull($anketaRepo->findOpenForPair($empUser, $mgrUser), 'an open one-off alone is not the pair\'s chain');
+    }
+
+    /** Only reachable for a pair that forked before GitHub issue #111's fix. */
+    public function testFindOpenForPairPicksTheEarliestOfSeveralOpenChainAnketas(): void
+    {
+        [$empClient, $employee, , $manager] = $this->makePair('open-earliest');
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+
+        $empUser = $em->find(User::class, $employee['id']);
+        $mgrUser = $em->find(User::class, $manager['id']);
+        \assert($empUser instanceof User && $mgrUser instanceof User);
+
+        // Built directly, not via the API — create() would make the second one a one-off.
+        $later = new Anketa($empUser, $mgrUser, new \DateTimeImmutable('+20 days'), 'k', 'k', 14);
+        $earlier = new Anketa($empUser, $mgrUser, new \DateTimeImmutable('+5 days'), 'k', 'k', 14);
+        $em->persist($later);
+        $em->persist($earlier);
+        $em->flush();
+
+        $open = $anketaRepo->findOpenForPair($empUser, $mgrUser);
+        self::assertNotNull($open);
+        self::assertSame($earlier->getId(), $open->getId());
+    }
+
+    public function testFindMostRecentArchivedForPairIgnoresOneOffs(): void
+    {
+        [$empClient, $employee, , $manager] = $this->makePair('archived-one-off');
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+
+        $chainId = $this->createAnketaAsEmployee($empClient, $manager['id'], [
+            'meetingDate' => (new \DateTimeImmutable('+1 day'))->format(\DateTimeImmutable::ATOM),
+        ])['json']['id'];
+        // Created next to the open chain anketa, so it's a one-off (GitHub issue #111) —
+        // with a later meeting date, so a plain "most recent" lookup would pick it.
+        $oneOffId = $this->createAnketaAsEmployee($empClient, $manager['id'], [
+            'meetingDate' => (new \DateTimeImmutable('+14 days'))->format(\DateTimeImmutable::ATOM),
+        ])['json']['id'];
+        foreach ([$chainId, $oneOffId] as $id) {
+            $this->jsonRequest($empClient, 'POST', "/api/anketas/{$id}/archive", [
+                'missed' => false,
+                'skipNextMeeting' => true,
+            ]);
+        }
+
+        $empUser = $em->find(User::class, $employee['id']);
+        $mgrUser = $em->find(User::class, $manager['id']);
+        \assert($empUser instanceof User && $mgrUser instanceof User);
+
+        $archived = $anketaRepo->findMostRecentArchivedForPair($empUser, $mgrUser);
+        $archivedReversed = $anketaRepo->findMostRecentArchivedForPair($mgrUser, $empUser);
+        self::assertNotNull($archived);
+        self::assertNotNull($archivedReversed);
+        self::assertSame($chainId, $archived->getId());
+        self::assertSame($chainId, $archivedReversed->getId());
+    }
+
     public function testGoalRepositoryQueries(): void
     {
         [$empClient, $employee, , $manager] = $this->makePair('goal-repo');
