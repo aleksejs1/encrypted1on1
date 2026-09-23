@@ -103,264 +103,399 @@ const feelingsOptionsV2: FieldOption[] = [
   { value: 'lonely', labelKey: 'questions.options.feelingsList.lonely' },
 ];
 
-function employeeQuestions(formVersion: number): Question[] {
-  return [
+const moodQuestion: Question = {
+  id: 'mood',
+  titleKey: 'questions.employee.mood.title',
+  fields: [
     {
-      id: 'mood',
-      titleKey: 'questions.employee.mood.title',
-      fields: [
+      id: 'moodNow',
+      type: 'radio',
+      labelKey: 'questions.fields.moodNow',
+      options: [
+        { value: 'bad', labelKey: 'questions.options.moodNow.bad' },
         {
-          id: 'moodNow',
-          type: 'radio',
-          labelKey: 'questions.fields.moodNow',
-          options: [
-            { value: 'bad', labelKey: 'questions.options.moodNow.bad' },
-            {
-              value: 'neutral',
-              labelKey: 'questions.options.moodNow.neutral',
-            },
-            { value: 'good', labelKey: 'questions.options.moodNow.good' },
-          ],
+          value: 'neutral',
+          labelKey: 'questions.options.moodNow.neutral',
         },
-        {
-          id: 'moodTrend',
-          type: 'radio',
-          labelKey: 'questions.fields.moodTrend',
-          options: [
-            { value: 'worse', labelKey: 'questions.options.trend.worse' },
-            { value: 'same', labelKey: 'questions.options.trend.same' },
-            { value: 'better', labelKey: 'questions.options.trend.better' },
-          ],
-        },
-        {
-          id: 'moodNotes',
-          type: 'text',
-          labelKey: 'questions.fields.anythingToAdd',
-        },
+        { value: 'good', labelKey: 'questions.options.moodNow.good' },
       ],
     },
     {
-      id: 'feelings',
-      titleKey: 'questions.employee.feelings.title',
-      fields: [
-        {
-          id: 'feelingsList',
-          type: 'checkboxes',
-          labelKey: 'questions.fields.feelingsList',
-          options: formVersion >= 2 ? feelingsOptionsV2 : feelingsOptionsV1,
-        },
-        {
-          id: 'feelingsNotes',
-          type: 'text',
-          labelKey: 'questions.fields.anythingToAdd',
-        },
+      id: 'moodTrend',
+      type: 'radio',
+      labelKey: 'questions.fields.moodTrend',
+      options: [
+        { value: 'worse', labelKey: 'questions.options.trend.worse' },
+        { value: 'same', labelKey: 'questions.options.trend.same' },
+        { value: 'better', labelKey: 'questions.options.trend.better' },
       ],
     },
-    ...employeeQuestionsAfterFeelings,
-  ];
-}
+    {
+      id: 'moodNotes',
+      type: 'text',
+      labelKey: 'questions.fields.anythingToAdd',
+    },
+  ],
+};
 
-const employeeQuestionsAfterFeelings: Question[] = [
-  {
-    id: 'workload',
-    titleKey: 'questions.employee.workload.title',
+function feelingsQuestion(formVersion: number): Question {
+  return {
+    id: 'feelings',
+    titleKey: 'questions.employee.feelings.title',
     fields: [
       {
-        id: 'workloadNow',
-        type: 'radio',
-        labelKey: 'questions.fields.workloadNow',
-        options: [
-          {
-            value: 'too_much',
-            labelKey: 'questions.options.workloadNow.tooMuch',
-          },
-          {
-            value: 'just_right',
-            labelKey: 'questions.options.workloadNow.justRight',
-          },
-          {
-            value: 'too_little',
-            labelKey: 'questions.options.workloadNow.tooLittle',
-          },
-        ],
+        id: 'feelingsList',
+        type: 'checkboxes',
+        labelKey: 'questions.fields.feelingsList',
+        options: formVersion >= 2 ? feelingsOptionsV2 : feelingsOptionsV1,
       },
       {
-        id: 'workloadTrend',
-        type: 'radio',
-        labelKey: 'questions.fields.workloadTrend',
-        options: [
-          { value: 'more', labelKey: 'questions.options.workloadTrend.more' },
-          { value: 'same', labelKey: 'questions.options.trend.same' },
-          { value: 'less', labelKey: 'questions.options.workloadTrend.less' },
-        ],
-      },
-      {
-        id: 'workloadNotes',
+        id: 'feelingsNotes',
         type: 'text',
         labelKey: 'questions.fields.anythingToAdd',
       },
     ],
-  },
-  {
-    id: 'growth',
-    titleKey: 'questions.employee.growth.title',
-    fields: [
-      {
-        id: 'growthEntries',
-        type: 'list',
-        labelKey: 'questions.fields.entries',
-      },
-    ],
-  },
-  {
-    id: 'friction',
-    titleKey: 'questions.employee.friction.title',
-    fields: [
-      {
-        id: 'frictionNotes',
-        type: 'text',
-        labelKey: 'questions.fields.details',
-      },
-    ],
-  },
-  {
-    id: 'achievements',
-    titleKey: 'questions.employee.achievements.title',
-    fields: [
-      {
-        id: 'achievementEntries',
-        type: 'list',
-        labelKey: 'questions.fields.entries',
-      },
-    ],
-  },
-  {
-    id: 'discuss',
-    titleKey: 'questions.employee.discuss.title',
-    fields: [
-      {
-        id: 'discussEntries',
-        type: 'list',
-        labelKey: 'questions.fields.entries',
-      },
-    ],
-  },
-];
+  };
+}
+
+const workloadQuestion: Question = {
+  id: 'workload',
+  titleKey: 'questions.employee.workload.title',
+  fields: [
+    {
+      id: 'workloadNow',
+      type: 'radio',
+      labelKey: 'questions.fields.workloadNow',
+      options: [
+        {
+          value: 'too_much',
+          labelKey: 'questions.options.workloadNow.tooMuch',
+        },
+        {
+          value: 'just_right',
+          labelKey: 'questions.options.workloadNow.justRight',
+        },
+        {
+          value: 'too_little',
+          labelKey: 'questions.options.workloadNow.tooLittle',
+        },
+      ],
+    },
+    {
+      id: 'workloadTrend',
+      type: 'radio',
+      labelKey: 'questions.fields.workloadTrend',
+      options: [
+        { value: 'more', labelKey: 'questions.options.workloadTrend.more' },
+        { value: 'same', labelKey: 'questions.options.trend.same' },
+        { value: 'less', labelKey: 'questions.options.workloadTrend.less' },
+      ],
+    },
+    {
+      id: 'workloadNotes',
+      type: 'text',
+      labelKey: 'questions.fields.anythingToAdd',
+    },
+  ],
+};
+
+const growthQuestion: Question = {
+  id: 'growth',
+  titleKey: 'questions.employee.growth.title',
+  fields: [
+    {
+      id: 'growthEntries',
+      type: 'list',
+      labelKey: 'questions.fields.entries',
+    },
+  ],
+};
+
+const frictionQuestion: Question = {
+  id: 'friction',
+  titleKey: 'questions.employee.friction.title',
+  fields: [
+    {
+      id: 'frictionNotes',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+const achievementsQuestion: Question = {
+  id: 'achievements',
+  titleKey: 'questions.employee.achievements.title',
+  fields: [
+    {
+      id: 'achievementEntries',
+      type: 'list',
+      labelKey: 'questions.fields.entries',
+    },
+  ],
+};
+
+const discussQuestion: Question = {
+  id: 'discuss',
+  titleKey: 'questions.employee.discuss.title',
+  fields: [
+    {
+      id: 'discussEntries',
+      type: 'list',
+      labelKey: 'questions.fields.entries',
+    },
+  ],
+};
+
+function employeeQuestions(formVersion: number): Question[] {
+  return [
+    moodQuestion,
+    feelingsQuestion(formVersion),
+    workloadQuestion,
+    growthQuestion,
+    frictionQuestion,
+    achievementsQuestion,
+    discussQuestion,
+  ];
+}
+
+const periodSummaryQuestion: Question = {
+  id: 'periodSummary',
+  titleKey: 'questions.manager.periodSummary.title',
+  fields: [
+    {
+      id: 'periodSummaryNotes',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+const feedbackQuestion: Question = {
+  id: 'feedback',
+  titleKey: 'questions.manager.feedback.title',
+  fields: [
+    {
+      id: 'feedbackNotes',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+const supportQuestion: Question = {
+  id: 'support',
+  titleKey: 'questions.manager.support.title',
+  fields: [
+    {
+      id: 'supportNotes',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+const employeeAchievementsQuestion: Question = {
+  id: 'employeeAchievements',
+  titleKey: 'questions.manager.employeeAchievements.title',
+  fields: [
+    {
+      id: 'employeeAchievementEntries',
+      type: 'list',
+      labelKey: 'questions.fields.entries',
+    },
+  ],
+};
+
+const managerDiscussQuestion: Question = {
+  id: 'managerDiscuss',
+  titleKey: 'questions.manager.managerDiscuss.title',
+  fields: [
+    {
+      id: 'managerDiscussEntries',
+      type: 'list',
+      labelKey: 'questions.fields.entries',
+    },
+  ],
+};
 
 const managerQuestions: Question[] = [
-  {
-    id: 'periodSummary',
-    titleKey: 'questions.manager.periodSummary.title',
-    fields: [
-      {
-        id: 'periodSummaryNotes',
-        type: 'text',
-        labelKey: 'questions.fields.details',
-      },
-    ],
-  },
-  {
-    id: 'feedback',
-    titleKey: 'questions.manager.feedback.title',
-    fields: [
-      {
-        id: 'feedbackNotes',
-        type: 'text',
-        labelKey: 'questions.fields.details',
-      },
-    ],
-  },
-  {
-    id: 'support',
-    titleKey: 'questions.manager.support.title',
-    fields: [
-      {
-        id: 'supportNotes',
-        type: 'text',
-        labelKey: 'questions.fields.details',
-      },
-    ],
-  },
-  {
-    id: 'employeeAchievements',
-    titleKey: 'questions.manager.employeeAchievements.title',
-    fields: [
-      {
-        id: 'employeeAchievementEntries',
-        type: 'list',
-        labelKey: 'questions.fields.entries',
-      },
-    ],
-  },
-  {
-    id: 'managerDiscuss',
-    titleKey: 'questions.manager.managerDiscuss.title',
-    fields: [
-      {
-        id: 'managerDiscussEntries',
-        type: 'list',
-        labelKey: 'questions.fields.entries',
-      },
-    ],
-  },
+  periodSummaryQuestion,
+  feedbackQuestion,
+  supportQuestion,
+  employeeAchievementsQuestion,
+  managerDiscussQuestion,
+];
+
+/**
+ * Onboarding ("First 1:1") template — sourced from the landing playbook's three agenda
+ * blocks (Working Agreement & Safety / Work Style & "Personal User Manual" / Fresh-Eyes
+ * Audit & Early Unblocking), see private/anketa-meeting-templates-proposal.md §8.3 (not
+ * tracked in git) and GitHub issue #104. `mood` stays universal (the safety pulse applies
+ * to every meeting) and `achievements`/`discuss` are kept as-is; `feelings`/`workload`/
+ * `growth`/`friction` are replaced with fields specific to a first meeting.
+ */
+const workingAgreementQuestion: Question = {
+  id: 'workingAgreement',
+  titleKey: 'questions.employee.workingAgreement.title',
+  fields: [
+    {
+      id: 'workingAgreementNotes',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+const workStyleQuestion: Question = {
+  id: 'workStyle',
+  titleKey: 'questions.employee.workStyle.title',
+  fields: [
+    {
+      id: 'feedbackChannel',
+      type: 'radio',
+      labelKey: 'questions.fields.feedbackChannel',
+      options: [
+        { value: 'chat', labelKey: 'questions.options.feedbackChannel.chat' },
+        {
+          value: 'written',
+          labelKey: 'questions.options.feedbackChannel.written',
+        },
+        {
+          value: 'face_to_face',
+          labelKey: 'questions.options.feedbackChannel.faceToFace',
+        },
+      ],
+    },
+    {
+      id: 'focusTimeNeeds',
+      type: 'text',
+      labelKey: 'questions.fields.focusTimeNeeds',
+    },
+    {
+      id: 'stressSignals',
+      type: 'text',
+      labelKey: 'questions.fields.stressSignals',
+    },
+  ],
+};
+
+const freshEyesAuditQuestion: Question = {
+  id: 'freshEyesAudit',
+  titleKey: 'questions.employee.freshEyesAudit.title',
+  fields: [
+    {
+      id: 'freshEyesEntries',
+      type: 'list',
+      labelKey: 'questions.fields.entries',
+    },
+  ],
+};
+
+/** Takes the same `(formVersion)` shape as `employeeQuestions()` for a uniform registry
+ * call signature, even though nothing here varies by version yet (this template has no
+ * `feelings`-style field at all). */
+function onboardingEmployeeQuestions(_formVersion: number): Question[] {
+  return [
+    moodQuestion,
+    workingAgreementQuestion,
+    workStyleQuestion,
+    freshEyesAuditQuestion,
+    achievementsQuestion,
+    discussQuestion,
+  ];
+}
+
+const readinessCheckQuestion: Question = {
+  id: 'readinessCheck',
+  titleKey: 'questions.manager.readinessCheck.title',
+  fields: [
+    {
+      id: 'readinessLevel',
+      type: 'radio',
+      labelKey: 'questions.fields.readinessLevel',
+      options: [
+        { value: 'yes', labelKey: 'questions.options.readinessLevel.yes' },
+        {
+          value: 'partial',
+          labelKey: 'questions.options.readinessLevel.partial',
+        },
+        { value: 'no', labelKey: 'questions.options.readinessLevel.no' },
+      ],
+    },
+    {
+      id: 'readinessNotes',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+const onboardingManagerQuestions: Question[] = [
+  periodSummaryQuestion,
+  feedbackQuestion,
+  supportQuestion,
+  readinessCheckQuestion,
 ];
 
 /**
  * Which built-in meeting-type template an anketa uses — see
  * private/anketa-meeting-templates-proposal.md (not tracked in git) for the full design.
- * `'regular'` is the only key today; more are added one at a time as their own template
- * lands (e.g. an 'onboarding'/'career_growth' template for a different kind of meeting).
- * Must match the backend's `Anketa::TEMPLATE_KEYS` — no automated cross-check exists yet
- * (see that constant's own docblock), since a single shared key can't drift from itself;
- * worth adding once a second template makes drift possible. `TemplateKey` is derived from
- * `ANKETA_TEMPLATES` itself (same `as const` + `(typeof X)[number]` shape
- * `frontend/src/i18n/index.ts`'s `SUPPORTED_LOCALES`/`SupportedLocale` already
- * establishes) rather than declared independently, so the type and the runtime list of
- * valid keys can't drift apart from each other, at least.
+ * More are added one at a time as their own template lands (e.g. a 'career_growth'/
+ * 'support_checkin' template for a different kind of meeting). Must match the backend's
+ * `Anketa::TEMPLATE_KEYS` — no automated cross-check exists yet (see that constant's own
+ * docblock). `TemplateKey` is derived from `ANKETA_TEMPLATES` itself (same `as const` +
+ * `(typeof X)[number]` shape `frontend/src/i18n/index.ts`'s `SUPPORTED_LOCALES`/
+ * `SupportedLocale` already establishes) rather than declared independently, so the type
+ * and the runtime list of valid keys can't drift apart from each other, at least.
  */
-export const ANKETA_TEMPLATES = ['regular'] as const;
+export const ANKETA_TEMPLATES = ['regular', 'onboarding'] as const;
 export type TemplateKey = (typeof ANKETA_TEMPLATES)[number];
 
+interface AnketaTemplate {
+  employeeQuestions(formVersion: number): Question[];
+  /** The manager side has never varied by version — see `getQuestionsForSide()`. */
+  managerQuestions: Question[];
+}
+
 /**
- * The question set for one side of an anketa at a given form version and template — the
- * manager side has never varied by version, but takes the same parameter for a uniform
- * call shape. An unrecognized templateKey (stale client after a server rollback, or bad
- * data) degrades to the default template rather than throwing.
+ * One entry per `TemplateKey` — `Record<TemplateKey, AnketaTemplate>` itself is the
+ * exhaustiveness check (a `TemplateKey` added to `ANKETA_TEMPLATES` with no matching
+ * entry here fails `npm run check`), the same guarantee an earlier single-template
+ * version of this file got from a `switch` + `const exhaustiveCheck: never` trip-wire —
+ * see this file's own git history for that version, and why a plain `switch` was chosen
+ * over a `Record` lookup back when there was exactly one template to register. A real
+ * registry earns its keep now that a second template exists.
+ */
+const TEMPLATES: Record<TemplateKey, AnketaTemplate> = {
+  regular: { employeeQuestions, managerQuestions },
+  onboarding: {
+    employeeQuestions: onboardingEmployeeQuestions,
+    managerQuestions: onboardingManagerQuestions,
+  },
+};
+
+/**
+ * The question set for one side of an anketa at a given form version and template. An
+ * unrecognized templateKey (stale client after a server rollback, or bad data) degrades
+ * to the `'regular'` template rather than throwing.
  *
- * A plain `switch` rather than a keyed lookup table on purpose: with a single template
- * key today, a `Record<TemplateKey, ...>` registry is speculative complexity this
- * codebase's own "boring solution, fewer abstractions" convention argues against — and
- * a `switch` on a string literal never does a dynamic property lookup at all, sidestepping
- * the prototype-pollution-shaped bug that kind of lookup would otherwise need a
- * `hasOwnProperty` guard for (see frontend/src/demo.ts's `demoEmailFor()` for a case that
- * genuinely does need one, because it really is a keyed table). Revisit this shape once a
- * second template actually exists — a real registry may earn its keep then, not before.
- *
- * The switch below doesn't select different behavior yet — every known key already
- * resolves to the same question set, and `default` is reached only by a runtime value
- * TypeScript can't see (bad data, a stale client after a server rollback), never by a
- * known `TemplateKey` this function forgot to implement. Its `const exhaustiveCheck:
- * never = templateKey` line is a compile-time trip-wire, not dead code: if `TemplateKey`
- * ever gains a member with no matching `case`, that value stops being assignable to
- * `never` and `npm run check` fails — catching the omission at build time instead of it
- * silently falling through to the default template's questions at runtime. One shared
- * `return` after the switch (rather than one per case) avoids restating the same
- * fallback logic twice for something that, by design, isn't different yet.
+ * Looked up via `Object.prototype.hasOwnProperty.call()`, not a plain `TEMPLATES[key]`/
+ * `key in TEMPLATES` check — the same prototype-pollution-shaped guard
+ * `frontend/src/demo.ts`'s `demoEmailFor()` needs for the identical reason: a runtime
+ * `templateKey` string that happens to match an inherited `Object.prototype` member (e.g.
+ * `'constructor'`) must not resolve to that prototype value instead of falling back to
+ * `'regular'`. See this file's own test for the regression this guards against.
  */
 export function getQuestionsForSide(
   side: Side,
   formVersion: number,
   templateKey: TemplateKey,
 ): Question[] {
-  switch (templateKey) {
-    case 'regular':
-      break;
-    default: {
-      const exhaustiveCheck: never = templateKey;
-      void exhaustiveCheck;
-    }
-  }
+  const template = Object.prototype.hasOwnProperty.call(TEMPLATES, templateKey)
+    ? TEMPLATES[templateKey]
+    : TEMPLATES.regular;
   return side === 'employee'
-    ? employeeQuestions(formVersion)
-    : managerQuestions;
+    ? template.employeeQuestions(formVersion)
+    : template.managerQuestions;
 }

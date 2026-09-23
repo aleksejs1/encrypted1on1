@@ -197,6 +197,8 @@
     "templateLegend": "Tikšanās veids",
     "templateRegular": "Regulāra pārbaude",
     "templateRegularDescription": "Standarta regulārā tikšanās — noskaņojums, sajūtas, darba slodze, sasniegumi.",
+    "templateOnboarding": "Pirmā tikšanās / Onboarding",
+    "templateOnboardingDescription": "Jaunu darba attiecību pirmajai tikšanās reizei — darba vienošanās, darba stils un svaiga skatījuma audits parasto regulārās tikšanās lauku vietā.",
     "meetingDateLabel": "Tikšanās datums",
     "periodicityLabel": "Cik bieži jūs tiksieties?",
     "periodicityWeekly": "Reizi nedēļā",
@@ -330,7 +332,14 @@
       "growth": { "title": "Izaugsme. Ko jūs uzzinājāt, atklājāt, guvāt?" },
       "friction": { "title": "Kas manā darbā ir grūtāk, nekā vajadzētu būt" },
       "achievements": { "title": "Sasniegumi" },
-      "discuss": { "title": "Par ko vēl parunāt" }
+      "discuss": { "title": "Par ko vēl parunāt" },
+      "workingAgreement": {
+        "title": "Darba vienošanās: kā līdz šim ir gājušas tikšanās?"
+      },
+      "workStyle": { "title": "Jūsu darba stils" },
+      "freshEyesAudit": {
+        "title": "Svaigs skatījums: kas pagaidām ir neskaidrs vai apgrūtinošs"
+      }
     },
     "manager": {
       "periodSummary": {
@@ -343,7 +352,10 @@
         "title": "Kā es varu palīdzēt / kas traucē strādāt efektīvi"
       },
       "employeeAchievements": { "title": "Sasniegumi, kas jāatzīmē" },
-      "managerDiscuss": { "title": "Par ko vēl parunāt" }
+      "managerDiscuss": { "title": "Par ko vēl parunāt" },
+      "readinessCheck": {
+        "title": "Gatavības pārbaude: piekļuve, rīki un konteksts"
+      }
     },
     "fields": {
       "moodNow": "Kā jūs jūtaties?",
@@ -353,7 +365,11 @@
       "workloadNow": "Cik daudz darba jums ir?",
       "workloadTrend": "Salīdzinājumā ar pagājušo reizi?",
       "entries": "Ieraksti",
-      "details": "Sīkāka informācija"
+      "details": "Sīkāka informācija",
+      "feedbackChannel": "Vēlamais atgriezeniskās saites kanāls",
+      "focusTimeNeeds": "Nepārtraukta darba laika vajadzības",
+      "stressSignals": "Stresa pazīmes un kā palīdzēt",
+      "readinessLevel": "Vai šai personai ir viss nepieciešamais?"
     },
     "options": {
       "moodNow": { "bad": "Slikti", "neutral": "Neitrāli", "good": "Labi" },
@@ -381,7 +397,17 @@
         "justRight": "Tieši labi",
         "tooLittle": "Par maz"
       },
-      "workloadTrend": { "more": "Vairāk darba", "less": "Mazāk darba" }
+      "workloadTrend": { "more": "Vairāk darba", "less": "Mazāk darba" },
+      "feedbackChannel": {
+        "chat": "Tērzēšana",
+        "written": "Rakstiski",
+        "faceToFace": "Klātienē"
+      },
+      "readinessLevel": {
+        "yes": "Jā",
+        "partial": "Daļēji",
+        "no": "Nē"
+      }
     }
   },
   "report": {

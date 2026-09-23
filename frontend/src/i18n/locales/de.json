@@ -197,6 +197,8 @@
     "templateLegend": "Art des Meetings",
     "templateRegular": "Reguläres Check-in",
     "templateRegularDescription": "Das übliche wiederkehrende Check-in — Stimmung, Gefühle, Arbeitsbelastung, Erfolge.",
+    "templateOnboarding": "Erstes 1:1 / Einarbeitung",
+    "templateOnboardingDescription": "Für das erste Treffen einer neuen Arbeitsbeziehung — Arbeitsvereinbarung, Arbeitsstil und ein Audit mit frischem Blick anstelle der üblichen Felder des regulären Check-ins.",
     "meetingDateLabel": "Meeting-Datum",
     "periodicityLabel": "Wie oft werden Sie sich treffen?",
     "periodicityWeekly": "Wöchentlich",
@@ -330,7 +332,14 @@
       "growth": { "title": "Wachstum. Was haben Sie gelernt, entdeckt, mitgenommen?" },
       "friction": { "title": "Was an meiner Arbeit schwerer ist, als es sein sollte" },
       "achievements": { "title": "Erfolge" },
-      "discuss": { "title": "Was sonst noch zu besprechen ist" }
+      "discuss": { "title": "Was sonst noch zu besprechen ist" },
+      "workingAgreement": {
+        "title": "Arbeitsvereinbarung: Wie liefen die bisherigen 1:1s?"
+      },
+      "workStyle": { "title": "Ihr Arbeitsstil" },
+      "freshEyesAudit": {
+        "title": "Frischer Blick: Was ist bisher unklar oder hakt?"
+      }
     },
     "manager": {
       "periodSummary": {
@@ -341,7 +350,10 @@
       },
       "support": { "title": "Wie kann ich helfen / was steht im Weg" },
       "employeeAchievements": { "title": "Erfolge, die Anerkennung verdienen" },
-      "managerDiscuss": { "title": "Was sonst noch zu besprechen ist" }
+      "managerDiscuss": { "title": "Was sonst noch zu besprechen ist" },
+      "readinessCheck": {
+        "title": "Bereitschaftscheck: Zugang, Werkzeuge und Kontext"
+      }
     },
     "fields": {
       "moodNow": "Wie fühlen Sie sich?",
@@ -351,7 +363,11 @@
       "workloadNow": "Wie viel Arbeit haben Sie?",
       "workloadTrend": "Im Vergleich zum letzten Mal?",
       "entries": "Einträge",
-      "details": "Details"
+      "details": "Details",
+      "feedbackChannel": "Bevorzugter Feedback-Kanal",
+      "focusTimeNeeds": "Bedarf an ungestörter Arbeitszeit",
+      "stressSignals": "Stresssignale und wie geholfen werden kann",
+      "readinessLevel": "Hat diese Person, was sie braucht?"
     },
     "options": {
       "moodNow": { "bad": "Schlecht", "neutral": "Neutral", "good": "Gut" },
@@ -379,7 +395,17 @@
         "justRight": "Genau richtig",
         "tooLittle": "Zu wenig"
       },
-      "workloadTrend": { "more": "Mehr Arbeit", "less": "Weniger Arbeit" }
+      "workloadTrend": { "more": "Mehr Arbeit", "less": "Weniger Arbeit" },
+      "feedbackChannel": {
+        "chat": "Chat",
+        "written": "Schriftlich",
+        "faceToFace": "Persönlich"
+      },
+      "readinessLevel": {
+        "yes": "Ja",
+        "partial": "Teilweise",
+        "no": "Nein"
+      }
     }
   },
   "report": {

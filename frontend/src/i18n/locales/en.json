@@ -197,6 +197,8 @@
     "templateLegend": "Meeting type",
     "templateRegular": "Regular check-in",
     "templateRegularDescription": "The standard recurring check-in — mood, feelings, workload, achievements.",
+    "templateOnboarding": "First 1:1 / Onboarding",
+    "templateOnboardingDescription": "For a new working relationship's first meeting — working agreement, work style, and a fresh-eyes audit instead of the regular check-in fields.",
     "meetingDateLabel": "Meeting date",
     "periodicityLabel": "How often will you meet?",
     "periodicityWeekly": "Weekly",
@@ -330,7 +332,14 @@
       "growth": { "title": "Growth. What did you learn, discover, take away?" },
       "friction": { "title": "What's harder in my work than it should be" },
       "achievements": { "title": "Achievements" },
-      "discuss": { "title": "What else to discuss" }
+      "discuss": { "title": "What else to discuss" },
+      "workingAgreement": {
+        "title": "Working agreement: what have 1:1s looked like so far?"
+      },
+      "workStyle": { "title": "Your work style" },
+      "freshEyesAudit": {
+        "title": "Fresh eyes: what's confusing or friction-heavy so far?"
+      }
     },
     "manager": {
       "periodSummary": {
@@ -341,7 +350,10 @@
       },
       "support": { "title": "How can I help / what gets in the way" },
       "employeeAchievements": { "title": "Achievements worth recognizing" },
-      "managerDiscuss": { "title": "What else to discuss" }
+      "managerDiscuss": { "title": "What else to discuss" },
+      "readinessCheck": {
+        "title": "Readiness check: access, tools, and context"
+      }
     },
     "fields": {
       "moodNow": "How are you feeling?",
@@ -351,7 +363,11 @@
       "workloadNow": "How much work do you have?",
       "workloadTrend": "Compared to last time?",
       "entries": "Entries",
-      "details": "Details"
+      "details": "Details",
+      "feedbackChannel": "Preferred feedback channel",
+      "focusTimeNeeds": "Focus-time needs",
+      "stressSignals": "Stress signals, and how to help",
+      "readinessLevel": "Does this person have what they need?"
     },
     "options": {
       "moodNow": { "bad": "Bad", "neutral": "Neutral", "good": "Good" },
@@ -379,7 +395,17 @@
         "justRight": "Just right",
         "tooLittle": "Too little"
       },
-      "workloadTrend": { "more": "More work", "less": "Less work" }
+      "workloadTrend": { "more": "More work", "less": "Less work" },
+      "feedbackChannel": {
+        "chat": "Chat",
+        "written": "Written",
+        "faceToFace": "Face-to-face"
+      },
+      "readinessLevel": {
+        "yes": "Yes",
+        "partial": "Partially",
+        "no": "No"
+      }
     }
   },
   "report": {
