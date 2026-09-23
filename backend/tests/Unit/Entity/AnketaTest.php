@@ -251,6 +251,9 @@ class AnketaTest extends TestCase
             // The next cycle lands at the pair's weekly/biweekly/monthly periodicity,
             // not quarterly — see NEXT_CYCLE_TEMPLATE_KEY's docblock.
             'career_growth is one-off' => ['career_growth', 'regular'],
+            // Would otherwise keep the pair on support check-ins indefinitely — see
+            // NEXT_CYCLE_TEMPLATE_KEY's docblock.
+            'support_checkin is one-off' => ['support_checkin', 'regular'],
             'unrecognized key degrades to the default' => ['not-a-real-key', 'regular'],
         ];
     }

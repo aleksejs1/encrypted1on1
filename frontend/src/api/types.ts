@@ -47,6 +47,10 @@ export interface AnketaSummary {
   formVersion: number;
   /** Which built-in meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
   templateKey: TemplateKey;
+  /** Null only on legacy anketas from before periodicity existed. */
+  periodicityDays: number | null;
+  /** See AnketaDetail's own `oneOff` — GitHub issue #111. */
+  oneOff: boolean;
 }
 
 /** GET /api/anketas/{id} */
@@ -79,6 +83,12 @@ export interface AnketaDetail {
   formVersion: number;
   /** Which built-in meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
   templateKey: TemplateKey;
+  /**
+   * Created by hand while the pair already had another open anketa — no
+   * carry-forward, and archiving it never auto-creates a next meeting (GitHub
+   * issue #111). Set once at creation, never changes.
+   */
+  oneOff: boolean;
 }
 
 /**
@@ -95,9 +105,10 @@ export interface AnketaDetail {
  * `counterpartKeyOutdated`/`counterpartDeleted`/`formVersion` — this
  * interface only declares the subset this page actually reads from it.
  *
- * The one exception: `templateKey` is NOT in the real payload, unlike everything else
- * summarize() returns — AnketaPresenter::serializeLiveState() explicitly strips it back
- * out, since it's immutable once an anketa is created and has nothing to poll for.
+ * The two exceptions: `templateKey` and `oneOff` are NOT in the real payload, unlike
+ * everything else summarize() returns — AnketaPresenter::serializeLiveState() explicitly
+ * strips them back out, since both are immutable once an anketa is created and have
+ * nothing to poll for.
  *
  * Deliberately no goal-related field, so goal creates/edits never live-update
  * — unlike every blob here, `Goal` rows have no version counter, and goal

@@ -90,7 +90,20 @@ class AnketaController
         // already needed (6c), reused here rather than a second query for the same concept.
         $previousAnketa = $this->anketaRepository->findMostRecentArchivedForPair($employee, $manager);
 
-        $periodicityDays = $previousAnketa?->getPeriodicityDays();
+        // GitHub issue #111: a pair that already has an open chain anketa (typically the
+        // one archive() auto-created; open one-offs don't count) gets this one as a one-off
+        // — no carry-forward (the open one already has it; a second copy of the same
+        // goals/outcomes would just diverge) and no auto-recreated successor on archive
+        // (Anketa::$oneOff). Decided here, server-side, not by CreateAnketa.svelte, whose
+        // anketa list may be stale by the time it submits. Read-then-insert with no lock:
+        // two creates for the same pair at the same instant can both come out as chain
+        // anketas — an accepted limitation, see the decision record.
+        $openAnketa = $this->anketaRepository->findOpenForPair($employee, $manager);
+        $oneOff = null !== $openAnketa;
+
+        // A one-off inherits periodicity from the open anketa too, so a pair whose first
+        // anketa is still open isn't asked for (and can't set a different) periodicity again.
+        $periodicityDays = $previousAnketa?->getPeriodicityDays() ?? $openAnketa?->getPeriodicityDays();
         if (null === $periodicityDays) {
             $periodicityDays = $payload->periodicityDays;
             if (null === $periodicityDays) {
@@ -105,10 +118,12 @@ class AnketaController
             employeeSealedKey: $isEmployee ? $payload->mySealedKey : $payload->counterpartSealedKey,
             managerSealedKey: $isEmployee ? $payload->counterpartSealedKey : $payload->mySealedKey,
             periodicityDays: $periodicityDays,
+            // Dropped for a one-off by the service itself — see createWithCarryForward().
             outcomesBlob: $payload->outcomesBlob,
             carryFrom: $previousAnketa,
             creator: $user,
             templateKey: $payload->templateKey,
+            oneOff: $oneOff,
         );
 
         return new JsonResponse(['id' => $anketa->getId()], 201);

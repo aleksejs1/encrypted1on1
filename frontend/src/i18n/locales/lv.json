@@ -201,12 +201,15 @@
     "templateOnboardingDescription": "Jaunu darba attiecību pirmajai tikšanās reizei — darba vienošanās, darba stils un svaiga skatījuma audits parasto regulārās tikšanās lauku vietā.",
     "templateCareerGrowth": "Karjeras izaugsme",
     "templateCareerGrowthDescription": "Saruna par karjeru (piemēram, reizi ceturksnī) — enerģijas retrospektīva, attīstības virziens, izaicinoši uzdevumi un 90 dienu attīstības plāns parasto regulārās tikšanās lauku vietā.",
+    "templateSupportCheckin": "Saruna par atbalstu un darba slodzi",
+    "templateSupportCheckinDescription": "Enerģija un darba slodze — ko var atlikt vai nodot citiem, kas palīdzētu pasargāt laiku koncentrētam darbam un atpūtai, un konkrēti nākamie soļi, kopā ar ierastajiem jautājumiem par noskaņojumu un darba slodzi.",
     "meetingDateLabel": "Tikšanās datums",
     "periodicityLabel": "Cik bieži jūs tiksieties?",
     "periodicityWeekly": "Reizi nedēļā",
     "periodicityBiweekly": "Reizi 2 nedēļās",
     "periodicityMonthly": "Reizi mēnesī",
     "periodicityInherited": "Jūs jau esat tikušies iepriekš — šī pāra periodiskums jau ir noteikts un tiek pārnests automātiski.",
+    "pairHasOpenAnketa": "Šim pārim jau ir atvērta anketa, tāpēc šī būs vienreizēja: tajā nekas netiek pārnests, šeit pievienotie mērķi un rezultāti netiks pārnesti uz pāra nākamo tikšanos, un tās arhivēšana neieplānos nākamo tikšanos. Pāra regulārās tikšanās turpinās otrā anketā.",
     "submit": "Izveidot anketu",
     "submitting": "Izveido…",
     "errorLoad": "Neizdevās ielādēt lietotājus.",
@@ -275,6 +278,7 @@
     "addingGoal": "Pievieno…",
     "archiveHeading": "Arhivēšana",
     "skipNextMeeting": "Neveidot nākamo tikšanos",
+    "archiveOneOff": "Šī ir vienreizēja anketa (izveidota, kad pārim jau bija cita atvērta): tās arhivēšana neieplānos nākamo tikšanos, un tās mērķi un neizpildītie rezultāti netiks pārnesti uz pāra regulārajām tikšanās reizēm.",
     "nextMeetingDateLabel": "Nākamās tikšanās datums",
     "archive": "Arhivēt",
     "archiving": "Arhivē…",
@@ -346,7 +350,10 @@
         "title": "Enerģijas retrospektīva: ar ko jūs lepojaties, kas atņēma spēkus?"
       },
       "trajectory": { "title": "Virziens: kur jūs vēlaties augt?" },
-      "developmentPlan": { "title": "90 dienu attīstības plāns" }
+      "developmentPlan": { "title": "90 dienu attīstības plāns" },
+      "energyLevel": { "title": "Enerģija" },
+      "workloadTriage": { "title": "Ko varētu atlikt vai nodot citiem?" },
+      "boundaries": { "title": "Kas palīdzētu pasargāt jūsu laiku?" }
     },
     "manager": {
       "periodSummary": {
@@ -363,7 +370,9 @@
       "readinessCheck": {
         "title": "Gatavības pārbaude: piekļuve, rīki un konteksts"
       },
-      "sponsorshipOffer": { "title": "Izaicinošs uzdevums un atbalsts" }
+      "sponsorshipOffer": { "title": "Izaicinošs uzdevums un atbalsts" },
+      "commitments": { "title": "Ko es uzņemos, lai jūs atslogotu" },
+      "checkInCadence": { "title": "Kā sazināsimies starp tikšanās reizēm" }
     },
     "fields": {
       "moodNow": "Kā jūs jūtaties?",
@@ -385,7 +394,13 @@
       "developmentGoal": "Viens galvenais mērķis nākamajām 90 dienām",
       "developmentSteps": "Pirmie konkrētie soļi",
       "stretchAssignment": "Konkrēts izaicinošs uzdevums, ko es piedāvāju",
-      "managerBacking": "Kādu atbalstu es apņemos sniegt (koučings, aizstāvība, aizsargāts laiks)"
+      "managerBacking": "Kādu atbalstu es apņemos sniegt (koučings, aizstāvība, aizsargāts laiks)",
+      "energyLevelNow": "Kā jums pēdējā laikā ir ar enerģiju?",
+      "energyDrivers": "Kas to visvairāk ietekmē?",
+      "triageEntries": "Ko vislabāk būtu apturēt, nodot citiem vai atcelt pavisam",
+      "boundariesNotes": "Kas palīdzētu (piemēram, klusās stundas, dienas bez sanāksmēm, pārtraukums no dežūrām)",
+      "commitmentEntries": "Kas mainās un līdz kuram laikam (redzamais datums ir ieraksta pievienošanas datums)",
+      "checkInCadenceNotes": "Kā un cik bieži es neuzbāzīgi painteresēšos, kā jums iet"
     },
     "options": {
       "moodNow": { "bad": "Slikti", "neutral": "Neitrāli", "good": "Labi" },
@@ -428,6 +443,11 @@
         "icDepth": "Padziļināta ekspertīze kā individuālam speciālistam",
         "peopleLeadership": "Cilvēku vadīšana",
         "undecided": "Vēl nav skaidrs — izpētu iespējas"
+      },
+      "energyLevelNow": {
+        "low": "Zema",
+        "manageable": "Pietiekama",
+        "good": "Laba"
       }
     }
   },
