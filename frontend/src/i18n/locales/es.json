@@ -197,6 +197,8 @@
     "templateLegend": "Tipo de reunión",
     "templateRegular": "Reunión regular",
     "templateRegularDescription": "El check-in recurrente estándar: estado de ánimo, sentimientos, carga de trabajo, logros.",
+    "templateOnboarding": "Primera reunión / Incorporación",
+    "templateOnboardingDescription": "Para la primera reunión de una nueva relación laboral — acuerdo de trabajo, estilo de trabajo y una auditoría con mirada fresca en lugar de los campos habituales del check-in regular.",
     "meetingDateLabel": "Fecha de la reunión",
     "periodicityLabel": "¿Con qué frecuencia os reuniréis?",
     "periodicityWeekly": "Semanalmente",
@@ -334,7 +336,14 @@
         "title": "Qué es más difícil de lo que debería en tu trabajo"
       },
       "achievements": { "title": "Logros" },
-      "discuss": { "title": "Qué más comentar" }
+      "discuss": { "title": "Qué más comentar" },
+      "workingAgreement": {
+        "title": "Acuerdo de trabajo: ¿cómo han sido las reuniones hasta ahora?"
+      },
+      "workStyle": { "title": "Tu estilo de trabajo" },
+      "freshEyesAudit": {
+        "title": "Mirada fresca: qué resulta confuso o complicado hasta ahora"
+      }
     },
     "manager": {
       "periodSummary": {
@@ -345,7 +354,10 @@
         "title": "Cómo puedo ayudar / qué dificulta trabajar de forma eficaz"
       },
       "employeeAchievements": { "title": "Logros que merece la pena destacar" },
-      "managerDiscuss": { "title": "Qué más comentar" }
+      "managerDiscuss": { "title": "Qué más comentar" },
+      "readinessCheck": {
+        "title": "Comprobación de preparación: acceso, herramientas y contexto"
+      }
     },
     "fields": {
       "moodNow": "¿Cómo te sientes?",
@@ -355,7 +367,11 @@
       "workloadNow": "¿Cuánto trabajo tienes?",
       "workloadTrend": "¿Comparado con la última vez?",
       "entries": "Entradas",
-      "details": "Detalles"
+      "details": "Detalles",
+      "feedbackChannel": "Canal de feedback preferido",
+      "focusTimeNeeds": "Necesidades de tiempo de concentración",
+      "stressSignals": "Señales de estrés y cómo ayudar",
+      "readinessLevel": "¿Tiene esta persona lo que necesita?"
     },
     "options": {
       "moodNow": { "bad": "Mal", "neutral": "Neutral", "good": "Bien" },
@@ -383,7 +399,17 @@
         "justRight": "La adecuada",
         "tooLittle": "Muy poca"
       },
-      "workloadTrend": { "more": "Más trabajo", "less": "Menos trabajo" }
+      "workloadTrend": { "more": "Más trabajo", "less": "Menos trabajo" },
+      "feedbackChannel": {
+        "chat": "Chat",
+        "written": "Por escrito",
+        "faceToFace": "Cara a cara"
+      },
+      "readinessLevel": {
+        "yes": "Sí",
+        "partial": "Parcialmente",
+        "no": "No"
+      }
     }
   },
   "report": {

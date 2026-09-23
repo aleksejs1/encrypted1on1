@@ -90,6 +90,19 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
     }
 
+    public function testCreateAndGetAcceptTheOnboardingTemplateKey(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('template-key-onboarding');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'onboarding'])['json']['id'];
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
+        $listRow = self::findById($list['json'], $anketaId);
+        self::assertSame('onboarding', $listRow['templateKey']);
+
+        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
+        self::assertSame('onboarding', $get['json']['templateKey']);
+    }
+
     public function testCreateRejectsAnUnknownCounterpart(): void
     {
         $employeeClient = static::createClient();

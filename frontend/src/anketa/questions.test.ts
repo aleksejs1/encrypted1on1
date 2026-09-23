@@ -113,10 +113,9 @@ describe('getQuestionsForSide', () => {
 
   // A regression test for a bug an earlier, keyed-lookup-table version of this function
   // actually had (an Object.prototype member like "constructor" resolving instead of
-  // falling back to 'regular') — the current switch-based implementation can't have that
-  // specific bug (no dynamic property lookup happens at all), but this stays as a
-  // documented guard against a future refactor reintroducing a lookup table without the
-  // same care.
+  // falling back to 'regular') — the current implementation guards against it with an
+  // explicit hasOwnProperty check, but this stays as a documented guard against a future
+  // refactor dropping that guard.
   it('degrades a prototype-shaped templateKey to regular rather than resolving an inherited Object.prototype member', () => {
     for (const prototypeKey of ['constructor', 'toString', 'hasOwnProperty']) {
       const templateKey = prototypeKey as TemplateKey;
@@ -138,5 +137,132 @@ describe('getQuestionsForSide', () => {
         getQuestionsForSide('employee', CURRENT_ANKETA_FORM_VERSION, 'regular'),
       );
     }
+  });
+
+  describe("the 'onboarding' template", () => {
+    function questionIds(
+      side: 'employee' | 'manager',
+      templateKey: TemplateKey,
+    ) {
+      return getQuestionsForSide(
+        side,
+        CURRENT_ANKETA_FORM_VERSION,
+        templateKey,
+      ).map((q) => q.id);
+    }
+
+    it('replaces feelings/workload/growth/friction with workingAgreement/workStyle/freshEyesAudit on the employee side', () => {
+      expect(questionIds('employee', 'onboarding')).toEqual([
+        'mood',
+        'workingAgreement',
+        'workStyle',
+        'freshEyesAudit',
+        'achievements',
+        'discuss',
+      ]);
+    });
+
+    it('keeps mood/achievements/discuss identical to the regular template', () => {
+      const regular = getQuestionsForSide(
+        'employee',
+        CURRENT_ANKETA_FORM_VERSION,
+        'regular',
+      );
+      const onboarding = getQuestionsForSide(
+        'employee',
+        CURRENT_ANKETA_FORM_VERSION,
+        'onboarding',
+      );
+
+      for (const id of ['mood', 'achievements', 'discuss']) {
+        expect(onboarding.find((q) => q.id === id)).toEqual(
+          regular.find((q) => q.id === id),
+        );
+      }
+    });
+
+    it('keeps periodSummary/feedback/support and adds readinessCheck on the manager side, dropping employeeAchievements/managerDiscuss', () => {
+      expect(questionIds('manager', 'onboarding')).toEqual([
+        'periodSummary',
+        'feedback',
+        'support',
+        'readinessCheck',
+      ]);
+    });
+
+    it('keeps periodSummary/feedback/support identical to the regular template', () => {
+      const regular = getQuestionsForSide(
+        'manager',
+        CURRENT_ANKETA_FORM_VERSION,
+        'regular',
+      );
+      const onboarding = getQuestionsForSide(
+        'manager',
+        CURRENT_ANKETA_FORM_VERSION,
+        'onboarding',
+      );
+
+      for (const id of ['periodSummary', 'feedback', 'support']) {
+        expect(onboarding.find((q) => q.id === id)).toEqual(
+          regular.find((q) => q.id === id),
+        );
+      }
+    });
+
+    it('gives workStyle a feedback-channel radio plus two free-text fields', () => {
+      const workStyle = getQuestionsForSide(
+        'employee',
+        CURRENT_ANKETA_FORM_VERSION,
+        'onboarding',
+      ).find((q) => q.id === 'workStyle');
+
+      expect(workStyle?.fields.map((f) => f.id)).toEqual([
+        'feedbackChannel',
+        'focusTimeNeeds',
+        'stressSignals',
+      ]);
+      expect(
+        workStyle?.fields.find((f) => f.id === 'feedbackChannel')?.options,
+      ).toEqual([
+        { value: 'chat', labelKey: 'questions.options.feedbackChannel.chat' },
+        {
+          value: 'written',
+          labelKey: 'questions.options.feedbackChannel.written',
+        },
+        {
+          value: 'face_to_face',
+          labelKey: 'questions.options.feedbackChannel.faceToFace',
+        },
+      ]);
+    });
+
+    it('gives readinessCheck a yes/partial/no radio plus a notes field', () => {
+      const readinessCheck = getQuestionsForSide(
+        'manager',
+        CURRENT_ANKETA_FORM_VERSION,
+        'onboarding',
+      ).find((q) => q.id === 'readinessCheck');
+
+      expect(readinessCheck?.fields.map((f) => f.id)).toEqual([
+        'readinessLevel',
+        'readinessNotes',
+      ]);
+      expect(
+        readinessCheck?.fields.find((f) => f.id === 'readinessLevel')?.options,
+      ).toEqual([
+        { value: 'yes', labelKey: 'questions.options.readinessLevel.yes' },
+        {
+          value: 'partial',
+          labelKey: 'questions.options.readinessLevel.partial',
+        },
+        { value: 'no', labelKey: 'questions.options.readinessLevel.no' },
+      ]);
+    });
+
+    it("does not vary by formVersion (no 'feelings'-style field exists)", () => {
+      expect(getQuestionsForSide('employee', 1, 'onboarding')).toEqual(
+        getQuestionsForSide('employee', 2, 'onboarding'),
+      );
+    });
   });
 });

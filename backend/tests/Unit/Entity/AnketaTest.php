@@ -244,9 +244,15 @@ class AnketaTest extends TestCase
         self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('regular'));
     }
 
+    public function testNextCycleTemplateKeyForOnboardingIsRegularNotItself(): void
+    {
+        // A first 1:1 only happens once — unlike 'regular', its auto-recreated
+        // successor must not repeat the onboarding questions forever for the pair.
+        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('onboarding'));
+    }
+
     public function testNextCycleTemplateKeyForAnUnrecognizedKeyDegradesToTheDefault(): void
     {
-        self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('onboarding'));
         self::assertSame('regular', Anketa::nextCycleTemplateKeyFor('not-a-real-key'));
     }
 

@@ -206,12 +206,9 @@ class AnketaLifecycleServiceTest extends TestCase
 
     public function testArchiveWithNextMeetingUsesNextCycleTemplateKeyMapNotBlindCarryForward(): void
     {
-        // 'onboarding' isn't a registered template yet (Anketa::TEMPLATE_KEYS only has
-        // 'regular' today — the DTO layer is what would reject it as user input), but
-        // the entity itself accepts any string, so this exercises the map's fallback
-        // path exactly like a real one-off template's "don't repeat" rule will once one
-        // exists: an archived anketa's templateKey with no entry in
-        // Anketa::NEXT_CYCLE_TEMPLATE_KEY degrades to the default rather than being
+        // 'onboarding' (GitHub issue #104) is a one-off template — a first 1:1 only
+        // happens once — so its auto-recreated successor must use Anketa::NEXT_CYCLE_
+        // TEMPLATE_KEY's explicit 'onboarding' => 'regular' entry rather than being
         // blindly carried forward the way periodicityDays is.
         $anketa = new Anketa(
             employee: $this->employee,
@@ -221,6 +218,43 @@ class AnketaLifecycleServiceTest extends TestCase
             managerSealedKey: 'mgr-key',
             periodicityDays: 14,
             templateKey: 'onboarding',
+        );
+
+        $goalRepository = self::createStub(GoalRepository::class);
+        $goalRepository->method('findInProgressForAnketa')->willReturn([]);
+
+        $service = $this->createService(goalRepository: $goalRepository);
+
+        $nextAnketa = $service->archive(
+            anketa: $anketa,
+            actor: $this->employee,
+            missed: false,
+            skipNextMeeting: false,
+            nextMeetingDate: null,
+            mySealedKey: 'next-emp-key',
+            counterpartSealedKey: 'next-mgr-key',
+            outcomesBlob: null,
+        );
+
+        self::assertNotNull($nextAnketa);
+        self::assertSame('regular', $nextAnketa->getTemplateKey());
+    }
+
+    public function testArchiveWithNextMeetingDegradesAnUnrecognizedTemplateKeyToTheDefault(): void
+    {
+        // The entity itself accepts any string (the DTO layer is what rejects an
+        // unrecognized key as user input at creation time) — this exercises
+        // Anketa::NEXT_CYCLE_TEMPLATE_KEY's fallback path for a key with no entry in the
+        // map at all (stale data from a retired template, or bad data), as distinct from
+        // 'onboarding' above, which has its own explicit (non-identity) entry.
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'not-a-real-key',
         );
 
         $goalRepository = self::createStub(GoalRepository::class);

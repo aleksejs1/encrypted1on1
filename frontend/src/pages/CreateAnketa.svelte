@@ -25,13 +25,15 @@
   // (unlike frontend/src/demo.ts's demoEmailFor(), which genuinely does need a
   // hasOwnProperty guard because it looks up a locale that isn't always ours to
   // trust). TypeScript's Record<TemplateKey, string> already enforces that every
-  // template has both keys — the same exhaustiveness guarantee
-  // questions.ts::getQuestionsForSide() gets from its switch's `never` check.
+  // template has both keys — the same exhaustiveness guarantee questions.ts's own
+  // `TEMPLATES: Record<TemplateKey, AnketaTemplate>` registry gets from its key type.
   const templateLabelKeys: Record<TemplateKey, string> = {
     regular: 'createAnketa.templateRegular',
+    onboarding: 'createAnketa.templateOnboarding',
   };
   const templateDescriptionKeys: Record<TemplateKey, string> = {
     regular: 'createAnketa.templateRegularDescription',
+    onboarding: 'createAnketa.templateOnboardingDescription',
   };
 
   type AnketaDetailForCarry = Pick<

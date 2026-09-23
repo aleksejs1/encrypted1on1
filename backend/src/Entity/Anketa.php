@@ -55,15 +55,14 @@ class Anketa
      * private/anketa-meeting-templates-proposal.md §3 (not tracked in git,
      * this repo's own established place for this kind of product-decision
      * writeup) for the full accounting, including why that admin-visibility
-     * restriction specifically matters here. `'regular'` is the only key that
-     * exists today; more are added one at a time as their own template lands.
-     * Must match `ANKETA_TEMPLATES` in `frontend/src/anketa/questions.ts` — no automated
-     * cross-check exists yet (unlike this repo's locale lists, e.g.
+     * restriction specifically matters here. More are added one at a time as their own
+     * template lands (see GitHub issue #104 for `'onboarding'`, the first). Must match
+     * `ANKETA_TEMPLATES` in `frontend/src/anketa/questions.ts` — no automated cross-check
+     * exists yet (unlike this repo's locale lists, e.g.
      * `TranslationConsistencyTest`/`ResetDemoDataCommandTest`, which do cross-check each
-     * other), since with a single shared key today nothing can actually drift. Worth
-     * adding once a second template makes that a real possibility, not before.
+     * other); worth adding now that a second key makes drift an actual possibility.
      */
-    public const TEMPLATE_KEYS = ['regular'];
+    public const TEMPLATE_KEYS = ['regular', 'onboarding'];
 
     /** The template a new anketa gets when none is explicitly chosen — one named
      * constant instead of the literal `'regular'` repeated across this class,
@@ -78,14 +77,17 @@ class Anketa
      * forward the way `periodicityDays` is. A one-off template (e.g. a first 1:1)
      * auto-recreating itself forever would be wrong the moment such a template
      * exists; a genuinely recurring template (e.g. a quarterly career-growth
-     * check-in) should repeat itself. `'regular' => 'regular'` is this map's only
-     * real entry today — the only template that exists — but the mechanism (and
-     * `nextCycleTemplateKeyFor()` below) is real and tested ahead of a second
-     * template landing, per
+     * check-in) should repeat itself. `'regular' => 'regular'` was this map's only
+     * real entry before a second template existed, per
      * private/anketa-meeting-templates-proposal.md §7.3/§14 (not tracked in git).
+     * `'onboarding'` (GitHub issue #104) is the first template to actually exercise the
+     * one-off branch: a first 1:1 only happens once, so its auto-recreated successor
+     * degrades back to `'regular'` rather than repeating the onboarding questions
+     * forever for that pair.
      */
     private const NEXT_CYCLE_TEMPLATE_KEY = [
         'regular' => 'regular',
+        'onboarding' => 'regular',
     ];
 
     /**
