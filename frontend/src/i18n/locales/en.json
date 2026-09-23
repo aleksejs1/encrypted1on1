@@ -199,6 +199,8 @@
     "templateRegularDescription": "The standard recurring check-in — mood, feelings, workload, achievements.",
     "templateOnboarding": "First 1:1 / Onboarding",
     "templateOnboardingDescription": "For a new working relationship's first meeting — working agreement, work style, and a fresh-eyes audit instead of the regular check-in fields.",
+    "templateCareerGrowth": "Career growth",
+    "templateCareerGrowthDescription": "A career conversation (e.g. once a quarter) — energy retrospective, trajectory, stretch opportunities, and a 90-day development plan instead of the regular check-in fields.",
     "meetingDateLabel": "Meeting date",
     "periodicityLabel": "How often will you meet?",
     "periodicityWeekly": "Weekly",
@@ -339,7 +341,12 @@
       "workStyle": { "title": "Your work style" },
       "freshEyesAudit": {
         "title": "Fresh eyes: what's confusing or friction-heavy so far?"
-      }
+      },
+      "energyRetrospective": {
+        "title": "Energy retrospective: what made you proud, what drained you?"
+      },
+      "trajectory": { "title": "Trajectory: where do you want to grow?" },
+      "developmentPlan": { "title": "90-day development plan" }
     },
     "manager": {
       "periodSummary": {
@@ -353,7 +360,8 @@
       "managerDiscuss": { "title": "What else to discuss" },
       "readinessCheck": {
         "title": "Readiness check: access, tools, and context"
-      }
+      },
+      "sponsorshipOffer": { "title": "Stretch opportunity and sponsorship" }
     },
     "fields": {
       "moodNow": "How are you feeling?",
@@ -367,7 +375,15 @@
       "feedbackChannel": "Preferred feedback channel",
       "focusTimeNeeds": "Focus-time needs",
       "stressSignals": "Stress signals, and how to help",
-      "readinessLevel": "Does this person have what they need?"
+      "readinessLevel": "Does this person have what they need?",
+      "energizingWork": "Recent work you're genuinely proud of",
+      "drainingWork": "What drained your energy or felt like toil",
+      "trajectoryDirection": "Which direction appeals to you most right now?",
+      "capabilityGap": "What capability gap is blocking your next step?",
+      "developmentGoal": "The one goal for the next 90 days",
+      "developmentSteps": "First concrete steps",
+      "stretchAssignment": "A concrete stretch assignment I'm proposing",
+      "managerBacking": "The backing I'm committing to (coaching, sponsorship, protected time)"
     },
     "options": {
       "moodNow": { "bad": "Bad", "neutral": "Neutral", "good": "Good" },
@@ -405,6 +421,11 @@
         "yes": "Yes",
         "partial": "Partially",
         "no": "No"
+      },
+      "trajectoryDirection": {
+        "icDepth": "Deeper expertise as an individual contributor",
+        "peopleLeadership": "People leadership",
+        "undecided": "Undecided — still exploring"
       }
     }
   },

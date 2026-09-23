@@ -14,27 +14,13 @@
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
   import { sortByRecentCounterparts } from '../anketa/recentCounterparts';
-  import { ANKETA_TEMPLATES, type TemplateKey } from '../anketa/questions';
+  import {
+    ANKETA_TEMPLATES,
+    templatePickerKeys,
+    type TemplateKey,
+  } from '../anketa/questions';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
   import DateInput from '../design/DateInput.svelte';
-
-  // One label/description i18n key pair per registered template — a plain object
-  // literal keyed by TemplateKey, not a dynamic lookup on untrusted input: every key
-  // comes from ANKETA_TEMPLATES, a small hardcoded array this module also owns, so
-  // there's nothing here for an unrecognized/attacker-controlled string to look up
-  // (unlike frontend/src/demo.ts's demoEmailFor(), which genuinely does need a
-  // hasOwnProperty guard because it looks up a locale that isn't always ours to
-  // trust). TypeScript's Record<TemplateKey, string> already enforces that every
-  // template has both keys — the same exhaustiveness guarantee questions.ts's own
-  // `TEMPLATES: Record<TemplateKey, AnketaTemplate>` registry gets from its key type.
-  const templateLabelKeys: Record<TemplateKey, string> = {
-    regular: 'createAnketa.templateRegular',
-    onboarding: 'createAnketa.templateOnboarding',
-  };
-  const templateDescriptionKeys: Record<TemplateKey, string> = {
-    regular: 'createAnketa.templateRegularDescription',
-    onboarding: 'createAnketa.templateOnboardingDescription',
-  };
 
   type AnketaDetailForCarry = Pick<
     AnketaDetail,
@@ -213,15 +199,16 @@
         <legend>{$_('createAnketa.templateLegend')}</legend>
         <div class="template-options">
           {#each ANKETA_TEMPLATES as key (key)}
+            {@const pickerKeys = templatePickerKeys(key)}
             <div class="template-option">
               <label class="radio">
                 <input type="radio" bind:group={templateKey} value={key} /><span
                   class="dot"
                 ></span>
-                {$_(templateLabelKeys[key])}
+                {$_(pickerKeys.labelKey)}
               </label>
               <p class="text-muted template-description">
-                {$_(templateDescriptionKeys[key])}
+                {$_(pickerKeys.descriptionKey)}
               </p>
             </div>
           {/each}

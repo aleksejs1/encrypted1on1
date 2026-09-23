@@ -199,6 +199,8 @@
     "templateRegularDescription": "El check-in recurrente estándar: estado de ánimo, sentimientos, carga de trabajo, logros.",
     "templateOnboarding": "Primera reunión / Incorporación",
     "templateOnboardingDescription": "Para la primera reunión de una nueva relación laboral — acuerdo de trabajo, estilo de trabajo y una auditoría con mirada fresca en lugar de los campos habituales del check-in regular.",
+    "templateCareerGrowth": "Crecimiento profesional",
+    "templateCareerGrowthDescription": "Una conversación sobre la carrera profesional (por ejemplo, trimestral) — retrospectiva de energía, trayectoria, oportunidades de reto y un plan de desarrollo a 90 días en lugar de los campos habituales del check-in regular.",
     "meetingDateLabel": "Fecha de la reunión",
     "periodicityLabel": "¿Con qué frecuencia os reuniréis?",
     "periodicityWeekly": "Semanalmente",
@@ -343,7 +345,12 @@
       "workStyle": { "title": "Tu estilo de trabajo" },
       "freshEyesAudit": {
         "title": "Mirada fresca: qué resulta confuso o complicado hasta ahora"
-      }
+      },
+      "energyRetrospective": {
+        "title": "Retrospectiva de energía: ¿qué te enorgullece, qué te agotó?"
+      },
+      "trajectory": { "title": "Trayectoria: ¿hacia dónde quieres crecer?" },
+      "developmentPlan": { "title": "Plan de desarrollo a 90 días" }
     },
     "manager": {
       "periodSummary": {
@@ -357,7 +364,8 @@
       "managerDiscuss": { "title": "Qué más comentar" },
       "readinessCheck": {
         "title": "Comprobación de preparación: acceso, herramientas y contexto"
-      }
+      },
+      "sponsorshipOffer": { "title": "Oportunidad de reto y patrocinio" }
     },
     "fields": {
       "moodNow": "¿Cómo te sientes?",
@@ -371,7 +379,15 @@
       "feedbackChannel": "Canal de feedback preferido",
       "focusTimeNeeds": "Necesidades de tiempo de concentración",
       "stressSignals": "Señales de estrés y cómo ayudar",
-      "readinessLevel": "¿Tiene esta persona lo que necesita?"
+      "readinessLevel": "¿Tiene esta persona lo que necesita?",
+      "energizingWork": "Trabajo reciente que de verdad te enorgullece",
+      "drainingWork": "Qué te quitó energía o se sintió como trabajo tedioso",
+      "trajectoryDirection": "¿Qué dirección te atrae más ahora mismo?",
+      "capabilityGap": "¿Qué carencia de habilidades te impide dar el siguiente paso?",
+      "developmentGoal": "El único objetivo para los próximos 90 días",
+      "developmentSteps": "Primeros pasos concretos",
+      "stretchAssignment": "Un proyecto de reto concreto que propongo",
+      "managerBacking": "El apoyo con el que me comprometo (mentoría, patrocinio, tiempo protegido)"
     },
     "options": {
       "moodNow": { "bad": "Mal", "neutral": "Neutral", "good": "Bien" },
@@ -409,6 +425,11 @@
         "yes": "Sí",
         "partial": "Parcialmente",
         "no": "No"
+      },
+      "trajectoryDirection": {
+        "icDepth": "Más profundidad como especialista individual",
+        "peopleLeadership": "Liderazgo de personas",
+        "undecided": "Sin decidir — sigo explorando"
       }
     }
   },

@@ -439,23 +439,143 @@ const onboardingManagerQuestions: Question[] = [
 ];
 
 /**
+ * Career Growth template (a career conversation, e.g. once a quarter — its next cycle
+ * falls back to 'regular', see Anketa::NEXT_CYCLE_TEMPLATE_KEY) — sourced from the
+ * landing playbook's four agenda blocks (Energy Retrospective & Professional Pride /
+ * Trajectory & Role Archetypes / Stretch Projects & Manager Sponsorship / 90-Day
+ * Individual Development Plan), see
+ * private/anketa-meeting-templates-proposal.md §8.3 (not tracked in git) and GitHub issue
+ * #105. `mood` stays universal and `discuss`/`managerDiscuss` keep a place for anything
+ * else on either side's agenda; the regular check-in's period-status fields are replaced
+ * with a longer-horizon career conversation.
+ */
+const energyRetrospectiveQuestion: Question = {
+  id: 'energyRetrospective',
+  titleKey: 'questions.employee.energyRetrospective.title',
+  fields: [
+    {
+      id: 'energizingWork',
+      type: 'text',
+      labelKey: 'questions.fields.energizingWork',
+    },
+    {
+      id: 'drainingWork',
+      type: 'text',
+      labelKey: 'questions.fields.drainingWork',
+    },
+  ],
+};
+
+/** Deliberately three options, not a binary "IC or manager" — the playbook explicitly
+ * warns against pushing someone toward management before they've chosen it. */
+const trajectoryQuestion: Question = {
+  id: 'trajectory',
+  titleKey: 'questions.employee.trajectory.title',
+  fields: [
+    {
+      id: 'trajectoryDirection',
+      type: 'radio',
+      labelKey: 'questions.fields.trajectoryDirection',
+      options: [
+        {
+          value: 'ic_depth',
+          labelKey: 'questions.options.trajectoryDirection.icDepth',
+        },
+        {
+          value: 'people_leadership',
+          labelKey: 'questions.options.trajectoryDirection.peopleLeadership',
+        },
+        {
+          value: 'undecided',
+          labelKey: 'questions.options.trajectoryDirection.undecided',
+        },
+      ],
+    },
+    {
+      id: 'capabilityGap',
+      type: 'text',
+      labelKey: 'questions.fields.capabilityGap',
+    },
+  ],
+};
+
+const developmentPlanQuestion: Question = {
+  id: 'developmentPlan',
+  titleKey: 'questions.employee.developmentPlan.title',
+  fields: [
+    {
+      id: 'developmentGoal',
+      type: 'text',
+      labelKey: 'questions.fields.developmentGoal',
+    },
+    {
+      id: 'developmentSteps',
+      type: 'list',
+      labelKey: 'questions.fields.developmentSteps',
+    },
+  ],
+};
+
+/** Same uniform `(formVersion)` signature as `onboardingEmployeeQuestions()` — nothing
+ * here varies by version either. */
+function careerGrowthEmployeeQuestions(_formVersion: number): Question[] {
+  return [
+    moodQuestion,
+    energyRetrospectiveQuestion,
+    trajectoryQuestion,
+    developmentPlanQuestion,
+    discussQuestion,
+  ];
+}
+
+const sponsorshipOfferQuestion: Question = {
+  id: 'sponsorshipOffer',
+  titleKey: 'questions.manager.sponsorshipOffer.title',
+  fields: [
+    {
+      id: 'stretchAssignment',
+      type: 'text',
+      labelKey: 'questions.fields.stretchAssignment',
+    },
+    {
+      id: 'managerBacking',
+      type: 'text',
+      labelKey: 'questions.fields.managerBacking',
+    },
+  ],
+};
+
+const careerGrowthManagerQuestions: Question[] = [
+  feedbackQuestion,
+  sponsorshipOfferQuestion,
+  managerDiscussQuestion,
+];
+
+/**
  * Which built-in meeting-type template an anketa uses — see
  * private/anketa-meeting-templates-proposal.md (not tracked in git) for the full design.
- * More are added one at a time as their own template lands (e.g. a 'career_growth'/
- * 'support_checkin' template for a different kind of meeting). Must match the backend's
- * `Anketa::TEMPLATE_KEYS` — no automated cross-check exists yet (see that constant's own
- * docblock). `TemplateKey` is derived from `ANKETA_TEMPLATES` itself (same `as const` +
+ * More are added one at a time as their own template lands (e.g. a 'support_checkin'
+ * template for a different kind of meeting). Must match the backend's
+ * `Anketa::TEMPLATE_KEYS` — `questions.test.ts` cross-checks the two by reading the PHP
+ * source. `TemplateKey` is derived from `ANKETA_TEMPLATES` itself (same `as const` +
  * `(typeof X)[number]` shape `frontend/src/i18n/index.ts`'s `SUPPORTED_LOCALES`/
  * `SupportedLocale` already establishes) rather than declared independently, so the type
  * and the runtime list of valid keys can't drift apart from each other, at least.
  */
-export const ANKETA_TEMPLATES = ['regular', 'onboarding'] as const;
+export const ANKETA_TEMPLATES = [
+  'regular',
+  'onboarding',
+  'career_growth',
+] as const;
 export type TemplateKey = (typeof ANKETA_TEMPLATES)[number];
 
 interface AnketaTemplate {
   employeeQuestions(formVersion: number): Question[];
   /** The manager side has never varied by version — see `getQuestionsForSide()`. */
   managerQuestions: Question[];
+  /** `CreateAnketa.svelte`'s picker label/description i18n keys. */
+  labelKey: string;
+  descriptionKey: string;
 }
 
 /**
@@ -468,17 +588,29 @@ interface AnketaTemplate {
  * registry earns its keep now that a second template exists.
  */
 const TEMPLATES: Record<TemplateKey, AnketaTemplate> = {
-  regular: { employeeQuestions, managerQuestions },
+  regular: {
+    employeeQuestions,
+    managerQuestions,
+    labelKey: 'createAnketa.templateRegular',
+    descriptionKey: 'createAnketa.templateRegularDescription',
+  },
   onboarding: {
     employeeQuestions: onboardingEmployeeQuestions,
     managerQuestions: onboardingManagerQuestions,
+    labelKey: 'createAnketa.templateOnboarding',
+    descriptionKey: 'createAnketa.templateOnboardingDescription',
+  },
+  career_growth: {
+    employeeQuestions: careerGrowthEmployeeQuestions,
+    managerQuestions: careerGrowthManagerQuestions,
+    labelKey: 'createAnketa.templateCareerGrowth',
+    descriptionKey: 'createAnketa.templateCareerGrowthDescription',
   },
 };
 
 /**
- * The question set for one side of an anketa at a given form version and template. An
- * unrecognized templateKey (stale client after a server rollback, or bad data) degrades
- * to the `'regular'` template rather than throwing.
+ * The registry entry for `templateKey`. An unrecognized templateKey (stale client after a
+ * server rollback, or bad data) degrades to the `'regular'` template rather than throwing.
  *
  * Looked up via `Object.prototype.hasOwnProperty.call()`, not a plain `TEMPLATES[key]`/
  * `key in TEMPLATES` check — the same prototype-pollution-shaped guard
@@ -487,15 +619,27 @@ const TEMPLATES: Record<TemplateKey, AnketaTemplate> = {
  * `'constructor'`) must not resolve to that prototype value instead of falling back to
  * `'regular'`. See this file's own test for the regression this guards against.
  */
+function templateFor(templateKey: TemplateKey): AnketaTemplate {
+  return Object.prototype.hasOwnProperty.call(TEMPLATES, templateKey)
+    ? TEMPLATES[templateKey]
+    : TEMPLATES.regular;
+}
+
+/** The question set for one side of an anketa at a given form version and template. */
 export function getQuestionsForSide(
   side: Side,
   formVersion: number,
   templateKey: TemplateKey,
 ): Question[] {
-  const template = Object.prototype.hasOwnProperty.call(TEMPLATES, templateKey)
-    ? TEMPLATES[templateKey]
-    : TEMPLATES.regular;
+  const template = templateFor(templateKey);
   return side === 'employee'
     ? template.employeeQuestions(formVersion)
     : template.managerQuestions;
+}
+
+/** `CreateAnketa.svelte`'s picker label/description i18n keys for `templateKey`. */
+export function templatePickerKeys(
+  templateKey: TemplateKey,
+): Pick<AnketaTemplate, 'labelKey' | 'descriptionKey'> {
+  return templateFor(templateKey);
 }

@@ -199,6 +199,8 @@
     "templateRegularDescription": "Das übliche wiederkehrende Check-in — Stimmung, Gefühle, Arbeitsbelastung, Erfolge.",
     "templateOnboarding": "Erstes 1:1 / Einarbeitung",
     "templateOnboardingDescription": "Für das erste Treffen einer neuen Arbeitsbeziehung — Arbeitsvereinbarung, Arbeitsstil und ein Audit mit frischem Blick anstelle der üblichen Felder des regulären Check-ins.",
+    "templateCareerGrowth": "Karriereentwicklung",
+    "templateCareerGrowthDescription": "Ein Karrieregespräch (z. B. einmal pro Quartal) — Energie-Rückblick, Entwicklungsrichtung, Stretch-Aufgaben und ein 90-Tage-Entwicklungsplan anstelle der üblichen Felder des regulären Check-ins.",
     "meetingDateLabel": "Meeting-Datum",
     "periodicityLabel": "Wie oft werden Sie sich treffen?",
     "periodicityWeekly": "Wöchentlich",
@@ -339,7 +341,14 @@
       "workStyle": { "title": "Ihr Arbeitsstil" },
       "freshEyesAudit": {
         "title": "Frischer Blick: Was ist bisher unklar oder hakt?"
-      }
+      },
+      "energyRetrospective": {
+        "title": "Energie-Rückblick: Worauf sind Sie stolz, was hat Sie Kraft gekostet?"
+      },
+      "trajectory": {
+        "title": "Entwicklungsrichtung: Wohin möchten Sie wachsen?"
+      },
+      "developmentPlan": { "title": "90-Tage-Entwicklungsplan" }
     },
     "manager": {
       "periodSummary": {
@@ -353,7 +362,8 @@
       "managerDiscuss": { "title": "Was sonst noch zu besprechen ist" },
       "readinessCheck": {
         "title": "Bereitschaftscheck: Zugang, Werkzeuge und Kontext"
-      }
+      },
+      "sponsorshipOffer": { "title": "Stretch-Aufgabe und Förderung" }
     },
     "fields": {
       "moodNow": "Wie fühlen Sie sich?",
@@ -367,7 +377,15 @@
       "feedbackChannel": "Bevorzugter Feedback-Kanal",
       "focusTimeNeeds": "Bedarf an ungestörter Arbeitszeit",
       "stressSignals": "Stresssignale und wie geholfen werden kann",
-      "readinessLevel": "Hat diese Person, was sie braucht?"
+      "readinessLevel": "Hat diese Person, was sie braucht?",
+      "energizingWork": "Aktuelle Arbeit, auf die Sie wirklich stolz sind",
+      "drainingWork": "Was hat Energie gekostet oder sich wie Routinearbeit angefühlt?",
+      "trajectoryDirection": "Welche Richtung spricht Sie derzeit am meisten an?",
+      "capabilityGap": "Welche Kompetenzlücke steht Ihrem nächsten Schritt im Weg?",
+      "developmentGoal": "Das eine Ziel für die nächsten 90 Tage",
+      "developmentSteps": "Erste konkrete Schritte",
+      "stretchAssignment": "Eine konkrete Stretch-Aufgabe, die ich vorschlage",
+      "managerBacking": "Die Unterstützung, die ich zusage (Coaching, Förderung, geschützte Zeit)"
     },
     "options": {
       "moodNow": { "bad": "Schlecht", "neutral": "Neutral", "good": "Gut" },
@@ -405,6 +423,11 @@
         "yes": "Ja",
         "partial": "Teilweise",
         "no": "Nein"
+      },
+      "trajectoryDirection": {
+        "icDepth": "Mehr fachliche Tiefe (Fachlaufbahn)",
+        "peopleLeadership": "Personalverantwortung",
+        "undecided": "Noch offen — ich orientiere mich noch"
       }
     }
   },
