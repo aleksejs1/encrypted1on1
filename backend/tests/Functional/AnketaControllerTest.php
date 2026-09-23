@@ -90,30 +90,26 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(400, $result['status']);
     }
 
-    public function testCreateAndGetAcceptTheOnboardingTemplateKey(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function templateKeyProvider(): array
     {
-        [$employeeClient, , , $manager] = $this->makePair('template-key-onboarding');
-        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'onboarding'])['json']['id'];
-
-        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
-        $listRow = self::findById($list['json'], $anketaId);
-        self::assertSame('onboarding', $listRow['templateKey']);
-
-        $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
-        self::assertSame('onboarding', $get['json']['templateKey']);
+        return array_combine(Anketa::TEMPLATE_KEYS, array_map(static fn (string $key): array => [$key], Anketa::TEMPLATE_KEYS));
     }
 
-    public function testCreateAndGetAcceptTheCareerGrowthTemplateKey(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('templateKeyProvider')]
+    public function testCreateAndGetAcceptEveryRegisteredTemplateKey(string $templateKey): void
     {
-        [$employeeClient, , , $manager] = $this->makePair('template-key-career-growth');
-        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'career_growth'])['json']['id'];
+        [$employeeClient, , , $manager] = $this->makePair('template-key-'.str_replace('_', '-', $templateKey));
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => $templateKey])['json']['id'];
 
         $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
         $listRow = self::findById($list['json'], $anketaId);
-        self::assertSame('career_growth', $listRow['templateKey']);
+        self::assertSame($templateKey, $listRow['templateKey']);
 
         $get = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}");
-        self::assertSame('career_growth', $get['json']['templateKey']);
+        self::assertSame($templateKey, $get['json']['templateKey']);
     }
 
     public function testCreateRejectsAnUnknownCounterpart(): void

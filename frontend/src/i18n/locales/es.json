@@ -201,6 +201,8 @@
     "templateOnboardingDescription": "Para la primera reunión de una nueva relación laboral — acuerdo de trabajo, estilo de trabajo y una auditoría con mirada fresca en lugar de los campos habituales del check-in regular.",
     "templateCareerGrowth": "Crecimiento profesional",
     "templateCareerGrowthDescription": "Una conversación sobre la carrera profesional (por ejemplo, trimestral) — retrospectiva de energía, trayectoria, oportunidades de reto y un plan de desarrollo a 90 días en lugar de los campos habituales del check-in regular.",
+    "templateSupportCheckin": "Reunión de apoyo y carga de trabajo",
+    "templateSupportCheckinDescription": "Una conversación sobre energía y carga de trabajo — qué pausar o delegar, qué ayudaría a proteger el tiempo de concentración y descanso, y próximos pasos concretos, junto con las preguntas habituales sobre estado de ánimo y carga de trabajo.",
     "meetingDateLabel": "Fecha de la reunión",
     "periodicityLabel": "¿Con qué frecuencia os reuniréis?",
     "periodicityWeekly": "Semanalmente",
@@ -352,7 +354,10 @@
         "title": "Retrospectiva de energía: ¿qué te enorgullece, qué te agotó?"
       },
       "trajectory": { "title": "Trayectoria: ¿hacia dónde quieres crecer?" },
-      "developmentPlan": { "title": "Plan de desarrollo a 90 días" }
+      "developmentPlan": { "title": "Plan de desarrollo a 90 días" },
+      "energyLevel": { "title": "Energía" },
+      "workloadTriage": { "title": "¿Qué se podría quitar de tu carga?" },
+      "boundaries": { "title": "¿Qué ayudaría a proteger tu tiempo?" }
     },
     "manager": {
       "periodSummary": {
@@ -367,7 +372,9 @@
       "readinessCheck": {
         "title": "Comprobación de preparación: acceso, herramientas y contexto"
       },
-      "sponsorshipOffer": { "title": "Oportunidad de reto y patrocinio" }
+      "sponsorshipOffer": { "title": "Oportunidad de reto y patrocinio" },
+      "commitments": { "title": "Lo que asumo para aliviar tu carga" },
+      "checkInCadence": { "title": "Cómo haremos seguimiento entre reuniones" }
     },
     "fields": {
       "moodNow": "¿Cómo te sientes?",
@@ -389,7 +396,13 @@
       "developmentGoal": "El único objetivo para los próximos 90 días",
       "developmentSteps": "Primeros pasos concretos",
       "stretchAssignment": "Un proyecto de reto concreto que propongo",
-      "managerBacking": "El apoyo con el que me comprometo (mentoría, patrocinio, tiempo protegido)"
+      "managerBacking": "El apoyo con el que me comprometo (mentoría, patrocinio, tiempo protegido)",
+      "energyLevelNow": "¿Cómo andas de energía últimamente?",
+      "energyDrivers": "¿Qué es lo que más influye?",
+      "triageEntries": "Lo que más convendría pausar, delegar o dejar de hacer",
+      "boundariesNotes": "Qué ayudaría (por ejemplo, horas sin interrupciones, días sin reuniones, un descanso de las guardias)",
+      "commitmentEntries": "Qué cambia y para cuándo (la fecha que se muestra es la de cuándo se añadió)",
+      "checkInCadenceNotes": "Cómo y con qué frecuencia me interesaré por cómo vas, sin presionar"
     },
     "options": {
       "moodNow": { "bad": "Mal", "neutral": "Neutral", "good": "Bien" },
@@ -432,6 +445,11 @@
         "icDepth": "Más profundidad como especialista individual",
         "peopleLeadership": "Liderazgo de personas",
         "undecided": "Sin decidir — sigo explorando"
+      },
+      "energyLevelNow": {
+        "low": "Baja",
+        "manageable": "Llevadera",
+        "good": "Buena"
       }
     }
   },

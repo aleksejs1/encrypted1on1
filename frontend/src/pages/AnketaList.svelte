@@ -60,8 +60,10 @@
   // separate chart library, per the same spec section (hand-rolled SVG only).
   // Neither field has ever varied by form version — any version works here.
   // Explicitly 'regular': this is building a static chart legend, not reading any
-  // one anketa's own template, and 'regular' is the only template with mood/workload
-  // fields shaped this way (see frontend/src/anketa/questions.ts).
+  // one anketa's own template. Other templates that ask mood/workload reuse the same
+  // question objects (see frontend/src/anketa/questions.ts), so their answers land on
+  // the same scale. An anketa whose template lacks one is skipped in that sparkline,
+  // so its neighbouring points join directly.
   const employeeQuestions = getQuestionsForSide(
     'employee',
     CURRENT_ANKETA_FORM_VERSION,

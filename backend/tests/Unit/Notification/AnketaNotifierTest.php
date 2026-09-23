@@ -75,8 +75,8 @@ class AnketaNotifierTest extends TestCase
      * risk (mail server logs, lock-screen previews, a shared inbox), unlike an in-app
      * admin view that can at least be access-controlled. See
      * private/anketa-meeting-templates-proposal.md §3 (not tracked in git). Exercises
-     * every registered template plus one not-yet-real key ('support_checkin'), so the
-     * invariant keeps holding as templates are added without editing this list.
+     * every registered template plus one unrecognized key, so the invariant keeps holding
+     * as templates are added without editing this list.
      */
     public function testNotifyAnketaCreatedNeverIncludesTemplateInformation(): void
     {
@@ -100,7 +100,7 @@ class AnketaNotifierTest extends TestCase
         $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
         $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
 
-        foreach ([...Anketa::TEMPLATE_KEYS, 'support_checkin'] as $templateKey) {
+        foreach ([...Anketa::TEMPLATE_KEYS, 'not-a-real-key'] as $templateKey) {
             $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $templateKey);
             $notifier->notifyAnketaCreated($anketa, $employee, $manager);
         }
