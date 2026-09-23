@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # Branch pushes are covered by `pull_request` once a PR is open; running `push` on
+  # every branch too made each PR show every job twice. Other branches: workflow_dispatch.
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
