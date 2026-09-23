@@ -35,7 +35,7 @@ class AnketaPresenter
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, formVersion: int, templateKey: string}
+     *     counterpartDeleted: bool, formVersion: int, templateKey: string, oneOff: bool}
      */
     public function summarize(Anketa $anketa, User $user): array
     {
@@ -58,6 +58,10 @@ class AnketaPresenter
             'counterpartDeleted' => null !== $counterpart->getDeletedAt(),
             'formVersion' => $anketa->getFormVersion(),
             'templateKey' => $anketa->getTemplateKey(),
+            // GitHub issue #111, see Anketa::$oneOff. In the summary, not just the detail,
+            // because CreateAnketa.svelte needs it per list row to mirror the server's
+            // chain-anketa lookups (AnketaRepository::findOpenForPair() and co.).
+            'oneOff' => $anketa->isOneOff(),
         ];
     }
 
@@ -67,7 +71,7 @@ class AnketaPresenter
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
-     *     counterpartDeleted: bool, formVersion: int, templateKey: string, mySealedKey: string, counterpartPublicKey: string,
+     *     counterpartDeleted: bool, formVersion: int, templateKey: string, oneOff: bool, mySealedKey: string, counterpartPublicKey: string,
      *     employeeBlob: string|null, employeePublishedAt: string|null, employeeBlobVersion: int,
      *     managerBlob: string|null, managerPublishedAt: string|null, managerBlobVersion: int,
      *     commentsBlob: string|null, commentsVersion: int,
@@ -126,6 +130,8 @@ class AnketaPresenter
         // of this endpoint's shape this issue doesn't touch, not a precedent this
         // exclusion is claiming to follow.
         unset($state['templateKey']);
+        // Same for oneOff (GitHub issue #111) — set once at creation, never changes.
+        unset($state['oneOff']);
 
         return $state;
     }

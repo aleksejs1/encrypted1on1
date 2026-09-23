@@ -91,6 +91,23 @@ class AnketaPresenterTest extends TestCase
         self::assertFalse($summary['counterpartDeleted']);
         self::assertSame(Anketa::CURRENT_FORM_VERSION, $summary['formVersion']);
         self::assertSame('regular', $summary['templateKey']);
+        self::assertFalse($summary['oneOff']);
+    }
+
+    public function testSummarizeAndDetailReturnOneOff(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'sealed-emp',
+            managerSealedKey: 'sealed-mgr',
+            periodicityDays: 14,
+            oneOff: true,
+        );
+
+        self::assertTrue($this->presenter->summarize($anketa, $this->employee)['oneOff']);
+        self::assertTrue($this->presenter->serializeDetail($anketa, $this->employee, [])['oneOff']);
     }
 
     public function testSummarizeFromManagerPerspective(): void
@@ -141,6 +158,7 @@ class AnketaPresenterTest extends TestCase
         $detail = $this->presenter->serializeDetail($anketa, $this->employee, [$goal]);
 
         self::assertSame('regular', $detail['templateKey']);
+        self::assertFalse($detail['oneOff']);
         self::assertSame('sealed-emp', $detail['mySealedKey']);
         self::assertSame('mgr-pub-key', $detail['counterpartPublicKey']);
         self::assertNull($detail['employeeBlob']);
@@ -178,6 +196,8 @@ class AnketaPresenterTest extends TestCase
         // returns it. See private/anketa-meeting-templates-proposal.md §8.2 (not tracked
         // in git).
         self::assertArrayNotHasKey('templateKey', $liveState);
+        // Same for oneOff (GitHub issue #111).
+        self::assertArrayNotHasKey('oneOff', $liveState);
     }
 
     public function testIsKeyOutdated(): void

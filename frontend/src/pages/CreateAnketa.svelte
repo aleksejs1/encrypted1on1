@@ -19,6 +19,7 @@
     templatePickerKeys,
     type TemplateKey,
   } from '../anketa/questions';
+  import { pairChainState } from '../anketa/pairChain';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
   import DateInput from '../design/DateInput.svelte';
 
@@ -39,15 +40,19 @@
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
 
-  // The pair's most recent archived anketa, if any — `GET /api/anketas` is already sorted
-  // by meetingDate DESC, so the first archived match is the most recent one. Its presence
-  // decides whether periodicity needs asking (new pair) or is inherited server-side
-  // (continuing pair, see AnketaController::create — Phase 6d).
-  const previousAnketa = $derived(
-    priorAnketas.find(
-      (a) => a.counterpartId === counterpartId && a.archivedAt !== null,
-    ),
-  );
+  // The pair's chain state — see pairChainState(). previousAnketa is the outcomes
+  // carry-forward source; inheritedPeriodicityDays decides whether periodicity needs
+  // asking. GitHub issue #111: with an open chain anketa, this one is created as a
+  // one-off — no carry-forward, no auto-recreated successor. The server decides that for
+  // itself (AnketaController::create); this just skips the outcomes re-encryption (the
+  // server would drop it for a one-off) and tells the user up front. If this list is
+  // stale and the open anketa got archived in the meantime, the server carries goals
+  // from it but gets no outcomes — computing them here from previousAnketa wouldn't
+  // help, since that's then an older anketa than the one the server carries from.
+  const pairChain = $derived(pairChainState(priorAnketas, counterpartId));
+  const previousAnketa = $derived(pairChain.previousAnketa);
+  const pairHasOpenAnketa = $derived(pairChain.openAnketa !== undefined);
+  const inheritedPeriodicityDays = $derived(pairChain.inheritedPeriodicityDays);
 
   // Recent counterparts (from this user's own anketa history) surface at the top of the
   // typeahead's suggestion list, per the spec — no full-company-list scrolling every time.
@@ -107,7 +112,7 @@
       // items from the pair's most recent archived anketa have to be decrypted and re-encrypted
       // here, client-side, before the new anketa exists.
       let outcomesBlob: string | undefined;
-      if (previousAnketa) {
+      if (previousAnketa && !pairHasOpenAnketa) {
         try {
           const previousDetail = await apiGet<AnketaDetailForCarry>(
             `/api/anketas/${previousAnketa.id}`,
@@ -127,8 +132,8 @@
           // reset — see ResetPassword.svelte). Forgetting a password shouldn't also
           // block starting a fresh anketa with the same counterpart, so this is
           // treated the same as having no previous anketa to carry forward from —
-          // periodicity inheritance below is unaffected, since it only depends on
-          // previousAnketa existing, not on successfully reading its key.
+          // periodicity inheritance below is unaffected, since it never depends on
+          // successfully reading the previous anketa's key.
         }
       }
 
@@ -138,9 +143,9 @@
         meetingDate: new Date(meetingDate).toISOString(),
         mySealedKey,
         counterpartSealedKey,
-        // Periodicity (Phase 6d) is only asked for a brand-new pair — a continuing pair
-        // inherits it server-side from previousAnketa, so this is ignored there anyway.
-        ...(previousAnketa ? {} : { periodicityDays }),
+        // Periodicity (Phase 6d) is only asked when there's nothing to inherit — see
+        // inheritedPeriodicityDays; the server ignores it otherwise anyway.
+        ...(inheritedPeriodicityDays !== null ? {} : { periodicityDays }),
         ...(outcomesBlob ? { outcomesBlob } : {}),
         // Unlike periodicity, template choice is never inherited-only — the picker is
         // shown (and sent) on every creation, continuing pair or not, since a manager
@@ -220,7 +225,13 @@
         <DateInput id="meeting-date" bind:value={meetingDate} />
       </div>
 
-      {#if counterpartId && !previousAnketa}
+      {#if counterpartId && pairHasOpenAnketa}
+        <p class="text-muted periodicity-note">
+          {$_('createAnketa.pairHasOpenAnketa')}
+        </p>
+      {/if}
+
+      {#if counterpartId && inheritedPeriodicityDays === null}
         <fieldset class="card">
           <legend>{$_('createAnketa.periodicityLabel')}</legend>
           <div class="radio-row">
@@ -248,7 +259,7 @@
             </label>
           </div>
         </fieldset>
-      {:else if counterpartId && previousAnketa}
+      {:else if counterpartId && !pairHasOpenAnketa}
         <p class="text-muted periodicity-note">
           {$_('createAnketa.periodicityInherited')}
         </p>

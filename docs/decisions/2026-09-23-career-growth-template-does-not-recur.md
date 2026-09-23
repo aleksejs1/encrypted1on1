@@ -13,7 +13,7 @@ noticed and recreated a regular anketa by hand.
 
 ## Decision
 
-`'career_growth' => 'regular'`, the same one-off rule `'onboarding'` already uses (maintainer
+`'career_growth' => 'regular'`, the same non-recurring rule `'onboarding'` already uses (maintainer
 decision, 2026-09-23). A career conversation is chosen from the creation-time picker when it's
 wanted. The picker copy says "e.g. once a quarter" rather than promising a quarterly schedule,
 since nothing schedules one.
@@ -30,7 +30,9 @@ since nothing schedules one.
   cadence), and it silently applied to the overdue card's "cancel as missed" button too. It also
   did nothing for the identical fork via a second manual regular anketa.
 
-## Known limitation (pre-existing, tracked separately)
+## Known limitation (pre-existing, since fixed)
+
+Resolved by [the one-open-anketa-chain decision](2026-09-23-one-open-anketa-chain-per-pair.md). The original note follows.
 
 For a pair that already meets, archiving its regular anketa auto-creates the next one, so a career
 conversation is created by hand *next to* an already-open regular anketa. That duplicates

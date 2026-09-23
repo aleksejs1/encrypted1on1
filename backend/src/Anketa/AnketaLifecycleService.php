@@ -26,8 +26,11 @@ class AnketaLifecycleService
 
     /**
      * Builds a new Anketa (optionally seeded with a client-carried outcomesBlob) and
-     * copies in_progress goals from $carryFrom into it, if given. Shared by create()
-     * and archive()'s auto-recreation. Persists the new Anketa and any copied Goals;
+     * copies in_progress goals from $carryFrom into it, if given — except for a one-off,
+     * which never gets a carry-forward (GitHub issue #111, see Anketa::$oneOff): the
+     * pair's open chain anketa already has it, and a second copy would just diverge.
+     * Enforced here rather than by callers, so no caller can bring the duplicates back.
+     * Shared by create() and archive()'s auto-recreation. Persists the new Anketa and any copied Goals;
      * does not flush, callers do that once after whatever else they need to persist.
      */
     public function createWithCarryForward(
@@ -40,7 +43,13 @@ class AnketaLifecycleService
         ?string $outcomesBlob = null,
         ?Anketa $carryFrom = null,
         string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
+        bool $oneOff = false,
     ): Anketa {
+        if ($oneOff) {
+            $outcomesBlob = null;
+            $carryFrom = null;
+        }
+
         $anketa = new Anketa(
             employee: $employee,
             manager: $manager,
@@ -49,6 +58,7 @@ class AnketaLifecycleService
             managerSealedKey: $managerSealedKey,
             periodicityDays: $periodicityDays,
             templateKey: $templateKey,
+            oneOff: $oneOff,
         );
 
         if (null !== $outcomesBlob) {
@@ -89,6 +99,7 @@ class AnketaLifecycleService
         ?Anketa $carryFrom = null,
         ?User $creator = null,
         string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
+        bool $oneOff = false,
     ): Anketa {
         $anketa = $this->createWithCarryForward(
             employee: $employee,
@@ -100,6 +111,7 @@ class AnketaLifecycleService
             outcomesBlob: $outcomesBlob,
             carryFrom: $carryFrom,
             templateKey: $templateKey,
+            oneOff: $oneOff,
         );
 
         $this->entityManager->flush();
@@ -113,7 +125,8 @@ class AnketaLifecycleService
     }
 
     /**
-     * Archives an anketa and, unless skipped or either participant is blocked, auto-recreates
+     * Archives an anketa and, unless skipped, it's a one-off, or either participant is
+     * blocked (see shouldCreateNext()), auto-recreates
      * the subsequent anketa with carried-forward uncompleted goals, flushes, and notifies the counterpart.
      */
     public function archive(
@@ -166,8 +179,10 @@ class AnketaLifecycleService
     {
         // Closes the Phase 6d deferred item: if either participant is now blocked
         // (Phase 6g), auto-recreation stops for this pair — same effect as
-        // skipNextMeeting, but forced, regardless of what the client asked for.
-        if ($skipNextMeeting) {
+        // skipNextMeeting, but forced, regardless of what the client asked for. A one-off
+        // anketa (GitHub issue #111, see Anketa::$oneOff) is forced the same way — it
+        // never recreates itself, or the pair's chain would fork into two.
+        if ($skipNextMeeting || $anketa->isOneOff()) {
             return false;
         }
 
@@ -194,7 +209,7 @@ class AnketaLifecycleService
 
         // Deliberately NOT $anketa->getTemplateKey() here, unlike periodicityDays two
         // lines below — a template choice should not blindly carry forward the way
-        // periodicity does: a one-off template ('onboarding', 'career_growth')
+        // periodicity does: a non-recurring template ('onboarding', 'career_growth')
         // auto-recreating itself forever would be wrong. Anketa::
         // nextCycleTemplateKeyFor() looks up the per-template recurrence rule (see its
         // own docblock) — see AnketaLifecycleServiceTest::

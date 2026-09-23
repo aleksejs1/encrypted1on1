@@ -4,11 +4,13 @@
 
   let {
     archiving,
+    oneOff,
     skipNextMeeting = $bindable<boolean>(),
     nextMeetingDate = $bindable<string>(),
     onArchive,
   }: {
     archiving: boolean;
+    oneOff: boolean;
     skipNextMeeting: boolean;
     nextMeetingDate: string;
     onArchive: (missed: boolean) => Promise<void>;
@@ -17,19 +19,27 @@
 
 <section class="card">
   <h2>{$_('anketa.archiveHeading')}</h2>
-  <label class="radio archive-skip">
-    <input
-      type="checkbox"
-      class="native-checkbox"
-      bind:checked={skipNextMeeting}
-    />
-    {$_('anketa.skipNextMeeting')}
-  </label>
-  {#if !skipNextMeeting}
-    <div class="field archive-date-field">
-      <label for="next-meeting-date">{$_('anketa.nextMeetingDateLabel')}</label>
-      <DateInput id="next-meeting-date" bind:value={nextMeetingDate} />
-    </div>
+  {#if oneOff}
+    <p class="text-muted archive-no-next">
+      {$_('anketa.archiveOneOff')}
+    </p>
+  {:else}
+    <label class="radio archive-skip">
+      <input
+        type="checkbox"
+        class="native-checkbox"
+        bind:checked={skipNextMeeting}
+      />
+      {$_('anketa.skipNextMeeting')}
+    </label>
+    {#if !skipNextMeeting}
+      <div class="field archive-date-field">
+        <label for="next-meeting-date"
+          >{$_('anketa.nextMeetingDateLabel')}</label
+        >
+        <DateInput id="next-meeting-date" bind:value={nextMeetingDate} />
+      </div>
+    {/if}
   {/if}
   <button
     type="button"
@@ -42,7 +52,8 @@
 </section>
 
 <style>
-  .archive-skip {
+  .archive-skip,
+  .archive-no-next {
     margin-bottom: 10px;
   }
 
