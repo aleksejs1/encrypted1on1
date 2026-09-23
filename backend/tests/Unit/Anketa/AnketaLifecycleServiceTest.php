@@ -315,6 +315,104 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertNull($nextAnketa);
     }
 
+    /** GitHub issue #111: a one-off anketa never auto-recreates, even with keys sent. */
+    public function testArchiveOfAOneOffAnketaDoesNotCreateNext(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'career_growth',
+            oneOff: true,
+        );
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::never())->method('persist');
+        $entityManager->expects(self::once())->method('flush');
+
+        $notifier = $this->createMock(AnketaNotifier::class);
+        $notifier->expects(self::never())->method('notifyAnketaCreated');
+
+        $service = $this->createService(entityManager: $entityManager, notifier: $notifier);
+
+        $nextAnketa = $service->archive(
+            anketa: $anketa,
+            actor: $this->employee,
+            missed: false,
+            skipNextMeeting: false,
+            mySealedKey: 'next-my-key',
+            counterpartSealedKey: 'next-counterpart-key',
+        );
+
+        self::assertTrue($anketa->isArchived());
+        self::assertNull($nextAnketa);
+    }
+
+    /** GitHub issue #111: the service itself drops the carry-forward for a one-off. */
+    public function testCreateWithCarryForwardIgnoresCarryForwardForAOneOff(): void
+    {
+        $previousAnketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'old-emp',
+            managerSealedKey: 'old-mgr',
+            periodicityDays: 14,
+        );
+
+        $goalRepository = $this->createMock(GoalRepository::class);
+        $goalRepository->expects(self::never())->method('findInProgressForAnketa');
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('persist');
+
+        $service = $this->createService(entityManager: $entityManager, goalRepository: $goalRepository);
+
+        $anketa = $service->createWithCarryForward(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'new-emp',
+            managerSealedKey: 'new-mgr',
+            periodicityDays: 14,
+            outcomesBlob: 'client-carried-outcomes',
+            carryFrom: $previousAnketa,
+            oneOff: true,
+        );
+
+        self::assertTrue($anketa->isOneOff());
+        self::assertNull($anketa->getOutcomesBlob());
+    }
+
+    public function testCreateWithCarryForwardPassesOneOffThrough(): void
+    {
+        $service = $this->createService();
+
+        $regular = $service->createWithCarryForward(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+        );
+        $oneOff = $service->createWithCarryForward(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            oneOff: true,
+        );
+
+        self::assertFalse($regular->isOneOff());
+        self::assertTrue($oneOff->isOneOff());
+    }
+
     public function testReshareKey(): void
     {
         $anketa = new Anketa(
@@ -447,6 +545,21 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $this->employee->setBlocked(true);
         self::assertFalse($service->shouldCreateNext($anketa, false));
+    }
+
+    public function testShouldCreateNextIsFalseForAOneOffAnketa(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            oneOff: true,
+        );
+
+        self::assertFalse($this->createService()->shouldCreateNext($anketa, false));
     }
 
     public function testArchiveThrowsExceptionWhenNextAnketaMissingPeriodicity(): void
