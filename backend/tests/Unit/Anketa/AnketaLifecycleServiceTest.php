@@ -198,10 +198,48 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertNotNull($nextAnketa);
         self::assertSame('next-emp-key', $nextAnketa->sealedKeyFor($this->employee));
         self::assertSame('next-mgr-key', $nextAnketa->sealedKeyFor($this->manager));
-        // No per-template recurrence rule exists yet (that's a later, separate issue —
-        // see private/anketa-meeting-templates-proposal.md §7.3, not tracked in git) —
-        // for now, every auto-recreated anketa is 'regular', the only template that
-        // exists, regardless of what the just-archived one was.
+        // 'regular' maps to itself in Anketa::NEXT_CYCLE_TEMPLATE_KEY — the only
+        // template that exists today, so this and "just carry it forward" produce
+        // identical results, but via the real recurrence-rule mechanism, not by luck.
+        self::assertSame('regular', $nextAnketa->getTemplateKey());
+    }
+
+    public function testArchiveWithNextMeetingUsesNextCycleTemplateKeyMapNotBlindCarryForward(): void
+    {
+        // 'onboarding' isn't a registered template yet (Anketa::TEMPLATE_KEYS only has
+        // 'regular' today — the DTO layer is what would reject it as user input), but
+        // the entity itself accepts any string, so this exercises the map's fallback
+        // path exactly like a real one-off template's "don't repeat" rule will once one
+        // exists: an archived anketa's templateKey with no entry in
+        // Anketa::NEXT_CYCLE_TEMPLATE_KEY degrades to the default rather than being
+        // blindly carried forward the way periodicityDays is.
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'onboarding',
+        );
+
+        $goalRepository = self::createStub(GoalRepository::class);
+        $goalRepository->method('findInProgressForAnketa')->willReturn([]);
+
+        $service = $this->createService(goalRepository: $goalRepository);
+
+        $nextAnketa = $service->archive(
+            anketa: $anketa,
+            actor: $this->employee,
+            missed: false,
+            skipNextMeeting: false,
+            nextMeetingDate: null,
+            mySealedKey: 'next-emp-key',
+            counterpartSealedKey: 'next-mgr-key',
+            outcomesBlob: null,
+        );
+
+        self::assertNotNull($nextAnketa);
         self::assertSame('regular', $nextAnketa->getTemplateKey());
     }
 

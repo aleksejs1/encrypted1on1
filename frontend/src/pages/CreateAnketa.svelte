@@ -14,8 +14,25 @@
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
   import { sortByRecentCounterparts } from '../anketa/recentCounterparts';
+  import { ANKETA_TEMPLATES, type TemplateKey } from '../anketa/questions';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
   import DateInput from '../design/DateInput.svelte';
+
+  // One label/description i18n key pair per registered template — a plain object
+  // literal keyed by TemplateKey, not a dynamic lookup on untrusted input: every key
+  // comes from ANKETA_TEMPLATES, a small hardcoded array this module also owns, so
+  // there's nothing here for an unrecognized/attacker-controlled string to look up
+  // (unlike frontend/src/demo.ts's demoEmailFor(), which genuinely does need a
+  // hasOwnProperty guard because it looks up a locale that isn't always ours to
+  // trust). TypeScript's Record<TemplateKey, string> already enforces that every
+  // template has both keys — the same exhaustiveness guarantee
+  // questions.ts::getQuestionsForSide() gets from its switch's `never` check.
+  const templateLabelKeys: Record<TemplateKey, string> = {
+    regular: 'createAnketa.templateRegular',
+  };
+  const templateDescriptionKeys: Record<TemplateKey, string> = {
+    regular: 'createAnketa.templateRegularDescription',
+  };
 
   type AnketaDetailForCarry = Pick<
     AnketaDetail,
@@ -28,6 +45,7 @@
 
   let counterpartId = $state('');
   let myRole = $state<'employee' | 'manager'>('employee');
+  let templateKey = $state<TemplateKey>('regular');
   let meetingDate = $state('');
   let periodicityDays = $state(7);
   let submitting = $state(false);
@@ -136,6 +154,10 @@
         // inherits it server-side from previousAnketa, so this is ignored there anyway.
         ...(previousAnketa ? {} : { periodicityDays }),
         ...(outcomesBlob ? { outcomesBlob } : {}),
+        // Unlike periodicity, template choice is never inherited-only — the picker is
+        // shown (and sent) on every creation, continuing pair or not, since a manager
+        // may deliberately want an ad-hoc template mid-cadence.
+        templateKey,
       });
 
       navigate(`/anketas/${result.id}`);
@@ -182,6 +204,25 @@
             ></span>
             {$_('common.roleManager')}
           </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="card">
+        <legend>{$_('createAnketa.templateLegend')}</legend>
+        <div class="template-options">
+          {#each ANKETA_TEMPLATES as key (key)}
+            <div class="template-option">
+              <label class="radio">
+                <input type="radio" bind:group={templateKey} value={key} /><span
+                  class="dot"
+                ></span>
+                {$_(templateLabelKeys[key])}
+              </label>
+              <p class="text-muted template-description">
+                {$_(templateDescriptionKeys[key])}
+              </p>
+            </div>
+          {/each}
         </div>
       </fieldset>
 
@@ -276,6 +317,25 @@
     display: flex;
     gap: 20px;
     flex-wrap: wrap;
+  }
+
+  .template-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .template-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .template-description {
+    /* Lines up under the radio label text, past the 16px dot + 8px gap
+       components.css's .radio already uses. */
+    margin: 0 0 0 24px;
+    font-size: 12px;
   }
 
   .periodicity-note {

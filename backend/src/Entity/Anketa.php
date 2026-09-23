@@ -71,6 +71,37 @@ class Anketa
      * changing the default later is one edit, not a search for every copy. */
     public const DEFAULT_TEMPLATE_KEY = 'regular';
 
+    /**
+     * What `AnketaLifecycleService::createNextAnketa()` (the auto-recreation on
+     * `archive()`) should stamp the next cycle's anketa with, keyed by the
+     * just-archived anketa's own `templateKey` — deliberately **not** a blind carry-
+     * forward the way `periodicityDays` is. A one-off template (e.g. a first 1:1)
+     * auto-recreating itself forever would be wrong the moment such a template
+     * exists; a genuinely recurring template (e.g. a quarterly career-growth
+     * check-in) should repeat itself. `'regular' => 'regular'` is this map's only
+     * real entry today — the only template that exists — but the mechanism (and
+     * `nextCycleTemplateKeyFor()` below) is real and tested ahead of a second
+     * template landing, per
+     * private/anketa-meeting-templates-proposal.md §7.3/§14 (not tracked in git).
+     */
+    private const NEXT_CYCLE_TEMPLATE_KEY = [
+        'regular' => 'regular',
+    ];
+
+    /**
+     * What the next auto-recreated cycle should use after an anketa created with
+     * $templateKey archives — see NEXT_CYCLE_TEMPLATE_KEY's own docblock. A key with
+     * no entry in the map (stale data from a template that's since been retired,
+     * or a future key this map hasn't been extended for yet) degrades to
+     * DEFAULT_TEMPLATE_KEY rather than throwing, the same defensive fallback
+     * `frontend/src/anketa/questions.ts::getQuestionsForSide()` already uses for an
+     * unrecognized templateKey.
+     */
+    public static function nextCycleTemplateKeyFor(string $templateKey): string
+    {
+        return self::NEXT_CYCLE_TEMPLATE_KEY[$templateKey] ?? self::DEFAULT_TEMPLATE_KEY;
+    }
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
     private string $id;

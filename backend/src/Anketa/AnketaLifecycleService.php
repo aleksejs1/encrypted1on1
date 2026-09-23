@@ -195,13 +195,11 @@ class AnketaLifecycleService
         // Deliberately NOT $anketa->getTemplateKey() here, unlike periodicityDays two
         // lines below — a template choice should not blindly carry forward the way
         // periodicity does: a one-off template (a first 1:1) auto-recreating itself
-        // forever would be wrong the moment a second, non-recurring template exists.
-        // Every auto-recreated anketa uses the default ('regular') until a real
-        // per-template recurrence rule is built — a small, separate, later piece of work
-        // (private/anketa-meeting-templates-proposal.md §7.3, not tracked in git), not an
-        // oversight here. Currently unobservable either way: 'regular' is the only
-        // template that exists, so this and "carry it forward" produce identical results
-        // today — see AnketaLifecycleServiceTest::testArchiveWithNextMeetingAutoRecreation.
+        // forever would be wrong the moment such a template exists. Anketa::
+        // nextCycleTemplateKeyFor() looks up the per-template recurrence rule (see its
+        // own docblock) — currently unobservable from "just carry it forward", since
+        // 'regular' is the only template that exists and it maps to itself — see
+        // AnketaLifecycleServiceTest::testArchiveWithNextMeetingAutoRecreation.
         return $this->createWithCarryForward(
             employee: $anketa->getEmployee(),
             manager: $anketa->getManager(),
@@ -211,6 +209,7 @@ class AnketaLifecycleService
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             carryFrom: $anketa,
+            templateKey: Anketa::nextCycleTemplateKeyFor($anketa->getTemplateKey()),
         );
     }
 
