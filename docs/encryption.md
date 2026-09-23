@@ -80,6 +80,7 @@ Assume the worst case: an attacker has read access to the entire database, every
 
 **Visible:**
 - Email addresses, who is paired with whom (employee/manager relationships), meeting dates, periodicity, archived/missed/overdue status.
+- Each anketa's meeting type (which built-in template it uses, e.g. regular check-in or career conversation), and whether it was a one-off created next to the pair's regular anketa. These are classifiers, not answers. Note that one of them, the support & workload check-in, does hint at why a pair met. It is never shown in any admin report or notification email, but whoever can read the database can see it.
 - Goal titles, descriptions, statuses, and target dates (the one exception above).
 - That an anketa exists, was published, has N comments — metadata, not content.
 - Which admin invited whom, account creation dates, blocked/admin flags.

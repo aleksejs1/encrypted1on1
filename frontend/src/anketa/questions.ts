@@ -552,10 +552,122 @@ const careerGrowthManagerQuestions: Question[] = [
 ];
 
 /**
+ * Support & Workload check-in template — sourced from the landing page's burnout/overwhelm
+ * playbook's four agenda blocks (Validation & De-escalation / Triage & Backlog Pruning /
+ * Boundaries & Quiet Protocols / Recovery Blueprint), reframed collaboratively rather than
+ * clinically: both participants see this question set on their meeting, so nothing here
+ * diagnoses or scores anyone. See private/anketa-meeting-templates-proposal.md §5/§8.3
+ * (not tracked in git) and GitHub issue #106. Like 'career_growth', its next cycle falls
+ * back to 'regular' (see Anketa::NEXT_CYCLE_TEMPLATE_KEY). `mood` stays universal, as in
+ * every other template, and `workload` is kept too (it's the "workload check-in"), so
+ * AnketaList.svelte's mood/workload sparklines keep getting points through a support
+ * phase, the stretch they matter most for. `energyLevel` sits between them as a separate
+ * signal. `discuss`/`managerDiscuss` keep a place for anything else on either side's
+ * agenda. `feelings`/`growth`/`friction`/`achievements` make way for the triage and
+ * boundaries questions, and on the manager side `periodSummary`/`feedback`/`support`/
+ * `employeeAchievements` make way for commitments and check-in cadence; the next regular
+ * cycle picks them all up again. Both achievements lists feed report.ts, so a support
+ * check-in that is the pair's chain anketa leaves a gap there — accepted, see
+ * docs/decisions/2026-09-23-support-checkin-template-does-not-recur.md.
+ */
+const energyLevelQuestion: Question = {
+  id: 'energyLevel',
+  titleKey: 'questions.employee.energyLevel.title',
+  fields: [
+    {
+      id: 'energyLevelNow',
+      type: 'radio',
+      labelKey: 'questions.fields.energyLevelNow',
+      options: [
+        { value: 'low', labelKey: 'questions.options.energyLevelNow.low' },
+        {
+          value: 'manageable',
+          labelKey: 'questions.options.energyLevelNow.manageable',
+        },
+        { value: 'good', labelKey: 'questions.options.energyLevelNow.good' },
+      ],
+    },
+    {
+      id: 'energyDrivers',
+      type: 'text',
+      labelKey: 'questions.fields.energyDrivers',
+    },
+  ],
+};
+
+/** A list rather than one free-text prompt: gives someone under strain a structured place
+ * to name items one at a time instead of having to invent the whole list up front. */
+const workloadTriageQuestion: Question = {
+  id: 'workloadTriage',
+  titleKey: 'questions.employee.workloadTriage.title',
+  fields: [
+    {
+      id: 'triageEntries',
+      type: 'list',
+      labelKey: 'questions.fields.triageEntries',
+    },
+  ],
+};
+
+const boundariesQuestion: Question = {
+  id: 'boundaries',
+  titleKey: 'questions.employee.boundaries.title',
+  fields: [
+    {
+      id: 'boundariesNotes',
+      type: 'text',
+      labelKey: 'questions.fields.boundariesNotes',
+    },
+  ],
+};
+
+/** Same uniform `(formVersion)` signature as `onboardingEmployeeQuestions()` — nothing
+ * here varies by version either. */
+function supportCheckinEmployeeQuestions(_formVersion: number): Question[] {
+  return [
+    moodQuestion,
+    energyLevelQuestion,
+    workloadQuestion,
+    workloadTriageQuestion,
+    boundariesQuestion,
+    discussQuestion,
+  ];
+}
+
+const commitmentsQuestion: Question = {
+  id: 'commitments',
+  titleKey: 'questions.manager.commitments.title',
+  fields: [
+    {
+      id: 'commitmentEntries',
+      type: 'list',
+      labelKey: 'questions.fields.commitmentEntries',
+    },
+  ],
+};
+
+const checkInCadenceQuestion: Question = {
+  id: 'checkInCadence',
+  titleKey: 'questions.manager.checkInCadence.title',
+  fields: [
+    {
+      id: 'checkInCadenceNotes',
+      type: 'text',
+      labelKey: 'questions.fields.checkInCadenceNotes',
+    },
+  ],
+};
+
+const supportCheckinManagerQuestions: Question[] = [
+  commitmentsQuestion,
+  checkInCadenceQuestion,
+  managerDiscussQuestion,
+];
+
+/**
  * Which built-in meeting-type template an anketa uses — see
  * private/anketa-meeting-templates-proposal.md (not tracked in git) for the full design.
- * More are added one at a time as their own template lands (e.g. a 'support_checkin'
- * template for a different kind of meeting). Must match the backend's
+ * More are added one at a time as their own template lands. Must match the backend's
  * `Anketa::TEMPLATE_KEYS` — `questions.test.ts` cross-checks the two by reading the PHP
  * source. `TemplateKey` is derived from `ANKETA_TEMPLATES` itself (same `as const` +
  * `(typeof X)[number]` shape `frontend/src/i18n/index.ts`'s `SUPPORTED_LOCALES`/
@@ -566,6 +678,7 @@ export const ANKETA_TEMPLATES = [
   'regular',
   'onboarding',
   'career_growth',
+  'support_checkin',
 ] as const;
 export type TemplateKey = (typeof ANKETA_TEMPLATES)[number];
 
@@ -605,6 +718,12 @@ const TEMPLATES: Record<TemplateKey, AnketaTemplate> = {
     managerQuestions: careerGrowthManagerQuestions,
     labelKey: 'createAnketa.templateCareerGrowth',
     descriptionKey: 'createAnketa.templateCareerGrowthDescription',
+  },
+  support_checkin: {
+    employeeQuestions: supportCheckinEmployeeQuestions,
+    managerQuestions: supportCheckinManagerQuestions,
+    labelKey: 'createAnketa.templateSupportCheckin',
+    descriptionKey: 'createAnketa.templateSupportCheckinDescription',
   },
 };
 
