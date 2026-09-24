@@ -678,3 +678,290 @@ test('counterpart archiving an anketa the other side never published on disables
     employeeMySide.getByText('archived', { exact: false }),
   ).toBeVisible();
 });
+
+/**
+ * Creates an anketa from `creator`'s side (always as the employee — the create
+ * form's default role) against `counterpartEmail`, `daysAhead` days out, via
+ * the real /anketas/new form, and returns its URL. `templateLabel` is the
+ * picker's visible label (createAnketa.template* in en.json); omitted, the
+ * form's own default ('regular') is left selected. Only the meeting-templates
+ * tests below use this — the older tests above predate it and still inline
+ * the same steps.
+ */
+async function createAnketa(
+  creator: Page,
+  counterpartEmail: string,
+  daysAhead: number,
+  templateLabel?: string,
+): Promise<string> {
+  await creator.goto('/anketas/new');
+  await creator
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(counterpartEmail);
+  await creator.getByRole('button', { name: counterpartEmail }).click();
+
+  if (templateLabel) {
+    // Clicks the wrapping <label>, the way a real user picks it: the native
+    // radio itself is visually hidden behind the custom `.dot`
+    // (components.css's .radio), so Playwright can't click it directly.
+    await creator.locator('label.radio', { hasText: templateLabel }).click();
+    await expect(
+      creator.getByRole('radio', { name: templateLabel }),
+    ).toBeChecked();
+  }
+
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + daysAhead);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = creator.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await creator.getByRole('button', { name: 'Create anketa' }).click();
+  await creator.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  return creator.url();
+}
+
+/**
+ * Coverage for anketa meeting templates (GitHub issues #102–#107) through the
+ * real UI and real crypto, which the unit tests (questions.test.ts) and the
+ * backend's functional tests can't give on their own: the picker's choice has
+ * to survive the round trip to the server and back to *both* participants'
+ * browsers, since each side independently renders its form — and the
+ * counterpart's decrypted answers — from `detail.templateKey`. A mismatch
+ * would show one side's answers against the wrong question set.
+ *
+ * Also the only e2e coverage of archiving *with* a next meeting: every other
+ * archive in this file ticks "Don't create the next meeting", so the
+ * client-side next-key generation/sealing in Anketa.svelte's handleArchive()
+ * was never exercised in a browser. Here the successor is opened and
+ * answered from both sides, proving the counterpart's sealed copy of that
+ * browser-generated key actually unseals. Every template's successor falls
+ * back to 'regular' (Anketa::NEXT_CYCLE_TEMPLATE_KEY).
+ */
+test('a non-default meeting template reaches both sides, and its successor falls back to the regular template', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-template');
+  const managerEmail = uniqueEmail('manager-template');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(
+    employee,
+    managerEmail,
+    3,
+    'Support & workload check-in',
+  );
+
+  // The employee's own side renders the support check-in question set, not
+  // the regular one.
+  const employeeMySide = employee.locator('.side-card').first();
+  await expect(
+    employeeMySide.getByRole('heading', {
+      name: 'What would help protect your time?',
+    }),
+  ).toBeVisible();
+  await expect(
+    employeeMySide.getByRole('heading', { name: 'Feelings', exact: true }),
+  ).toHaveCount(0);
+
+  // Answer a template-only field and publish.
+  const templateMarker = `E2E-TEMPLATE-MARKER-${Date.now()}`;
+  await employeeMySide
+    .locator('.block', { hasText: 'What would help protect your time?' })
+    .locator('textarea')
+    .fill(templateMarker);
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // Manager — a separate session — gets the manager half of the same
+  // template on their own side, and the employee's answer decrypts under the
+  // employee's template-specific question on the counterpart side.
+  await manager.goto(anketaUrl);
+  const managerMySide = manager.locator('.side-card').first();
+  await expect(
+    managerMySide.getByRole('heading', {
+      name: "What I'm taking off your plate",
+    }),
+  ).toBeVisible();
+  await expect(
+    managerMySide.getByRole('heading', {
+      name: 'How did the period go since the last meeting',
+    }),
+  ).toHaveCount(0);
+  await expect(
+    manager
+      .locator('.side-card')
+      .nth(1)
+      .locator('.block', { hasText: 'What would help protect your time?' })
+      .locator('.answer-text'),
+  ).toHaveText(templateMarker);
+
+  // Both participants' anketa lists label the open anketa with its meeting
+  // type (GitHub issue #107).
+  for (const page of [employee, manager]) {
+    await page.goto('/');
+    await expect(page.locator('.anketa-row')).toHaveCount(1);
+    await expect(page.locator('.anketa-row')).toContainText(
+      'Support & workload check-in',
+    );
+  }
+
+  // Manager archives with the form's defaults — a next meeting gets created
+  // (the date field is pre-filled from the pair's periodicity), with a next
+  // anketa key generated and sealed for both sides by this browser.
+  await manager.goto(anketaUrl);
+  await expect(manager.locator('#next-meeting-date')).toBeVisible();
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+
+  // The employee's list now has the archived anketa plus its auto-created
+  // successor. Only a still-open anketa carries a meeting-type label, and the
+  // successor is 'regular', so none remains anywhere in the list.
+  await employee.goto('/');
+  const rows = employee.locator('.anketa-row');
+  await expect(rows).toHaveCount(2);
+  await expect(
+    rows.filter({ has: employee.locator('.tag', { hasText: 'archived' }) }),
+  ).toHaveCount(1);
+  await expect(employee.locator('main')).not.toContainText(
+    'Support & workload check-in',
+  );
+  const successorRow = rows.filter({
+    hasNot: employee.locator('.tag', { hasText: 'archived' }),
+  });
+  await successorRow.click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const successorUrl = employee.url();
+  expect(successorUrl).not.toBe(anketaUrl);
+
+  // The successor is back on the regular question set.
+  const successorMySide = employee.locator('.side-card').first();
+  await expect(
+    successorMySide.getByRole('heading', { name: 'Feelings', exact: true }),
+  ).toBeVisible();
+  await expect(
+    successorMySide.getByRole('heading', {
+      name: 'What would help protect your time?',
+    }),
+  ).toHaveCount(0);
+
+  // Employee publishes on the successor, and the manager — whose sealed copy
+  // of the successor's key was produced by the manager's own browser at
+  // archive time, but is unsealed here from a fresh page load — decrypts it.
+  const successorMarker = `E2E-SUCCESSOR-MARKER-${Date.now()}`;
+  await successorMySide.locator('textarea').first().fill(successorMarker);
+  await successorMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(successorMySide.getByText('Published')).toBeVisible();
+
+  await manager.goto(successorUrl);
+  await expect(
+    manager.locator('.side-card').nth(1).locator('.answer-text').first(),
+  ).toHaveText(successorMarker);
+});
+
+/**
+ * Coverage for GitHub issue #111
+ * (docs/decisions/2026-09-23-one-open-anketa-chain-per-pair.md): an anketa
+ * created by hand while the pair already has an open one is a one-off — no
+ * carry-forward into it, and archiving it never auto-creates a successor —
+ * so the pair's chain can't fork. The server enforces all of it; this checks
+ * the real UI shows it and that the chain really stays single end to end,
+ * starting from a chain built the real way (archive-with-next carrying a goal
+ * forward), not from seeded rows.
+ */
+test('an anketa created next to an open one is a one-off: no carry-forward and no successor', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-oneoff');
+  const managerEmail = uniqueEmail('manager-oneoff');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  // Only needs to exist as a real, keyed counterpart — the rest of this test
+  // drives the employee alone.
+  await activate(browser, managerToken);
+
+  // Build a real chain: a regular anketa with a goal, archived with a next
+  // meeting, so its successor gets the goal carried forward.
+  const firstUrl = await createAnketa(employee, managerEmail, 3);
+  const goalTitle = `E2E-GOAL-${Date.now()}`;
+  await employee.getByPlaceholder('Goal title…').fill(goalTitle);
+  await employee.getByRole('button', { name: 'Add goal' }).click();
+  await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
+    goalTitle,
+  );
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
+    0,
+  );
+
+  await employee.goto('/');
+  await expect(employee.locator('.anketa-row')).toHaveCount(2);
+  const openRow = employee.locator('.anketa-row').filter({
+    hasNot: employee.locator('.tag', { hasText: 'archived' }),
+  });
+  await openRow.click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const chainUrl = employee.url();
+  expect(chainUrl).not.toBe(firstUrl);
+  await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
+    goalTitle,
+  );
+
+  // Now create a second, ad-hoc anketa for the same pair while the chain's
+  // one is still open. The create form warns up front that it'll be a
+  // one-off.
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+  await expect(
+    employee.getByText('This pair already has an open anketa'),
+  ).toBeVisible();
+  const oneOffUrl = await createAnketa(
+    employee,
+    managerEmail,
+    5,
+    'Career growth',
+  );
+  expect([firstUrl, chainUrl]).not.toContain(oneOffUrl);
+
+  // No carry-forward: the chain's goal wasn't copied in.
+  await expect(employee.getByText('No goals yet.')).toBeVisible();
+  await expect(employee.locator('input[id^="goal-title-"]')).toHaveCount(0);
+
+  // The archive form explains there's no next meeting, and offers neither
+  // the "skip" checkbox nor a next-meeting date.
+  await expect(employee.getByText('This is a one-off anketa')).toBeVisible();
+  await expect(
+    employee.getByRole('checkbox', { name: "Don't create the next meeting" }),
+  ).toHaveCount(0);
+  await expect(employee.locator('#next-meeting-date')).toHaveCount(0);
+
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
+    0,
+  );
+
+  // Archiving the one-off created nothing: still just the three anketas, and
+  // the chain's own anketa is the pair's only open one, goal intact.
+  await employee.goto('/');
+  const rows = employee.locator('.anketa-row');
+  await expect(rows).toHaveCount(3);
+  const openRows = rows.filter({
+    hasNot: employee.locator('.tag', { hasText: 'archived' }),
+  });
+  await expect(openRows).toHaveCount(1);
+  await openRows.click();
+  await employee.waitForURL(chainUrl);
+  await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
+    goalTitle,
+  );
+});
