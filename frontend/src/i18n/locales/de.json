@@ -116,6 +116,7 @@
       "strong": "Stark"
     },
     "genericError": "Etwas ist schiefgelaufen.",
+    "draftMigrationError": "Ihre unveröffentlichten Entwürfe konnten nicht für die Passwortänderung vorbereitet werden, daher wurde das Passwort nicht geändert. Bitte versuchen Sie es erneut.",
     "displayNameTitle": "Anzeigename",
     "displayNameHint": "Wird Ihren Gegenübern in der gesamten App anstelle Ihrer E-Mail angezeigt.",
     "displayNameLabel": "Name",
@@ -284,6 +285,7 @@
     "archiving": "Wird archiviert…",
     "errorLoad": "Diese Anketa konnte nicht geladen werden.",
     "errorStaleKey": "Diese Anketa kann mit Ihrem aktuellen Schlüssel nicht entschlüsselt werden — das kann nach einem Passwort-Reset passieren.",
+    "draftUnreadable": "Ihr unveröffentlichter Entwurf konnte nicht geöffnet werden — er ist mit einem Schlüssel verschlüsselt, den Sie nicht mehr haben, vermutlich von vor einem Passwort-Reset. Alles, was Sie jetzt eingeben, ersetzt ihn.",
     "errorNotLoggedIn": "Nicht angemeldet.",
     "errorNotReadyToArchive": "Noch nicht bereit zum Archivieren.",
     "errorArchive": "Konnte nicht archiviert werden.",

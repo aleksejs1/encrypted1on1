@@ -47,6 +47,12 @@ A page refresh doesn't require re-entering the password: the master key lives in
 
 The only other time a fresh keypair gets generated is a forgotten-password reset — the old master key that could unwrap the old private key is gone along with the forgotten password, so there's nothing to re-wrap; see [user-flow.md](user-flow.md#getting-an-account) for what that means for existing anketas. Changing a *remembered* password (Account Settings) is the opposite case: the same private key is re-wrapped under a new master key, no fresh keypair involved.
 
+## Draft key
+
+Your unpublished answers to an anketa (a draft, autosaved as you type) are encrypted with a key only you have. The anketa key below can't be used, because the counterpart holds that too. This **draft key** is derived from your X25519 private key with libsodium's BLAKE2b-based `crypto_kdf_derive_from_key`, under its own context label. The server stores only the resulting ciphertext and can't tell a draft from a published side's ciphertext; only the `publishedAt` timestamp tells them apart.
+
+It's derived from the private key, not from the password (the master key), so a password change leaves it untouched: the same private key is re-wrapped and the same draft key comes out. A forgotten-password reset is different: it generates a fresh keypair, and a draft saved before the reset can't be opened any more. The page shows an empty draft with a notice, and the data export flags that draft as unreadable. Drafts saved before this scheme existed were encrypted with the master key directly. They still open through a fallback, and they are re-saved under the draft key when they're opened, or at the latest just before the next password change ([GitHub issue #129](https://github.com/aleksejs1/encrypted1on1/issues/129), see [the decision record](decisions/2026-09-24-drafts-survive-password-change.md)).
+
 ## Per-anketa keys
 
 Each anketa (a single 1:1 meeting cycle between one manager and one employee) gets its own symmetric key, generated fresh in the browser of whoever creates it:
@@ -55,7 +61,7 @@ Each anketa (a single 1:1 meeting cycle between one manager and one employee) ge
 2. It's **sealed** — `crypto_box_seal`, libsodium's anonymous public-key encryption — to each participant's X25519 public key, once per side. "Anonymous" means no sender keypair is needed or used; anyone can seal a message to a public key, but only the holder of the matching private key can open it. This is what lets the creator hand the same key to a counterpart they may never interact with directly, through the server, without the server ever holding the unsealed key.
 3. Both sealed copies (`employeeSealedKey`, `managerSealedKey`) go to the server. Each participant unseals *their own* copy locally with their own private key when they load the anketa.
 
-Everything specific to that anketa — both participants' question answers, the shared comment thread, the outcomes list, goal progress checkpoints — is encrypted with this one key.
+Everything specific to that anketa — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints — is encrypted with this one key.
 
 ### Envelope format
 

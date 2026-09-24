@@ -5,7 +5,11 @@
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
-  import { packWrappedPrivateKey, wrapPrivateKey } from '../crypto/keypair';
+  import {
+    deriveDraftKey,
+    packWrappedPrivateKey,
+    wrapPrivateKey,
+  } from '../crypto/keypair';
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey, loadMasterKey } from '../crypto/session';
@@ -30,6 +34,7 @@
   } from '../dateFormat';
   import { dateFormatState, setDateFormat } from '../datePreference.svelte';
   import type { Answers } from '../anketa/questions';
+  import { decryptDraft, migrateLegacyDrafts } from '../anketa/drafts';
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
@@ -145,15 +150,28 @@
     try {
       const identity = await ensureUnlocked();
       const salt = await deriveArgon2idSalt(identity.email);
-      const { authKey: currentAuthKey } = await deriveKeysFromPassword(
-        currentPassword,
-        salt,
-      );
+      const { authKey: currentAuthKey, masterKey: currentMasterKey } =
+        await deriveKeysFromPassword(currentPassword, salt);
       const { authKey: newAuthKey, masterKey: newMasterKey } =
         await deriveKeysFromPassword(newPassword, salt);
       // Re-wraps the *same* private key — unlike a forgotten-password reset, the
-      // keypair itself never changes here, so no anketa is ever affected.
+      // keypair itself never changes here, so no anketa is ever affected, and
+      // neither is any unpublished draft (its key is derived from the private key,
+      // see deriveDraftKey()).
       const wrapped = await wrapPrivateKey(identity.privateKey, newMasterKey);
+
+      // Except a draft still under the master key from before that (GitHub issue
+      // #129) — see moveLegacyDrafts().
+      try {
+        await moveLegacyDrafts(identity.privateKey, currentMasterKey);
+      } catch (error) {
+        console.error(error);
+        submitError =
+          error instanceof ApiError
+            ? error.message
+            : $_('accountSettings.draftMigrationError');
+        return;
+      }
 
       await apiPut('/api/me/password', {
         currentAuthKey: await toBase64(currentAuthKey),
@@ -176,7 +194,31 @@
     }
   }
 
-  interface AnketaBulkRowForExport {
+  /**
+   * See anketa/drafts.ts's migrateLegacyDrafts(). Archived anketas are skipped
+   * up front — the server refuses draft saves there.
+   */
+  async function moveLegacyDrafts(
+    privateKey: Uint8Array,
+    masterKey: Uint8Array,
+  ): Promise<void> {
+    const openDrafts = (
+      await apiGet<AnketaBulkRow[]>('/api/anketas/bulk')
+    ).flatMap((row) => {
+      const { blob, publishedAt } = sideOf(row, row.myRole);
+      return blob && !publishedAt && !row.archivedAt
+        ? [{ anketaId: row.id, blob }]
+        : [];
+    });
+    await migrateLegacyDrafts(
+      openDrafts,
+      await deriveDraftKey(privateKey),
+      masterKey,
+      (anketaId, blob) => apiPut(`/api/anketas/${anketaId}/draft`, { blob }),
+    );
+  }
+
+  interface AnketaBulkRow {
     id: string;
     myRole: 'employee' | 'manager';
     counterpartEmail: string;
@@ -192,6 +234,16 @@
     outcomesBlob: string | null;
     goals: Goal[];
     goalCheckpointsBlob: string | null;
+  }
+
+  /** One side's answers blob and publish time from a bulk row. */
+  function sideOf(
+    row: AnketaBulkRow,
+    side: 'employee' | 'manager',
+  ): { blob: string | null; publishedAt: string | null } {
+    return side === 'employee'
+      ? { blob: row.employeeBlob, publishedAt: row.employeePublishedAt }
+      : { blob: row.managerBlob, publishedAt: row.managerPublishedAt };
   }
 
   let exporting = $state(false);
@@ -215,7 +267,8 @@
     try {
       const identity = await ensureUnlocked();
       const masterKey = await loadMasterKey();
-      const list = await apiGet<AnketaBulkRowForExport[]>('/api/anketas/bulk');
+      const draftKey = await deriveDraftKey(identity.privateKey);
+      const list = await apiGet<AnketaBulkRow[]>('/api/anketas/bulk');
 
       const exportedAnketas = [];
       for (const detail of list) {
@@ -234,37 +287,30 @@
           continue;
         }
 
-        const myPublishedAt =
-          detail.myRole === 'employee'
-            ? detail.employeePublishedAt
-            : detail.managerPublishedAt;
-        const myBlob =
-          detail.myRole === 'employee'
-            ? detail.employeeBlob
-            : detail.managerBlob;
-        const counterpartBlob =
-          detail.myRole === 'employee'
-            ? detail.managerBlob
-            : detail.employeeBlob;
-        const counterpartPublishedAt =
-          detail.myRole === 'employee'
-            ? detail.managerPublishedAt
-            : detail.employeePublishedAt;
+        const { blob: myBlob, publishedAt: myPublishedAt } = sideOf(
+          detail,
+          detail.myRole,
+        );
+        const { blob: counterpartBlob, publishedAt: counterpartPublishedAt } =
+          sideOf(detail, detail.myRole === 'employee' ? 'manager' : 'employee');
 
-        // My own side: a draft (never published) is encrypted with my *master* key, not
-        // the anketa key — mirrors Anketa.svelte's own load() exactly.
+        // My own side: a draft (never published) is encrypted with my draft key, not
+        // the anketa key — mirrors Anketa.svelte's own load() exactly, including a
+        // draft that doesn't decrypt (GitHub issue #129) being flagged rather than
+        // aborting the whole export.
         let myAnswers: Answers | null = null;
-        if (myBlob && (myPublishedAt ? true : masterKey !== null)) {
-          myAnswers = (
-            await decryptBlob<Answers>(
-              myBlob,
-              myPublishedAt ? anketaKey : masterKey!,
-            )
-          ).data;
+        let myDraftUnreadable = false;
+        if (myBlob && myPublishedAt) {
+          myAnswers = (await decryptBlob<Answers>(myBlob, anketaKey)).data;
+        } else if (myBlob) {
+          myAnswers =
+            (await decryptDraft(myBlob, draftKey, masterKey))?.answers ?? null;
+          myDraftUnreadable = myAnswers === null;
         }
 
         // The counterpart's side is only ever readable once published — an unpublished
-        // draft of theirs is encrypted with a master key I never have, by design.
+        // draft of theirs is encrypted with their own draft key, which I never have, by
+        // design.
         let counterpartAnswers: Answers | null = null;
         if (counterpartBlob && counterpartPublishedAt) {
           counterpartAnswers = (
@@ -296,6 +342,7 @@
           meetingDate: detail.meetingDate,
           archivedAt: detail.archivedAt,
           myAnswers,
+          myDraftUnreadable,
           counterpartAnswers,
           comments,
           outcomes,

@@ -116,6 +116,7 @@
       "strong": "Strong"
     },
     "genericError": "Something went wrong.",
+    "draftMigrationError": "Couldn't prepare your unpublished drafts for the password change, so the password was not changed. Please try again.",
     "displayNameTitle": "Display name",
     "displayNameHint": "Shown to your counterparts throughout the app instead of your email.",
     "displayNameLabel": "Name",
@@ -284,6 +285,7 @@
     "archiving": "Archiving…",
     "errorLoad": "Could not load this anketa.",
     "errorStaleKey": "This anketa can't be decrypted with your current key — this can happen after a password reset.",
+    "draftUnreadable": "Your unpublished draft couldn't be opened — it was encrypted with a key you no longer have, most likely before a password reset. Anything you type now will replace it.",
     "errorNotLoggedIn": "Not logged in.",
     "errorNotReadyToArchive": "Not ready to archive yet.",
     "errorArchive": "Could not archive.",

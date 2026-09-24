@@ -1,4 +1,5 @@
-import { decryptBlob, encryptBlob } from '../crypto/anketaKey';
+import { encryptBlob } from '../crypto/anketaKey';
+import { decryptDraft } from './drafts';
 import type { Answers } from './questions';
 
 function storageKey(anketaId: string): string {
@@ -11,15 +12,16 @@ function storageKey(anketaId: string): string {
  * protects against losing an edit if the server sync itself silently fails
  * (a network blip), not just against the debounce's own timing. sessionStorage,
  * not localStorage: matches the master key's own storage lifetime exactly
- * (crypto/session.ts — survives a refresh, not a closed tab), since a backup
- * that outlived the master key needed to decrypt it would be useless anyway.
+ * (crypto/session.ts — survives a refresh, not a closed tab). The backup is
+ * under the draft key, but deriving that needs the private key, which needs
+ * the master key — a backup that outlived it would be useless anyway.
  */
 export async function saveDraftBackup(
   anketaId: string,
   answers: Answers,
-  masterKey: Uint8Array,
+  draftKey: Uint8Array,
 ): Promise<void> {
-  const blob = await encryptBlob(answers, masterKey);
+  const blob = await encryptBlob(answers, draftKey);
   sessionStorage.setItem(storageKey(anketaId), blob);
 }
 
@@ -30,16 +32,11 @@ export async function saveDraftBackup(
  */
 export async function loadDraftBackup(
   anketaId: string,
-  masterKey: Uint8Array,
-): Promise<Answers | null> {
+  draftKey: Uint8Array,
+  legacyMasterKey: Uint8Array | null,
+): Promise<{ answers: Answers; legacy: boolean } | null> {
   const blob = sessionStorage.getItem(storageKey(anketaId));
-  if (blob === null) return null;
-  try {
-    const envelope = await decryptBlob<Answers>(blob, masterKey);
-    return envelope.data;
-  } catch {
-    return null;
-  }
+  return blob === null ? null : decryptDraft(blob, draftKey, legacyMasterKey);
 }
 
 export function clearDraftBackup(anketaId: string): void {

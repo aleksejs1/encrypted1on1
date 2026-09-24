@@ -116,6 +116,7 @@
       "strong": "Stipra"
     },
     "genericError": "Kaut kas nogāja greizi.",
+    "draftMigrationError": "Neizdevās sagatavot jūsu nepublicētos melnrakstus paroles maiņai, tāpēc parole netika mainīta. Lūdzu, mēģiniet vēlreiz.",
     "displayNameTitle": "Attēlotais vārds",
     "displayNameHint": "Tiek rādīts jūsu sarunu biedriem visā lietotnē jūsu e-pasta vietā.",
     "displayNameLabel": "Vārds",
@@ -284,6 +285,7 @@
     "archiving": "Arhivē…",
     "errorLoad": "Neizdevās ielādēt šo anketu.",
     "errorStaleKey": "Šo anketu nevar atšifrēt ar jūsu pašreizējo atslēgu — tas var notikt pēc paroles atiestatīšanas.",
+    "draftUnreadable": "Jūsu nepublicēto melnrakstu neizdevās atvērt — tas ir šifrēts ar atslēgu, kuras jums vairs nav (visticamāk, pirms paroles atiestatīšanas). Viss, ko tagad ievadīsiet, to aizstās.",
     "errorNotLoggedIn": "Neesat pieslēdzies.",
     "errorNotReadyToArchive": "Vēl nav gatavs arhivēšanai.",
     "errorArchive": "Neizdevās arhivēt.",

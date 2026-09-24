@@ -41,48 +41,60 @@ beforeEach(() => {
 
 describe('draft backup', () => {
   it('round-trips answers through sessionStorage', async () => {
-    const masterKey = await generateAnketaKey();
+    const draftKey = await generateAnketaKey();
     const answers: Answers = { mood: 'good', notes: ['first entry'] };
 
-    await saveDraftBackup('anketa-1', answers, masterKey);
-    const loaded = await loadDraftBackup('anketa-1', masterKey);
+    await saveDraftBackup('anketa-1', answers, draftKey);
+    const loaded = await loadDraftBackup('anketa-1', draftKey, null);
 
-    expect(loaded).toEqual(answers);
+    expect(loaded).toEqual({ answers, legacy: false });
   });
 
   it('returns null when no backup exists', async () => {
-    const masterKey = await generateAnketaKey();
+    const draftKey = await generateAnketaKey();
 
-    expect(await loadDraftBackup('anketa-missing', masterKey)).toBeNull();
+    expect(await loadDraftBackup('anketa-missing', draftKey, null)).toBeNull();
   });
 
   it('returns null (not throws) when the backup is sealed under a different key', async () => {
-    const masterKey = await generateAnketaKey();
+    const draftKey = await generateAnketaKey();
     const wrongKey = await generateAnketaKey();
+    await saveDraftBackup('anketa-1', { mood: 'good' }, draftKey);
+
+    expect(await loadDraftBackup('anketa-1', wrongKey, null)).toBeNull();
+  });
+
+  it('still opens a backup written under the master key before drafts moved off it', async () => {
+    const draftKey = await generateAnketaKey();
+    const masterKey = await generateAnketaKey();
     await saveDraftBackup('anketa-1', { mood: 'good' }, masterKey);
 
-    expect(await loadDraftBackup('anketa-1', wrongKey)).toBeNull();
+    expect(await loadDraftBackup('anketa-1', draftKey, masterKey)).toEqual({
+      answers: { mood: 'good' },
+      legacy: true,
+    });
   });
 
   it('clears the backup', async () => {
-    const masterKey = await generateAnketaKey();
-    await saveDraftBackup('anketa-1', { mood: 'good' }, masterKey);
+    const draftKey = await generateAnketaKey();
+    await saveDraftBackup('anketa-1', { mood: 'good' }, draftKey);
 
     clearDraftBackup('anketa-1');
 
-    expect(await loadDraftBackup('anketa-1', masterKey)).toBeNull();
+    expect(await loadDraftBackup('anketa-1', draftKey, null)).toBeNull();
   });
 
   it('keeps backups for different anketas independent', async () => {
-    const masterKey = await generateAnketaKey();
-    await saveDraftBackup('anketa-1', { mood: 'good' }, masterKey);
-    await saveDraftBackup('anketa-2', { mood: 'bad' }, masterKey);
+    const draftKey = await generateAnketaKey();
+    await saveDraftBackup('anketa-1', { mood: 'good' }, draftKey);
+    await saveDraftBackup('anketa-2', { mood: 'bad' }, draftKey);
 
     clearDraftBackup('anketa-1');
 
-    expect(await loadDraftBackup('anketa-1', masterKey)).toBeNull();
-    expect(await loadDraftBackup('anketa-2', masterKey)).toEqual({
-      mood: 'bad',
+    expect(await loadDraftBackup('anketa-1', draftKey, null)).toBeNull();
+    expect(await loadDraftBackup('anketa-2', draftKey, null)).toEqual({
+      answers: { mood: 'bad' },
+      legacy: false,
     });
   });
 });
