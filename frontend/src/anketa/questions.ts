@@ -762,3 +762,14 @@ export function templatePickerKeys(
 ): Pick<AnketaTemplate, 'labelKey' | 'descriptionKey'> {
   return templateFor(templateKey);
 }
+
+/**
+ * `AnketaList.svelte`'s meeting-type label i18n key for `templateKey` (GitHub issue
+ * #107), reusing the picker's own label. Null for `'regular'` — the default isn't worth
+ * labelling on every row — and so, via `templateFor()`'s fallback, for an unrecognized
+ * key too, matching how the detail page would render that anketa.
+ */
+export function templateListLabelKey(templateKey: TemplateKey): string | null {
+  const template = templateFor(templateKey);
+  return template === TEMPLATES.regular ? null : template.labelKey;
+}
