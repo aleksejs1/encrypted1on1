@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
@@ -20,6 +21,7 @@
     loadDraftBackup,
     saveDraftBackup,
   } from '../anketa/draftBackup';
+  import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
   import { carryForwardOutcomes, type OutcomeItem } from '../anketa/outcomes';
   import { pruneStaleBusyEntries } from '../anketa/commentThreadsBusy';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
@@ -39,6 +41,7 @@
   } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity.svelte';
+  import { deriveDraftKey } from '../crypto/keypair';
   import { loadMasterKey } from '../crypto/session';
   import { shortDisplayName } from '../userDisplay';
 
@@ -48,7 +51,14 @@
   let detail = $state<AnketaDetail | null>(null);
   let counterpartSide = $state<Side | null>(null);
   let anketaKey = $state<Uint8Array | null>(null);
-  let masterKey = $state<Uint8Array | null>(null);
+  /** Encrypts this side's unpublished draft — see crypto/keypair.ts's deriveDraftKey(). */
+  let draftKey = $state<Uint8Array | null>(null);
+  /**
+   * The stored draft didn't decrypt (see anketa/drafts.ts): the form starts
+   * blank with a notice, and autosave holds off until something is typed, so
+   * merely opening the page never overwrites the stored ciphertext.
+   */
+  let draftUnreadable = $state(false);
 
   let myAnswers = $state<Answers>({});
   let counterpartAnswers = $state<Answers | null>(null);
@@ -261,9 +271,13 @@
     editingMyAnswers = false;
     savingAnswersEdit = false;
     answersBeforeEdit = null;
+    draftUnreadable = false;
     fieldsWithOpenEntryEdit = {};
     commentThreadsBusy = {};
     recentlyArrivedCommentIds = {};
+    // Set when the stored draft should be re-saved as soon as the page is
+    // loaded, without waiting for an edit — see below.
+    let resaveDraft = false;
     try {
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
@@ -273,7 +287,7 @@
       if (!mk) throw new Error($_('anketa.errorNotLoggedIn'));
 
       detail = anketa;
-      masterKey = mk;
+      draftKey = await deriveDraftKey(identity.privateKey);
       myUserId = identity.userId;
       authorNames = {
         [identity.userId]: shortDisplayName(
@@ -351,19 +365,32 @@
         anketa.myRole === 'employee'
           ? anketa.employeeBlobVersion
           : anketa.managerBlobVersion;
-      if (myBlob) {
-        const envelope = await decryptBlob<Answers>(
-          myBlob,
-          myPublished ? key : mk,
-        );
+      if (myBlob && myPublished) {
+        const envelope = await decryptBlob<Answers>(myBlob, key);
         myAnswers = envelope.data;
+      } else if (myBlob) {
+        // Undecryptable (GitHub issue #129) — start from an empty draft with a
+        // notice instead of failing the whole page.
+        const draft = await decryptDraft(myBlob, draftKey, mk);
+        myAnswers = draft?.answers ?? {};
+        draftUnreadable = draft === null;
+        // Stored under the master key from before drafts moved off it —
+        // re-saved under the draft key, so a later password change can't
+        // strand it.
+        resaveDraft = draft?.legacy === true;
       }
       if (!myPublished) {
         // A present local backup is always at least as fresh as the last
         // confirmed server save (written on every edit, not debounced) —
         // safe to prefer unconditionally. See anketa/draftBackup.ts.
-        const localBackup = await loadDraftBackup(id, mk);
-        if (localBackup) myAnswers = localBackup;
+        const localBackup = await loadDraftBackup(id, draftKey, mk);
+        if (localBackup) {
+          myAnswers = localBackup.answers;
+          // A backup that rescues an unreadable server draft is written back
+          // straight away too — otherwise it's lost with this tab.
+          resaveDraft ||= localBackup.legacy || draftUnreadable;
+          draftUnreadable = false;
+        }
       }
 
       const counterpartBlob =
@@ -383,6 +410,10 @@
       }
 
       loaded = true;
+      // Not on an archived anketa: the server refuses draft saves there. (A
+      // same-instance switch to another anketa id mid-load is unreachable today
+      // — see docs/decisions/2026-09-10-comment-thread-reuse-state-deferred.md.)
+      if (resaveDraft && !archived) scheduleSave();
     } catch (error) {
       if (isAbortError(error)) return;
       loadError =
@@ -786,7 +817,7 @@
   }
 
   function scheduleSave() {
-    if (!loaded || myPublished || !masterKey) return;
+    if (!loaded || myPublished || !draftKey) return;
     saveState = 'saving';
     clearTimeout(saveTimer);
     // saveDraft() catches every error itself today, setting saveState — .catch()
@@ -800,9 +831,9 @@
   }
 
   async function saveDraft() {
-    if (!masterKey) return;
+    if (!draftKey) return;
     try {
-      const blob = await encryptBlob(myAnswers, masterKey);
+      const blob = await encryptBlob(myAnswers, draftKey);
       await apiPut(`/api/anketas/${id}/draft`, { blob });
       saveState = 'saved';
     } catch {
@@ -1140,15 +1171,21 @@
   // Reactive autosave: fires whenever myAnswers changes (property-level mutations from AnswerField included).
   $effect(() => {
     void JSON.stringify(myAnswers);
+    // untrack: this effect only reacts to myAnswers — clearing the flag here, or
+    // load() resetting it, mustn't re-run it.
+    if (untrack(() => draftUnreadable)) {
+      if (!hasAnyAnswer(myAnswers)) return;
+      draftUnreadable = false;
+    }
     scheduleSave();
     // Local backup, written immediately (not debounced like the server sync) —
     // protects against a silent server-sync failure within the debounce
     // window, not just its timing. See anketa/draftBackup.ts.
-    if (loaded && !myPublished && masterKey) {
+    if (loaded && !myPublished && draftKey) {
       // saveDraftBackup() has no internal try/catch (e.g. sessionStorage quota),
       // so unlike the other fire-and-forget calls in this file, this one can
       // genuinely reject — .catch() here isn't just future-proofing.
-      saveDraftBackup(id, myAnswers, masterKey).catch((error: unknown) => {
+      saveDraftBackup(id, myAnswers, draftKey).catch((error: unknown) => {
         console.error(error);
       });
     }
@@ -1192,6 +1229,12 @@
         </h2>
         <LockIcon encrypted />
       </div>
+
+      {#if draftUnreadable && !myPublished && !archived}
+        <p role="alert" class="banner-error">
+          {$_('anketa.draftUnreadable')}
+        </p>
+      {/if}
 
       <div class="blocks">
         {#each getQuestionsForSide(detail.myRole, detail.formVersion, detail.templateKey) as question (question.id)}

@@ -79,3 +79,23 @@ export async function unpackWrappedPrivateKey(
     ciphertext: combined.slice(nonceLength),
   };
 }
+
+/**
+ * The symmetric key unpublished anketa drafts are encrypted with — derived
+ * from the X25519 private key (libsodium's BLAKE2b-based crypto_kdf, its own
+ * context label), not from the password. An in-app password change re-wraps
+ * the same private key, so this key and every draft stay exactly as they
+ * were; only a forgotten-password reset (a fresh keypair) changes it. See
+ * docs/decisions/2026-09-24-drafts-survive-password-change.md.
+ */
+export async function deriveDraftKey(
+  privateKey: Uint8Array,
+): Promise<Uint8Array> {
+  const sodium = await getSodium();
+  return sodium.crypto_kdf_derive_from_key(
+    sodium.crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
+    1,
+    'e1o1drft',
+    privateKey,
+  );
+}

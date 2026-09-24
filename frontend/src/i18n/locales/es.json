@@ -116,6 +116,7 @@
       "strong": "Fuerte"
     },
     "genericError": "Algo salió mal.",
+    "draftMigrationError": "No se pudieron preparar tus borradores sin publicar para el cambio de contraseña, así que la contraseña no se cambió. Inténtalo de nuevo.",
     "displayNameTitle": "Nombre visible",
     "displayNameHint": "Se muestra a tus interlocutores en toda la aplicación en lugar de tu email.",
     "displayNameLabel": "Nombre",
@@ -284,6 +285,7 @@
     "archiving": "Archivando…",
     "errorLoad": "No se pudo cargar este cuestionario.",
     "errorStaleKey": "Este cuestionario no se puede descifrar con tu clave actual — esto puede ocurrir tras un restablecimiento de contraseña.",
+    "draftUnreadable": "No se pudo abrir tu borrador sin publicar: está cifrado con una clave que ya no tienes, probablemente de antes de restablecer la contraseña. Lo que escribas ahora lo reemplazará.",
     "errorNotLoggedIn": "No has iniciado sesión.",
     "errorNotReadyToArchive": "Todavía no está listo para archivar.",
     "errorArchive": "No se pudo archivar.",

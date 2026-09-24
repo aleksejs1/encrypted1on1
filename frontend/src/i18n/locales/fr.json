@@ -116,6 +116,7 @@
       "strong": "Fort"
     },
     "genericError": "Une erreur s'est produite.",
+    "draftMigrationError": "Vos brouillons non publiés n'ont pas pu être préparés pour le changement de mot de passe ; le mot de passe n'a donc pas été modifié. Veuillez réessayer.",
     "displayNameTitle": "Nom affiché",
     "displayNameHint": "Affiché à vos interlocuteurs dans toute l'application à la place de votre e-mail.",
     "displayNameLabel": "Nom",
@@ -284,6 +285,7 @@
     "archiving": "Archivage en cours…",
     "errorLoad": "Impossible de charger cette anketa.",
     "errorStaleKey": "Cette anketa ne peut pas être déchiffrée avec votre clé actuelle — cela peut arriver après une réinitialisation de mot de passe.",
+    "draftUnreadable": "Votre brouillon non publié n'a pas pu être ouvert — il est chiffré avec une clé que vous n'avez plus, probablement d'avant une réinitialisation de mot de passe. Tout ce que vous saisirez maintenant le remplacera.",
     "errorNotLoggedIn": "Non connecté.",
     "errorNotReadyToArchive": "Pas encore prête à être archivée.",
     "errorArchive": "Impossible d'archiver.",

@@ -160,7 +160,9 @@ class Anketa
     private \DateTimeImmutable $managerSealedKeyUpdatedAt;
 
     /**
-     * Master-key-encrypted (draft) or anketa-key-encrypted (published) — the
+     * Draft-key-encrypted (unpublished; the author's own key, derived from their
+     * private key client-side — older drafts may still be under their master key) or
+     * anketa-key-encrypted (published) — the
      * server can't tell which; only publishedAt distinguishes them. See the
      * Phase 5 plan.
      */
@@ -435,7 +437,7 @@ class Anketa
 
     /**
      * Account deletion (AuthController::deleteAccount()) — an unpublished side is
-     * encrypted with its author's own master key and never seen by anyone else, exactly
+     * encrypted with its author's own draft key and never seen by anyone else, exactly
      * what "delete my drafts" means. A *published* side is shared history the counterpart
      * already has access to, so it's left untouched — no-op here if $user is published,
      * matching "no cascade to the pair's anketas.".
