@@ -38,7 +38,7 @@ A toggle switches between two views:
 - **By date** — a flat, chronological list across every counterpart.
 - **By person** — grouped by counterpart, each group showing that pair's full archived history plus two small trend sparklines (mood, workload) built from your own past answers with them, so a shift over many meetings is visible at a glance instead of buried inside individual anketas. Both are computed entirely in the browser from anketas you can already see — nothing new happens on the server for this.
 
-If any of your anketas were sealed under a counterpart's now-outdated encryption key (see "forgetting your password" above), a banner appears at the top with a one-click "re-share access" action. An overdue anketa — meeting date passed, not yet archived — gets a visible badge here regardless of which view you're in.
+If any of your anketas were sealed under a counterpart's now-outdated encryption key (see "forgetting your password" above), a banner appears at the top with a one-click "re-share access" action. An overdue anketa — meeting date passed, not yet archived — gets a visible badge here regardless of which view you're in. A still-open anketa using a meeting type other than the regular check-in (e.g. "Career growth") shows that type next to its date, in both views.
 
 ## Starting a new 1:1 cycle ("anketa")
 

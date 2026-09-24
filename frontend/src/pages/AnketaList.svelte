@@ -21,6 +21,7 @@
   import {
     CURRENT_ANKETA_FORM_VERSION,
     getQuestionsForSide,
+    templateListLabelKey,
     type Answers,
   } from '../anketa/questions';
   import { fullDisplayName } from '../userDisplay';
@@ -102,12 +103,14 @@
   interface RowDisplay {
     badges: BadgeMeta[];
     daysLabel: string | null;
+    /** Meeting type, only for a still-open anketa on a non-default template (GitHub issue #107). */
+    templateLabel: string | null;
   }
 
   /**
-   * Badges and days-until-meeting label for one anketa, computed together
-   * from a single `daysUntilMeeting()` call (and so a single `new Date()`
-   * reading) rather than as two separate functions each defaulting `now` on
+   * Badges, days-until-meeting and meeting-type labels for one anketa. The
+   * first two are computed together from a single `daysUntilMeeting()` call
+   * (and so a single `new Date()` reading) rather than as two separate functions each defaulting `now` on
    * their own — which could disagree right at a local-midnight boundary
    * (see `daysUntilMeeting`'s docblock). Deliberately *not* cached/hoisted
    * to component scope: called fresh on every render, so both the badge and
@@ -149,7 +152,13 @@
         ? $_('anketaList.daysUntilMeeting', { values: { days } })
         : null;
 
-    return { badges, daysLabel };
+    const templateLabelKey =
+      anketa.archivedAt === null
+        ? templateListLabelKey(anketa.templateKey)
+        : null;
+    const templateLabel = templateLabelKey ? $_(templateLabelKey) : null;
+
+    return { badges, daysLabel, templateLabel };
   }
 
   // Cancels this page's own passive read fetches (this one and
@@ -326,6 +335,9 @@
           {#if row.daysLabel}
             · {row.daysLabel}
           {/if}
+          {#if row.templateLabel}
+            · {row.templateLabel}
+          {/if}
         </div>
       </div>
       <div class="badges">
@@ -449,12 +461,18 @@
               </div>
               <div class="group-anketas">
                 {#each group.anketas as anketa (anketa.id)}
+                  {@const groupRow = rowDisplay(anketa)}
                   <a href="/anketas/{anketa.id}" class="group-anketa-row">
-                    <span class="group-anketa-date"
-                      >{formatDisplayDate(anketa.meetingDate)}</span
-                    >
+                    <span class="group-anketa-date">
+                      {formatDisplayDate(anketa.meetingDate)}
+                      {#if groupRow.templateLabel}
+                        <span class="text-muted"
+                          >· {groupRow.templateLabel}</span
+                        >
+                      {/if}
+                    </span>
                     <div class="badges">
-                      {#each rowDisplay(anketa).badges as badge (badge.cls + badge.label)}
+                      {#each groupRow.badges as badge (badge.cls + badge.label)}
                         <span class="tag {badge.cls}">{badge.label}</span>
                       {/each}
                     </div>

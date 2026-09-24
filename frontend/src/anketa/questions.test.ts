@@ -6,6 +6,7 @@ import {
   ANKETA_TEMPLATES,
   CURRENT_ANKETA_FORM_VERSION,
   getQuestionsForSide,
+  templateListLabelKey,
   templatePickerKeys,
   type TemplateKey,
 } from './questions';
@@ -236,6 +237,28 @@ describe('getQuestionsForSide', () => {
     ).toEqual(
       getQuestionsForSide('manager', CURRENT_ANKETA_FORM_VERSION, 'regular'),
     );
+  });
+
+  describe('templateListLabelKey', () => {
+    it("returns no list label for 'regular'", () => {
+      expect(templateListLabelKey('regular')).toBeNull();
+    });
+
+    it("returns the picker's own label key for every non-default template", () => {
+      for (const templateKey of ANKETA_TEMPLATES.filter(
+        (k) => k !== 'regular',
+      )) {
+        expect(templateListLabelKey(templateKey), templateKey).toBe(
+          templatePickerKeys(templateKey).labelKey,
+        );
+      }
+    });
+
+    it('returns no list label for an unrecognized or prototype-shaped templateKey, same as regular', () => {
+      for (const key of ['made-up-template', 'constructor', 'toString']) {
+        expect(templateListLabelKey(key as TemplateKey), key).toBeNull();
+      }
+    });
   });
 
   // A regression test for a bug an earlier, keyed-lookup-table version of this function
