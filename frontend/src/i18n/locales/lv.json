@@ -425,7 +425,7 @@
       },
       "workloadNow": {
         "tooMuch": "Par daudz",
-        "justRight": "Tieši labi",
+        "justRight": "Tieši laikā",
         "tooLittle": "Par maz"
       },
       "workloadTrend": { "more": "Vairāk darba", "less": "Mazāk darba" },
