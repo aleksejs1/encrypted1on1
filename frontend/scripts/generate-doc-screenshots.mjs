@@ -570,9 +570,13 @@ await shot(employee, 'report.png');
 await manager.goto(`${BASE_URL}/anketas/${anketaId}`);
 await manager.waitForLoadState('networkidle');
 const counterpartSide = manager.locator('.side-card').nth(1);
-const firstThread = counterpartSide.locator('.thread').first();
-await firstThread.getByRole('button', { name: /comment/i }).click();
-await firstThread
+// Pinned to moodNow's thread, not `.thread` by position — see the same
+// locator in generate-demo-fixture.mjs.
+const moodNowThread = counterpartSide.locator(
+  '.field[data-field-id="moodNow"] + .thread',
+);
+await moodNowThread.getByRole('button', { name: /comment/i }).click();
+await moodNowThread
   .locator('input[type=text]')
   .fill('This is great news — congrats!');
 await Promise.all([
@@ -581,7 +585,7 @@ await Promise.all([
       res.request().method() === 'PUT' &&
       res.url().endsWith(`/api/anketas/${anketaId}/comments`),
   ),
-  firstThread.getByRole('button', { name: 'Post' }).click(),
+  moodNowThread.getByRole('button', { name: 'Post' }).click(),
 ]);
 await employee.goto(`${BASE_URL}/anketas/${anketaId}`);
 await employee.waitForLoadState('networkidle');

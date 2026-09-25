@@ -161,7 +161,12 @@ async function publish(page, anketaId, scope) {
 
 async function addComment(managerPage, anketaId, text) {
   const counterpartSide = managerPage.locator('.side-card').nth(1);
-  const thread = counterpartSide.locator('.thread').first();
+  // Pinned to moodNow's thread, not `.thread` by position: the collapsed
+  // read-only view hides unanswered fields, so the first thread depends on
+  // which fields the fixture content happens to answer.
+  const thread = counterpartSide.locator(
+    '.field[data-field-id="moodNow"] + .thread',
+  );
   await thread.getByRole('button', { name: /comment/i }).click();
   await thread.locator('input[type=text]').fill(text);
   await Promise.all([

@@ -169,7 +169,9 @@
   }
 </script>
 
-<div class="field">
+<!-- data-field-id: a stable hook for frontend/scripts' generators, which
+     run in every UI locale and so can't find a field by its label text. -->
+<div class="field" data-field-id={field.id}>
   {#if !hideLabel}
     <span class="label">{$_(field.labelKey)}</span>
   {/if}
