@@ -1,12 +1,14 @@
 /**
  * What the collapsed read-only view of an anketa side shows — see GitHub
- * issue #131 (the design) / #134. "Collapsed" means the counterpart's side,
- * my own published side while not editing, or either side once archived;
- * edit mode always renders every field.
+ * issue #131 (the design), #134 (hiding unanswered fields and generic labels)
+ * and #135 (showing only the chosen radio/checkbox options). "Collapsed"
+ * means the counterpart's side, my own published side while not editing, or
+ * either side once archived; edit mode always renders every field.
  */
 import type {
   AnswerValue,
   Answers,
+  FieldOption,
   Question,
   QuestionField,
 } from './questions';
@@ -34,17 +36,16 @@ export function isAnswerEmpty(
   field: QuestionField,
   value: AnswerValue | null,
 ): boolean {
-  const isOption = (v: unknown) =>
-    (field.options ?? []).some((option) => option.value === v);
   switch (field.type) {
     case 'text':
       return typeof value !== 'string' || value.trim() === '';
     case 'list':
       return !Array.isArray(value) || value.length === 0;
     case 'radio':
-      return typeof value !== 'string' || !isOption(value);
     case 'checkboxes':
-      return !Array.isArray(value) || !value.some(isOption);
+      // The same rule the collapsed view renders by, so a shown choice field
+      // always has at least one option to show.
+      return selectedOptions(field, value).length === 0;
   }
 }
 
@@ -62,4 +63,26 @@ export function readonlyVisibleFields(
     (field) =>
       !isAnswerEmpty(field, answers[field.id]) || hasComments(field.id),
   );
+}
+
+/**
+ * The options chosen for a radio or checkbox `field`, in the field's own
+ * option order — what the collapsed view shows instead of the full list of
+ * disabled options (GitHub issue #135). Stored values that aren't one of the
+ * field's options are skipped. `isAnswerEmpty`'s radio/checkbox rule is
+ * defined by this function.
+ */
+export function selectedOptions(
+  field: QuestionField,
+  value: AnswerValue | null,
+): FieldOption[] {
+  const options = field.options ?? [];
+  if (field.type === 'radio') {
+    return options.filter((option) => option.value === value);
+  }
+  if (field.type === 'checkboxes' && Array.isArray(value)) {
+    const values: unknown[] = value;
+    return options.filter((option) => values.includes(option.value));
+  }
+  return [];
 }

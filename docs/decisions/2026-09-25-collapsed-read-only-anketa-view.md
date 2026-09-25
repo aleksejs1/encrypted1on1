@@ -2,7 +2,8 @@
 
 ## Problem
 
-[GitHub issue #134](https://github.com/aleksejs1/encrypted1on1/issues/134), part of
+GitHub issues [#134](https://github.com/aleksejs1/encrypted1on1/issues/134) and
+[#135](https://github.com/aleksejs1/encrypted1on1/issues/135), parts 1 and 2 of
 [#131](https://github.com/aleksejs1/encrypted1on1/issues/131). The read-only view of an anketa side
 showed filler around unanswered fields: "Anything to add?" followed by "No answer.", an "Entries"
 label followed by nothing, and rows of disabled, unchecked radios. During a live meeting both
@@ -46,9 +47,25 @@ expanded threads and list entry text.
 comment on. "You skipped X" belongs in the discussion list, or is said out loud in the meeting. My
 own side in edit mode after publishing still shows a thread on every field.
 
-Radio and checkbox answers still render as the full disabled option list. Showing only the chosen
-options is issue 2 of #131 (#135), optional, and to be decided after this has been used in a real
-meeting.
+**Radio and checkbox answers show only the chosen options** (#135, part 2 of #131). In the collapsed
+view a radio shows its chosen option's label as plain text (`.answer-choice`, not `.answer-text`,
+which is for Markdown), under its field label, which is always a real sub-prompt. Checkboxes show
+only the chosen options, in the field's option order, as a `<ul class="answer-choices">` of `<li
+class="tag pill pill-chosen">`. That reuses the chosen-pill styling at full opacity instead of the
+dimmed disabled buttons, and a screen reader hears "list, 2 items" rather than disabled form
+controls. `selectedOptions(field, value)` in `answerDisplay.ts` skips unknown stored values, like
+`isAnswerEmpty`, which for choice fields is defined through it, so a shown choice field always has
+an option to show. The list has `role="list"`, since WebKit drops list semantics once `list-style`
+is `none` (the list-answer `<ul class="entries">` got the same). The field label comes right before
+the answer, for radios and checkboxes alike. Naming the list with `aria-labelledby` was tried and
+dropped: it made screen readers read the prompt twice, and a radio's `<p>` can't be named that way,
+so the two choice types would have been handled differently. A radio answer reads at the answer-text
+size (14px) while the chosen pills keep the pills' own 11px, a deliberate consequence of reusing the
+edit-mode pill styling. A unit test checks that no radio or checkbox field uses a generic label, so
+that label is always shown. Only `collapsed` switches this on: during an in-flight Save the side
+keeps today's disabled radios and pills, so Save never flips them to text and back. The #131 plan
+was to wait for real-meeting use of part 1 first; the maintainer chose to build it right after part
+1 instead.
 
 ## Accepted edges
 
@@ -85,14 +102,21 @@ good.
 
 ## Verification
 
-- Unit tests for `isAnswerEmpty`, `readonlyVisibleFields` and `GENERIC_LABEL_KEYS`
-  (`answerDisplay.test.ts`).
+- Unit tests for `isAnswerEmpty`, `readonlyVisibleFields`, `GENERIC_LABEL_KEYS` and
+  `selectedOptions` (`answerDisplay.test.ts`).
 - Two new dual-actor e2e tests in `frontend/e2e/dual-actor-anketa.spec.ts`. They cover the
   counterpart side and my own published side, Edit bringing every prompt back and Cancel collapsing
   it again, a Save held in flight keeping the edit-mode layout, an emptied commented field reaching
   the other participant's open tab via the poll, the archived states (published and never
   published), and the support template's real sub-prompt label. Temporarily making
   `mySideCollapsed` follow `savingAnswersEdit` made the held-save assertion fail.
+- A third e2e test for #135: a chosen mood radio shows as text and two feelings pills as a two-item
+  list in option order (clicked in the reverse order), on the counterpart side and my own published
+  side, with no radios or pill buttons left. Edit brings back every option, still selected; the mood
+  is then changed and a Save held in flight keeps every option shown, selected and disabled, and the
+  new choice reaches the other participant's open tab via the poll. After archive both participants
+  still see only the chosen options. Temporarily switching the collapsed radio and checkbox branches
+  to `readonly` made that held-Save check fail.
 - The existing tests' `.thread').first()` locators pointed at the empty mood radio's thread before;
   they are now scoped to the Mood block's answered notes field (`moodNotesThread()`).
 - Doc screenshots (`generate-doc-screenshots.mjs`) will look different when next regenerated; they

@@ -3,6 +3,7 @@ import {
   GENERIC_LABEL_KEYS,
   isAnswerEmpty,
   readonlyVisibleFields,
+  selectedOptions,
 } from './answerDisplay';
 import {
   ANKETA_TEMPLATES,
@@ -32,6 +33,17 @@ const checkboxField: QuestionField = {
   labelKey: 'x.c',
   options,
 };
+/** Every field of every template, side and form version. */
+function allFields(): QuestionField[] {
+  return ANKETA_TEMPLATES.flatMap((templateKey) =>
+    (['employee', 'manager'] as const).flatMap((side) =>
+      Array.from({ length: CURRENT_ANKETA_FORM_VERSION }, (_, i) =>
+        getQuestionsForSide(side, i + 1, templateKey),
+      ).flat(),
+    ),
+  ).flatMap((question) => question.fields);
+}
+
 const entry = { id: 'e1', date: '2026-09-01T00:00:00.000Z', text: 'Shipped' };
 
 describe('isAnswerEmpty', () => {
@@ -127,7 +139,7 @@ describe('GENERIC_LABEL_KEYS', () => {
     }
   });
 
-  it('are all still used as a field label by the question set', () => {
+  it('are all still used as a field label by the current question set', () => {
     const labelKeys = new Set(
       ANKETA_TEMPLATES.flatMap((templateKey) =>
         (['employee', 'manager'] as const).flatMap((side) =>
@@ -138,5 +150,51 @@ describe('GENERIC_LABEL_KEYS', () => {
     for (const key of GENERIC_LABEL_KEYS) {
       expect(labelKeys.has(key), key).toBe(true);
     }
+  });
+
+  // The collapsed view shows a choice answer under its field label, so that
+  // label must be a real sub-prompt, never a generic caption it would hide.
+  it('are never used by a radio or checkbox field', () => {
+    const choiceFieldsWithGenericLabel = allFields()
+      .filter(
+        (field) =>
+          (field.type === 'radio' || field.type === 'checkboxes') &&
+          GENERIC_LABEL_KEYS.has(field.labelKey),
+      )
+      .map((field) => field.id);
+    expect(choiceFieldsWithGenericLabel).toEqual([]);
+  });
+});
+
+describe('selectedOptions', () => {
+  const values = (field: QuestionField, value: unknown) =>
+    selectedOptions(field, value as never).map((option) => option.value);
+
+  it('radio: the chosen option, or nothing for an absent or unknown value', () => {
+    expect(values(radioField, 'bad')).toEqual(['bad']);
+    expect(values(radioField, undefined)).toEqual([]);
+    expect(values(radioField, null)).toEqual([]);
+    expect(values(radioField, 'unknown')).toEqual([]);
+    expect(values(radioField, ['bad'])).toEqual([]);
+  });
+
+  it('checkboxes: the chosen options in option order, skipping unknown values', () => {
+    expect(values(checkboxField, ['bad', 'unknown', 'good'])).toEqual([
+      'good',
+      'bad',
+    ]);
+    expect(values(checkboxField, ['unknown'])).toEqual([]);
+    expect(values(checkboxField, [])).toEqual([]);
+    expect(values(checkboxField, 'good')).toEqual([]);
+    expect(values(checkboxField, [entry])).toEqual([]);
+  });
+
+  it('returns nothing for text and list fields', () => {
+    expect(values({ ...textField, options }, 'good')).toEqual([]);
+    expect(values({ ...listField, options }, ['good'])).toEqual([]);
+  });
+
+  it('returns the option objects themselves, labels included', () => {
+    expect(selectedOptions(radioField, 'good')).toEqual([options[0]]);
   });
 });
