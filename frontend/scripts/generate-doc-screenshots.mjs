@@ -179,6 +179,9 @@ async function shot(page, filename, { fullPage = true } = {}) {
 /** Lets a rerun start clean without requiring the previous run's accounts to be removed by hand first. */
 function resetAccounts() {
   const sqlStatements = [
+    // Before anketas and users, which its foreign keys reference. The two accounts
+    // are only ever paired with each other, so they author every note on their anketas.
+    `DELETE FROM anketa_private_notes WHERE author_id IN (SELECT id FROM users WHERE email IN ('${EMPLOYEE_EMAIL}', '${MANAGER_EMAIL}'))`,
     `DELETE FROM goals WHERE anketa_id IN (SELECT id FROM anketas WHERE employee_id IN (SELECT id FROM users WHERE email IN ('${EMPLOYEE_EMAIL}', '${MANAGER_EMAIL}')) OR manager_id IN (SELECT id FROM users WHERE email IN ('${EMPLOYEE_EMAIL}', '${MANAGER_EMAIL}')))`,
     `DELETE FROM anketas WHERE employee_id IN (SELECT id FROM users WHERE email IN ('${EMPLOYEE_EMAIL}', '${MANAGER_EMAIL}')) OR manager_id IN (SELECT id FROM users WHERE email IN ('${EMPLOYEE_EMAIL}', '${MANAGER_EMAIL}'))`,
     `DELETE FROM users WHERE email IN ('${EMPLOYEE_EMAIL}', '${MANAGER_EMAIL}')`,

@@ -100,8 +100,8 @@ mandates for non-trivial changes.
 
 ## 3. Tenant scoping (multi-tenant `Company` boundary)
 
-**Rule:** every query for a tenant-scoped entity (`User`, `Anketa`, `Goal`)
-must be scoped to the requester's own `Company`, except in code that is
+**Rule:** every query for a tenant-scoped entity (`User`, `Anketa`, `Goal`,
+`AnketaPrivateNote`) must be scoped to the requester's own `Company`, except in code that is
 deliberately cross-tenant by design (`PlatformAdminController` and its
 supporting services — the platform admin role exists specifically to operate
 across companies).
@@ -110,7 +110,8 @@ across companies).
 (`App\Doctrine\CompanyFilter`, GitHub issue #69). `Anketa` carries a
 denormalized `company_id` foreign key relation alongside `User`,
 `InviteRecord`, and `ActivationToken`, ensuring all primary tenant-scoped
-entities carry a direct `company_id` column. When a user is authenticated via
+entities carry a direct `company_id` column. `AnketaPrivateNote` (GitHub issue
+#136) carries the same denormalized `company_id`, copied from its anketa. When a user is authenticated via
 `AuthSession`, `CompanyFilterListener` (`KernelEvents::REQUEST`, priority 5)
 configures and enables `company_filter` with `$currentUser->getCompany()->getId()`,
 automatically appending `{$targetTableAlias}.company_id = '...'` to every
@@ -139,8 +140,8 @@ occurred in this codebase's history, not a hypothetical:
   after logout/session death (see the multi-tab unlock incident, §2).
 - **Multi-tab/multi-actor race conditions** — anything touching
   `sessionStorage`/tab-scoped state alongside a cross-tab session cookie.
-- **Tenant-scope omission** — a new query against `User`/`Anketa`/`Goal`
-  with no visible company scoping and no `PlatformAdminController`-style
+- **Tenant-scope omission** — a new query against `User`/`Anketa`/`Goal`/
+  `AnketaPrivateNote` with no visible company scoping and no `PlatformAdminController`-style
   justification for why it's intentionally cross-tenant (§3).
 - **New plaintext-shaped entity column** — even though
   `EnforceEncryptedEntityFieldsRule` (§1) forces a conscious

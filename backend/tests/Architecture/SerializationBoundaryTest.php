@@ -5,6 +5,7 @@ namespace App\Tests\Architecture;
 use ApiPlatform\Metadata\ApiResource;
 use App\Entity\ActivationToken;
 use App\Entity\Anketa;
+use App\Entity\AnketaPrivateNote;
 use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\InviteRecord;
@@ -53,11 +54,27 @@ class SerializationBoundaryTest extends TestCase
         self::assertPropertyHasNoGroupsAttribute(Anketa::class, $property);
     }
 
+    /** @return array<string, array{string}> */
+    public static function ciphertextBearingPrivateNoteProperties(): array
+    {
+        return [
+            'encryptedNotesKey' => ['encryptedNotesKey'],
+            'notesBlob' => ['notesBlob'],
+        ];
+    }
+
+    #[DataProvider('ciphertextBearingPrivateNoteProperties')]
+    public function testPrivateNoteCiphertextPropertyCarriesNoSerializationGroup(string $property): void
+    {
+        self::assertPropertyHasNoGroupsAttribute(AnketaPrivateNote::class, $property);
+    }
+
     public function testOnlyUserIsRegisteredAsAnApiPlatformResource(): void
     {
         self::assertTrue(self::hasApiResourceAttribute(User::class), 'User is expected to be the one ApiResource in this app.');
         self::assertFalse(self::hasApiResourceAttribute(Anketa::class), 'Anketa holds encrypted blobs — it must stay a plain controller, not generic API Platform CRUD.');
         self::assertFalse(self::hasApiResourceAttribute(Goal::class));
+        self::assertFalse(self::hasApiResourceAttribute(AnketaPrivateNote::class), 'AnketaPrivateNote holds one user\'s private ciphertext — only its own author-scoped endpoints may serve it.');
         self::assertFalse(self::hasApiResourceAttribute(ActivationToken::class));
         self::assertFalse(self::hasApiResourceAttribute(PasswordResetToken::class));
         self::assertFalse(self::hasApiResourceAttribute(Company::class), 'Company has no company-admin-settings endpoint yet (see private/cloud-service-plan.md, Phase B/C) — must stay a plain entity, not an ApiResource, until that phase deliberately adds one.');
