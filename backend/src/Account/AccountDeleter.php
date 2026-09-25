@@ -5,11 +5,13 @@ namespace App\Account;
 use App\Entity\Anketa;
 use App\Entity\InviteRecord;
 use App\Entity\User;
+use App\Repository\AnketaPrivateNoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * The identical "clear every unpublished draft, then anonymize" sequence needed by
- * both places an account can be deleted (AuthController::deleteAccount() — self-service
+ * The identical "clear every unpublished draft and remove every private note, then
+ * anonymize" sequence needed by both places an account can be deleted
+ * (AuthController::deleteAccount() — self-service
  * — and AdminController::deleteUser() — a company admin acting on a departed employee's
  * blocked account) — a real, mechanical second call site, the same
  * "two call sites clears this project's own extraction bar" reasoning
@@ -22,6 +24,7 @@ final class AccountDeleter
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
+        private readonly AnketaPrivateNoteRepository $privateNoteRepository,
     ) {
     }
 
@@ -38,6 +41,13 @@ final class AccountDeleter
 
         foreach ($anketas as $anketa) {
             $anketa->clearUnpublishedDraftFor($user);
+        }
+
+        // Private notes are never seen by anyone else either (GitHub issue #132 §5.4).
+        // remove() rather than a DQL bulk DELETE, so the removal is part of the same unit
+        // of work, and flush, as the anonymization below.
+        foreach ($this->privateNoteRepository->findAllOwn($user) as $privateNote) {
+            $this->entityManager->remove($privateNote);
         }
 
         // Captured before delete() overwrites User::$email in place — InviteRecord

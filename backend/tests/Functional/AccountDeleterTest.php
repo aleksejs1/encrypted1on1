@@ -5,6 +5,7 @@ namespace App\Tests\Functional;
 use App\Account\AccountDeleter;
 use App\Doctrine\CompanyFilter;
 use App\Entity\Anketa;
+use App\Entity\AnketaPrivateNote;
 use App\Entity\Company;
 use App\Entity\InviteRecord;
 use App\Entity\User;
@@ -207,6 +208,57 @@ class AccountDeleterTest extends ApiTestCase
                 [$otherCompany->getId()],
             );
         }
+    }
+
+    /** GitHub issue #132 §5.4: the user's own private notes go, the counterpart's stay. */
+    public function testDeleteRemovesTheUsersPrivateNotesButNotTheCounterparts(): void
+    {
+        $client = static::createClient();
+        $userAData = $this->activateUser($client, $this->uniqueEmail('deleter-notes-a'));
+        $userBData = $this->activateUser($this->secondClient(), $this->uniqueEmail('deleter-notes-b'));
+
+        $em = $this->entityManager();
+        $userA = $em->find(User::class, $userAData['id']);
+        $userB = $em->find(User::class, $userBData['id']);
+        \assert($userA instanceof User && $userB instanceof User);
+
+        $anketa = new Anketa(
+            employee: $userA,
+            manager: $userB,
+            meetingDate: new \DateTimeImmutable('+7 days'),
+            employeeSealedKey: 'sealed-emp',
+            managerSealedKey: 'sealed-mgr',
+            periodicityDays: 14,
+        );
+        // A second anketa with the roles swapped: every one of userA's notes must go, not
+        // only those on some particular anketa.
+        $swapped = new Anketa(
+            employee: $userB,
+            manager: $userA,
+            meetingDate: new \DateTimeImmutable('+14 days'),
+            employeeSealedKey: 'sealed-emp-2',
+            managerSealedKey: 'sealed-mgr-2',
+            periodicityDays: 14,
+        );
+        $em->persist($anketa);
+        $em->persist($swapped);
+        $em->persist(new AnketaPrivateNote($anketa, $userA, 'key-a', 'notes-a'));
+        $em->persist(new AnketaPrivateNote($swapped, $userA, 'key-a2', 'notes-a2'));
+        $em->persist(new AnketaPrivateNote($anketa, $userB, 'key-b', 'notes-b'));
+        $em->flush();
+
+        $this->accountDeleter()->delete($userA);
+        $em->flush();
+        $em->clear();
+
+        self::assertSame(0, (int) $em->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM anketa_private_notes WHERE author_id = ?',
+            [$userA->getId()],
+        ));
+        $remaining = $em->getRepository(AnketaPrivateNote::class)->findBy(['anketa' => $anketa->getId()]);
+        self::assertCount(1, $remaining);
+        self::assertSame($userB->getId(), $remaining[0]->getAuthor()->getId());
+        self::assertSame('notes-b', $remaining[0]->getNotesBlob());
     }
 
     public function testDeleteAnonymizesUser(): void

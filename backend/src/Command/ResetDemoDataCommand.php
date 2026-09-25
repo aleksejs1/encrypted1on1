@@ -4,6 +4,7 @@ namespace App\Command;
 
 use App\Company\SingleCompanyProvider;
 use App\Entity\Anketa;
+use App\Entity\AnketaPrivateNote;
 use App\Entity\Goal;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
@@ -161,7 +162,7 @@ class ResetDemoDataCommand extends Command
         return $user;
     }
 
-    /** Deletes Goals before their Anketas — both this app's own MySQL migration and a real DB's FK constraint require child rows gone first. */
+    /** Deletes Goals and private notes before their Anketas — both this app's own MySQL migration and a real DB's FK constraint require child rows gone first. */
     private function deleteExistingAnketasForPair(User $employee, User $manager): void
     {
         /** @var Anketa[] $anketas */
@@ -176,6 +177,8 @@ class ResetDemoDataCommand extends Command
             ->getResult();
 
         if ([] === $anketas) {
+            $this->deletePrivateNotes($employee, $manager);
+
             return;
         }
 
@@ -191,12 +194,38 @@ class ResetDemoDataCommand extends Command
         foreach ($goals as $goal) {
             $this->entityManager->remove($goal);
         }
+
         foreach ($anketas as $anketa) {
             $this->entityManager->remove($anketa);
         }
+
+        // Right before the flush: the notes panel autosaves every second while someone
+        // types, so a note first saved after an earlier SELECT would block the anketa
+        // delete on the foreign key. A save landing in the moment between this and the
+        // flush still can; the next reset run then succeeds.
+        $this->deletePrivateNotes($employee, $manager);
+
         // Flushed immediately (not batched with the recreate below) — the new
         // rows this locale is about to get would otherwise collide with the
         // not-yet-deleted old ones in the same unit of work.
         $this->entityManager->flush();
+    }
+
+    /**
+     * Every private note (GitHub issue #132) the two demo accounts wrote. That covers the
+     * pair's anketas about to be deleted, whose only possible authors are these two
+     * (AnketaPrivateNote only accepts a participant), and any other anketa, e.g. one a
+     * visitor created with the roles swapped, which the reset doesn't delete. The demo
+     * keypairs are restored every run, so a note surviving the reset would stay
+     * readable to every later visitor.
+     */
+    private function deletePrivateNotes(User $employee, User $manager): void
+    {
+        $this->entityManager->createQueryBuilder()
+            ->delete(AnketaPrivateNote::class, 'note')
+            ->where('note.author IN (:authors)')
+            ->setParameter('authors', [$employee, $manager])
+            ->getQuery()
+            ->execute();
     }
 }

@@ -11,14 +11,18 @@ use App\Dto\CreateGoalRequest;
 use App\Dto\RescheduleAnketaRequest;
 use App\Dto\ReshareKeyRequest;
 use App\Dto\SaveBlobRequest;
+use App\Dto\SavePrivateNotesRequest;
 use App\Dto\SaveVersionedBlobRequest;
 use App\Dto\UpdateGoalRequest;
 use App\Entity\Anketa;
+use App\Entity\AnketaPrivateNote;
 use App\Entity\Goal;
 use App\Entity\User;
+use App\Repository\AnketaPrivateNoteRepository;
 use App\Repository\AnketaRepository;
 use App\Repository\GoalRepository;
 use App\Security\AuthSession;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,6 +49,7 @@ class AnketaController
         private readonly GoalRepository $goalRepository,
         private readonly AnketaLifecycleService $lifecycleService,
         private readonly AnketaPresenter $presenter,
+        private readonly AnketaPrivateNoteRepository $privateNoteRepository,
     ) {
     }
 
@@ -543,6 +548,123 @@ class AnketaController
         $this->lifecycleService->reshareKey($anketa, $user, $payload->sealedKey);
 
         return new JsonResponse(['ok' => true]);
+    }
+
+    /**
+     * The requester's own private notes on this anketa, or `null` if they have none
+     * (GitHub issue #132 §5.2). Only ever the requester's own row: the counterpart's
+     * notes, or whether they exist at all, are never served anywhere.
+     */
+    #[Route('/api/anketas/{id}/private-notes', name: 'anketa_private_notes_get', methods: ['GET'])]
+    public function getPrivateNotes(string $id, Request $request): JsonResponse
+    {
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        // Read-only from here on — same reasoning as get() above.
+        $this->authSession->closeForReading($request);
+
+        $note = $this->privateNoteRepository->findOwn($anketa, $user);
+        if (null === $note) {
+            // A literal JSON null: `new JsonResponse(null)` would send `{}`.
+            return JsonResponse::fromJsonString('null');
+        }
+
+        return new JsonResponse([
+            'encryptedNotesKey' => $note->getEncryptedNotesKey(),
+            'notesBlob' => $note->getNotesBlob(),
+            'version' => $note->getVersion(),
+        ]);
+    }
+
+    /**
+     * Inserts (expectedVersion 0, no row yet) or overwrites the requester's own private
+     * notes. Allowed on an archived anketa: writing notes up after the meeting is a core
+     * use. A version mismatch is a 409 carrying the current row, so the client can tell
+     * its own earlier save coming back from another tab's write.
+     */
+    #[Route('/api/anketas/{id}/private-notes', name: 'anketa_private_notes_save', methods: ['PUT'])]
+    public function savePrivateNotes(
+        string $id,
+        #[MapRequestPayload] SavePrivateNotesRequest $payload,
+        Request $request,
+    ): JsonResponse {
+        [$anketa, $user] = $this->findAccessible($id, $request);
+
+        // The client sends the user its notes were encrypted for. A stale tab whose
+        // session was replaced by another user's login on the same browser must never
+        // write its text into that other account.
+        if ((string) $payload->authorId !== $user->getId()) {
+            throw new AccessDeniedHttpException($this->translator->trans('errors.notes_wrong_account'));
+        }
+
+        $encryptedNotesKey = (string) $payload->encryptedNotesKey;
+        $notesBlob = (string) $payload->notesBlob;
+        $expectedVersion = (int) $payload->expectedVersion;
+
+        if (0 === $expectedVersion) {
+            $existing = $this->privateNoteRepository->findOwn($anketa, $user);
+            if (null !== $existing) {
+                // Another tab or device created the row first.
+                return $this->privateNotesConflict($existing);
+            }
+            $note = new AnketaPrivateNote($anketa, $user, $encryptedNotesKey, $notesBlob);
+            $this->entityManager->persist($note);
+            try {
+                $this->entityManager->flush();
+            } catch (UniqueConstraintViolationException $exception) {
+                // Two tabs both inserting at version 0: the loser hits the unique
+                // (anketa, author) index. The failed flush closed the EntityManager, so
+                // the winner's row can't be re-read here — the 409 carries nulls and the
+                // client re-GETs it. Don't use the EntityManager after this. Reported to
+                // Sentry (a no-op without SENTRY_DSN) so the race stays visible, same as
+                // ActivationController's identical catch.
+                \Sentry\captureException($exception);
+
+                return $this->privateNotesConflict(null);
+            }
+
+            return new JsonResponse(['version' => $note->getVersion()]);
+        }
+
+        if (!$this->privateNoteRepository->overwriteIfVersion($anketa, $user, $encryptedNotesKey, $notesBlob, $expectedVersion)) {
+            // A stale version, or no row at all: hand back whatever is there now.
+            return $this->privateNotesConflict($this->privateNoteRepository->findOwn($anketa, $user));
+        }
+
+        return new JsonResponse(['version' => $expectedVersion + 1]);
+    }
+
+    /**
+     * Every one of the requester's own private notes rows, for the data export. Not
+     * joined with anketa metadata: the export already has that from /api/anketas/bulk.
+     */
+    #[Route('/api/me/private-notes', name: 'me_private_notes', methods: ['GET'])]
+    public function listOwnPrivateNotes(Request $request): JsonResponse
+    {
+        $user = $this->requireUser($request);
+
+        // Read-only from here on — same reasoning as get() above.
+        $this->authSession->closeForReading($request);
+
+        return new JsonResponse(array_map(
+            static fn (AnketaPrivateNote $note) => [
+                'anketaId' => $note->getAnketa()->getId(),
+                'encryptedNotesKey' => $note->getEncryptedNotesKey(),
+                'notesBlob' => $note->getNotesBlob(),
+            ],
+            $this->privateNoteRepository->findAllOwn($user),
+        ));
+    }
+
+    /** The 409 for a stale private-notes save: the current row, or all nulls when there's none to show. */
+    private function privateNotesConflict(?AnketaPrivateNote $note): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $this->translator->trans('errors.private_notes_conflict'),
+            'encryptedNotesKey' => $note?->getEncryptedNotesKey(),
+            'notesBlob' => $note?->getNotesBlob(),
+            'version' => $note?->getVersion(),
+        ], 409);
     }
 
     private function requireUser(Request $request): User

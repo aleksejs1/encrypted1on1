@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Command\ResetDemoDataCommand;
 use App\Entity\Anketa;
+use App\Entity\AnketaPrivateNote;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
@@ -184,6 +185,50 @@ class ResetDemoDataCommandTest extends ApiTestCase
                 self::assertSame(1, $anketa->getCommentsVersion(), 'the corrupted version must be restored, not left at 999');
             }
         }
+    }
+
+    /**
+     * A demo visitor's private notes (GitHub issue #132 §5.5) reference the anketas the
+     * reset deletes, so they must go first: a real database's foreign key rejects
+     * deleting an anketa that still has notes (SQLite here runs without foreign keys, so
+     * this only fails for real on MySQL — run it there too).
+     */
+    public function testResetRemovesPrivateNotesOnTheDeletedAnketas(): void
+    {
+        static::createClient();
+        $this->runResetDemoDataCommand();
+
+        $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employee);
+        self::assertNotNull($manager);
+        foreach ($this->anketasForPair($employee, $manager) as $anketa) {
+            $this->entityManager()->persist(new AnketaPrivateNote($anketa, $employee, 'visitor-key', 'visitor-notes'));
+            $this->entityManager()->persist(new AnketaPrivateNote($anketa, $manager, 'visitor-key', 'visitor-notes'));
+        }
+        // A visitor-made anketa outside the seeded pair (roles swapped), which the reset
+        // doesn't delete. Its notes must still go: the demo keypair is restored every run,
+        // so they'd stay readable to every later visitor.
+        $swapped = new Anketa($manager, $employee, new \DateTimeImmutable('+3 days'), 'sealed-e', 'sealed-m', 30);
+        $this->entityManager()->persist($swapped);
+        $this->entityManager()->persist(new AnketaPrivateNote($swapped, $employee, 'visitor-key', 'visitor-notes'));
+        $this->entityManager()->flush();
+        $swappedId = $swapped->getId();
+        $this->entityManager()->clear();
+
+        $this->runResetDemoDataCommand();
+
+        self::assertSame(0, (int) $this->entityManager()->getConnection()->fetchOne(
+            "SELECT COUNT(*) FROM anketa_private_notes WHERE notesBlob = 'visitor-notes'",
+        ));
+        $employeeAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        $managerAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employeeAfter);
+        self::assertNotNull($managerAfter);
+        self::assertCount(3, $this->anketasForPair($employeeAfter, $managerAfter));
+
+        // Not the reset's to clean up, so removed here to leave the demo pair as seeded.
+        $this->entityManager()->getConnection()->executeStatement('DELETE FROM anketas WHERE id = ?', [$swappedId]);
     }
 
     private function runResetDemoDataCommand(): void
