@@ -1,7 +1,14 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import { _ } from 'svelte-i18n';
   import type { Comment } from './comments';
+  import {
+    beginAction,
+    fallbackFocusOptions,
+    findRow,
+    ignoreHeldEnter,
+    refocus,
+    type RefocusOptions,
+  } from './keepFocus';
 
   let {
     comments,
@@ -53,49 +60,49 @@
      * Called when deleting my own comment unmounted this whole thread (the
      * collapsed read-only view hides an empty field once its last comment
      * is gone), so the parent can put keyboard focus on something that
-     * still exists. See `refocus()` below and GitHub issue #149.
+     * still exists. See `afterRowGone()` below and GitHub issue #149.
      */
-    onFocusLost?: () => void;
+    onFocusLost?: (options: FocusOptions) => void;
   } = $props();
 
   let root = $state<HTMLDivElement>();
 
-  /**
-   * Whether keyboard focus may be moved: it's still inside this thread, or
-   * it was dropped to <body>. The button that had it is often gone by then:
-   * each Edit/Delete/Save/Cancel/Confirm swaps its own buttons out, a
-   * deleted comment takes its buttons with it, and Chromium blurs a focused
-   * button as soon as it's disabled for an in-flight request. Never true
-   * when the user has moved focus elsewhere meanwhile, so a slow request
-   * doesn't pull it back.
-   */
-  function focusIsFree(): boolean {
-    const active = document.activeElement;
-    return (
-      active === null ||
-      active === document.body ||
-      (root?.contains(active) ?? false)
-    );
+  let newCommentForm = $state<HTMLFormElement>();
+
+  /** The `.comment` row for `commentId`; see keepFocus.ts's findRow(). */
+  function commentRow(commentId: string): HTMLElement | undefined {
+    return findRow(root, 'data-comment-id', commentId);
   }
 
   /**
-   * After the DOM catches up with a state change, moves focus to `selector`
-   * inside this thread (GitHub issue #149). If this thread is no longer
-   * mounted, hands focus to the parent via `onFocusLost` instead.
+   * keepFocus.ts's refocus() for a comment row (GitHub issues #149, #151).
+   * With `fallback` (a delete), a gone row hands focus on via afterRowGone().
    */
-  async function refocus(selector: string): Promise<void> {
-    await tick();
-    if (!focusIsFree()) return;
-    if (!root?.isConnected) {
-      onFocusLost?.();
-      return;
+  function refocusComment(
+    row: HTMLElement | undefined,
+    selector: string,
+    {
+      fallback,
+      startedOn,
+    }: { fallback?: FocusOptions } & Pick<RefocusOptions, 'startedOn'> = {},
+  ): Promise<void> {
+    return refocus(row, selector, {
+      startedOn,
+      onRootGone: fallback && (() => afterRowGone(fallback)),
+    });
+  }
+
+  /**
+   * A deleted comment's row is gone: the toggle is always there while the
+   * thread is (its count now one lower). If the whole thread went with it
+   * (the collapsed view hides an empty field), the parent takes over.
+   */
+  function afterRowGone(options: FocusOptions): void {
+    if (root?.isConnected) {
+      root.querySelector<HTMLElement>('.toggle')?.focus(options);
+    } else {
+      onFocusLost?.(options);
     }
-    root.querySelector<HTMLElement>(selector)?.focus();
-  }
-
-  /** `selector` inside the `.comment` row for `commentId`. */
-  function inComment(commentId: string, selector: string): string {
-    return `[data-comment-id="${CSS.escape(commentId)}"] ${selector}`;
   }
 
   let text = $state('');
@@ -194,25 +201,28 @@
     event.preventDefault();
     if (!text.trim() || submitting) return;
 
+    const startedOn = beginAction();
+    const posted = text.trim();
     submitting = true;
     error = null;
     try {
-      await onSubmit(text.trim());
-      text = '';
+      await onSubmit(posted);
+      // Keep anything typed while the post was in flight.
+      if (text.trim() === posted) text = '';
     } catch {
       error = $_('commentThread.error');
     } finally {
       submitting = false;
     }
     // The Post button is disabled while posting, which drops its focus.
-    void refocus('.new-comment-input');
+    void refocus(newCommentForm, '.new-comment-input', { startedOn });
   }
 
   function startEdit(comment: Comment) {
     editingId = comment.id;
     editText = comment.text;
     editError = null;
-    void refocus(inComment(comment.id, '.edit-input'));
+    void refocusComment(commentRow(comment.id), '.edit-input');
   }
 
   function cancelEdit() {
@@ -220,13 +230,14 @@
     editingId = null;
     editText = '';
     editError = null;
-    if (commentId) void refocus(inComment(commentId, '.edit-btn'));
+    if (commentId) void refocusComment(commentRow(commentId), '.edit-btn');
   }
 
   async function handleEditSubmit(event: SubmitEvent, commentId: string) {
     event.preventDefault();
     if (!editText.trim() || editBusy) return;
-
+    const row = commentRow(commentId);
+    const startedOn = beginAction();
     editBusy = true;
     editError = null;
     let saved = false;
@@ -240,22 +251,29 @@
     } finally {
       editBusy = false;
     }
-    void refocus(inComment(commentId, saved ? '.edit-btn' : '.edit-input'));
+    void refocusComment(row, saved ? '.edit-btn' : '.edit-input', {
+      startedOn,
+    });
   }
 
   function startDelete(commentId: string) {
     confirmingDeleteId = commentId;
     // The safe choice first: Enter held down on Delete can't also confirm.
-    void refocus(inComment(commentId, '.cancel-delete-btn'));
+    void refocusComment(commentRow(commentId), '.cancel-delete-btn');
   }
 
   function cancelDelete() {
     const commentId = confirmingDeleteId;
     confirmingDeleteId = null;
-    if (commentId) void refocus(inComment(commentId, '.delete-btn'));
+    if (commentId) void refocusComment(commentRow(commentId), '.delete-btn');
   }
 
-  async function handleDeleteConfirm(commentId: string) {
+  async function handleDeleteConfirm(commentId: string, click: MouseEvent) {
+    // A double-click's second click: Confirm delete renders where Delete
+    // was, so it would otherwise confirm with no real confirmation.
+    if (click.detail > 1) return;
+    const row = commentRow(commentId);
+    const startedOn = beginAction();
     deleteBusy = true;
     deleteError = null;
     let deleted = false;
@@ -268,15 +286,16 @@
     } finally {
       deleteBusy = false;
     }
-    // The comment's own buttons went with it; the toggle is always there
-    // while the thread is (its count now one lower).
-    void refocus(
-      deleted ? '.toggle' : inComment(commentId, '.confirm-delete-btn'),
-    );
+    // On success the row is normally gone, and afterRowGone() takes over. If
+    // it's still there, its Delete button is back.
+    void refocusComment(row, deleted ? '.delete-btn' : '.confirm-delete-btn', {
+      fallback: fallbackFocusOptions(click),
+      startedOn,
+    });
   }
 </script>
 
-<div class="thread" bind:this={root}>
+<div class="thread" bind:this={root} onkeydowncapture={ignoreHeldEnter}>
   <button type="button" class="btn btn-ghost toggle" onclick={toggleExpanded}>
     <svg
       class="icon"
@@ -356,7 +375,7 @@
                   <button
                     type="button"
                     class="btn btn-ghost btn-action confirm-delete-btn"
-                    onclick={() => handleDeleteConfirm(comment.id)}
+                    onclick={(click) => handleDeleteConfirm(comment.id, click)}
                     disabled={deleteBusy}
                   >
                     {$_('commentThread.confirmDelete')}
@@ -399,7 +418,7 @@
       {/if}
     </div>
 
-    <form onsubmit={handleSubmit}>
+    <form onsubmit={handleSubmit} bind:this={newCommentForm}>
       <input
         type="text"
         class="input new-comment-input"
