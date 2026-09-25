@@ -190,6 +190,23 @@ class AnketaTest extends TestCase
         self::assertTrue($anketa->isMissed());
     }
 
+    /** GitHub issue #130: archiving is one-way and happens once. */
+    public function testArchivingAnAlreadyArchivedAnketaThrows(): void
+    {
+        $anketa = $this->makeAnketa();
+        $anketa->archive(missed: true);
+        $archivedAt = $anketa->getArchivedAt();
+
+        try {
+            $anketa->archive();
+            self::fail('Expected LogicException.');
+        } catch (\LogicException) {
+        }
+
+        self::assertSame($archivedAt, $anketa->getArchivedAt());
+        self::assertTrue($anketa->isMissed());
+    }
+
     public function testSealedKeyForReturnsTheRightSidesKey(): void
     {
         $anketa = $this->makeAnketa();

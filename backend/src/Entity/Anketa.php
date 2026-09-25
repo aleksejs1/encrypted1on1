@@ -492,8 +492,20 @@ class Anketa
         return true;
     }
 
+    /**
+     * For building test fixtures only. Production archives through
+     * AnketaLifecycleService::archive(), which uses AnketaRepository::markArchivedIfOpen()
+     * (a conditional UPDATE) because an in-memory check like the one here, plus a flush,
+     * can't stop two concurrent requests from both archiving and both creating a
+     * successor (GitHub issue #130). The throw keeps fixtures honest: archiving is
+     * one-way and happens once.
+     */
     public function archive(bool $missed = false): void
     {
+        if ($this->isArchived()) {
+            throw new \LogicException('Anketa is already archived.');
+        }
+
         $this->archivedAt = new \DateTimeImmutable();
         $this->missed = $missed;
     }

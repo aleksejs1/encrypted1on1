@@ -74,6 +74,34 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertSame($anketaId, $allForMgr[0]->getId());
     }
 
+    /**
+     * GitHub issue #130: the conditional UPDATE is what stops two concurrent archive
+     * requests (each holding its own still-unarchived copy of the row) from both
+     * archiving it. Only the first call may win, and the loser must not overwrite it.
+     */
+    public function testMarkArchivedIfOpenOnlySucceedsOnce(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('mark-archived');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        $firstArchivedAt = new \DateTimeImmutable('2026-09-01 10:00:00');
+        self::assertTrue($anketaRepo->markArchivedIfOpen($anketa, $firstArchivedAt, true));
+        // The same stale in-memory entity a racing request would still be holding.
+        self::assertFalse($anketa->isArchived());
+        self::assertFalse($anketaRepo->markArchivedIfOpen($anketa, new \DateTimeImmutable('2026-09-02 10:00:00'), false));
+
+        $em->clear();
+        $reloaded = $anketaRepo->find($anketaId);
+        self::assertNotNull($reloaded);
+        self::assertEquals($firstArchivedAt, $reloaded->getArchivedAt());
+        self::assertTrue($reloaded->isMissed());
+    }
+
     public function testFindMostRecentArchivedForPairReturnsNullWhenUnarchived(): void
     {
         [$empClient, $employee, , $manager] = $this->makePair('unarchived');

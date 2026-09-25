@@ -14,6 +14,7 @@
     archived,
     missed,
     archiving,
+    answersEditOpen,
     actionError = $bindable<string | null>(),
     onArchive,
     onRescheduled,
@@ -25,6 +26,12 @@
     archived: boolean;
     missed: boolean;
     archiving: boolean;
+    /**
+     * See AnketaArchiveSection's prop of the same name. The same hint is
+     * shown next to this button as next to that one: a page can show both,
+     * but each explains the disabled button beside it.
+     */
+    answersEditOpen: boolean;
     actionError: string | null;
     onArchive: (missed: boolean) => Promise<void>;
     onRescheduled: (meetingDate: string) => void;
@@ -148,10 +155,18 @@
       type="button"
       class="btn btn-ghost cancel-missed-btn"
       onclick={() => onArchive(true)}
-      disabled={archiving}
+      disabled={archiving || answersEditOpen}
+      aria-describedby={answersEditOpen
+        ? 'cancel-missed-after-edit-hint'
+        : undefined}
     >
       {archiving ? $_('anketa.cancelling') : $_('anketa.cancelAsMissed')}
     </button>
+    {#if answersEditOpen}
+      <p id="cancel-missed-after-edit-hint" class="text-muted overdue-note">
+        {$_('anketa.archiveAfterAnswersEdit')}
+      </p>
+    {/if}
   </div>
 {/if}
 

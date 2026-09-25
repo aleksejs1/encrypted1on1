@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Anketa\AnketaAlreadyArchivedException;
 use App\Anketa\AnketaLifecycleService;
 use App\Anketa\AnketaPresenter;
 use App\Dto\ArchiveAnketaRequest;
@@ -434,6 +435,16 @@ class AnketaController
     ): JsonResponse {
         [$anketa, $user] = $this->findAccessible($id, $request);
 
+        // Without this, a second archive (double submit, two tabs, both participants at
+        // once) overwrote archivedAt/missed and created a second successor, forking the
+        // pair's chain — GitHub issue #130. Checked before the 400s below, so a repeat with
+        // a valid body gets 409 (a body that fails #[MapRequestPayload] validation is
+        // rejected before this method runs); requests that race past it are caught
+        // atomically by the lifecycle service (the catch at the end).
+        if ($anketa->isArchived()) {
+            return $this->alreadyArchived($anketa);
+        }
+
         $missed = $payload->missed ?? false;
         $skipNextMeeting = $payload->skipNextMeeting ?? false;
 
@@ -458,18 +469,41 @@ class AnketaController
             }
         }
 
-        $this->lifecycleService->archive(
-            anketa: $anketa,
-            actor: $user,
-            missed: $missed,
-            skipNextMeeting: $skipNextMeeting,
-            nextMeetingDate: $nextMeetingDate,
-            mySealedKey: $mySealedKey,
-            counterpartSealedKey: $counterpartSealedKey,
-            outcomesBlob: $payload->outcomesBlob,
-        );
+        try {
+            $this->lifecycleService->archive(
+                anketa: $anketa,
+                actor: $user,
+                missed: $missed,
+                skipNextMeeting: $skipNextMeeting,
+                nextMeetingDate: $nextMeetingDate,
+                mySealedKey: $mySealedKey,
+                counterpartSealedKey: $counterpartSealedKey,
+                outcomesBlob: $payload->outcomesBlob,
+            );
+        } catch (AnketaAlreadyArchivedException) {
+            // This request's copy predates the archive that won; re-read it for the
+            // response. (wrapInTransaction() didn't throw, so the EntityManager is open.)
+            $this->entityManager->refresh($anketa);
+
+            return $this->alreadyArchived($anketa);
+        }
 
         return new JsonResponse(['ok' => true]);
+    }
+
+    /**
+     * The 409 for archiving an already-archived anketa carries the state that actually
+     * got applied — by the counterpart, another tab, or an earlier attempt whose response
+     * was lost — so the client can show it at once instead of waiting for a poll. Same
+     * idea as updateAnswers()'s conflict response returning the current blob.
+     */
+    private function alreadyArchived(Anketa $anketa): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $this->translator->trans('errors.anketa_archived'),
+            'archivedAt' => $anketa->getArchivedAt()?->format(\DATE_ATOM),
+            'missed' => $anketa->isMissed(),
+        ], 409);
     }
 
     #[Route('/api/anketas/{id}/meeting-date', name: 'anketa_reschedule', methods: ['PUT'])]

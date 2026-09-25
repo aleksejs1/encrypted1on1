@@ -289,6 +289,8 @@
     "errorNotLoggedIn": "Not logged in.",
     "errorNotReadyToArchive": "Not ready to archive yet.",
     "errorArchive": "Could not archive.",
+    "alreadyArchivedElsewhere": "This anketa was already archived, by the other participant, in another tab or by an earlier attempt, so the choices from this click may not be the ones that were applied.",
+    "archiveAfterAnswersEdit": "Save or cancel your answer edits before archiving.",
     "errorReschedule": "Could not reschedule.",
     "errorPublish": "Could not publish.",
     "errorSaveAnswers": "Could not save your changes.",

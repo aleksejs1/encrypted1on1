@@ -289,6 +289,8 @@
     "errorNotLoggedIn": "No has iniciado sesión.",
     "errorNotReadyToArchive": "Todavía no está listo para archivar.",
     "errorArchive": "No se pudo archivar.",
+    "alreadyArchivedElsewhere": "Este cuestionario ya había sido archivado por el otro participante, en otra pestaña o en un intento anterior, por lo que las opciones aplicadas pueden no ser las de este clic.",
+    "archiveAfterAnswersEdit": "Guarda o cancela los cambios en tus respuestas antes de archivar.",
     "errorReschedule": "No se pudo reprogramar.",
     "errorPublish": "No se pudo publicar.",
     "errorSaveAnswers": "No se pudieron guardar los cambios.",

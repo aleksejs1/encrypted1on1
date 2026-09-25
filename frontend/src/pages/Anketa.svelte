@@ -95,6 +95,10 @@
    *   409) flips `archived` instead, matching state 6 (below).
    * - Archived: `archived` true. Editing is never offered, regardless of any
    *   in-progress local edit — matches the counterpart-archives-mid-edit case above.
+   * - Archiving from this tab is never combined with editing: the archive
+   *   buttons are disabled while `editingMyAnswers`, and "Edit" is disabled
+   *   while `archiving` — either order would otherwise strand an unsaved edit
+   *   on an archived anketa (GitHub issue #130 review).
    * - Also reset to "not editing" whenever `id` changes (load(), a new anketa entirely)
    *   — the router reuses this component instance across same-page navigation with no
    *   remount, so a left-open edit session must not leak into the next anketa.
@@ -585,8 +589,17 @@
     const counterpartKeys =
       detail.myRole === 'employee' ? MANAGER_KEYS : EMPLOYEE_KEYS;
 
-    const archivedChanged = (live.archivedAt !== null) !== archived;
-    const missedChanged = live.missed !== missed;
+    // Only ever false -> true. Archiving is one-way and happens once on the
+    // server (AnketaRepository::markArchivedIfOpen(); the demo reset deletes
+    // and recreates anketas rather than un-archiving one), so a response
+    // saying "not archived" to a page that knows otherwise is simply older —
+    // e.g. a tick sent just before the archive committed, landing after
+    // handleArchive() already learned about it (GitHub issue #130 review).
+    // Applying it would bring the Archive button back. `missed` is only ever
+    // set together with archivedAt and never changes afterwards, so it's
+    // applied only from a response that has archivedAt.
+    const archivedChanged = live.archivedAt !== null && !archived;
+    const missedChanged = live.archivedAt !== null && live.missed !== missed;
     const meetingDateChanged = live.meetingDate !== detail.meetingDate;
     const counterpartPublishedChanged =
       (live.counterpartPublishedAt !== null) !== counterpartPublished;
@@ -635,10 +648,7 @@
 
     // Scalars/banners: nothing on this page edits them inline, so always apply
     // immediately regardless of any other in-progress local action.
-    if (archivedChanged) {
-      archived = live.archivedAt !== null;
-      if (archived) exitAnswersEditSession();
-    }
+    if (archivedChanged) enterArchivedState();
     if (missedChanged) missed = live.missed;
     if (meetingDateChanged) {
       detail.meetingDate = live.meetingDate;
@@ -893,6 +903,17 @@
   }
 
   /**
+   * The one way this page moves to archived — from the live-state poll,
+   * handleArchive()'s success and 409 branches, and handleSaveAnswersEdit()'s
+   * 409 — so the transition can't drift between them. One-way: see
+   * pollLiveStateFor()'s archivedChanged.
+   */
+  function enterArchivedState(): void {
+    archived = true;
+    exitAnswersEditSession();
+  }
+
+  /**
    * No merge/retry-on-conflict here unlike updateField()'s comments/outcomes/
    * checkpoints pattern — those are shared blobs where reapplying the same edit to
    * fresh state is safe; myAnswers is a full-overwrite of the whole side; automatically
@@ -938,10 +959,10 @@
             );
             myAnswers = envelope.data;
           }
+          exitAnswersEditSession();
         } else {
-          archived = true;
+          enterArchivedState();
         }
-        exitAnswersEditSession();
         actionError = error.message;
       } else {
         actionError =
@@ -1020,11 +1041,31 @@
       }
 
       await apiPost(`/api/anketas/${id}/archive`, body);
-      archived = true;
       missed = missedFlag;
+      enterArchivedState();
     } catch (error) {
-      actionError =
-        error instanceof ApiError ? error.message : $_('anketa.errorArchive');
+      const alreadyArchived =
+        error instanceof ApiError && error.status === 409
+          ? (error.body as {
+              archivedAt?: string | null;
+              missed?: boolean;
+            } | null)
+          : null;
+      if (alreadyArchived && typeof alreadyArchived.archivedAt === 'string') {
+        // Already archived — by the counterpart, another tab, or an earlier
+        // attempt of this one whose response was lost (GitHub issue #130).
+        // The anketa is archived either way, but this click's choices
+        // (missed, skip/next meeting date) may not be what got applied, so
+        // say so instead of looking like a success. The 409 carries the
+        // state that did get applied; `missed` comes from there, not from
+        // missedFlag.
+        missed = alreadyArchived.missed === true;
+        enterArchivedState();
+        actionError = $_('anketa.alreadyArchivedElsewhere');
+      } else {
+        actionError =
+          error instanceof ApiError ? error.message : $_('anketa.errorArchive');
+      }
     } finally {
       archiving = false;
     }
@@ -1206,6 +1247,7 @@
       {archived}
       {missed}
       {archiving}
+      answersEditOpen={editingMyAnswers}
       bind:actionError
       onArchive={handleArchive}
       onRescheduled={(meetingDate) => {
@@ -1329,6 +1371,7 @@
             type="button"
             class="btn btn-ghost"
             onclick={startEditingAnswers}
+            disabled={archiving}
           >
             {$_('anketa.editAnswers')}
           </button>
@@ -1431,6 +1474,7 @@
     {#if !archived}
       <AnketaArchiveSection
         {archiving}
+        answersEditOpen={editingMyAnswers}
         oneOff={detail.oneOff}
         bind:skipNextMeeting
         bind:nextMeetingDate
