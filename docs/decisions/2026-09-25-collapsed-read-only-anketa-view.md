@@ -94,7 +94,8 @@ These come from the state and unmount audit in #131 §4.5:
   unmounts the field while keyboard focus is on "Confirm delete", so focus falls back to `<body>`.
   A fix would move focus to the block's heading or its "No answer." line. It needs a field that was
   answered, commented on, emptied, and then has its last comment deleted, so it is left for later.
-  Tracked as [GitHub issue #149](https://github.com/aleksejs1/encrypted1on1/issues/149).
+  Tracked as [GitHub issue #149](https://github.com/aleksejs1/encrypted1on1/issues/149), since
+  fixed: see `2026-09-25-comment-thread-keyboard-focus.md`.
 
 `AnswerField`'s `hasOpenEntryEdit` now clears itself on unmount, the same as `CommentThread`'s
 `hasOpenAction`. No path unmounts a field with an open entry edit today (an open edit means a
