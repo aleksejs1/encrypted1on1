@@ -72,7 +72,7 @@ unmounted by deleting one of its comments.
 
 Outcomes (`AnketaOutcomes.svelte`) and list-answer entries (`AnswerField.svelte`) swap their
 Edit/Delete/Save/Cancel buttons the same way and don't manage focus either. Reading the code shows
-this; it wasn't measured. They're tracked as [GitHub issue #151](https://github.com/aleksejs1/encrypted1on1/issues/151) rather than widened into this change.
+this; it wasn't measured. They're tracked as [GitHub issue #151](https://github.com/aleksejs1/encrypted1on1/issues/151) rather than widened into this change. Since fixed, see `2026-09-25-outcome-and-entry-keyboard-focus.md`, which also moved `refocus()`/`focusIsFree()` into `frontend/src/anketa/keepFocus.ts`, narrowed the "still inside the thread" check above to the comment's own row, gave `onFocusLost` a `FocusOptions` argument so a pointer delete's fallback doesn't scroll, and made the thread ignore an auto-repeated Enter (`ignoreHeldEnter()`), so a held Enter doesn't carry into the control focus moved to.
 
 ## Verification
 

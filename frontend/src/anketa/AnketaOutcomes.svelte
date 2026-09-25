@@ -13,6 +13,14 @@
   import { pruneStaleBusyEntries } from './commentThreadsBusy';
   import { resolveAuthorLabel } from './authorLabel';
   import LockIcon from './LockIcon.svelte';
+  import {
+    beginAction,
+    fallbackFocusOptions,
+    findRow,
+    ignoreHeldEnter,
+    refocus,
+    type RefocusOptions,
+  } from './keepFocus';
 
   let {
     items,
@@ -68,10 +76,43 @@
   let deleteOutcomeBusy = $state(false);
   let deleteOutcomeError = $state<string | null>(null);
 
+  let section = $state<HTMLElement>();
+  let heading = $state<HTMLHeadingElement>();
+  let addForm = $state<HTMLFormElement>();
+
+  /**
+   * The outcome's own row (checkbox, text, buttons — not its comment
+   * thread); see keepFocus.ts's findRow().
+   */
+  function outcomeRow(itemId: string): HTMLElement | undefined {
+    return findRow(section, 'data-outcome-id', itemId);
+  }
+
+  /**
+   * keepFocus.ts's refocus() for an outcome row (GitHub issue #151). With
+   * `fallback` (a delete), a gone row hands focus to the heading with those
+   * options: not the add input, which would open the on-screen keyboard after
+   * a tap.
+   */
+  function refocusOutcome(
+    row: HTMLElement | undefined,
+    selector: string,
+    {
+      fallback,
+      startedOn,
+    }: { fallback?: FocusOptions } & Pick<RefocusOptions, 'startedOn'> = {},
+  ): Promise<void> {
+    return refocus(row, selector, {
+      startedOn,
+      onRootGone: fallback && (() => heading?.focus(fallback)),
+    });
+  }
+
   async function handleAddOutcome(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     if (!newOutcomeText.trim() || addingOutcome) return;
 
+    const startedOn = beginAction();
     addingOutcome = true;
     actionError = null;
     try {
@@ -87,6 +128,8 @@
     } finally {
       addingOutcome = false;
     }
+    // The add input is disabled while adding, which drops its focus.
+    void refocus(addForm, '.outcome-add-input', { startedOn });
   }
 
   async function handleToggleOutcome(itemId: string): Promise<void> {
@@ -104,17 +147,28 @@
     editingOutcomeId = item.id;
     editOutcomeText = item.text;
     editOutcomeError = null;
+    void refocusOutcome(outcomeRow(item.id), '.outcome-edit-input');
   }
 
   function cancelEditOutcome(): void {
+    const itemId = editingOutcomeId;
     editingOutcomeId = null;
     editOutcomeText = '';
     editOutcomeError = null;
+    if (itemId) void refocusOutcome(outcomeRow(itemId), '.outcome-edit-btn');
   }
 
   function startDeleteOutcome(itemId: string): void {
     confirmingDeleteOutcomeId = itemId;
     deleteOutcomeError = null;
+    // The safe choice first: Enter held down on Delete can't also confirm.
+    void refocusOutcome(outcomeRow(itemId), '.outcome-cancel-delete-btn');
+  }
+
+  function cancelDeleteOutcome(): void {
+    const itemId = confirmingDeleteOutcomeId;
+    confirmingDeleteOutcomeId = null;
+    if (itemId) void refocusOutcome(outcomeRow(itemId), '.outcome-delete-btn');
   }
 
   async function handleEditOutcomeSubmit(
@@ -123,15 +177,18 @@
   ): Promise<void> {
     event.preventDefault();
     if (!editOutcomeText.trim() || editOutcomeBusy) return;
-
+    const row = outcomeRow(itemId);
+    const startedOn = beginAction();
     editOutcomeBusy = true;
     editOutcomeError = null;
+    let saved = false;
     try {
       await updateOutcomes((current) =>
         editOutcome(current, itemId, myUserId, editOutcomeText.trim()),
       );
       editingOutcomeId = null;
       editOutcomeText = '';
+      saved = true;
     } catch (error) {
       editOutcomeError =
         error instanceof ApiError
@@ -140,16 +197,31 @@
     } finally {
       editOutcomeBusy = false;
     }
+    void refocusOutcome(
+      row,
+      saved ? '.outcome-edit-btn' : '.outcome-edit-input',
+      { startedOn },
+    );
   }
 
-  async function handleDeleteOutcomeConfirm(itemId: string): Promise<void> {
+  async function handleDeleteOutcomeConfirm(
+    itemId: string,
+    click: MouseEvent,
+  ): Promise<void> {
+    // A double-click's second click: Confirm delete renders where Delete
+    // was, so it would otherwise confirm with no real confirmation.
+    if (click.detail > 1) return;
+    const row = outcomeRow(itemId);
+    const startedOn = beginAction();
     deleteOutcomeBusy = true;
     deleteOutcomeError = null;
+    let deleted = false;
     try {
       await updateOutcomes((current) =>
         deleteOutcome(current, itemId, myUserId),
       );
       confirmingDeleteOutcomeId = null;
+      deleted = true;
       // The deleted outcome's own CommentThread instance unmounts right along
       // with it — without this, an id left `true` here (e.g. a comment edit
       // was open on this outcome's thread when it got deleted) would stay
@@ -172,12 +244,21 @@
     } finally {
       deleteOutcomeBusy = false;
     }
+    // On success the row is normally gone, and focus goes to the heading. If
+    // it's still there, its Delete button is back.
+    void refocusOutcome(
+      row,
+      deleted ? '.outcome-delete-btn' : '.outcome-confirm-delete-btn',
+      { fallback: fallbackFocusOptions(click), startedOn },
+    );
   }
 </script>
 
-<section class="card">
+<section class="card" bind:this={section} onkeydowncapture={ignoreHeldEnter}>
   <div class="heading-row heading-row-tight">
-    <h2>{$_('anketa.outcomesHeading')}</h2>
+    <!-- tabindex="-1": focusable from script only, where focus lands once a
+         deleted outcome's row is gone (GitHub issue #151). -->
+    <h2 tabindex="-1" bind:this={heading}>{$_('anketa.outcomesHeading')}</h2>
     <LockIcon encrypted />
   </div>
   <p class="text-muted outcomes-note">{$_('anketa.outcomesNote')}</p>
@@ -185,7 +266,7 @@
   <div class="outcomes-list">
     {#each items as item (item.id)}
       <div class="outcome-item">
-        <div class="entry outcome-entry">
+        <div class="entry outcome-entry" data-outcome-id={item.id}>
           <input
             type="checkbox"
             class="outcome-checkbox"
@@ -202,7 +283,7 @@
             >
               <input
                 type="text"
-                class="input"
+                class="input outcome-edit-input"
                 bind:value={editOutcomeText}
                 disabled={editOutcomeBusy}
               />
@@ -237,16 +318,17 @@
                 <span class="outcome-actions">
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
-                    onclick={() => handleDeleteOutcomeConfirm(item.id)}
+                    class="btn btn-ghost btn-action outcome-confirm-delete-btn"
+                    onclick={(click) =>
+                      handleDeleteOutcomeConfirm(item.id, click)}
                     disabled={deleteOutcomeBusy}
                   >
                     {$_('commentThread.confirmDelete')}
                   </button>
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
-                    onclick={() => (confirmingDeleteOutcomeId = null)}
+                    class="btn btn-ghost btn-action outcome-cancel-delete-btn"
+                    onclick={cancelDeleteOutcome}
                     disabled={deleteOutcomeBusy}
                   >
                     {$_('commentThread.cancel')}
@@ -256,7 +338,7 @@
                 <span class="outcome-actions">
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
+                    class="btn btn-ghost btn-action outcome-edit-btn"
                     onclick={() => startEditOutcome(item)}
                     disabled={anotherOutcomeActionOpen}
                   >
@@ -264,7 +346,7 @@
                   </button>
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
+                    class="btn btn-ghost btn-action outcome-delete-btn"
                     onclick={() => startDeleteOutcome(item.id)}
                     disabled={anotherOutcomeActionOpen}
                   >
@@ -297,10 +379,10 @@
     {/each}
   </div>
 
-  <form class="add-row" onsubmit={handleAddOutcome}>
+  <form class="add-row" onsubmit={handleAddOutcome} bind:this={addForm}>
     <input
       type="text"
-      class="input"
+      class="input outcome-add-input"
       bind:value={newOutcomeText}
       placeholder={$_('anketa.outcomesPlaceholder')}
       disabled={addingOutcome}

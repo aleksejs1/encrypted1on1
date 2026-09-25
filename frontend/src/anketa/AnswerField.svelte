@@ -5,6 +5,12 @@
   import { renderAnswerMarkdown } from './markdown';
   import MarkdownEditor from './MarkdownEditor.svelte';
   import {
+    fallbackFocusOptions,
+    findRow,
+    ignoreHeldEnter,
+    refocus,
+  } from './keepFocus';
+  import {
     GENERIC_LABEL_KEYS,
     isAnswerEmpty,
     selectedOptions,
@@ -17,6 +23,7 @@
     collapsed = false,
     hasOpenEntryEdit = $bindable<boolean | undefined>(),
     anketaId,
+    onFocusLost,
   }: {
     field: QuestionField;
     value?: AnswerValue;
@@ -60,6 +67,12 @@
      * happens to reuse the same field id.
      */
     anketaId?: string;
+    /**
+     * Called when a removed list entry took keyboard focus with it, so the
+     * parent can focus something that still exists: AnswerBlock's question
+     * heading, the same fallback CommentThread uses (GitHub issue #151).
+     */
+    onFocusLost?: (options: FocusOptions) => void;
   } = $props();
 
   // `collapsed` implies readonly, so collapsed-but-editable can't be rendered.
@@ -99,17 +112,13 @@
    * disabled via hasOpenEntryEdit above while an entry edit is open.
    */
   $effect(() => {
-    if (readonly) {
-      editingEntryId = null;
-      editingText = '';
-    }
+    if (readonly) closeEntryEdit();
   });
 
   /** See the `anketaId` prop doc above — an open inline edit must never leak across anketas. */
   $effect(() => {
     void anketaId;
-    editingEntryId = null;
-    editingText = '';
+    closeEntryEdit();
   });
 
   function toggleCheckbox(optionValue: string, checked: boolean) {
@@ -120,6 +129,27 @@
     value = checked
       ? [...current, optionValue]
       : current.filter((v) => v !== optionValue);
+  }
+
+  let root = $state<HTMLDivElement>();
+
+  /** The `<li>` for list entry `entryId`; see keepFocus.ts's findRow(). */
+  function entryRow(entryId: string): HTMLElement | undefined {
+    return findRow(root, 'data-entry-id', entryId);
+  }
+
+  /**
+   * keepFocus.ts's refocus() for a list entry row (GitHub issue #151). With
+   * `fallback`, a gone row hands focus to the parent via `onFocusLost`.
+   */
+  function refocusEntry(
+    row: HTMLElement | undefined,
+    selector: string,
+    fallback?: FocusOptions,
+  ): Promise<void> {
+    return refocus(row, selector, {
+      onRootGone: fallback && (() => onFocusLost?.(fallback)),
+    });
   }
 
   function addListEntry() {
@@ -134,44 +164,59 @@
     newEntryText = '';
   }
 
-  function removeListEntry(id: string) {
+  function removeListEntry(id: string, click: MouseEvent) {
+    // A double-click's second click: the next entry's Remove (or, after
+    // Cancel, this entry's own) renders where it lands.
+    if (click.detail > 1) return;
+    const row = entryRow(id);
     const current = Array.isArray(value) ? (value as ListEntry[]) : [];
     value = current.filter((entry) => entry.id !== id);
-    if (editingEntryId === id) {
-      editingEntryId = null;
-      editingText = '';
-    }
+    // Defensive only: Remove is hidden on the row being edited and disabled on
+    // every other row while an edit is open.
+    if (editingEntryId === id) closeEntryEdit();
+    // The row went with its Remove button, so onFocusLost takes over. Not
+    // the add input, which would open the on-screen keyboard after a tap.
+    void refocusEntry(row, '.entry-remove', fallbackFocusOptions(click));
   }
 
   function startEditEntry(entry: ListEntry) {
     editingEntryId = entry.id;
     editingText = entry.text;
+    void refocusEntry(entryRow(entry.id), '.entry-edit-input');
+  }
+
+  function closeEntryEdit() {
+    editingEntryId = null;
+    editingText = '';
   }
 
   function cancelEditEntry() {
-    editingEntryId = null;
-    editingText = '';
+    const entryId = editingEntryId;
+    closeEntryEdit();
+    if (entryId) void refocusEntry(entryRow(entryId), '.entry-edit');
   }
 
   function saveEditEntry() {
     if (!editingText.trim() || editingEntryId === null) return;
     const current = Array.isArray(value) ? (value as ListEntry[]) : [];
-    const index = current.findIndex((entry) => entry.id === editingEntryId);
+    const entryId = editingEntryId;
+    const index = current.findIndex((entry) => entry.id === entryId);
     // The entry may have been removed (this tab or another) while being edited — nothing to save.
     if (index === -1) {
-      cancelEditEntry();
+      closeEntryEdit();
       return;
     }
     const updated = [...current];
     updated[index] = { ...updated[index], text: editingText.trim() };
     value = updated;
-    cancelEditEntry();
+    closeEntryEdit();
+    void refocusEntry(entryRow(entryId), '.entry-edit');
   }
 </script>
 
 <!-- data-field-id: a stable hook for frontend/scripts' generators, which
      run in every UI locale and so can't find a field by its label text. -->
-<div class="field" data-field-id={field.id}>
+<div class="field" data-field-id={field.id} bind:this={root}>
   {#if !hideLabel}
     <span class="label">{$_(field.labelKey)}</span>
   {/if}
@@ -242,39 +287,48 @@
     {/if}
   {:else if field.type === 'list'}
     <!-- role="list": see the choices list above. -->
-    <ul class="entries" role="list">
+    <!-- ignoreHeldEnter here, not on the whole field: a text field's
+         textarea takes a held Enter for new lines. -->
+    <ul class="entries" role="list" onkeydowncapture={ignoreHeldEnter}>
       {#each (value as ListEntry[]) ?? [] as entry (entry.id)}
-        <li class="entry">
+        <li class="entry" data-entry-id={entry.id}>
           {#if editingEntryId === entry.id && !readonly}
-            <input
-              type="text"
-              class="input entry-edit-input"
-              bind:value={editingText}
-              onkeydown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  saveEditEntry();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancelEditEntry();
-                }
+            <!-- A real form, so Enter saves through the browser's implicit
+                 submission, which never fires on an Enter that commits an
+                 IME composition. -->
+            <form
+              class="entry-edit-form"
+              onsubmit={(e) => {
+                e.preventDefault();
+                saveEditEntry();
               }}
-            />
-            <button
-              type="button"
-              class="btn btn-secondary entry-save"
-              disabled={!editingText.trim()}
-              onclick={saveEditEntry}
             >
-              {$_('common.save')}
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost entry-cancel"
-              onclick={cancelEditEntry}
-            >
-              {$_('common.cancel')}
-            </button>
+              <input
+                type="text"
+                class="input entry-edit-input"
+                bind:value={editingText}
+                onkeydown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEditEntry();
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                class="btn btn-secondary entry-save"
+                disabled={!editingText.trim()}
+              >
+                {$_('common.save')}
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost entry-cancel"
+                onclick={cancelEditEntry}
+              >
+                {$_('common.cancel')}
+              </button>
+            </form>
           {:else}
             <span class="entry-text">{entry.text}</span>
             <span class="text-muted entry-date"
@@ -293,7 +347,7 @@
                 type="button"
                 class="btn btn-ghost entry-remove"
                 disabled={anotherEntryEditOpen}
-                onclick={() => removeListEntry(entry.id)}
+                onclick={(click) => removeListEntry(entry.id, click)}
               >
                 {$_('common.remove')}
               </button>
@@ -303,19 +357,24 @@
       {/each}
     </ul>
     {#if !readonly}
-      <div class="add-entry">
+      <!-- A real form for the same IME reason as the entry edit above. -->
+      <form
+        class="add-entry"
+        onsubmit={(e) => {
+          e.preventDefault();
+          addListEntry();
+        }}
+      >
         <input
           type="text"
           class="input"
           bind:value={newEntryText}
           placeholder={$_('answerField.addEntryPlaceholder')}
-          onkeydown={(e) =>
-            e.key === 'Enter' && (e.preventDefault(), addListEntry())}
         />
-        <button type="button" class="btn btn-secondary" onclick={addListEntry}
+        <button type="submit" class="btn btn-secondary"
           >{$_('common.add')}</button
         >
-      </div>
+      </form>
     {/if}
   {/if}
 </div>
@@ -415,6 +474,12 @@
   .entry-cancel {
     font-size: 11px;
     padding: 2px 4px;
+  }
+
+  /* The form only groups the edit's controls; they stay flex items of the
+     entry row. */
+  .entry-edit-form {
+    display: contents;
   }
 
   .entry-edit-input {

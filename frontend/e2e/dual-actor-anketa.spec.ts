@@ -43,6 +43,32 @@ function moodNotesThread(side: Locator): Locator {
   );
 }
 
+const HELD_ENTER_TEXT = 'typed during a held Enter';
+
+/**
+ * Holds Enter on `editButton` (GitHub issue #151): the first press opens the
+ * edit and moves focus into `editInput`. Types HELD_ENTER_TEXT there, then
+ * sends auto-repeats (Playwright's repeated `keyboard.down` sets `repeat`),
+ * which must not submit it. The caller then cancels and expects the row's
+ * original text back. A repeat that got through would have saved
+ * HELD_ENTER_TEXT, and the caller's row locator, which matches the original
+ * text, would stop matching.
+ */
+async function holdEnterOnEdit(
+  page: Page,
+  editButton: Locator,
+  editInput: Locator,
+): Promise<void> {
+  await editButton.focus();
+  await page.keyboard.down('Enter');
+  await expect(editInput).toBeFocused();
+  await editInput.fill(HELD_ENTER_TEXT);
+  await page.keyboard.down('Enter');
+  await page.keyboard.down('Enter');
+  await page.keyboard.up('Enter');
+  await expect(editInput).toBeFocused();
+}
+
 async function activate(browser: Browser, token: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -1536,6 +1562,17 @@ test('comment actions keep keyboard focus, down to a hidden field', async ({
   await expect(editInput).toBeFocused();
   await press(editRow.getByRole('button', { name: 'Cancel' }));
   await expect(second.getByRole('button', { name: 'Edit' })).toBeFocused();
+
+  // An Enter held on Edit opens the edit once; its auto-repeats, landing in
+  // the edit input, don't submit it.
+  await holdEnterOnEdit(
+    manager,
+    second.getByRole('button', { name: 'Edit' }),
+    editInput,
+  );
+  await press(editRow.getByRole('button', { name: 'Cancel' }));
+  await expect(second.getByRole('button', { name: 'Edit' })).toBeFocused();
+
   await press(second.getByRole('button', { name: 'Edit' }));
   await editInput.fill('second, edited');
   await manager.keyboard.press('Enter');
@@ -1571,7 +1608,7 @@ test('comment actions keep keyboard focus, down to a hidden field', async ({
   await expect(toggle).toBeFocused();
 
   // A slow request never pulls focus back from where the user moved on to
-  // meanwhile.
+  // meanwhile, even within the same thread.
   const firstComment = thread.locator('.comment', { hasText: 'first' });
   await press(firstComment.getByRole('button', { name: 'Edit' }));
   await editInput.fill('first, edited');
@@ -1590,8 +1627,7 @@ test('comment actions keep keyboard focus, down to a hidden field', async ({
     ),
     manager.keyboard.press('Enter'),
   ]);
-  const outcomeInput = manager.getByPlaceholder(/outcome/i);
-  await outcomeInput.focus();
+  await input.focus();
   const saved = manager.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
@@ -1601,7 +1637,7 @@ test('comment actions keep keyboard focus, down to a hidden field', async ({
   expect((await saved).ok()).toBe(true);
   await manager.unroute(commentsPattern);
   await expect(thread.getByText('first, edited')).toBeVisible();
-  await expect(outcomeInput).toBeFocused();
+  await expect(input).toBeFocused();
 
   // The employee empties the notes; the field stays on the manager's tab
   // (via the live poll) only because of its remaining comment.
@@ -1625,4 +1661,276 @@ test('comment actions keep keyboard focus, down to a hidden field', async ({
   await expect(mood.locator('.thread')).toHaveCount(0);
   await expect(mood.locator('.block-empty')).toHaveText('No answer.');
   await expect(mood.getByRole('heading', { name: 'Mood' })).toBeFocused();
+});
+
+/**
+ * GitHub issue #151, the #149 approach applied to outcomes and list-answer
+ * entries: every Edit/Delete/Remove/Save/Cancel driven from the keyboard keeps
+ * focus somewhere useful instead of dropping it to <body>. A deleted row hands
+ * focus to a heading.
+ */
+test('outcome and list entry actions keep keyboard focus', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-rowfocus');
+  const managerEmail = uniqueEmail('manager-rowfocus');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  await activate(browser, createActivationLink(managerEmail));
+  await createAnketa(employee, managerEmail, 3);
+  const press = async (button: Locator, key = 'Enter') => {
+    await button.focus();
+    await employee.keyboard.press(key);
+  };
+
+  // Outcomes. Adding with Enter keeps focus in the add input, which is
+  // disabled while the request runs.
+  const outcomes = employee.locator('section.card', {
+    has: employee.getByRole('heading', { name: 'Meeting outcomes' }),
+  });
+  const addOutcome = outcomes.getByPlaceholder('Add an outcome…');
+  for (const text of ['first outcome', 'second outcome']) {
+    await addOutcome.fill(text);
+    await addOutcome.press('Enter');
+    await expect(outcomes.getByText(text)).toBeVisible();
+    await expect(addOutcome).toBeFocused();
+  }
+
+  // A failed add keeps focus in the add input too, with the text kept.
+  const outcomesPattern = '**/api/anketas/*/outcomes';
+  await employee.route(outcomesPattern, (route) =>
+    route.request().method() === 'PUT'
+      ? route.fulfill({ status: 500, body: '{}' })
+      : route.continue(),
+  );
+  await addOutcome.fill('third outcome');
+  await addOutcome.press('Enter');
+  // The add error is a page-level banner, outside the outcomes card, carrying
+  // the routed 500's status text.
+  await expect(
+    employee.getByRole('alert').filter({ hasText: 'Internal Server Error' }),
+  ).toBeVisible();
+  await expect(addOutcome).toHaveValue('third outcome');
+  await expect(addOutcome).toBeFocused();
+  await employee.unroute(outcomesPattern);
+  await addOutcome.fill('');
+
+  // Edit: into the edit input, then back to the row's own Edit button, on
+  // Cancel and on Save alike. While editing, the text lives in the input's
+  // value, so the open edit row is found by its input instead.
+  const second = outcomes.locator('.outcome-entry', {
+    hasText: 'second outcome',
+  });
+  const editRow = outcomes.locator('.outcome-entry', {
+    has: employee.locator('input[type=text]'),
+  });
+  const outcomeEditInput = editRow.locator('input[type=text]');
+  await press(second.getByRole('button', { name: 'Edit' }));
+  await expect(outcomeEditInput).toBeFocused();
+  await press(editRow.getByRole('button', { name: 'Cancel' }));
+  await expect(second.getByRole('button', { name: 'Edit' })).toBeFocused();
+  // An Enter held on Edit opens the edit once; its auto-repeats, landing in
+  // the edit input, don't submit it.
+  await holdEnterOnEdit(
+    employee,
+    second.getByRole('button', { name: 'Edit' }),
+    outcomeEditInput,
+  );
+  await press(editRow.getByRole('button', { name: 'Cancel' }));
+  await expect(second.getByRole('button', { name: 'Edit' })).toBeFocused();
+  await press(second.getByRole('button', { name: 'Edit' }));
+  await outcomeEditInput.fill('second outcome, edited');
+  await employee.keyboard.press('Enter');
+  const edited = outcomes.locator('.outcome-entry', {
+    hasText: 'second outcome, edited',
+  });
+  await expect(edited.getByRole('button', { name: 'Edit' })).toBeFocused();
+
+  // A double-click's second click on Confirm delete doesn't confirm. Which
+  // button ends up under a double-click on Delete depends on the label
+  // widths, so the second click (detail 2) is dispatched on Confirm directly.
+  const deletePuts: string[] = [];
+  const onDeletePut = (request: { method(): string; url(): string }) => {
+    if (request.method() === 'PUT' && request.url().endsWith('/outcomes')) {
+      deletePuts.push(request.url());
+    }
+  };
+  employee.on('request', onDeletePut);
+  await edited.getByRole('button', { name: 'Delete' }).click();
+  const confirmOutcome = edited.getByRole('button', { name: 'Confirm delete' });
+  await confirmOutcome.dispatchEvent('click', { detail: 2 });
+  await expect(confirmOutcome).toBeVisible();
+  await press(edited.getByRole('button', { name: 'Cancel' }));
+  employee.off('request', onDeletePut);
+  expect(deletePuts).toEqual([]);
+
+  // Delete: the safe Cancel first, and back to Delete on Cancel.
+  await press(edited.getByRole('button', { name: 'Delete' }));
+  await expect(edited.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await employee.keyboard.press('Enter');
+  await expect(edited.getByRole('button', { name: 'Delete' })).toBeFocused();
+
+  // A failed delete keeps focus on Confirm delete, for another try.
+  await employee.route(outcomesPattern, (route) =>
+    route.request().method() === 'PUT'
+      ? route.fulfill({ status: 500, body: '{}' })
+      : route.continue(),
+  );
+  await press(edited.getByRole('button', { name: 'Delete' }));
+  await employee.keyboard.press('Shift+Tab');
+  const confirm = edited.getByRole('button', { name: 'Confirm delete' });
+  await expect(confirm).toBeFocused();
+  await employee.keyboard.press('Enter');
+  await expect(outcomes.getByRole('alert')).toBeVisible();
+  await expect(confirm).toBeFocused();
+  await employee.unroute(outcomesPattern);
+
+  // A successful delete takes the row with it: focus goes to the heading.
+  await employee.keyboard.press('Enter');
+  await expect(outcomes.getByText('second outcome, edited')).toHaveCount(0);
+  await expect(
+    outcomes.getByRole('heading', { name: 'Meeting outcomes' }),
+  ).toBeFocused();
+
+  // A slow save never pulls focus back from where the user moved on to
+  // meanwhile, even within the same card.
+  const first = outcomes.locator('.outcome-entry', {
+    hasText: 'first outcome',
+  });
+  await press(first.getByRole('button', { name: 'Edit' }));
+  await outcomeEditInput.fill('first outcome, edited');
+  let release: () => void = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await employee.route(outcomesPattern, async (route) => {
+    if (route.request().method() === 'PUT') await released;
+    await route.continue();
+  });
+  await Promise.all([
+    employee.waitForRequest(
+      (request) =>
+        request.method() === 'PUT' && request.url().endsWith('/outcomes'),
+    ),
+    employee.keyboard.press('Enter'),
+  ]);
+  await addOutcome.focus();
+  const saved = employee.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().endsWith('/outcomes'),
+  );
+  release();
+  expect((await saved).ok()).toBe(true);
+  await employee.unroute(outcomesPattern);
+  await expect(outcomes.getByText('first outcome, edited')).toBeVisible();
+  await expect(addOutcome).toBeFocused();
+
+  // List-answer entries on my own editable side.
+  const achievements = employee
+    .locator('.side-card')
+    .first()
+    .locator('.block', { hasText: 'Achievements' });
+  const addEntry = achievements.getByPlaceholder('Add an entry…');
+  for (const text of ['first entry', 'second entry']) {
+    await addEntry.fill(text);
+    await addEntry.press('Enter');
+    await expect(achievements.getByText(text)).toBeVisible();
+  }
+  const secondEntry = achievements.locator('.entry', {
+    hasText: 'second entry',
+  });
+  const entryEditRow = achievements.locator('.entry', {
+    has: employee.locator('.entry-edit-input'),
+  });
+  const entryEditInput = entryEditRow.locator('.entry-edit-input');
+
+  // Edit → the input; Cancel, Escape and Save → back to the entry's Edit.
+  await press(secondEntry.getByRole('button', { name: 'Edit' }));
+  await expect(entryEditInput).toBeFocused();
+  await press(entryEditRow.getByRole('button', { name: 'Cancel' }));
+  await expect(secondEntry.getByRole('button', { name: 'Edit' })).toBeFocused();
+  await employee.keyboard.press('Enter');
+  await expect(entryEditInput).toBeFocused();
+  await employee.keyboard.press('Escape');
+  await expect(secondEntry.getByRole('button', { name: 'Edit' })).toBeFocused();
+  await employee.keyboard.press('Enter');
+  await entryEditInput.fill('second entry, edited');
+  await employee.keyboard.press('Enter');
+  const editedEntry = achievements.locator('.entry', {
+    hasText: 'second entry, edited',
+  });
+  await expect(editedEntry.getByRole('button', { name: 'Edit' })).toBeFocused();
+  // Saving with the Save button rather than Enter, with a real change.
+  await employee.keyboard.press('Enter');
+  await expect(entryEditInput).toBeFocused();
+  await entryEditInput.fill('second entry, edited again');
+  await press(entryEditRow.getByRole('button', { name: 'Save' }));
+  const reEditedEntry = achievements.locator('.entry', {
+    hasText: 'second entry, edited again',
+  });
+  await expect(
+    reEditedEntry.getByRole('button', { name: 'Edit' }),
+  ).toBeFocused();
+
+  // An Enter held on Edit opens the edit once; its auto-repeats, landing in
+  // the edit input, don't save it.
+  await holdEnterOnEdit(
+    employee,
+    reEditedEntry.getByRole('button', { name: 'Edit' }),
+    entryEditInput,
+  );
+  await employee.keyboard.press('Escape');
+  await expect(
+    reEditedEntry.getByRole('button', { name: 'Edit' }),
+  ).toBeFocused();
+
+  // A double-click's second click (detail 2) on Remove doesn't remove: the
+  // next entry's Remove can render where the first click landed.
+  await reEditedEntry
+    .getByRole('button', { name: 'Remove' })
+    .dispatchEvent('click', { detail: 2 });
+  await expect(reEditedEntry).toBeVisible();
+
+  // Remove takes the row with it: focus goes to the block's heading.
+  await press(reEditedEntry.getByRole('button', { name: 'Remove' }));
+  await expect(achievements.getByText('second entry, edited')).toHaveCount(0);
+  await expect(
+    achievements.getByRole('heading', { name: 'Achievements' }),
+  ).toBeFocused();
+
+  // Text typed into a comment input while its post is in flight is kept,
+  // not cleared along with the posted text.
+  const outcomeThread = outcomes
+    .locator('.outcome-item', { hasText: 'first outcome, edited' })
+    .locator('.thread');
+  await outcomeThread.getByRole('button', { name: 'Comment' }).click();
+  const commentInput = outcomeThread.getByPlaceholder('Add a comment…');
+  await commentInput.fill('posted');
+  let releasePost: () => void = () => {};
+  const postHeld = new Promise<void>((resolve) => {
+    releasePost = resolve;
+  });
+  const commentsPattern = '**/api/anketas/*/comments';
+  await employee.route(commentsPattern, async (route) => {
+    if (route.request().method() === 'PUT') await postHeld;
+    await route.continue();
+  });
+  await Promise.all([
+    employee.waitForRequest(
+      (request) =>
+        request.method() === 'PUT' && request.url().endsWith('/comments'),
+    ),
+    commentInput.press('Enter'),
+  ]);
+  await commentInput.fill('typed meanwhile');
+  const posted = employee.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().endsWith('/comments'),
+  );
+  releasePost();
+  expect((await posted).ok()).toBe(true);
+  await employee.unroute(commentsPattern);
+  await expect(outcomeThread.getByText('posted')).toBeVisible();
+  await expect(commentInput).toHaveValue('typed meanwhile');
 });

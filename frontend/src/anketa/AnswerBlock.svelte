@@ -58,6 +58,15 @@
 
   let heading = $state<HTMLHeadingElement>();
 
+  /**
+   * Where focus goes when a field's thread or a list entry took it along
+   * (GitHub issues #149, #151), with the child's options: see keepFocus.ts's
+   * fallbackFocusOptions().
+   */
+  function focusHeading(options: FocusOptions): void {
+    heading?.focus(options);
+  }
+
   // One keyed loop over shownFields (not an {#if} between two loops), so
   // toggling Edit/Save/Cancel only mounts/unmounts the fields whose
   // visibility actually changes — see GitHub issue #131 §4.2.
@@ -73,7 +82,8 @@
 <div class="block">
   <!-- tabindex="-1": focusable from script only, as the fallback when
        deleting a field's last comment hides the field along with its
-       thread (CommentThread's onFocusLost, GitHub issue #149). -->
+       thread (CommentThread's onFocusLost, GitHub issue #149), or when a
+       removed list entry takes focus with it (AnswerField's, #151). -->
   <h4 tabindex="-1" bind:this={heading}>{$_(question.titleKey)}</h4>
   {#if shownFields.length === 0}
     <p class="text-muted answer-empty block-empty">
@@ -88,6 +98,7 @@
       {collapsed}
       bind:hasOpenEntryEdit={fieldsWithOpenEntryEdit[field.id]}
       {anketaId}
+      onFocusLost={focusHeading}
     />
     {#if showComments}
       <CommentThread
@@ -99,7 +110,7 @@
         onDelete={onDeleteComment}
         bind:hasOpenAction={commentThreadsBusy[field.id]}
         recentlyArrivedIds={recentlyArrivedCommentIds}
-        onFocusLost={() => heading?.focus()}
+        onFocusLost={focusHeading}
       />
     {/if}
   {/each}
