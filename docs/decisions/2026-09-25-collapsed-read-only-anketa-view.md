@@ -94,6 +94,7 @@ These come from the state and unmount audit in #131 §4.5:
   unmounts the field while keyboard focus is on "Confirm delete", so focus falls back to `<body>`.
   A fix would move focus to the block's heading or its "No answer." line. It needs a field that was
   answered, commented on, emptied, and then has its last comment deleted, so it is left for later.
+  Tracked as [GitHub issue #149](https://github.com/aleksejs1/encrypted1on1/issues/149).
 
 `AnswerField`'s `hasOpenEntryEdit` now clears itself on unmount, the same as `CommentThread`'s
 `hasOpenAction`. No path unmounts a field with an open entry edit today (an open edit means a
@@ -120,6 +121,8 @@ good.
 - The existing tests' `.thread').first()` locators pointed at the empty mood radio's thread before;
   they are now scoped to the Mood block's answered notes field (`moodNotesThread()`).
 - Doc screenshots (`generate-doc-screenshots.mjs`) will look different when next regenerated; they
-  weren't regenerated here. `generate-demo-fixture.mjs` and `generate-doc-screenshots.mjs` still find
-  the demo comment with `.thread').first()`. That works because the demo fixture answers `moodNow`;
-  a future fixture that leaves it empty would silently move the comment.
+  weren't regenerated here. `generate-demo-fixture.mjs` and `generate-doc-screenshots.mjs` found the
+  demo comment with `.thread').first()`, which only worked because the demo fixture answers
+  `moodNow`. A fixture that left it empty would have silently moved the comment. They now target
+  `moodNow`'s thread explicitly through a `data-field-id` attribute on `AnswerField`, the same field
+  as before, so the generated output doesn't change.
