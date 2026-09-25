@@ -2,6 +2,7 @@ import {
   test,
   expect,
   type Browser,
+  type Locator,
   type Page,
   type Route,
 } from '@playwright/test';
@@ -20,6 +21,27 @@ const PASSWORD = 'correct horse battery staple 123';
 test.afterEach(async ({ browser }) => {
   await Promise.all(browser.contexts().map((context) => context.close()));
 });
+
+/** The `.block` on `side` whose `<h4>` title is exactly `title`. */
+function questionBlock(side: Locator, title: string): Locator {
+  return side.locator('.block', {
+    has: side.page().getByRole('heading', { name: title, exact: true }),
+  });
+}
+
+/**
+ * The "Mood" block's notes field thread on a collapsed read-only `side`, with
+ * the notes answered — the free text the tests below fill via the side's first
+ * `<textarea>`. Anchored on that block and the field holding its rendered
+ * answer, not on `.thread').first()`: which thread comes first depends on which
+ * empty fields the collapsed view hides (GitHub issue #131). Not meant for a
+ * side in edit mode, where the Markdown preview also uses `.answer-text`.
+ */
+function moodNotesThread(side: Locator): Locator {
+  return questionBlock(side, 'Mood').locator(
+    '.field:has(.answer-text) + .thread',
+  );
+}
 
 async function activate(browser: Browser, token: string): Promise<Page> {
   const context = await browser.newContext();
@@ -127,9 +149,9 @@ test('employee and manager complete an anketa across two independent sessions', 
   await managerMySide.getByRole('button', { name: 'Publish' }).click();
   await expect(managerMySide.getByText('Published')).toBeVisible();
 
-  // Manager comments on the employee's marked field (still visible on the
+  // Manager comments on the employee's mood notes (still visible on the
   // counterpart side after publishing their own side).
-  const managerThread = managerCounterpartSide.locator('.thread').first();
+  const managerThread = moodNotesThread(managerCounterpartSide);
   // No comments yet on this field — starts collapsed (CommentThread.svelte's
   // `expanded` default), so the add-comment input isn't there until the
   // toggle is clicked.
@@ -187,11 +209,9 @@ test('employee and manager complete an anketa across two independent sessions', 
     employeeCounterpartSide.locator('.answer-text').first(),
   ).toHaveText(managerMarker);
 
-  const employeeThread = employee
-    .locator('.side-card')
-    .first()
-    .locator('.thread')
-    .first();
+  const employeeThread = moodNotesThread(
+    employee.locator('.side-card').first(),
+  );
   // No click needed: this thread already has the manager's comment, so it
   // renders expanded by default (CommentThread.svelte's `expanded` now
   // seeds from `comments.length > 0` instead of always `false`) — clicking
@@ -494,7 +514,7 @@ test('published answer edits and new comments appear on an already-open tab with
   ).toHaveText(markerB, { timeout: 8000 });
 
   // Manager comments on that same field from their already-open tab.
-  const managerThread = managerCounterpartSide.locator('.thread').first();
+  const managerThread = moodNotesThread(managerCounterpartSide);
   await managerThread.getByRole('button', { name: /comment/i }).click();
   await managerThread.locator('input[type=text]').fill('nice progress');
   await managerThread.getByRole('button', { name: 'Post' }).click();
@@ -503,7 +523,7 @@ test('published answer edits and new comments appear on an already-open tab with
   // Employee's own tab (still open on the same field, myPublished so its own
   // CommentThread instance is rendered) picks up the new comment without a
   // reload, and briefly highlights it (private/live-updates-proposal.md §7).
-  const employeeThread = employeeMySide.locator('.thread').first();
+  const employeeThread = moodNotesThread(employeeMySide);
   const newComment = employeeThread.locator('.comment', {
     hasText: 'nice progress',
   });
@@ -1074,4 +1094,249 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
   await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
     goalTitle,
   );
+});
+
+/**
+ * GitHub issue #131/#134: the read-only view of an anketa side shows only what
+ * was answered. An unanswered field renders nothing (no label, placeholder or
+ * comment toggle), a block with nothing answered collapses to its title plus
+ * one "No answer." line, and the generic input captions ("Entries", "Details",
+ * "Anything to add?") are dropped above an answer. It applies to the
+ * counterpart's side, to my own published side while not editing, and to both
+ * sides once archived. Edit mode is unchanged. A field that was emptied after
+ * being commented on stays visible, with its label, "No answer." and its thread.
+ */
+test('the read-only view hides unanswered fields and generic labels', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-collapse');
+  const managerEmail = uniqueEmail('manager-collapse');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  // Only the mood notes are filled in.
+  const notesMarker = `E2E-COLLAPSE-NOTES-${Date.now()}`;
+  const employeeMySide = employee.locator('.side-card').first();
+  await employeeMySide.locator('textarea').first().fill(notesMarker);
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // The same collapsing on the manager's counterpart side and on the
+  // employee's own published side.
+  await manager.goto(anketaUrl);
+  const managerCounterpartSide = manager.locator('.side-card').nth(1);
+  for (const side of [managerCounterpartSide, employeeMySide]) {
+    const mood = questionBlock(side, 'Mood');
+    await expect(mood.locator('.answer-text')).toHaveText(notesMarker);
+    await expect(mood).not.toContainText('Anything to add?');
+    // The unanswered mood radios are hidden entirely, not shown disabled.
+    await expect(mood).not.toContainText('How are you feeling?');
+    await expect(mood.locator('input[type=radio]')).toHaveCount(0);
+    await expect(mood.locator('.block-empty')).toHaveCount(0);
+    await expect(mood.locator('.thread')).toHaveCount(1);
+
+    for (const [title, genericLabel] of [
+      ['Feelings', 'Anything to add?'],
+      ['Achievements', 'Entries'],
+    ]) {
+      const block = questionBlock(side, title);
+      await expect(block.locator('.block-empty')).toHaveCount(1);
+      await expect(block.locator('.block-empty')).toHaveText('No answer.');
+      await expect(block).not.toContainText(genericLabel);
+      await expect(block.locator('.field')).toHaveCount(0);
+      await expect(block.locator('.thread')).toHaveCount(0);
+    }
+  }
+
+  // Edit brings every prompt and input back; Cancel collapses again.
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  const employeeFeelings = questionBlock(employeeMySide, 'Feelings');
+  const employeeAchievements = questionBlock(employeeMySide, 'Achievements');
+  await expect(employeeFeelings.locator('.block-empty')).toHaveCount(0);
+  await expect(employeeFeelings).toContainText('Anything to add?');
+  await expect(employeeAchievements).toContainText('Entries');
+  await expect(
+    employeeAchievements.getByPlaceholder('Add an entry…'),
+  ).toBeVisible();
+  await expect(
+    questionBlock(employeeMySide, 'Mood').locator('input[type=radio]'),
+  ).toHaveCount(6);
+  await employeeMySide
+    .locator('.answers-edit-actions')
+    .getByRole('button', { name: 'Cancel' })
+    .click();
+  await expect(employeeFeelings.locator('.block-empty')).toHaveCount(1);
+  await expect(employeeAchievements).not.toContainText('Entries');
+
+  // Manager comments on the notes; the employee then empties them. The field
+  // stays on the manager's already-open tab (via the live poll, no reload),
+  // now with its generic label, "No answer." and the thread.
+  const managerMood = questionBlock(managerCounterpartSide, 'Mood');
+  const managerThread = managerMood.locator('.thread');
+  await managerThread.getByRole('button', { name: /comment/i }).click();
+  await managerThread.locator('input[type=text]').fill('tell me more');
+  await managerThread.getByRole('button', { name: 'Post' }).click();
+  await expect(managerThread.getByText('tell me more')).toBeVisible();
+
+  await employee.reload();
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await employeeMySide.locator('textarea').first().fill('');
+  // The save is held in flight: the side is readonly then, but must keep the
+  // edit-mode layout rather than collapsing (and re-expanding if it failed).
+  let releaseSave: () => void = () => {};
+  const saveReleased = new Promise<void>((resolve) => {
+    releaseSave = resolve;
+  });
+  let markSaveArrived: () => void = () => {};
+  const saveArrived = new Promise<void>((resolve) => {
+    markSaveArrived = resolve;
+  });
+  let markSaveSent: () => void = () => {};
+  const saveSent = new Promise<void>((resolve) => {
+    markSaveSent = resolve;
+  });
+  await employee.route('**/api/anketas/*/answers', async (route) => {
+    markSaveArrived();
+    await saveReleased;
+    await route.continue();
+    markSaveSent();
+  });
+  await employeeMySide
+    .locator('.answers-edit-actions')
+    .getByRole('button', { name: 'Save' })
+    .click();
+  await saveArrived;
+  await expect(
+    employeeMySide.getByRole('button', { name: 'Saving…' }),
+  ).toBeDisabled();
+  await expect(employeeFeelings).toContainText('Anything to add?');
+  await expect(employeeFeelings.locator('.block-empty')).toHaveCount(0);
+  await expect(employeeFeelings.locator('.field-empty')).toHaveCount(0);
+  await expect(employeeAchievements).toContainText('Entries');
+  releaseSave();
+  await saveSent;
+  await employee.unroute('**/api/anketas/*/answers');
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+  await expect(employeeFeelings.locator('.block-empty')).toHaveCount(1);
+
+  await expect(managerMood.locator('.answer-text')).toHaveCount(0, {
+    timeout: 8000,
+  });
+  await expect(managerMood).toContainText('Anything to add?');
+  await expect(managerMood.locator('.field-empty')).toHaveText('No answer.');
+  await expect(managerMood.locator('.block-empty')).toHaveCount(0);
+  await expect(managerThread.getByText('tell me more')).toBeVisible();
+
+  // The manager publishes only the period summary (its generic "Details"
+  // caption dropped on both participants' view), then archives: editing is
+  // no longer offered. The archived-but-never-published side is covered by
+  // the next test.
+  const managerMarker = `E2E-COLLAPSE-MANAGER-${Date.now()}`;
+  const managerMySide = manager.locator('.side-card').first();
+  await managerMySide.locator('textarea').first().fill(managerMarker);
+  await managerMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(managerMySide.getByText('Published')).toBeVisible();
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await expect(
+    questionBlock(managerCounterpartSide, 'Feelings').locator('.block-empty'),
+  ).toHaveCount(1);
+
+  await employee.reload();
+  await expect(
+    questionBlock(employeeMySide, 'Feelings').locator('.block-empty'),
+  ).toHaveCount(1);
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+  await expect(
+    employee.getByRole('button', { name: 'Edit', exact: true }),
+  ).toHaveCount(0);
+  for (const side of [managerMySide, employee.locator('.side-card').nth(1)]) {
+    await expect(side.locator('textarea')).toHaveCount(0);
+    // Only the period summary's text, with its generic "Details" caption
+    // dropped; every other manager block is "No answer.".
+    await expect(side.locator('.field')).toHaveCount(1);
+    await expect(side.locator('.answer-text')).toHaveText(managerMarker);
+    const periodSummary = questionBlock(
+      side,
+      'How did the period go since the last meeting',
+    );
+    await expect(periodSummary).not.toContainText('Details');
+    await expect(periodSummary.locator('.block-empty')).toHaveCount(0);
+    await expect(side.locator('.block-empty')).toHaveCount(
+      (await side.locator('.block').count()) - 1,
+    );
+  }
+});
+
+/**
+ * GitHub issue #131/#134: only the three generic captions are dropped. A real
+ * sub-prompt — here the support template's commitments hint — keeps showing
+ * above its answer on the counterpart's side.
+ */
+test('the read-only view keeps real sub-prompt labels above an answer', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-subprompt');
+  const managerEmail = uniqueEmail('manager-subprompt');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(
+    employee,
+    managerEmail,
+    3,
+    'Support & workload check-in',
+  );
+
+  await manager.goto(anketaUrl);
+  const managerMySide = manager.locator('.side-card').first();
+  const commitmentText = `E2E-COMMITMENT-${Date.now()}`;
+  const commitments = questionBlock(
+    managerMySide,
+    "What I'm taking off your plate",
+  );
+  await commitments.getByPlaceholder('Add an entry…').fill(commitmentText);
+  await commitments.getByRole('button', { name: 'Add' }).click();
+  await expect(commitments.locator('.entry-text')).toHaveText(commitmentText);
+  await managerMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(managerMySide.getByText('Published')).toBeVisible();
+
+  await employee.goto(anketaUrl);
+  const employeeCommitments = questionBlock(
+    employee.locator('.side-card').nth(1),
+    "What I'm taking off your plate",
+  );
+  await expect(employeeCommitments.locator('.label')).toHaveText(
+    "What's changing, and by when (the date shown is when the entry was added)",
+  );
+  await expect(employeeCommitments.locator('.entry-text')).toHaveText(
+    commitmentText,
+  );
+
+  // A side that was never published is collapsed too once archived: every
+  // block of the employee's untouched draft is just "No answer.".
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await employee.reload();
+  const employeeMySide = employee.locator('.side-card').first();
+  await expect(employeeMySide.getByText('archived')).toBeVisible();
+  await expect(employeeMySide.locator('textarea')).toHaveCount(0);
+  await expect(employeeMySide.locator('.field')).toHaveCount(0);
+  // The support template's employee side has six question blocks.
+  await expect(employeeMySide.locator('.block')).toHaveCount(6);
+  await expect(employeeMySide.locator('.block-empty')).toHaveCount(6);
 });

@@ -4,17 +4,28 @@
   import { formatDisplayDate } from '../datePreference.svelte';
   import { renderAnswerMarkdown } from './markdown';
   import MarkdownEditor from './MarkdownEditor.svelte';
+  import { GENERIC_LABEL_KEYS, isAnswerEmpty } from './answerDisplay';
 
   let {
     field,
     value = $bindable<AnswerValue>(),
-    readonly = false,
+    readonly: readonlyProp = false,
+    collapsed = false,
     hasOpenEntryEdit = $bindable<boolean | undefined>(),
     anketaId,
   }: {
     field: QuestionField;
     value?: AnswerValue;
     readonly?: boolean;
+    /**
+     * The collapsed read-only view (GitHub issue #131): an unanswered value
+     * renders as one "No answer." line instead of its type-specific empty
+     * output, and a generic input caption (GENERIC_LABEL_KEYS) is dropped
+     * above an answer. Separate from `readonly` on purpose — my own side is
+     * readonly but not collapsed during an in-flight Save, so Save never
+     * flips empty fields to "No answer." and back. Implies readonly.
+     */
+    collapsed?: boolean;
     /**
      * Mirrors whether a list entry's inline edit is currently open and
      * uncommitted — the parent (Anketa.svelte) reads this to keep its own
@@ -45,6 +56,9 @@
     anketaId?: string;
   } = $props();
 
+  // `collapsed` implies readonly, so collapsed-but-editable can't be rendered.
+  const readonly = $derived(readonlyProp || collapsed);
+
   let newEntryText = $state('');
   let editingEntryId = $state<string | null>(null);
   let editingText = $state('');
@@ -54,7 +68,19 @@
 
   $effect(() => {
     hasOpenEntryEdit = editingEntryId !== null;
+    // Same self-clear on unmount as CommentThread's hasOpenAction — the
+    // collapsed view unmounts fields as they become empty, and a stuck true
+    // would disable the parent's Publish/Save/Cancel for good.
+    return () => {
+      hasOpenEntryEdit = false;
+    };
   });
+
+  const empty = $derived(isAnswerEmpty(field, value));
+  const showEmptyLine = $derived(collapsed && empty);
+  const hideLabel = $derived(
+    collapsed && !empty && GENERIC_LABEL_KEYS.has(field.labelKey),
+  );
 
   /**
    * Discard any in-progress inline edit when this field becomes readonly
@@ -137,9 +163,15 @@
 </script>
 
 <div class="field">
-  <span class="label">{$_(field.labelKey)}</span>
+  {#if !hideLabel}
+    <span class="label">{$_(field.labelKey)}</span>
+  {/if}
 
-  {#if field.type === 'radio'}
+  {#if showEmptyLine}
+    <p class="text-muted answer-empty field-empty">
+      {$_('answerField.noAnswer')}
+    </p>
+  {:else if field.type === 'radio'}
     <div class="options">
       {#each field.options ?? [] as option (option.value)}
         <label class="radio">

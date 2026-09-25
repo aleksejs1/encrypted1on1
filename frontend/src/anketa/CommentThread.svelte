@@ -32,7 +32,11 @@
      * `hasOpenEntryEdit` → `fieldsWithOpenEntryEdit`.
      * The unsent "new comment" draft (`text` below) deliberately isn't
      * included: it's local state independent of the `comments` prop, so a
-     * wholesale list replace underneath it doesn't touch or discard it.
+     * wholesale list replace underneath it doesn't touch or discard it —
+     * as long as this thread stays mounted. The collapsed read-only view
+     * (GitHub issue #131 §4.5) unmounts a thread whose field becomes empty
+     * with no comments left, and the draft goes with it; that edge is
+     * accepted there.
      */
     hasOpenAction?: boolean;
     /**
