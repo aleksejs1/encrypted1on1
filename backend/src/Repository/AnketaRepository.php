@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Anketa;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -105,6 +106,28 @@ class AnketaRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
 
         return $anketa;
+    }
+
+    /**
+     * Marks the anketa archived only if it still isn't, as one conditional UPDATE, and
+     * reports whether this call was the one that did it (GitHub issue #130). An
+     * in-memory isArchived() check can't stop two concurrent archive requests — both
+     * load the row before either writes — and each would then create a successor,
+     * forking the pair's chain. The database serializes the two UPDATEs (a row lock on
+     * MySQL, the write lock plus busy_timeout on SQLite), so the second one matches
+     * no row.
+     */
+    public function markArchivedIfOpen(Anketa $anketa, \DateTimeImmutable $archivedAt, bool $missed): bool
+    {
+        $affected = $this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.archivedAt = :archivedAt, a.missed = :missed WHERE a.id = :id AND a.archivedAt IS NULL'
+        )
+            ->setParameter('archivedAt', $archivedAt, Types::DATETIME_IMMUTABLE)
+            ->setParameter('missed', $missed, Types::BOOLEAN)
+            ->setParameter('id', $anketa->getId())
+            ->execute();
+
+        return 1 === $affected;
     }
 
     private function chainAnketasForPair(User $a, User $b): QueryBuilder

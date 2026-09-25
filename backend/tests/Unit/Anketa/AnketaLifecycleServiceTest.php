@@ -2,12 +2,14 @@
 
 namespace App\Tests\Unit\Anketa;
 
+use App\Anketa\AnketaAlreadyArchivedException;
 use App\Anketa\AnketaLifecycleService;
 use App\Entity\Anketa;
 use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
+use App\Repository\AnketaRepository;
 use App\Repository\GoalRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -30,10 +32,28 @@ class AnketaLifecycleServiceTest extends TestCase
         ?EntityManagerInterface $entityManager = null,
         ?GoalRepository $goalRepository = null,
         ?AnketaNotifier $notifier = null,
+        ?AnketaRepository $anketaRepository = null,
     ): AnketaLifecycleService {
+        if (null === $entityManager) {
+            $entityManager = self::createStub(EntityManagerInterface::class);
+            $entityManager->method('wrapInTransaction')->willReturnCallback(static fn (callable $transaction) => $transaction());
+        }
+        if (null === $anketaRepository) {
+            $anketaRepository = self::createStub(AnketaRepository::class);
+            // Stands in for the conditional UPDATE plus the service's refresh() of the
+            // entity, which a mocked EntityManager can't do: the row is now archived,
+            // and so is the in-memory entity.
+            $anketaRepository->method('markArchivedIfOpen')->willReturnCallback(static function (Anketa $anketa, \DateTimeImmutable $archivedAt, bool $missed): bool {
+                $anketa->archive($missed);
+
+                return true;
+            });
+        }
+
         return new AnketaLifecycleService(
-            $entityManager ?? self::createStub(EntityManagerInterface::class),
+            $entityManager,
             $goalRepository ?? self::createStub(GoalRepository::class),
+            $anketaRepository,
             $notifier ?? self::createStub(AnketaNotifier::class),
         );
     }
@@ -166,7 +186,8 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist'); // for next anketa
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(static fn (callable $transaction) => $transaction());
+        $entityManager->expects(self::once())->method('refresh')->with($anketa);
 
         $notifier = $this->createMock(AnketaNotifier::class);
         $notifier->expects(self::once())
@@ -177,10 +198,24 @@ class AnketaLifecycleServiceTest extends TestCase
                 $this->employee,
             );
 
+        // The successor's default meeting date must come from the same archivedAt the
+        // conditional UPDATE wrote, not a second clock read.
+        $writtenArchivedAt = null;
+        $anketaRepository = $this->createMock(AnketaRepository::class);
+        $anketaRepository->expects(self::once())
+            ->method('markArchivedIfOpen')
+            ->willReturnCallback(static function (Anketa $archived, \DateTimeImmutable $archivedAt, bool $missed) use (&$writtenArchivedAt): bool {
+                $writtenArchivedAt = $archivedAt;
+                $archived->archive($missed);
+
+                return true;
+            });
+
         $service = $this->createService(
             entityManager: $entityManager,
             goalRepository: $goalRepository,
             notifier: $notifier,
+            anketaRepository: $anketaRepository,
         );
 
         $nextAnketa = $service->archive(
@@ -198,6 +233,8 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertNotNull($nextAnketa);
         self::assertSame('next-emp-key', $nextAnketa->sealedKeyFor($this->employee));
         self::assertSame('next-mgr-key', $nextAnketa->sealedKeyFor($this->manager));
+        self::assertNotNull($writtenArchivedAt);
+        self::assertEquals($writtenArchivedAt->modify('+14 days'), $nextAnketa->getMeetingDate());
         // 'regular' maps to itself in Anketa::NEXT_CYCLE_TEMPLATE_KEY.
         // testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap proves archive() goes
         // through the map; AnketaTest::testNextCycleTemplateKeyFor has the full table.
@@ -256,6 +293,62 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertSame($expectedNextTemplateKey, $nextAnketa->getTemplateKey());
     }
 
+    /**
+     * GitHub issue #130: a request that loses the race to archive (its in-memory copy is
+     * still unarchived, but another request's archive already landed) must create no
+     * successor, notify nobody, and leave the in-memory entity alone.
+     */
+    public function testArchiveThatLosesTheRaceCreatesNothing(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+        );
+
+        $anketaRepository = $this->createMock(AnketaRepository::class);
+        $anketaRepository->expects(self::once())
+            ->method('markArchivedIfOpen')
+            ->with($anketa, self::isInstanceOf(\DateTimeImmutable::class), true)
+            ->willReturn(false);
+
+        $goalRepository = $this->createMock(GoalRepository::class);
+        $goalRepository->expects(self::never())->method('findInProgressForAnketa');
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(static fn (callable $transaction) => $transaction());
+        $entityManager->expects(self::never())->method('persist');
+
+        $notifier = $this->createMock(AnketaNotifier::class);
+        $notifier->expects(self::never())->method('notifyAnketaCreated');
+
+        $service = $this->createService(
+            entityManager: $entityManager,
+            goalRepository: $goalRepository,
+            notifier: $notifier,
+            anketaRepository: $anketaRepository,
+        );
+
+        try {
+            $service->archive(
+                anketa: $anketa,
+                actor: $this->employee,
+                missed: true,
+                skipNextMeeting: false,
+                mySealedKey: 'next-emp-key',
+                counterpartSealedKey: 'next-mgr-key',
+            );
+            self::fail('Expected AnketaAlreadyArchivedException.');
+        } catch (AnketaAlreadyArchivedException) {
+        }
+
+        self::assertFalse($anketa->isArchived());
+        self::assertFalse($anketa->isMissed());
+    }
+
     public function testArchiveWithSkipNextMeetingDoesNotCreateNext(): void
     {
         $anketa = new Anketa(
@@ -269,7 +362,7 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::never())->method('persist');
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(static fn (callable $transaction) => $transaction());
 
         $service = $this->createService(entityManager: $entityManager);
 
@@ -300,7 +393,7 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::never())->method('persist');
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(static fn (callable $transaction) => $transaction());
 
         $service = $this->createService(entityManager: $entityManager);
 
@@ -331,7 +424,7 @@ class AnketaLifecycleServiceTest extends TestCase
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::never())->method('persist');
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(static fn (callable $transaction) => $transaction());
 
         $notifier = $this->createMock(AnketaNotifier::class);
         $notifier->expects(self::never())->method('notifyAnketaCreated');
@@ -576,7 +669,12 @@ class AnketaLifecycleServiceTest extends TestCase
         $reflection = new \ReflectionProperty(Anketa::class, 'periodicityDays');
         $reflection->setValue($anketa, null);
 
-        $service = $this->createService();
+        // Checked before the transaction opens — a throw inside wrapInTransaction()
+        // would close the EntityManager.
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::never())->method('wrapInTransaction');
+
+        $service = $this->createService(entityManager: $entityManager);
 
         $this->expectException(BadRequestHttpException::class);
         $this->expectExceptionMessageMatches('/Next anketa requires periodicity\./');

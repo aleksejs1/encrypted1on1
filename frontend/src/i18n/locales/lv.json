@@ -289,6 +289,8 @@
     "errorNotLoggedIn": "Neesat pieslēdzies.",
     "errorNotReadyToArchive": "Vēl nav gatavs arhivēšanai.",
     "errorArchive": "Neizdevās arhivēt.",
+    "alreadyArchivedElsewhere": "Šī anketa jau bija arhivēta — to izdarīja otrs dalībnieks, tas notika citā cilnē vai ar iepriekšēju mēģinājumu —, tāpēc piemērotās izvēles var atšķirties no šoreiz norādītajām.",
+    "archiveAfterAnswersEdit": "Pirms arhivēšanas saglabājiet vai atceliet atbilžu labojumus.",
     "errorReschedule": "Neizdevās pārcelt tikšanos.",
     "errorPublish": "Neizdevās publicēt.",
     "errorSaveAnswers": "Neizdevās saglabāt izmaiņas.",

@@ -5,6 +5,10 @@ namespace App\Tests\Functional;
 use App\Entity\Anketa;
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Types\Types;
+use Doctrine\ORM\Event\PostLoadEventArgs;
+use Doctrine\ORM\Events;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 class AnketaControllerTest extends ApiTestCase
@@ -655,6 +659,121 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(200, $result['status']);
         $after = \count($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
         self::assertSame($before + 1, $after);
+    }
+
+    /**
+     * GitHub issue #130: a second archive (double submit, a second tab, the counterpart
+     * archiving at the same time) used to return 200 and create a second successor,
+     * forking the pair's chain into two open anketas.
+     */
+    public function testArchivingTwiceIsRejectedAndCreatesOnlyOneSuccessor(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('archive-twice');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $archiveBody = [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ];
+        $first = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", $archiveBody);
+        self::assertSame(200, $first['status']);
+        $archivedAt = self::findById($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'], $anketaId)['archivedAt'];
+
+        $again = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", $archiveBody);
+        self::assertSame(409, $again['status']);
+        self::assertSame('Anketa is archived.', $again['json']['error']);
+        self::assertSame($archivedAt, $again['json']['archivedAt']);
+        self::assertFalse($again['json']['missed']);
+
+        $byCounterpart = $this->jsonRequest($managerClient, 'POST', "/api/anketas/{$anketaId}/archive", $archiveBody);
+        self::assertSame(409, $byCounterpart['status']);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertCount(2, $list);
+        self::assertCount(1, array_filter($list, static fn (array $row) => null === $row['archivedAt']));
+        self::assertSame($archivedAt, self::findById($list, $anketaId)['archivedAt']);
+    }
+
+    /**
+     * The race half of GitHub issue #130: a request whose loaded anketa was still open
+     * passes the controller's isArchived() check, but another request archives the row
+     * before this one writes. Simulated with a postLoad listener that archives the row
+     * behind the EntityManager's back right after the controller loads it. The loser
+     * must get the same translated 409 and create no successor.
+     */
+    public function testArchiveThatLosesARaceGetsA409AndCreatesNoSuccessor(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-race');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        // Keeps this kernel, and so the listener registered below, for the next request.
+        $employeeClient->disableReboot();
+        $connection = $this->entityManager()->getConnection();
+        $listener = new class($connection, $anketaId) {
+            public int $racedLoads = 0;
+
+            public function __construct(private readonly Connection $connection, private readonly string $anketaId)
+            {
+            }
+
+            public function postLoad(PostLoadEventArgs $args): void
+            {
+                $anketa = $args->getObject();
+                if (!$anketa instanceof Anketa || $anketa->getId() !== $this->anketaId || $anketa->isArchived()) {
+                    return;
+                }
+                ++$this->racedLoads;
+                $this->connection->executeStatement(
+                    'UPDATE anketas SET archivedAt = ?, missed = ? WHERE id = ?',
+                    [new \DateTimeImmutable(), true, $this->anketaId],
+                    [Types::DATETIME_IMMUTABLE, Types::BOOLEAN],
+                );
+            }
+        };
+        $this->entityManager()->getEventManager()->addEventListener(Events::postLoad, $listener);
+        $this->entityManager()->clear();
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+
+        self::assertSame(1, $listener->racedLoads);
+        self::assertSame(409, $result['status']);
+        self::assertSame('Anketa is archived.', $result['json']['error']);
+        // Re-read after losing, so it reports the winner's state.
+        self::assertNotNull($result['json']['archivedAt']);
+        self::assertTrue($result['json']['missed']);
+
+        $this->entityManager()->getEventManager()->removeEventListener(Events::postLoad, $listener);
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertCount(1, $list);
+        // The winner's flag, not this request's.
+        self::assertTrue(self::findById($list, $anketaId)['missed']);
+    }
+
+    /** Same as above for the overdue card's "cancel as missed" path — and the rejected second call must not overwrite the first one's missed flag. */
+    public function testCancellingAsMissedTwiceIsRejectedAndKeepsTheFirstOutcome(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('archive-missed-twice');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $sealedKeys = ['mySealedKey' => str_repeat('n', 44), 'counterpartSealedKey' => str_repeat('o', 44)];
+        $first = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", ['missed' => true, 'skipNextMeeting' => false] + $sealedKeys);
+        self::assertSame(200, $first['status']);
+
+        $again = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", ['missed' => false, 'skipNextMeeting' => false] + $sealedKeys);
+        self::assertSame(409, $again['status']);
+        // The 409 reports the state that stuck, not this request's.
+        self::assertTrue($again['json']['missed']);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertCount(2, $list);
+        self::assertTrue(self::findById($list, $anketaId)['missed']);
     }
 
     /**

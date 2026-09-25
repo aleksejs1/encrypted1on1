@@ -1,4 +1,10 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import {
+  test,
+  expect,
+  type Browser,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import { createActivationLink, uniqueEmail } from './helpers/provision.js';
 
 const PASSWORD = 'correct horse battery staple 123';
@@ -559,6 +565,11 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
   await expect(
     employeeMySide.getByRole('button', { name: 'Save' }),
   ).toBeVisible();
+  // Archiving from this tab waits for the edit to be saved or cancelled —
+  // otherwise the edit would become unsaveable (GitHub issue #130 review).
+  await expect(
+    employee.getByRole('button', { name: 'Archive' }),
+  ).toBeDisabled();
 
   // Manager — a separate session — archives the anketa (skipping next-cycle
   // creation, which needs no client-side key generation and keeps this test
@@ -600,6 +611,105 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
   await expect(employeeMySide.locator('.answer-text').first()).toHaveText(
     `${originalMarker}-UNSAVED-EDIT`,
   );
+});
+
+/**
+ * GitHub issue #130: archiving an anketa the counterpart already archived used
+ * to succeed a second time and create a second successor. The server now
+ * answers 409, and the page must treat that as "archived", with a notice
+ * rather than a generic error. The employee tab's live-state poll is held so
+ * its Archive button is still there to click, which is the window a real user
+ * hits between the counterpart's archive and the next poll tick. The page
+ * must show the counterpart's `missed` flag, not this click's, from the 409
+ * itself; and the held poll, answered afterwards with its stale pre-archive
+ * state, must not bring the Archive button back.
+ */
+test('archiving an anketa the counterpart already archived shows it as archived, with a notice', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-archive-twice');
+  const managerEmail = uniqueEmail('manager-archive-twice');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  // Held, not answered, so this tab can't learn about the archive yet.
+  const heldPolls: Route[] = [];
+  await employee.route('**/live-state', (route) => {
+    heldPolls.push(route);
+  });
+  await expect
+    .poll(() => heldPolls.length, { timeout: 8000 })
+    .toBeGreaterThan(0);
+
+  // The counterpart cancels it as missed (through the API: the overdue card's
+  // button only appears on an overdue anketa), with no successor.
+  const managerCsrf = (
+    (await (await manager.request.get('/api/csrf-token')).json()) as {
+      token: string;
+    }
+  ).token;
+  const anketaId = anketaUrl.split('/').pop();
+  const managerArchive = await manager.request.post(
+    `/api/anketas/${anketaId}/archive`,
+    {
+      data: { missed: true, skipNextMeeting: true },
+      headers: { 'X-CSRF-Token': managerCsrf },
+    },
+  );
+  expect(managerArchive.status()).toBe(200);
+
+  const archiveResponse = employee.waitForResponse(
+    (response) =>
+      response.url().endsWith('/archive') &&
+      response.request().method() === 'POST',
+  );
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  expect((await archiveResponse).status()).toBe(409);
+
+  const archiveButton = employee.getByRole('button', { name: 'Archive' });
+  await expect(archiveButton).toHaveCount(0);
+  // Not the generic "Could not archive." — a notice that this click's own
+  // choices may not be what got applied.
+  await expect(
+    employee.getByRole('alert').filter({ hasText: /already archived/ }),
+  ).toBeVisible();
+  // The counterpart's `missed`, not this click's, straight from the 409 —
+  // every poll is still held.
+  await expect(employee.getByText('missed', { exact: true })).toBeVisible();
+
+  // Answer the held poll with its stale, pre-archive state. Every later poll
+  // is held too: one is only sent once the stale one has been fully handled,
+  // and holding it keeps a fresh response from re-archiving the page before
+  // the check below.
+  expect(heldPolls).toHaveLength(1);
+  const stalePoll = heldPolls[0];
+  const staleResponse = await stalePoll.fetch();
+  await stalePoll.fulfill({
+    response: staleResponse,
+    json: {
+      ...((await staleResponse.json()) as object),
+      archivedAt: null,
+      missed: false,
+    },
+  });
+  await expect
+    .poll(() => heldPolls.length, { timeout: 8000 })
+    .toBeGreaterThan(1);
+  await expect(archiveButton).toHaveCount(0);
+  await expect(employee.getByText('missed', { exact: true })).toBeVisible();
+  await Promise.all(heldPolls.slice(1).map((route) => route.continue()));
+  await employee.unroute('**/live-state');
+
+  // This click created no successor: the counterpart skipped the next meeting.
+  const anketas = (await (
+    await employee.request.get('/api/anketas')
+  ).json()) as { archivedAt: string | null }[];
+  expect(anketas).toHaveLength(1);
 });
 
 /**

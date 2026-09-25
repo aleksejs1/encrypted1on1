@@ -289,6 +289,8 @@
     "errorNotLoggedIn": "Non connecté.",
     "errorNotReadyToArchive": "Pas encore prête à être archivée.",
     "errorArchive": "Impossible d'archiver.",
+    "alreadyArchivedElsewhere": "Cette anketa avait déjà été archivée, par l'autre participant, dans un autre onglet ou lors d'une tentative précédente ; les choix appliqués ne sont donc peut-être pas ceux de ce clic.",
+    "archiveAfterAnswersEdit": "Enregistrez ou annulez les modifications de vos réponses avant d'archiver.",
     "errorReschedule": "Impossible de replanifier.",
     "errorPublish": "Impossible de publier.",
     "errorSaveAnswers": "Impossible d'enregistrer vos modifications.",

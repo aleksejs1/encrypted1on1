@@ -4,12 +4,19 @@
 
   let {
     archiving,
+    answersEditOpen,
     oneOff,
     skipNextMeeting = $bindable<boolean>(),
     nextMeetingDate = $bindable<string>(),
     onArchive,
   }: {
     archiving: boolean;
+    /**
+     * An unsaved edit of my own published answers is open. Archiving now would
+     * make it unsaveable (editing is never offered on an archived anketa), so
+     * the button waits until it's saved or cancelled.
+     */
+    answersEditOpen: boolean;
     oneOff: boolean;
     skipNextMeeting: boolean;
     nextMeetingDate: string;
@@ -41,11 +48,17 @@
       </div>
     {/if}
   {/if}
+  {#if answersEditOpen}
+    <p id="archive-after-edit-hint" class="text-muted">
+      {$_('anketa.archiveAfterAnswersEdit')}
+    </p>
+  {/if}
   <button
     type="button"
     class="btn btn-primary"
     onclick={() => onArchive(false)}
-    disabled={archiving}
+    disabled={archiving || answersEditOpen}
+    aria-describedby={answersEditOpen ? 'archive-after-edit-hint' : undefined}
   >
     {archiving ? $_('anketa.archiving') : $_('anketa.archive')}
   </button>

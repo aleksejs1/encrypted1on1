@@ -6,6 +6,7 @@ use App\Entity\Anketa;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
+use App\Repository\AnketaRepository;
 use App\Repository\GoalRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -20,6 +21,7 @@ class AnketaLifecycleService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly GoalRepository $goalRepository,
+        private readonly AnketaRepository $anketaRepository,
         private readonly AnketaNotifier $notifier,
     ) {
     }
@@ -128,6 +130,13 @@ class AnketaLifecycleService
      * Archives an anketa and, unless skipped, it's a one-off, or either participant is
      * blocked (see shouldCreateNext()), auto-recreates
      * the subsequent anketa with carried-forward uncompleted goals, flushes, and notifies the counterpart.
+     *
+     * The archive itself goes through AnketaRepository::markArchivedIfOpen(), in the same
+     * transaction as the successor's insert, so of two concurrent archive requests only
+     * one creates a successor (GitHub issue #130); the other gets
+     * AnketaAlreadyArchivedException and changes nothing.
+     *
+     * @throws AnketaAlreadyArchivedException
      */
     public function archive(
         Anketa $anketa,
@@ -139,33 +148,48 @@ class AnketaLifecycleService
         ?string $counterpartSealedKey = null,
         ?string $outcomesBlob = null,
     ): ?Anketa {
-        $anketa->archive($missed);
-        $archivedAt = $anketa->getArchivedAt();
-        \assert(null !== $archivedAt);
+        $nextPeriodicityDays = $this->nextAnketaPeriodicity($anketa, $skipNextMeeting, $mySealedKey, $counterpartSealedKey);
 
-        $nextAnketa = null;
-        if ($this->shouldCreateNext($anketa, $skipNextMeeting)) {
-            if (null === $mySealedKey || null === $counterpartSealedKey) {
-                // AnketaController::archive() already returns a translated 400 before ever
-                // calling this — this is a defensive re-check for any future caller that
-                // skips that pre-check, so it must itself surface as a 400 (via
-                // JsonExceptionListener's HttpExceptionInterface handling), not an opaque
-                // untranslated 500 the way a bare \InvalidArgumentException would.
-                throw new BadRequestHttpException('Next anketa requires sealed keys.');
+        // The callback returns false (never throws) when the anketa was already
+        // archived — same reason as InviteController::create(): wrapInTransaction()
+        // closes the EntityManager on any exception.
+        $nextAnketa = $this->entityManager->wrapInTransaction(function () use (
+            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob,
+        ): Anketa|false|null {
+            $archivedAt = new \DateTimeImmutable();
+            // Must stay the transaction's first statement. On SQLite (WAL), a deferred
+            // transaction that has already read and then tries to write fails at once
+            // with SQLITE_BUSY instead of waiting out busy_timeout, so the losing
+            // request would get a 500 rather than this clean "already archived".
+            if (!$this->anketaRepository->markArchivedIfOpen($anketa, $archivedAt, $missed)) {
+                return false;
             }
+            // Re-read rather than calling $anketa->archive(): the row is the source of
+            // truth now, and a refresh also keeps the unit of work from writing the same
+            // columns a second time on flush.
+            $this->entityManager->refresh($anketa);
 
-            $nextAnketa = $this->createNextAnketa(
+            if (null === $nextPeriodicityDays) {
+                return null;
+            }
+            // Checked by nextAnketaPeriodicity() above; parameters, so not re-read.
+            \assert(null !== $mySealedKey && null !== $counterpartSealedKey);
+
+            return $this->createNextAnketa(
                 $anketa,
                 $actor,
                 $archivedAt,
+                $nextPeriodicityDays,
                 $nextMeetingDate,
                 $mySealedKey,
                 $counterpartSealedKey,
                 $outcomesBlob,
             );
-        }
+        });
 
-        $this->entityManager->flush();
+        if (false === $nextAnketa) {
+            throw new AnketaAlreadyArchivedException();
+        }
 
         if (null !== $nextAnketa) {
             $nextRecipient = $anketa->isEmployee($actor) ? $anketa->getManager() : $anketa->getEmployee();
@@ -189,22 +213,45 @@ class AnketaLifecycleService
         return !$anketa->getEmployee()->isBlocked() && !$anketa->getManager()->isBlocked();
     }
 
+    /**
+     * The successor's periodicity if archive() should create one (see
+     * shouldCreateNext()), after checking that everything it needs for one is there;
+     * null if no successor is due.
+     *
+     * AnketaController::archive() already returns a translated 400 for a missing
+     * periodicity or sealed key, so these throws are defensive re-checks for any future
+     * caller that skips that pre-check. They must surface as a 400 (via
+     * JsonExceptionListener's HttpExceptionInterface handling), not an opaque
+     * untranslated 500 the way a bare \InvalidArgumentException would — and must run
+     * before archive()'s transaction, since wrapInTransaction() closes the
+     * EntityManager on any exception.
+     */
+    private function nextAnketaPeriodicity(Anketa $anketa, bool $skipNextMeeting, ?string $mySealedKey, ?string $counterpartSealedKey): ?int
+    {
+        if (!$this->shouldCreateNext($anketa, $skipNextMeeting)) {
+            return null;
+        }
+        $periodicityDays = $anketa->getPeriodicityDays();
+        if (null === $periodicityDays) {
+            throw new BadRequestHttpException('Next anketa requires periodicity.');
+        }
+        if (null === $mySealedKey || null === $counterpartSealedKey) {
+            throw new BadRequestHttpException('Next anketa requires sealed keys.');
+        }
+
+        return $periodicityDays;
+    }
+
     private function createNextAnketa(
         Anketa $anketa,
         User $actor,
         \DateTimeImmutable $archivedAt,
+        int $periodicityDays,
         ?\DateTimeImmutable $nextMeetingDate,
         string $mySealedKey,
         string $counterpartSealedKey,
         ?string $outcomesBlob,
     ): Anketa {
-        $periodicityDays = $anketa->getPeriodicityDays();
-        if (null === $periodicityDays) {
-            // Same reasoning as archive()'s own sealed-keys check above: a defensive
-            // re-check that must surface as a 400, not a 500, if ever reached.
-            throw new BadRequestHttpException('Next anketa requires periodicity.');
-        }
-
         $isEmployee = $anketa->isEmployee($actor);
 
         // Deliberately NOT $anketa->getTemplateKey() here, unlike periodicityDays two

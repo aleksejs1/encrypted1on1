@@ -289,6 +289,8 @@
     "errorNotLoggedIn": "Nicht angemeldet.",
     "errorNotReadyToArchive": "Noch nicht bereit zum Archivieren.",
     "errorArchive": "Konnte nicht archiviert werden.",
+    "alreadyArchivedElsewhere": "Diese Anketa wurde bereits archiviert, vom anderen Teilnehmer, in einem anderen Tab oder durch einen früheren Versuch. Die übernommene Auswahl ist daher möglicherweise nicht die von diesem Klick.",
+    "archiveAfterAnswersEdit": "Speichern oder verwerfen Sie Ihre Antwortänderungen vor dem Archivieren.",
     "errorReschedule": "Konnte nicht verschoben werden.",
     "errorPublish": "Konnte nicht veröffentlicht werden.",
     "errorSaveAnswers": "Ihre Änderungen konnten nicht gespeichert werden.",
