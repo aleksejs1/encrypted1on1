@@ -1483,3 +1483,146 @@ test('the read-only view shows only the chosen radio and checkbox options', asyn
     await expect(side.locator('button.pill')).toHaveCount(0);
   }
 });
+
+/**
+ * GitHub issue #149: every comment action driven from the keyboard keeps
+ * focus somewhere useful instead of dropping it to <body>, which every one of
+ * them did before (each swaps out or removes the button that had focus, and
+ * Chromium blurs a button as soon as it's disabled for the request). Deleting
+ * the last comment on an emptied field hides the field with its thread, so
+ * focus goes to the question block's heading.
+ */
+test('comment actions keep keyboard focus, down to a hidden field', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-focus');
+  const managerEmail = uniqueEmail('manager-focus');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  const employeeMySide = employee.locator('.side-card').first();
+  await employeeMySide.locator('textarea').first().fill('Busy but fine');
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  await manager.goto(anketaUrl);
+  const managerCounterpartSide = manager.locator('.side-card').nth(1);
+  const mood = questionBlock(managerCounterpartSide, 'Mood');
+  const thread = moodNotesThread(managerCounterpartSide);
+  const press = async (button: Locator, key = 'Enter') => {
+    await button.focus();
+    await manager.keyboard.press(key);
+  };
+
+  // Posting from the keyboard keeps focus in the comment input.
+  await press(thread.getByRole('button', { name: 'Comment' }));
+  const input = thread.getByPlaceholder('Add a comment…');
+  for (const text of ['first', 'second']) {
+    await input.fill(text);
+    await press(thread.getByRole('button', { name: 'Post' }));
+    await expect(thread.getByText(text)).toBeVisible();
+    await expect(input).toBeFocused();
+  }
+
+  // Edit: into the edit input, then back to the comment's own Edit button,
+  // on Cancel and on Save alike.
+  // While editing, the text lives in the input's value, not in the row's
+  // text, so the open edit row is found by its input instead.
+  const second = thread.locator('.comment', { hasText: 'second' });
+  const editRow = thread.locator('.comment', { has: manager.locator('input') });
+  await press(second.getByRole('button', { name: 'Edit' }));
+  const editInput = editRow.locator('input[type=text]');
+  await expect(editInput).toBeFocused();
+  await press(editRow.getByRole('button', { name: 'Cancel' }));
+  await expect(second.getByRole('button', { name: 'Edit' })).toBeFocused();
+  await press(second.getByRole('button', { name: 'Edit' }));
+  await editInput.fill('second, edited');
+  await manager.keyboard.press('Enter');
+  const edited = thread.locator('.comment', { hasText: 'second, edited' });
+  await expect(edited.getByRole('button', { name: 'Edit' })).toBeFocused();
+
+  // Delete: the safe Cancel first, and back to Delete on Cancel.
+  await press(edited.getByRole('button', { name: 'Delete' }));
+  await expect(edited.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await manager.keyboard.press('Enter');
+  await expect(edited.getByRole('button', { name: 'Delete' })).toBeFocused();
+
+  // A failed delete keeps focus on Confirm delete, for another try.
+  const commentsPattern = '**/api/anketas/*/comments';
+  await manager.route(commentsPattern, (route) =>
+    route.request().method() === 'PUT'
+      ? route.fulfill({ status: 500, body: '{}' })
+      : route.continue(),
+  );
+  await press(edited.getByRole('button', { name: 'Delete' }));
+  await manager.keyboard.press('Shift+Tab');
+  const confirm = edited.getByRole('button', { name: 'Confirm delete' });
+  await expect(confirm).toBeFocused();
+  await manager.keyboard.press('Enter');
+  await expect(thread.getByRole('alert')).toBeVisible();
+  await expect(confirm).toBeFocused();
+  await manager.unroute(commentsPattern);
+
+  // A delete that leaves the field shown lands on the thread's toggle.
+  await manager.keyboard.press('Enter');
+  await expect(thread.getByText('second, edited')).toHaveCount(0);
+  const toggle = thread.getByRole('button', { name: '1 comment' });
+  await expect(toggle).toBeFocused();
+
+  // A slow request never pulls focus back from where the user moved on to
+  // meanwhile.
+  const firstComment = thread.locator('.comment', { hasText: 'first' });
+  await press(firstComment.getByRole('button', { name: 'Edit' }));
+  await editInput.fill('first, edited');
+  let release: () => void = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await manager.route(commentsPattern, async (route) => {
+    if (route.request().method() === 'PUT') await released;
+    await route.continue();
+  });
+  await Promise.all([
+    manager.waitForRequest(
+      (request) =>
+        request.method() === 'PUT' && request.url().endsWith('/comments'),
+    ),
+    manager.keyboard.press('Enter'),
+  ]);
+  const outcomeInput = manager.getByPlaceholder(/outcome/i);
+  await outcomeInput.focus();
+  const saved = manager.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().endsWith('/comments'),
+  );
+  release();
+  expect((await saved).ok()).toBe(true);
+  await manager.unroute(commentsPattern);
+  await expect(thread.getByText('first, edited')).toBeVisible();
+  await expect(outcomeInput).toBeFocused();
+
+  // The employee empties the notes; the field stays on the manager's tab
+  // (via the live poll) only because of its remaining comment.
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await employeeMySide.locator('textarea').first().fill('');
+  await employeeMySide.getByRole('button', { name: 'Save' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+  await expect(mood.locator('.field-empty')).toHaveText('No answer.', {
+    timeout: 8000,
+  });
+
+  // Deleting that last comment hides the field and its thread: focus goes
+  // to the block's heading.
+  const first = mood.locator('.comment', { hasText: 'first' });
+  await press(first.getByRole('button', { name: 'Delete' }));
+  await manager.keyboard.press('Shift+Tab');
+  await expect(
+    first.getByRole('button', { name: 'Confirm delete' }),
+  ).toBeFocused();
+  await manager.keyboard.press('Enter');
+  await expect(mood.locator('.thread')).toHaveCount(0);
+  await expect(mood.locator('.block-empty')).toHaveText('No answer.');
+  await expect(mood.getByRole('heading', { name: 'Mood' })).toBeFocused();
+});

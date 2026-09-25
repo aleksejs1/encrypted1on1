@@ -3,8 +3,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
-  import AnswerField from '../anketa/AnswerField.svelte';
-  import CommentThread from '../anketa/CommentThread.svelte';
+  import AnswerBlock from '../anketa/AnswerBlock.svelte';
   import LockIcon from '../anketa/LockIcon.svelte';
   import AnketaHeader from '../anketa/AnketaHeader.svelte';
   import AnketaOutcomes from '../anketa/AnketaOutcomes.svelte';
@@ -24,7 +23,6 @@
   import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
   import { carryForwardOutcomes, type OutcomeItem } from '../anketa/outcomes';
   import { pruneStaleBusyEntries } from '../anketa/commentThreadsBusy';
-  import { readonlyVisibleFields } from '../anketa/answerDisplay';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
   import {
     getQuestionsForSide,
@@ -118,7 +116,7 @@
   const mySideCollapsed = $derived(
     archived || (myPublished && !editingMyAnswers),
   );
-  /** Answer-field comments by field id — one pass per change, shared by both side loops' visibility check and `comments` prop. */
+  /** Answer-field comments by field id — one pass per change, shared by every AnswerBlock's visibility check and `comments` prop. */
   const commentsByTarget = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- rebuilt whole on each allComments change and never mutated after; reactivity comes from the $derived
     const byTarget = new Map<string, Comment[]>();
@@ -129,7 +127,6 @@
     }
     return byTarget;
   });
-  const fieldHasComments = (fieldId: string) => commentsByTarget.has(fieldId);
   let myBlobVersion = $state(0);
   let answersBeforeEdit: Answers | null = null;
 
@@ -1312,42 +1309,23 @@
 
       <div class="blocks">
         {#each getQuestionsForSide(detail.myRole, detail.formVersion, detail.templateKey) as question (question.id)}
-          <!-- One keyed loop over shownFields (not an {#if} between two loops),
-               so toggling Edit/Save/Cancel only mounts/unmounts the fields
-               whose visibility actually changes — see GitHub issue #131 §4.2. -->
-          {@const shownFields = mySideCollapsed
-            ? readonlyVisibleFields(question, myAnswers, fieldHasComments)
-            : question.fields}
-          <div class="block">
-            <h4>{$_(question.titleKey)}</h4>
-            {#if shownFields.length === 0}
-              <p class="text-muted answer-empty block-empty">
-                {$_('answerField.noAnswer')}
-              </p>
-            {/if}
-            {#each shownFields as field (field.id)}
-              <AnswerField
-                {field}
-                bind:value={myAnswers[field.id]}
-                readonly={mySideReadonly}
-                collapsed={mySideCollapsed}
-                bind:hasOpenEntryEdit={fieldsWithOpenEntryEdit[field.id]}
-                anketaId={id}
-              />
-              {#if myPublished}
-                <CommentThread
-                  comments={commentsByTarget.get(field.id) ?? []}
-                  {authorNames}
-                  currentUserId={myUserId}
-                  onSubmit={(text) => submitComment(field.id, text)}
-                  onEdit={handleEditComment}
-                  onDelete={handleDeleteComment}
-                  bind:hasOpenAction={commentThreadsBusy[field.id]}
-                  recentlyArrivedIds={recentlyArrivedCommentIds}
-                />
-              {/if}
-            {/each}
-          </div>
+          <AnswerBlock
+            {question}
+            bind:answers={myAnswers}
+            readonly={mySideReadonly}
+            collapsed={mySideCollapsed}
+            showComments={myPublished}
+            bind:fieldsWithOpenEntryEdit
+            bind:commentThreadsBusy
+            {commentsByTarget}
+            {authorNames}
+            {myUserId}
+            {recentlyArrivedCommentIds}
+            {submitComment}
+            onEditComment={handleEditComment}
+            onDeleteComment={handleDeleteComment}
+            anketaId={id}
+          />
         {/each}
       </div>
 
@@ -1449,38 +1427,22 @@
       {:else if counterpartSide}
         <div class="blocks">
           {#each getQuestionsForSide(counterpartSide, detail.formVersion, detail.templateKey) as question (question.id)}
-            {@const shownFields = readonlyVisibleFields(
-              question,
-              counterpartAnswers,
-              fieldHasComments,
-            )}
-            <div class="block">
-              <h4>{$_(question.titleKey)}</h4>
-              {#if shownFields.length === 0}
-                <p class="text-muted answer-empty block-empty">
-                  {$_('answerField.noAnswer')}
-                </p>
-              {/if}
-              {#each shownFields as field (field.id)}
-                <AnswerField
-                  {field}
-                  value={counterpartAnswers[field.id]}
-                  readonly
-                  collapsed
-                  anketaId={id}
-                />
-                <CommentThread
-                  comments={commentsByTarget.get(field.id) ?? []}
-                  {authorNames}
-                  currentUserId={myUserId}
-                  onSubmit={(text) => submitComment(field.id, text)}
-                  onEdit={handleEditComment}
-                  onDelete={handleDeleteComment}
-                  bind:hasOpenAction={commentThreadsBusy[field.id]}
-                  recentlyArrivedIds={recentlyArrivedCommentIds}
-                />
-              {/each}
-            </div>
+            <AnswerBlock
+              {question}
+              bind:answers={counterpartAnswers}
+              readonly
+              collapsed
+              showComments
+              bind:commentThreadsBusy
+              {commentsByTarget}
+              {authorNames}
+              {myUserId}
+              {recentlyArrivedCommentIds}
+              {submitComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              anketaId={id}
+            />
           {/each}
         </div>
       {/if}
@@ -1551,25 +1513,6 @@
   .blocks {
     display: flex;
     flex-direction: column;
-  }
-
-  .block {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding-bottom: 18px;
-    margin-bottom: 18px;
-    border-bottom: 1px solid var(--color-divider);
-  }
-
-  .block:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-  }
-
-  .block h4 {
-    margin: 0;
   }
 
   .save-state {

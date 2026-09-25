@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { _ } from 'svelte-i18n';
   import type { Comment } from './comments';
 
@@ -11,6 +12,7 @@
     onDelete,
     hasOpenAction = $bindable<boolean | undefined>(),
     recentlyArrivedIds = {},
+    onFocusLost,
   }: {
     comments: Comment[];
     authorNames: Record<string, string>;
@@ -47,7 +49,54 @@
      * every other live-updated field stays silent.
      */
     recentlyArrivedIds?: Record<string, true>;
+    /**
+     * Called when deleting my own comment unmounted this whole thread (the
+     * collapsed read-only view hides an empty field once its last comment
+     * is gone), so the parent can put keyboard focus on something that
+     * still exists. See `refocus()` below and GitHub issue #149.
+     */
+    onFocusLost?: () => void;
   } = $props();
+
+  let root = $state<HTMLDivElement>();
+
+  /**
+   * Whether keyboard focus may be moved: it's still inside this thread, or
+   * it was dropped to <body>. The button that had it is often gone by then:
+   * each Edit/Delete/Save/Cancel/Confirm swaps its own buttons out, a
+   * deleted comment takes its buttons with it, and Chromium blurs a focused
+   * button as soon as it's disabled for an in-flight request. Never true
+   * when the user has moved focus elsewhere meanwhile, so a slow request
+   * doesn't pull it back.
+   */
+  function focusIsFree(): boolean {
+    const active = document.activeElement;
+    return (
+      active === null ||
+      active === document.body ||
+      (root?.contains(active) ?? false)
+    );
+  }
+
+  /**
+   * After the DOM catches up with a state change, moves focus to `selector`
+   * inside this thread (GitHub issue #149). If this thread is no longer
+   * mounted, hands focus to the parent via `onFocusLost` instead.
+   */
+  async function refocus(selector: string): Promise<void> {
+    await tick();
+    if (!focusIsFree()) return;
+    if (!root?.isConnected) {
+      onFocusLost?.();
+      return;
+    }
+    root.querySelector<HTMLElement>(selector)?.focus();
+  }
+
+  /** `selector` inside the `.comment` row for `commentId`. */
+  function inComment(commentId: string, selector: string): string {
+    return `[data-comment-id="${CSS.escape(commentId)}"] ${selector}`;
+  }
 
   let text = $state('');
   let submitting = $state(false);
@@ -155,18 +204,23 @@
     } finally {
       submitting = false;
     }
+    // The Post button is disabled while posting, which drops its focus.
+    void refocus('.new-comment-input');
   }
 
   function startEdit(comment: Comment) {
     editingId = comment.id;
     editText = comment.text;
     editError = null;
+    void refocus(inComment(comment.id, '.edit-input'));
   }
 
   function cancelEdit() {
+    const commentId = editingId;
     editingId = null;
     editText = '';
     editError = null;
+    if (commentId) void refocus(inComment(commentId, '.edit-btn'));
   }
 
   async function handleEditSubmit(event: SubmitEvent, commentId: string) {
@@ -175,32 +229,54 @@
 
     editBusy = true;
     editError = null;
+    let saved = false;
     try {
       await onEdit(commentId, editText.trim());
       editingId = null;
       editText = '';
+      saved = true;
     } catch {
       editError = $_('commentThread.error');
     } finally {
       editBusy = false;
     }
+    void refocus(inComment(commentId, saved ? '.edit-btn' : '.edit-input'));
+  }
+
+  function startDelete(commentId: string) {
+    confirmingDeleteId = commentId;
+    // The safe choice first: Enter held down on Delete can't also confirm.
+    void refocus(inComment(commentId, '.cancel-delete-btn'));
+  }
+
+  function cancelDelete() {
+    const commentId = confirmingDeleteId;
+    confirmingDeleteId = null;
+    if (commentId) void refocus(inComment(commentId, '.delete-btn'));
   }
 
   async function handleDeleteConfirm(commentId: string) {
     deleteBusy = true;
     deleteError = null;
+    let deleted = false;
     try {
       await onDelete(commentId);
       confirmingDeleteId = null;
+      deleted = true;
     } catch {
       deleteError = $_('commentThread.error');
     } finally {
       deleteBusy = false;
     }
+    // The comment's own buttons went with it; the toggle is always there
+    // while the thread is (its count now one lower).
+    void refocus(
+      deleted ? '.toggle' : inComment(commentId, '.confirm-delete-btn'),
+    );
   }
 </script>
 
-<div class="thread">
+<div class="thread" bind:this={root}>
   <button type="button" class="btn btn-ghost toggle" onclick={toggleExpanded}>
     <svg
       class="icon"
@@ -237,6 +313,7 @@
         <div
           class="comment"
           class:recently-arrived={recentlyArrivedIds[comment.id]}
+          data-comment-id={comment.id}
         >
           {#if editingId === comment.id}
             <form
@@ -245,7 +322,7 @@
             >
               <input
                 type="text"
-                class="input"
+                class="input edit-input"
                 bind:value={editText}
                 disabled={editBusy}
               />
@@ -278,7 +355,7 @@
                 <span class="comment-actions">
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
+                    class="btn btn-ghost btn-action confirm-delete-btn"
                     onclick={() => handleDeleteConfirm(comment.id)}
                     disabled={deleteBusy}
                   >
@@ -286,8 +363,8 @@
                   </button>
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
-                    onclick={() => (confirmingDeleteId = null)}
+                    class="btn btn-ghost btn-action cancel-delete-btn"
+                    onclick={cancelDelete}
                     disabled={deleteBusy}
                   >
                     {$_('commentThread.cancel')}
@@ -297,7 +374,7 @@
                 <span class="comment-actions">
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
+                    class="btn btn-ghost btn-action edit-btn"
                     onclick={() => startEdit(comment)}
                     disabled={anotherActionOpen}
                   >
@@ -305,8 +382,8 @@
                   </button>
                   <button
                     type="button"
-                    class="btn btn-ghost btn-action"
-                    onclick={() => (confirmingDeleteId = comment.id)}
+                    class="btn btn-ghost btn-action delete-btn"
+                    onclick={() => startDelete(comment.id)}
                     disabled={anotherActionOpen}
                   >
                     {$_('commentThread.delete')}
@@ -325,7 +402,7 @@
     <form onsubmit={handleSubmit}>
       <input
         type="text"
-        class="input"
+        class="input new-comment-input"
         bind:value={text}
         placeholder={$_('commentThread.placeholder')}
       />
