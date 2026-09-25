@@ -4,7 +4,11 @@
   import { formatDisplayDate } from '../datePreference.svelte';
   import { renderAnswerMarkdown } from './markdown';
   import MarkdownEditor from './MarkdownEditor.svelte';
-  import { GENERIC_LABEL_KEYS, isAnswerEmpty } from './answerDisplay';
+  import {
+    GENERIC_LABEL_KEYS,
+    isAnswerEmpty,
+    selectedOptions,
+  } from './answerDisplay';
 
   let {
     field,
@@ -23,7 +27,9 @@
      * output, and a generic input caption (GENERIC_LABEL_KEYS) is dropped
      * above an answer. Separate from `readonly` on purpose — my own side is
      * readonly but not collapsed during an in-flight Save, so Save never
-     * flips empty fields to "No answer." and back. Implies readonly.
+     * flips empty fields to "No answer." and back. Implies readonly. A
+     * radio/checkbox answer also shows only its chosen option(s) as text
+     * rather than the full disabled option list (GitHub issue #135).
      */
     collapsed?: boolean;
     /**
@@ -77,6 +83,7 @@
   });
 
   const empty = $derived(isAnswerEmpty(field, value));
+  const chosenOptions = $derived(selectedOptions(field, value));
   const showEmptyLine = $derived(collapsed && empty);
   const hideLabel = $derived(
     collapsed && !empty && GENERIC_LABEL_KEYS.has(field.labelKey),
@@ -171,6 +178,19 @@
     <p class="text-muted answer-empty field-empty">
       {$_('answerField.noAnswer')}
     </p>
+  {:else if collapsed && field.type === 'radio'}
+    <!-- At most one option for a radio; {#each} rather than [0], so this
+         never reads past an empty list. -->
+    {#each chosenOptions as option (option.value)}
+      <p class="answer-choice">{$_(option.labelKey)}</p>
+    {/each}
+  {:else if collapsed && field.type === 'checkboxes'}
+    <!-- role="list": WebKit drops list semantics once list-style is none. -->
+    <ul class="pills answer-choices" role="list">
+      {#each chosenOptions as option (option.value)}
+        <li class="tag pill pill-chosen">{$_(option.labelKey)}</li>
+      {/each}
+    </ul>
   {:else if field.type === 'radio'}
     <div class="options">
       {#each field.options ?? [] as option (option.value)}
@@ -219,7 +239,8 @@
       />
     {/if}
   {:else if field.type === 'list'}
-    <ul class="entries">
+    <!-- role="list": see the choices list above. -->
+    <ul class="entries" role="list">
       {#each (value as ListEntry[]) ?? [] as entry (entry.id)}
         <li class="entry">
           {#if editingEntryId === entry.id && !readonly}
@@ -328,7 +349,8 @@
     padding: 7px 14px;
   }
 
-  .pill[aria-pressed='true'] {
+  .pill[aria-pressed='true'],
+  .pill-chosen {
     background: var(--color-accent);
     color: var(--color-on-accent);
     border-color: var(--color-accent);
@@ -337,6 +359,23 @@
   .pill:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+
+  /* After .pill, which has the same specificity. */
+  .pill-chosen {
+    cursor: default;
+  }
+
+  .answer-choices {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .answer-choice {
+    margin: 0;
+    font-size: 14px;
+    overflow-wrap: break-word;
   }
 
   .entries {

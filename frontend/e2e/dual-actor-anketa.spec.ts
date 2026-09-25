@@ -1097,6 +1097,53 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
 });
 
 /**
+ * Waits until `page` shows the anketa as archived: the header's "archived"
+ * tag, which only renders once the archive has been applied (the Archive
+ * button merely turns into "Archiving…" while the request is in flight).
+ */
+async function expectArchived(page: Page): Promise<void> {
+  await expect(
+    page.locator('.tag', { hasText: /^archived$/ }).first(),
+  ).toBeVisible();
+}
+
+/**
+ * Clicks my own side's outer Save and holds the answers request in flight
+ * until the returned function is called; that function lets it through and
+ * waits for a successful response. The Save button reads "Saving…" by the time this
+ * resolves.
+ */
+async function clickSaveAndHoldIt(
+  mySide: Locator,
+): Promise<() => Promise<void>> {
+  const page = mySide.page();
+  const pattern = '**/api/anketas/*/answers';
+  let release: () => void = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(pattern, async (route) => {
+    await released;
+    await route.continue();
+  });
+  await Promise.all([
+    page.waitForRequest(pattern, { timeout: 10_000 }),
+    mySide
+      .locator('.answers-edit-actions')
+      .getByRole('button', { name: 'Save' })
+      .click(),
+  ]);
+  await expect(mySide.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  return async () => {
+    const responded = page.waitForResponse(pattern);
+    release();
+    const response = await responded;
+    expect(response.ok()).toBe(true);
+    await page.unroute(pattern);
+  };
+}
+
+/**
  * GitHub issue #131/#134: the read-only view of an anketa side shows only what
  * was answered. An unanswered field renders nothing (no label, placeholder or
  * comment toggle), a block with nothing answered collapses to its title plus
@@ -1188,39 +1235,18 @@ test('the read-only view hides unanswered fields and generic labels', async ({
   await employeeMySide.locator('textarea').first().fill('');
   // The save is held in flight: the side is readonly then, but must keep the
   // edit-mode layout rather than collapsing (and re-expanding if it failed).
-  let releaseSave: () => void = () => {};
-  const saveReleased = new Promise<void>((resolve) => {
-    releaseSave = resolve;
-  });
-  let markSaveArrived: () => void = () => {};
-  const saveArrived = new Promise<void>((resolve) => {
-    markSaveArrived = resolve;
-  });
-  let markSaveSent: () => void = () => {};
-  const saveSent = new Promise<void>((resolve) => {
-    markSaveSent = resolve;
-  });
-  await employee.route('**/api/anketas/*/answers', async (route) => {
-    markSaveArrived();
-    await saveReleased;
-    await route.continue();
-    markSaveSent();
-  });
-  await employeeMySide
-    .locator('.answers-edit-actions')
-    .getByRole('button', { name: 'Save' })
-    .click();
-  await saveArrived;
-  await expect(
-    employeeMySide.getByRole('button', { name: 'Saving…' }),
-  ).toBeDisabled();
+  const releaseSave = await clickSaveAndHoldIt(employeeMySide);
   await expect(employeeFeelings).toContainText('Anything to add?');
   await expect(employeeFeelings.locator('.block-empty')).toHaveCount(0);
+  // ...and today's disabled radios and pills, not the chosen-options view
+  // (#135).
+  await expect(
+    questionBlock(employeeMySide, 'Mood').locator('input[type=radio]'),
+  ).toHaveCount(6);
+  await expect(employeeFeelings.locator('button.pill')).toHaveCount(12);
   await expect(employeeFeelings.locator('.field-empty')).toHaveCount(0);
   await expect(employeeAchievements).toContainText('Entries');
-  releaseSave();
-  await saveSent;
-  await employee.unroute('**/api/anketas/*/answers');
+  await releaseSave();
   await expect(employeeMySide.getByText('Published')).toBeVisible();
   await expect(employeeFeelings.locator('.block-empty')).toHaveCount(1);
 
@@ -1245,12 +1271,13 @@ test('the read-only view hides unanswered fields and generic labels', async ({
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
   await manager.getByRole('button', { name: 'Archive' }).click();
-  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await expectArchived(manager);
   await expect(
     questionBlock(managerCounterpartSide, 'Feelings').locator('.block-empty'),
   ).toHaveCount(1);
 
   await employee.reload();
+  await expectArchived(employee);
   await expect(
     questionBlock(employeeMySide, 'Feelings').locator('.block-empty'),
   ).toHaveCount(1);
@@ -1330,8 +1357,9 @@ test('the read-only view keeps real sub-prompt labels above an answer', async ({
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
   await manager.getByRole('button', { name: 'Archive' }).click();
-  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await expectArchived(manager);
   await employee.reload();
+  await expectArchived(employee);
   const employeeMySide = employee.locator('.side-card').first();
   await expect(employeeMySide.getByText('archived')).toBeVisible();
   await expect(employeeMySide.locator('textarea')).toHaveCount(0);
@@ -1339,4 +1367,119 @@ test('the read-only view keeps real sub-prompt labels above an answer', async ({
   // The support template's employee side has six question blocks.
   await expect(employeeMySide.locator('.block')).toHaveCount(6);
   await expect(employeeMySide.locator('.block-empty')).toHaveCount(6);
+});
+
+/**
+ * GitHub issue #135 (part 2 of #131): in the collapsed read-only view a radio
+ * answer shows its chosen option as text, and a checkbox answer only its
+ * chosen options as a non-interactive list, instead of the full list of
+ * disabled options. Edit mode still shows every option.
+ */
+test('the read-only view shows only the chosen radio and checkbox options', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-choices');
+  const managerEmail = uniqueEmail('manager-choices');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  const employeeMySide = employee.locator('.side-card').first();
+  // The wrapping <label> is clicked, as a real user would: the native radio
+  // is visually hidden behind the custom `.dot` (components.css's .radio).
+  await questionBlock(employeeMySide, 'Mood')
+    .locator('label.radio', { hasText: 'Good' })
+    .click();
+  const feelings = questionBlock(employeeMySide, 'Feelings');
+  // Calm first: the list below must follow option order, where Proud comes
+  // first, not click order.
+  await feelings.getByRole('button', { name: 'Calm' }).click();
+  await feelings.getByRole('button', { name: 'Proud' }).click();
+  await expect(feelings.getByRole('button', { name: 'Proud' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  await manager.goto(anketaUrl);
+  const managerCounterpartSide = manager.locator('.side-card').nth(1);
+  for (const side of [managerCounterpartSide, employeeMySide]) {
+    const mood = questionBlock(side, 'Mood');
+    await expect(mood).toContainText('How are you feeling?');
+    await expect(mood.locator('.answer-choice')).toHaveText('Good');
+
+    // A list under its field label, not loose text.
+    const feelingsBlock = questionBlock(side, 'Feelings');
+    await expect(feelingsBlock).toContainText('Which of these apply?');
+    const chosen = feelingsBlock.getByRole('list').getByRole('listitem');
+    // Option order, not click order: "Proud" comes before "Calm".
+    await expect(chosen).toHaveText(['Proud', 'Calm']);
+
+    // Checked only once the answers above have rendered.
+    await expect(side.locator('input[type=radio]')).toHaveCount(0);
+    await expect(side.locator('button.pill')).toHaveCount(0);
+  }
+
+  // Edit brings back every option, with the chosen ones selected. The mood
+  // is changed to Bad and saved, and the Save held in flight keeps every
+  // option shown and selected (disabled) rather than flipping the answered
+  // choices to text and back.
+  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  const employeeMood = questionBlock(employeeMySide, 'Mood');
+  await expect(employeeMood.getByRole('radio', { name: 'Good' })).toBeChecked();
+  await employeeMood.locator('label.radio', { hasText: 'Bad' }).click();
+  const moodBad = employeeMood.getByRole('radio', { name: 'Bad' });
+  const expectEveryOptionShown = async () => {
+    await expect(employeeMood.locator('input[type=radio]')).toHaveCount(6);
+    await expect(moodBad).toBeChecked();
+    await expect(feelings.locator('button.pill')).toHaveCount(12);
+    await expect(
+      feelings.locator('button.pill[aria-pressed="true"]'),
+    ).toHaveText(['Proud', 'Calm']);
+    await expect(employeeMySide.locator('.answer-choice')).toHaveCount(0);
+    await expect(feelings.locator('.answer-choices')).toHaveCount(0);
+  };
+  await expectEveryOptionShown();
+  await expect(moodBad).toBeEnabled();
+
+  const releaseSave = await clickSaveAndHoldIt(employeeMySide);
+  await expectEveryOptionShown();
+  await expect(moodBad).toBeDisabled();
+  await expect(
+    feelings.locator('button.pill[aria-pressed="true"]').first(),
+  ).toBeDisabled();
+  await releaseSave();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+  await expect(employeeMood.locator('.answer-choice')).toHaveText('Bad');
+  // The manager's already-open tab picks up the new choice via the live poll.
+  await expect(
+    questionBlock(managerCounterpartSide, 'Mood').locator('.answer-choice'),
+  ).toHaveText('Bad', { timeout: 8000 });
+
+  // Archived: still only the chosen options, from both participants' view.
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  await expectArchived(manager);
+  await employee.reload();
+  await expectArchived(employee);
+  await expect(
+    employee.getByRole('button', { name: 'Edit', exact: true }),
+  ).toHaveCount(0);
+  for (const side of [managerCounterpartSide, employeeMySide]) {
+    await expect(
+      questionBlock(side, 'Mood').locator('.answer-choice'),
+    ).toHaveText('Bad');
+    await expect(
+      questionBlock(side, 'Feelings').getByRole('listitem'),
+    ).toHaveText(['Proud', 'Calm']);
+    await expect(side.locator('input[type=radio]')).toHaveCount(0);
+    await expect(side.locator('button.pill')).toHaveCount(0);
+  }
 });
