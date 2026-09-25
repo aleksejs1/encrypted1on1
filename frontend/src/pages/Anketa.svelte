@@ -24,6 +24,7 @@
   import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
   import { carryForwardOutcomes, type OutcomeItem } from '../anketa/outcomes';
   import { pruneStaleBusyEntries } from '../anketa/commentThreadsBusy';
+  import { readonlyVisibleFields } from '../anketa/answerDisplay';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
   import {
     getQuestionsForSide,
@@ -78,8 +79,7 @@
    *   writable; Save/Cancel shown.
    * - Saving: `editingMyAnswers` true, `savingAnswersEdit` true. A save request is in
    *   flight; Save/Cancel disabled to prevent a double-submit, and AnswerField itself
-   *   goes back to readonly (`readonly={myPublished && (!editingMyAnswers ||
-   *   savingAnswersEdit)}`) — not just to stop further top-level field edits from
+   *   goes back to readonly (`mySideReadonly` below) — not just to stop further top-level field edits from
    *   racing the in-flight blob, but because AnswerField's list fields have their own
    *   uncommitted-until-"Save" inline entry-edit state; without this, opening an entry's
    *   inline edit *during* this window and typing into it gets silently discarded the
@@ -105,6 +105,31 @@
    */
   let editingMyAnswers = $state(false);
   let savingAnswersEdit = $state(false);
+  const mySideReadonly = $derived(
+    archived || (myPublished && (!editingMyAnswers || savingAnswersEdit)),
+  );
+  /**
+   * Whether my side renders the collapsed read-only view (unanswered fields
+   * hidden, generic labels dropped — GitHub issue #131). Deliberately ignores
+   * `savingAnswersEdit`, unlike `mySideReadonly`: collapsing the instant Save
+   * is clicked (and re-expanding if it fails) would remount list fields and
+   * lose their unsubmitted new-entry text.
+   */
+  const mySideCollapsed = $derived(
+    archived || (myPublished && !editingMyAnswers),
+  );
+  /** Answer-field comments by field id — one pass per change, shared by both side loops' visibility check and `comments` prop. */
+  const commentsByTarget = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- rebuilt whole on each allComments change and never mutated after; reactivity comes from the $derived
+    const byTarget = new Map<string, Comment[]>();
+    for (const comment of allComments) {
+      const bucket = byTarget.get(comment.targetId);
+      if (bucket) bucket.push(comment);
+      else byTarget.set(comment.targetId, [comment]);
+    }
+    return byTarget;
+  });
+  const fieldHasComments = (fieldId: string) => commentsByTarget.has(fieldId);
   let myBlobVersion = $state(0);
   let answersBeforeEdit: Answers | null = null;
 
@@ -197,7 +222,11 @@
    * deletion, if that's ever added) needs the same treatment — namespacing
    * the keys (e.g. prefixing by type) would make this structural instead of
    * per-call-site, but wasn't worth the churn for what's currently exactly
-   * one removable namespace. Passed down to both AnketaOutcomes and
+   * one removable namespace. (A question field's thread also unmounts when
+   * the collapsed read-only view hides its now-empty field — GitHub issue
+   * #131. That path needs no prune: a field whose thread has an edit/delete
+   * open still has comments and so stays shown, and CommentThread clears its
+   * own entry on unmount anyway.) Passed down to both AnketaOutcomes and
    * AnketaGoals via `bind:` — AnketaOutcomes already reassigns the record
    * wholesale on delete; AnketaGoals doesn't yet (goals/checkpoints have no
    * delete path today), but is `$bindable` anyway, precisely so that the
@@ -803,8 +832,11 @@
     }
 
     if (counterpartPublishedChanged || counterpartBlobChanged) {
-      // Always safe, no busy gate needed: the counterpart's own answers are
-      // never edited from this session, so there's no local draft to protect.
+      // No busy gate: the counterpart's own answers are never edited from
+      // this session. One accepted loss (GitHub issue #131 §4.5): emptying
+      // an answer with no comments yet hides that field in the collapsed
+      // view, unmounting its CommentThread along with any unsent first
+      // comment typed there.
       const counterpartVersion = fresh[counterpartKeys.blobVersion];
       const counterpartBlob = fresh[counterpartKeys.blob];
       const counterpartPublishedNow =
@@ -1280,20 +1312,31 @@
 
       <div class="blocks">
         {#each getQuestionsForSide(detail.myRole, detail.formVersion, detail.templateKey) as question (question.id)}
+          <!-- One keyed loop over shownFields (not an {#if} between two loops),
+               so toggling Edit/Save/Cancel only mounts/unmounts the fields
+               whose visibility actually changes — see GitHub issue #131 §4.2. -->
+          {@const shownFields = mySideCollapsed
+            ? readonlyVisibleFields(question, myAnswers, fieldHasComments)
+            : question.fields}
           <div class="block">
             <h4>{$_(question.titleKey)}</h4>
-            {#each question.fields as field (field.id)}
+            {#if shownFields.length === 0}
+              <p class="text-muted answer-empty block-empty">
+                {$_('answerField.noAnswer')}
+              </p>
+            {/if}
+            {#each shownFields as field (field.id)}
               <AnswerField
                 {field}
                 bind:value={myAnswers[field.id]}
-                readonly={archived ||
-                  (myPublished && (!editingMyAnswers || savingAnswersEdit))}
+                readonly={mySideReadonly}
+                collapsed={mySideCollapsed}
                 bind:hasOpenEntryEdit={fieldsWithOpenEntryEdit[field.id]}
                 anketaId={id}
               />
               {#if myPublished}
                 <CommentThread
-                  comments={allComments.filter((c) => c.targetId === field.id)}
+                  comments={commentsByTarget.get(field.id) ?? []}
                   {authorNames}
                   currentUserId={myUserId}
                   onSubmit={(text) => submitComment(field.id, text)}
@@ -1406,17 +1449,28 @@
       {:else if counterpartSide}
         <div class="blocks">
           {#each getQuestionsForSide(counterpartSide, detail.formVersion, detail.templateKey) as question (question.id)}
+            {@const shownFields = readonlyVisibleFields(
+              question,
+              counterpartAnswers,
+              fieldHasComments,
+            )}
             <div class="block">
               <h4>{$_(question.titleKey)}</h4>
-              {#each question.fields as field (field.id)}
+              {#if shownFields.length === 0}
+                <p class="text-muted answer-empty block-empty">
+                  {$_('answerField.noAnswer')}
+                </p>
+              {/if}
+              {#each shownFields as field (field.id)}
                 <AnswerField
                   {field}
                   value={counterpartAnswers[field.id]}
                   readonly
+                  collapsed
                   anketaId={id}
                 />
                 <CommentThread
-                  comments={allComments.filter((c) => c.targetId === field.id)}
+                  comments={commentsByTarget.get(field.id) ?? []}
                   {authorNames}
                   currentUserId={myUserId}
                   onSubmit={(text) => submitComment(field.id, text)}

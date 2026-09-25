@@ -464,6 +464,13 @@ textarea.input {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
 }
 
+/* The muted "No answer." line of the collapsed read-only anketa view — for a whole empty
+ * question block, or a single empty field kept because it has comments (GitHub issue #131). */
+.answer-empty {
+  margin: 0;
+  font-size: 13px;
+}
+
 /*
  * A published anketa free-text answer's Markdown, rendered to sanitized HTML via `{@html}`
  * (frontend/src/anketa/markdown.ts, used by AnswerField.svelte and MarkdownEditor.svelte's

@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest';
+import {
+  GENERIC_LABEL_KEYS,
+  isAnswerEmpty,
+  readonlyVisibleFields,
+} from './answerDisplay';
+import {
+  ANKETA_TEMPLATES,
+  CURRENT_ANKETA_FORM_VERSION,
+  getQuestionsForSide,
+  type Question,
+  type QuestionField,
+} from './questions';
+import en from '../i18n/locales/en.json';
+import { messageAt } from '../i18n/testUtils';
+
+const options = [
+  { value: 'good', labelKey: 'x.good' },
+  { value: 'bad', labelKey: 'x.bad' },
+];
+const textField: QuestionField = { id: 't', type: 'text', labelKey: 'x.t' };
+const listField: QuestionField = { id: 'l', type: 'list', labelKey: 'x.l' };
+const radioField: QuestionField = {
+  id: 'r',
+  type: 'radio',
+  labelKey: 'x.r',
+  options,
+};
+const checkboxField: QuestionField = {
+  id: 'c',
+  type: 'checkboxes',
+  labelKey: 'x.c',
+  options,
+};
+const entry = { id: 'e1', date: '2026-09-01T00:00:00.000Z', text: 'Shipped' };
+
+describe('isAnswerEmpty', () => {
+  it('treats absent and null as empty for every type', () => {
+    for (const field of [textField, listField, radioField, checkboxField]) {
+      expect(isAnswerEmpty(field, undefined), field.type).toBe(true);
+      expect(isAnswerEmpty(field, null), field.type).toBe(true);
+    }
+  });
+
+  it('text: empty and whitespace-only are empty, anything else is not', () => {
+    expect(isAnswerEmpty(textField, '')).toBe(true);
+    expect(isAnswerEmpty(textField, '  \n\t ')).toBe(true);
+    expect(isAnswerEmpty(textField, 'Fine')).toBe(false);
+    expect(isAnswerEmpty(textField, ['Fine'])).toBe(true);
+  });
+
+  it('text: Markdown-only syntax counts as answered', () => {
+    expect(isAnswerEmpty(textField, '**')).toBe(false);
+  });
+
+  it('list: empty array is empty, any entry is not', () => {
+    expect(isAnswerEmpty(listField, [])).toBe(true);
+    expect(isAnswerEmpty(listField, [entry])).toBe(false);
+    expect(isAnswerEmpty(listField, 'Shipped')).toBe(true);
+  });
+
+  it('radio: only a known option value is answered', () => {
+    expect(isAnswerEmpty(radioField, '')).toBe(true);
+    expect(isAnswerEmpty(radioField, 'good')).toBe(false);
+    expect(isAnswerEmpty(radioField, 'unknown')).toBe(true);
+    expect(isAnswerEmpty(radioField, ['good'])).toBe(true);
+  });
+
+  it('checkboxes: answered when at least one known option value is present', () => {
+    expect(isAnswerEmpty(checkboxField, [])).toBe(true);
+    expect(isAnswerEmpty(checkboxField, ['unknown'])).toBe(true);
+    expect(isAnswerEmpty(checkboxField, ['unknown', 'bad'])).toBe(false);
+    expect(isAnswerEmpty(checkboxField, ['good'])).toBe(false);
+    expect(isAnswerEmpty(checkboxField, 'good')).toBe(true);
+  });
+
+  it('a field without options treats every radio/checkbox value as unknown', () => {
+    expect(isAnswerEmpty({ ...radioField, options: undefined }, 'good')).toBe(
+      true,
+    );
+    expect(
+      isAnswerEmpty({ ...checkboxField, options: undefined }, ['good']),
+    ).toBe(true);
+  });
+});
+
+describe('readonlyVisibleFields', () => {
+  const question: Question = {
+    id: 'q',
+    titleKey: 'x.q',
+    fields: [radioField, checkboxField, textField, listField],
+  };
+  const noComments = () => false;
+
+  it('returns nothing when every field is empty', () => {
+    expect(readonlyVisibleFields(question, {}, noComments)).toEqual([]);
+  });
+
+  it('returns only the answered fields, in definition order', () => {
+    const visible = readonlyVisibleFields(
+      question,
+      { l: [entry], r: 'good', c: [], t: ' ' },
+      noComments,
+    );
+    expect(visible.map((f) => f.id)).toEqual(['r', 'l']);
+  });
+
+  it('keeps an empty field that has comments', () => {
+    const visible = readonlyVisibleFields(
+      question,
+      { l: [entry] },
+      (fieldId) => fieldId === 't',
+    );
+    expect(visible.map((f) => f.id)).toEqual(['t', 'l']);
+  });
+});
+
+describe('GENERIC_LABEL_KEYS', () => {
+  it('holds exactly the three input-caption labels, each present in en.json', () => {
+    expect([...GENERIC_LABEL_KEYS].sort()).toEqual([
+      'questions.fields.anythingToAdd',
+      'questions.fields.details',
+      'questions.fields.entries',
+    ]);
+    for (const key of GENERIC_LABEL_KEYS) {
+      expect(typeof messageAt(en, key), key).toBe('string');
+    }
+  });
+
+  it('are all still used as a field label by the question set', () => {
+    const labelKeys = new Set(
+      ANKETA_TEMPLATES.flatMap((templateKey) =>
+        (['employee', 'manager'] as const).flatMap((side) =>
+          getQuestionsForSide(side, CURRENT_ANKETA_FORM_VERSION, templateKey),
+        ),
+      ).flatMap((question) => question.fields.map((field) => field.labelKey)),
+    );
+    for (const key of GENERIC_LABEL_KEYS) {
+      expect(labelKeys.has(key), key).toBe(true);
+    }
+  });
+});
