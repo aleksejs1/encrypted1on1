@@ -353,9 +353,15 @@ await addListEntry(
   'Ready to talk through what leading a cross-team project would actually look like for Priya next quarter.',
 );
 await publish(manager, anketaId, mgrSide);
+const mgrNotes = manager.locator('.notes-textarea');
+await mgrNotes.fill(
+  'Notes for myself:\n• Discuss mentoring capacity next quarter\n• Unblock platform team dependency intake\n• Align on cross-team project proposal',
+);
+await mgrNotes.blur();
+await manager.locator('.notes-status').getByText('Saved').waitFor();
 // The top-level README.md hero image — cropped to just the "manager
 // published, waiting on the employee" card, not the full page, matching
-// how README.md's own <img width="600"> presents it.
+// how README.md's own <img width="700"> presents it.
 await manager.waitForTimeout(300);
 await manager.screenshot({
   path: path.join(OUT_DIR, 'anketa.png'),
@@ -420,6 +426,12 @@ await addListEntry(
   'Interested in leading a cross-team project next quarter — want to talk about what that path looks like.',
 );
 await publish(employee, anketaId, empSide);
+const empNotes = employee.locator('.notes-textarea');
+await empNotes.fill(
+  "Prep notes:\n• Ask Jordan about expectations for cross-team project lead\n• Get advice on mentoring next quarter's on-call rotation",
+);
+await empNotes.blur();
+await employee.locator('.notes-status').getByText('Saved').waitFor();
 
 // --- Outcomes: each added by its own owner ---
 await employee.reload();

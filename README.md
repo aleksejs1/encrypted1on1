@@ -4,13 +4,26 @@
 
 A self-hosted, end-to-end encrypted platform for running 1:1 meetings between managers and employees.
 
-<img src="docs/screenshots/anketa.png" alt="An anketa page, showing a manager's published side with feedback and achievements filled in" width="600">
+<img src="docs/screenshots/anketa.png" alt="An anketa page, showing a manager's published side with feedback and achievements alongside their encrypted private notes panel" width="700">
 
-More: [screenshots](docs/screenshots/) — login, the anketa list, a filled-in anketa, the report view, dark mode, several of the supported languages, and a look at what the server's own API response actually contains.
+More: [screenshots](docs/screenshots/) — login, the anketa list, an empty vs filled-in anketa with private notes, the report view, dark mode, 6 supported languages, and a look at what the server's own API response actually contains.
 
 ## Status
 
-Feature-complete and styled: authentication, invites and open self-registration (invite-only, admin-only, or double-opt-in self-registration restricted to an email domain — configurable), password reset and account settings (in-app password change, notification preferences, data export, account deletion), end-to-end encrypted 1:1 cycles (questions, comments, shared outcomes, goals with progress checkpoints), a grouped anketa-list view with per-counterpart mood/workload trend charts, reminder emails, an admin panel, a cross-period report view, 6-language i18n, dark mode, installable as a home-screen app (Web App Manifest), a CSP+Subresource-Integrity-hardened build with explicit HSTS, and a full production deployment path (including running behind an existing reverse proxy). See `CLAUDE.md`'s "Current stage" section for the exact up-to-date state of ongoing work — kept there, not duplicated here, so this file doesn't go stale the same way again.
+Production-ready and feature-complete (v1.4.0):
+- **End-to-end encrypted 1:1 cycles:** role-specific questions for employees and managers, Markdown-formatted answers with strict sanitization, private drafts, silent in-place editing, threaded comments, shared checklist outcomes with author ownership, and goal tracking with encrypted progress checkpoints.
+- **Private meeting notes:** an author-scoped encrypted notepad on every anketa (sticky side-column on desktop, card on mobile) that neither counterparts, server operators, nor admins can read. Includes background autosave, multi-tab conflict resolution, "Hide notes" for screen-sharing privacy, and inclusion in user data exports.
+- **Meeting templates & one-offs:** 4 built-in templates (Regular check-in, First 1:1 / Onboarding, Career growth, Support & workload check-in) with distinct question sets; ad-hoc one-off meetings that don't fork recurring chains or duplicate carry-forward items; automatic safe recurrence fallback to regular check-ins.
+- **Live in-meeting collaboration:** real-time background sync during meetings so counterpart answer edits, new comments (with ARIA live announcements), outcomes, and checkpoints appear automatically without page reloads.
+- **Streamlined read-only view:** clean display for published and archived anketas showing only answered questions and selected choices rather than long lists of empty fields or disabled controls.
+- **Analytics & reports:** grouped anketa list by date or counterpart, mood/workload sparklines, upcoming meeting countdown badges, client-side cross-period growth reports, and company admin adoption reports.
+- **Security & resilience:** zero-knowledge ciphertext storage, drafts encrypted with keys derived from private keys (surviving password changes), forgotten-password recovery with keypair regeneration and counterpart re-sharing, atomic archiving (no duplicate successors), rate limiting, CSP+SRI hardening with explicit HSTS, and automated privacy test gates.
+- **Accounts & administration:** configurable registration (invite-only, admin-only, or email-domain self-registration), account settings (in-app password change, notification toggles, JSON data export, account deletion), admin user management and invite auditing, and automated reminder emails.
+- **Accessibility & internationalization:** full keyboard navigation with focus retention across actions, 6 UI languages (English, German, French, Spanish, Russian, Latvian) with matching localized emails, dark mode, and Web App Manifest (PWA).
+- **Architecture & backend:** hand-composed Symfony backend decomposed into dedicated repositories and domain lifecycle services, typed DTO request payloads with Symfony validation, Doctrine multi-tenant isolation filters, and JSON-standardized API error formatting.
+- **Deployment & operations:** single-container FrankenPHP stack serving the API and SPA, automated database migrations (SQLite or MySQL), automated backup/restore scripts, and options for standalone Let's Encrypt HTTPS or running behind an existing reverse proxy.
+
+See [`CLAUDE.md`](CLAUDE.md)'s "Current stage" section and [`docs/history.md`](docs/history.md) for the detailed development log and architectural decisions.
 
 ## Core idea
 

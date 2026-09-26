@@ -12,17 +12,17 @@ Your key is derived from your password right here, client-side — the subtitle 
 
 ![Anketa list, grouped by date](anketa_list.png)
 
-The home screen: an invite form (shown here since this instance is in invite mode), a by-date/by-person toggle, and each anketa tagged with its status — archived, published by me, published by my counterpart.
+The home screen: a by-date/by-person toggle, upcoming meeting countdown badges ("In 7 days"), and each anketa tagged with its status — archived, published by me, published by my counterpart.
 
 ## Filling out an anketa
 
 ![An empty, unpublished anketa](anketa_employee_empty.png)
 
-A fresh anketa, employee side, nothing filled in yet — mood/workload as radio choices, feelings as toggle pills, the append-style entry lists for growth/achievements/discuss. The counterpart's side is still locked ("Not published yet"), and archiving isn't available until there's something to archive.
+A fresh anketa, employee side, nothing filled in yet — mood/workload as radio choices, feelings as toggle pills, the append-style entry lists for growth/achievements/discuss, and the private notes panel on the right. The counterpart's side is still locked ("Not published yet").
 
 ![A fully filled-in, published anketa](anketa_employee.png)
 
-The same anketa once both sides are published: real answers on both sides, meeting outcomes, and a goal with a progress checkpoint. The lock icons next to each heading are a direct, in-UI reminder of what's encrypted and what isn't (see [encryption.md](../encryption.md#the-one-deliberate-plaintext-exception) for the one exception, called out in the Goals section itself via its own "more info" toggle).
+The same anketa once both sides are published: real answers on both sides (in a streamlined read-only view displaying only chosen options and answered fields), meeting outcomes, and a goal with a progress checkpoint. To the right: the author's encrypted private notes panel, sticky and autosaved as you type. The lock icons next to each heading are a direct, in-UI reminder of what's encrypted and what isn't (see [encryption.md](../encryption.md#the-one-deliberate-plaintext-exception) for the one exception, called out in the Goals section itself via its own "more info" toggle).
 
 ## Report
 
