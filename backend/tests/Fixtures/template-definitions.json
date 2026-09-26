@@ -270,6 +270,38 @@
       ]
     },
     {
+      "name": "a list is not a title, and nothing more is checked",
+      "set": [
+        [
+          "employee/1/title",
+          [
+            "x"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a rejected character is the only error, even in a text that is also too long",
+      "set": [
+        [
+          "employee/1/title",
+          "\u200bжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
       "name": "the definition must be an object",
       "definition": [],
       "errors": [
@@ -432,6 +464,53 @@
         {
           "path": "employee",
           "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an over-long side is rejected without checking its blocks",
+      "set": [
+        [
+          "employee",
+          [
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee",
+          "code": "block_count"
         }
       ]
     },
@@ -972,6 +1051,23 @@
               "value": "o_00000001",
               "label": "Yes ж"
             }
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_count"
+        }
+      ]
+    },
+    {
+      "name": "too few options are rejected without checking them",
+      "set": [
+        [
+          "employee/1/field/options",
+          [
+            "x"
           ]
         ]
       ],

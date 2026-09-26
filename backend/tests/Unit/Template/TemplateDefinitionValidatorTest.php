@@ -142,6 +142,14 @@ class TemplateDefinitionValidatorTest extends TestCase
         );
     }
 
+    /** Only `title` and `label` are texts; no other string is trimmed, even if it could be. */
+    public function testCanonicalJsonTrimsOnlyTitlesAndLabels(): void
+    {
+        $definition = self::set(self::base(), 'employee/0/questionId', ' mood ');
+
+        self::assertStringContainsString('"questionId":" mood "', (new TemplateDefinitionValidator())->canonicalJson($definition));
+    }
+
     public function testValidatorHoldsNoStateBetweenCalls(): void
     {
         $definition = self::base();

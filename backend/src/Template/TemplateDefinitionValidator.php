@@ -75,10 +75,10 @@ final class TemplateDefinitionValidator
     /** @var list<array{path: string, code: string}> */
     private array $errors = [];
 
-    /** @var array<string, true> */
+    /** @var list<string> */
     private array $seenIds = [];
 
-    /** @var array<string, true> */
+    /** @var list<string> */
     private array $seenBuiltins = [];
 
     /**
@@ -178,7 +178,8 @@ final class TemplateDefinitionValidator
 
             return false;
         }
-        $keys = array_map('strval', array_keys(get_object_vars($value)));
+        // array_diff() compares as strings, so numeric property names need no cast.
+        $keys = array_keys(get_object_vars($value));
         if ([] !== array_diff($keys, [...$required, ...$optional])) {
             $this->fail($path, 'unknown_key');
 
@@ -217,10 +218,10 @@ final class TemplateDefinitionValidator
     {
         if (!\is_string($value) || 1 !== preg_match(self::ID_PATTERN, $value)) {
             $this->fail($path, 'id_format');
-        } elseif (isset($this->seenIds[$value])) {
+        } elseif (\in_array($value, $this->seenIds, true)) {
             $this->fail($path, 'id_duplicate');
         } else {
-            $this->seenIds[$value] = true;
+            $this->seenIds[] = $value;
         }
     }
 
@@ -274,10 +275,10 @@ final class TemplateDefinitionValidator
         $questionId = $value->questionId;
         if (!\is_string($questionId) || !\in_array($questionId, $allowlist, true)) {
             $this->fail($path.'/questionId', 'builtin_not_allowed');
-        } elseif (isset($this->seenBuiltins[$questionId])) {
+        } elseif (\in_array($questionId, $this->seenBuiltins, true)) {
             $this->fail($path.'/questionId', 'builtin_repeated');
         } else {
-            $this->seenBuiltins[$questionId] = true;
+            $this->seenBuiltins[] = $questionId;
         }
     }
 
@@ -338,10 +339,10 @@ final class TemplateDefinitionValidator
             $optionValue = $option->value;
             if (!\is_string($optionValue) || 1 !== preg_match(self::OPTION_VALUE_PATTERN, $optionValue)) {
                 $this->fail($optionPath.'/value', 'option_value_format');
-            } elseif (isset($seenValues[$optionValue])) {
+            } elseif (\in_array($optionValue, $seenValues, true)) {
                 $this->fail($optionPath.'/value', 'option_value_duplicate');
             } else {
-                $seenValues[$optionValue] = true;
+                $seenValues[] = $optionValue;
             }
             $this->checkText($option->label, $optionPath.'/label', self::MAX_OPTION_LABEL_LENGTH);
         }
