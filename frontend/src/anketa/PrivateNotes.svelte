@@ -1,3 +1,21 @@
+<script module lang="ts">
+  /** Remembered per browser; a convenience only, so storage may fail. */
+  const PANEL_STORAGE_KEY = 'e1o1:private-notes-panel';
+
+  /**
+   * Whether the panel was last hidden. Anketa.svelte owns the value and binds
+   * it, so its layout doesn't change while no panel is mounted (between
+   * anketas).
+   */
+  export function readNotesPanelHidden(): boolean {
+    try {
+      return localStorage.getItem(PANEL_STORAGE_KEY) === 'hidden';
+    } catch {
+      return false;
+    }
+  }
+</script>
+
 <script lang="ts">
   import { onMount } from 'svelte';
   import { _ } from 'svelte-i18n';
@@ -31,30 +49,20 @@
     counterpartName,
     counterpartEmail,
     counterpartDeleted,
+    hidden = $bindable(false),
   }: {
     anketaId: string;
     counterpartName: string;
     counterpartEmail: string;
     counterpartDeleted: boolean;
+    hidden?: boolean;
   } = $props();
-
-  /** Remembered per browser; a convenience only, so storage may fail. */
-  const PANEL_STORAGE_KEY = 'e1o1:private-notes-panel';
 
   // Raw: the session hands over a new model on every change, never mutated in place.
   let model = $state.raw<NotesModel>(initialNotesModel());
   let isDemo = $state(false);
   let session: NotesSession | null = null;
-  let hidden = $state(readHidden());
   let confirmingLoadServer = $state(false);
-
-  function readHidden(): boolean {
-    try {
-      return localStorage.getItem(PANEL_STORAGE_KEY) === 'hidden';
-    } catch {
-      return false;
-    }
-  }
 
   function toggleHidden(): void {
     // Hiding unmounts the textarea before its blur would save.
@@ -167,7 +175,11 @@
   }
 </script>
 
-<aside class="card private-notes" aria-labelledby="private-notes-heading">
+<aside
+  class="card private-notes"
+  class:is-hidden={hidden}
+  aria-labelledby="private-notes-heading"
+>
   <div class="heading-row notes-heading-row">
     <svg
       class="notes-icon"
@@ -434,5 +446,45 @@
   .notes-footer {
     margin: 0;
     font-size: 11px;
+  }
+
+  /* The sticky column beside the form (Anketa.svelte, same breakpoint). The
+     panel takes most of the viewport's height and the textarea fills what's
+     left, so the notes stay in view while the form scrolls. At the top of the
+     page the panel starts below the app header and main's padding (about
+     130px when the header wraps), so it's sized for its bottom, the status
+     line and Retry, to be in view there too, not only once it sticks. In a
+     window under about 544px tall the 24rem floor wins, and they are in view
+     only once it sticks. */
+  @media (min-width: 52.5em) {
+    :global(main.with-notes) .private-notes:not(.is-hidden) {
+      height: min(100dvh - 32px, max(24rem, 100dvh - 160px));
+      overflow-y: auto;
+    }
+
+    :global(main.with-notes) .notes-body {
+      flex: 1;
+      min-height: 0;
+    }
+
+    :global(main.with-notes) .notes-textarea {
+      flex: 1;
+      resize: none;
+    }
+
+    /* Hidden, the column is a narrow rail: the icon and "Show notes". */
+    :global(main.with-notes) .is-hidden .notes-heading-row {
+      flex-direction: column;
+    }
+
+    :global(main.with-notes) .is-hidden h2,
+    :global(main.with-notes) .is-hidden .only-you,
+    :global(main.with-notes) .is-hidden .subtitle {
+      display: none;
+    }
+
+    :global(main.with-notes) .is-hidden .hide-toggle {
+      margin-left: 0;
+    }
   }
 </style>
