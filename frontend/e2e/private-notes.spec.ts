@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import {
   test,
   expect,
@@ -78,6 +79,25 @@ function notesPanel(page: Page): Locator {
 
 function notesText(page: Page): Locator {
   return notesPanel(page).getByRole('textbox');
+}
+
+interface ExportedNotes {
+  anketaId: string;
+  meetingDate?: string;
+  counterpartEmail?: string;
+  text?: string;
+  unreadable?: true;
+}
+
+/** Downloads the data export from Account settings and returns it parsed. */
+async function exportData(
+  page: Page,
+): Promise<{ anketas: { id: string }[]; privateNotes: ExportedNotes[] }> {
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Export as JSON' }).click(),
+  ]);
+  return JSON.parse(await readFile((await download.path())!, 'utf8'));
 }
 
 /** Types into the panel and waits for the resulting save to be acknowledged. */
@@ -320,10 +340,8 @@ test('text typed on first use survives a logout and is saved after logging back 
 test('after a password reset the notes are unreadable, and new notes can be started', async ({
   browser,
 }) => {
-  const { employee, employeeEmail, manager, anketaUrl } = await makePair(
-    browser,
-    'notes-reset',
-  );
+  const { employee, employeeEmail, manager, managerEmail, anketaUrl } =
+    await makePair(browser, 'notes-reset');
   await employee.goto(anketaUrl);
   await typeAndSave(employee, 'written under the old keypair');
 
@@ -345,6 +363,14 @@ test('after a password reset the notes are unreadable, and new notes can be star
   // The anketa itself only opens again once the counterpart re-shares its
   // key (the existing reset flow, password-reset.spec.ts). The notes are
   // under the employee's own old keypair, which nobody can re-share.
+  // Until then the export skips the anketa, but still lists the notes, as
+  // unreadable and with only the anketa's id.
+  const anketaId = anketaUrl.split('/').pop()!;
+  await employee.goto('/account');
+  const beforeReshare = await exportData(employee);
+  expect(beforeReshare.anketas).toEqual([]);
+  expect(beforeReshare.privateNotes).toEqual([{ anketaId, unreadable: true }]);
+
   await manager.goto('/');
   await manager.getByRole('button', { name: 'Re-share now' }).click();
   await expect(
@@ -372,6 +398,22 @@ test('after a password reset the notes are unreadable, and new notes can be star
   await expect(notesText(employee)).toHaveValue(
     'written under the new keypair',
   );
+
+  // The footer's export link, then the notes in the export, with the
+  // anketa's details joined in.
+  await notesPanel(employee)
+    .getByRole('link', { name: 'Export keeps a copy.' })
+    .click();
+  await employee.waitForURL('/account');
+  const exported = await exportData(employee);
+  expect(exported.privateNotes).toEqual([
+    {
+      anketaId,
+      meetingDate: expect.any(String),
+      counterpartEmail: managerEmail,
+      text: 'written under the new keypair',
+    },
+  ]);
 });
 
 test("navigating to another anketa saves this one's unsaved text into this one", async ({

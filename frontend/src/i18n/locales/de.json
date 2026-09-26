@@ -127,7 +127,7 @@
     "dateFormatTitle": "Datumsformat",
     "dateFormatHint": "Wie Daten auf diesem Gerät in der gesamten App angezeigt werden.",
     "exportTitle": "Ihre Daten exportieren",
-    "exportHint": "Laden Sie alles herunter, was Sie derzeit sehen können — Ihre eigenen Antworten (einschließlich unveröffentlichter Entwürfe), die veröffentlichten Antworten Ihrer Gegenüber, Kommentare, Ergebnisse und Ziele — als JSON-Datei.",
+    "exportHint": "Laden Sie alles herunter, was Sie derzeit sehen können — Ihre eigenen Antworten (einschließlich unveröffentlichter Entwürfe), die veröffentlichten Antworten Ihrer Gegenüber, Kommentare, Ergebnisse, Ziele und Ihre privaten Notizen — als JSON-Datei.",
     "exportButton": "Als JSON exportieren",
     "exporting": "Export wird vorbereitet…",
     "exportGenericError": "Ihre Daten konnten nicht exportiert werden.",
@@ -657,6 +657,7 @@
     "loadServerConfirmButton": "Ersetzen",
     "cancel": "Abbrechen",
     "counter": "{percent} % der maximalen Länge",
-    "footerLoss": "Gehen verloren, wenn Sie ein vergessenes Passwort zurücksetzen."
+    "footerLoss": "Gehen verloren, wenn Sie ein vergessenes Passwort zurücksetzen.",
+    "footerExport": "Der Export bewahrt eine Kopie."
   }
 }

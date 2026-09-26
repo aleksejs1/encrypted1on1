@@ -61,7 +61,7 @@ Each anketa (a single 1:1 meeting cycle between one manager and one employee) ge
 2. It's **sealed** — `crypto_box_seal`, libsodium's anonymous public-key encryption — to each participant's X25519 public key, once per side. "Anonymous" means no sender keypair is needed or used; anyone can seal a message to a public key, but only the holder of the matching private key can open it. This is what lets the creator hand the same key to a counterpart they may never interact with directly, through the server, without the server ever holding the unsealed key.
 3. Both sealed copies (`employeeSealedKey`, `managerSealedKey`) go to the server. Each participant unseals *their own* copy locally with their own private key when they load the anketa.
 
-Everything specific to that anketa — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints — is encrypted with this one key.
+Everything the two participants share about that anketa — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
 
 ### Envelope format
 
@@ -73,6 +73,17 @@ ciphertext = base64( nonce ‖ XChaCha20-Poly1305(plaintext) )
 ```
 
 One random nonce per encryption; it isn't secret and travels alongside the ciphertext.
+
+## Private notes
+
+Each participant can keep private notes on an anketa, readable only by their author: not by the counterpart, the server or an admin ([GitHub issue #132](https://github.com/aleksejs1/encrypted1on1/issues/132)).
+
+- **Notes key.** A random 32-byte key per anketa per author, the same primitive as the anketa key.
+- **Key wrapping.** The notes key is wrapped in an *authenticated* box from the author's keypair to itself: `nonce ‖ crypto_box_easy(notesKey, nonce, ownPublicKey, ownPrivateKey)`. Only the holder of the private key can make a box that opens. So a server that swaps in a key of its own is caught: the box fails to open, and the notes show as unreadable instead of being written under the server's key. That's why this isn't `crypto_box_seal`: anyone can seal to a public key, and with no second reader a swapped key would go unnoticed.
+- **Notes blob.** The text is encrypted with the notes key in the usual [envelope](#envelope-format), with `e1o1:private-notes:v1:<anketa id>:<author id>` as XChaCha20-Poly1305 associated data. The server can't move a notes row onto another anketa or another user: it fails to decrypt there.
+- **Storage.** A separate table, served only by its own endpoints, which only ever return the requester's own row. No shared payload (the anketa detail, the bulk list, the live-update poll) carries notes, so the counterpart can't even tell whether notes exist.
+- **Tab-local backup.** Text not yet saved is kept in `sessionStorage`, encrypted with a key derived from the private key (`crypto_kdf_derive_from_key`, its own context label, like the [draft key](#draft-key)). It's gone when the tab closes.
+- **Password change and reset.** An in-app password change re-wraps the same private key, so notes and backups still open. A forgotten-password reset generates a new keypair, and notes written before it can't be opened any more: nobody else holds their key, so unlike an anketa, a counterpart can't re-share it. The panel says so and offers to start new notes, and the data export flags them as `unreadable`. The panel footer, the reset page and this section warn about it.
 
 ## The one deliberate plaintext exception
 
@@ -89,12 +100,14 @@ Assume the worst case: an attacker has read access to the entire database, every
 - Each anketa's meeting type (which built-in template it uses, e.g. regular check-in or career conversation), and whether it was a one-off created next to the pair's regular anketa. These are classifiers, not answers. Note that one of them, the support & workload check-in, does hint at why a pair met. It is never shown in any admin report or notification email, but whoever can read the database can see it.
 - Goal titles, descriptions, statuses, and target dates (the one exception above).
 - That an anketa exists, was published, has N comments — metadata, not content.
+- That a user has private notes on an anketa, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
 - Which admin invited whom, account creation dates, blocked/admin flags.
 
 **Not visible, under any circumstance short of a stolen password:**
 - Anketa question answers, from either side, published or draft.
 - Comment text.
 - Outcome items' text.
+- Private notes' text. Inside the app, neither the counterpart nor a company admin can learn whether they exist; someone who can read the database sees what's listed under *Visible*.
 - Goal progress checkpoint text.
 - Any user's password, or anything that lets one be recovered.
 - Any user's master key or private key (only wrapped/sealed forms are ever stored).

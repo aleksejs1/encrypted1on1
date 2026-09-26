@@ -28,6 +28,8 @@
     deriveNotesBackupKey,
     notesCapPercent,
   } from '../crypto/privateNotes';
+  import { navigate } from '../router.svelte';
+  import { PATHS } from '../routes';
   import { shortDisplayName } from '../userDisplay';
   import { AUTOMATIC_RETRY_COUNT, NotesSession } from './notesSession';
   import {
@@ -353,9 +355,28 @@
         {/if}
       </div>
 
-      <!-- The design's "Export keeps a copy." link joins this line with #139,
-           when the data export starts including private notes. -->
-      <p class="text-muted notes-footer">{$_('privateNotes.footerLoss')}</p>
+      <p class="text-muted notes-footer">
+        {$_('privateNotes.footerLoss')}
+        <!-- In-app, so this panel is destroyed and makes its last save,
+             rather than a page load asking about unsaved notes. A modified or
+             middle click is left to the browser (a new tab or window). -->
+        <a
+          href={PATHS.account}
+          onclick={(event) => {
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return;
+            }
+            event.preventDefault();
+            navigate(PATHS.account);
+          }}>{$_('privateNotes.footerExport')}</a
+        >
+      </p>
     </div>
   {/if}
 </aside>

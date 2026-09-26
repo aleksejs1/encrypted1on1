@@ -35,6 +35,11 @@
   import { dateFormatState, setDateFormat } from '../datePreference.svelte';
   import type { Answers } from '../anketa/questions';
   import { decryptDraft, migrateLegacyDrafts } from '../anketa/drafts';
+  import {
+    openNotesForExport,
+    privateNotesForExport,
+    type OwnNotesRow,
+  } from '../anketa/notesExport';
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
@@ -269,6 +274,7 @@
       const masterKey = await loadMasterKey();
       const draftKey = await deriveDraftKey(identity.privateKey);
       const list = await apiGet<AnketaBulkRow[]>('/api/anketas/bulk');
+      const notesRows = await apiGet<OwnNotesRow[]>('/api/me/private-notes');
 
       const exportedAnketas = [];
       for (const detail of list) {
@@ -351,6 +357,21 @@
         });
       }
 
+      // Outside the loop above, which skips an anketa whose key won't unseal:
+      // notes have their own key and may still open (notesExport.ts).
+      const openedNotes = [];
+      for (const row of notesRows) {
+        openedNotes.push({
+          anketaId: row.anketaId,
+          text: await openNotesForExport(
+            row,
+            identity.userId,
+            identity.publicKey,
+            identity.privateKey,
+          ),
+        });
+      }
+
       downloadJson(
         `encrypted1on1-export-${new Date().toISOString().slice(0, 10)}.json`,
         {
@@ -358,6 +379,7 @@
           email: identity.email,
           displayName: identity.displayName,
           anketas: exportedAnketas,
+          privateNotes: privateNotesForExport(openedNotes, exportedAnketas),
         },
       );
     } catch (error) {

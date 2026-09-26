@@ -127,7 +127,7 @@
     "dateFormatTitle": "Datuma formāts",
     "dateFormatHint": "Kā datumi tiek rādīti visā lietotnē šajā ierīcē.",
     "exportTitle": "Eksportēt savus datus",
-    "exportHint": "Lejupielādējiet visu, ko šobrīd varat redzēt — savas atbildes (ieskaitot nepublicētos melnrakstus), sarunu biedru publicētās atbildes, komentārus, tikšanās rezultātus un mērķus — kā JSON failu.",
+    "exportHint": "Lejupielādējiet visu, ko šobrīd varat redzēt — savas atbildes (ieskaitot nepublicētos melnrakstus), sarunu biedru publicētās atbildes, komentārus, tikšanās rezultātus, mērķus un savas privātās piezīmes — kā JSON failu.",
     "exportButton": "Eksportēt kā JSON",
     "exporting": "Sagatavo eksportu…",
     "exportGenericError": "Neizdevās eksportēt datus.",
@@ -655,6 +655,7 @@
     "loadServerConfirmButton": "Aizstāt",
     "cancel": "Atcelt",
     "counter": "{percent}% no maksimālā garuma",
-    "footerLoss": "Tiks zaudētas, ja atiestatīsiet aizmirstu paroli."
+    "footerLoss": "Tiks zaudētas, ja atiestatīsiet aizmirstu paroli.",
+    "footerExport": "Eksports saglabā kopiju."
   }
 }
