@@ -972,7 +972,16 @@ test('a non-default meeting template reaches both sides, and its successor falls
   // anketa key generated and sealed for both sides by this browser.
   await manager.goto(anketaUrl);
   await expect(manager.locator('#next-meeting-date')).toBeVisible();
+  // The "Next meeting type" default is the same rule (GitHub issue #140), and
+  // an untouched picker sends nothing, leaving the choice to the server.
+  await expect(manager.getByLabel('Next meeting type')).toHaveValue('regular');
+  const archiveRequest = manager.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
   await manager.getByRole('button', { name: 'Archive' }).click();
+  expect((await archiveRequest).postDataJSON()).not.toHaveProperty(
+    'nextTemplateKey',
+  );
   await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
 
   // The employee's list now has the archived anketa plus its auto-created
@@ -1100,6 +1109,7 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
     employee.getByRole('checkbox', { name: "Don't create the next meeting" }),
   ).toHaveCount(0);
   await expect(employee.locator('#next-meeting-date')).toHaveCount(0);
+  await expect(employee.locator('#next-meeting-type')).toHaveCount(0);
 
   await employee.getByRole('button', { name: 'Archive' }).click();
   await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
@@ -1120,6 +1130,130 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
   await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
     goalTitle,
   );
+});
+
+/**
+ * Opens the pair's one still-open anketa from `page`'s list — the successor
+ * an archive with a next meeting just created — and returns its URL.
+ */
+async function openSuccessor(page: Page, archivedUrl: string): Promise<string> {
+  await page.goto('/');
+  const rows = page.locator('.anketa-row');
+  await expect(rows).toHaveCount(2);
+  await rows
+    .filter({ hasNot: page.locator('.tag', { hasText: 'archived' }) })
+    .click();
+  await page.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  expect(page.url()).not.toBe(archivedUrl);
+  return page.url();
+}
+
+/** `page`'s own side renders the Career growth question set. */
+async function expectCareerGrowthOnMySide(
+  page: Page,
+  role: 'employee' | 'manager',
+): Promise<void> {
+  const mySide = page.locator('.side-card').first();
+  if (role === 'manager') {
+    await expect(
+      mySide.getByRole('heading', {
+        name: 'Stretch opportunity and sponsorship',
+      }),
+    ).toBeVisible();
+  } else {
+    await expect(
+      mySide.getByRole('heading', { name: 'Mood', exact: true }),
+    ).toBeVisible();
+    // Regular-only, absent from Career growth.
+    await expect(
+      mySide.getByRole('heading', { name: 'Feelings', exact: true }),
+    ).toHaveCount(0);
+  }
+}
+
+/**
+ * GitHub issue #140: the archive form's "Next meeting type" picker. Its
+ * default is the server's per-template recurrence rule; picking another type
+ * creates the successor with that type, on both participants' pages. Hidden
+ * with "Don't create the next meeting" (and for a one-off, covered above).
+ */
+test('archiving with a chosen next meeting type creates the successor with that type', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-next-type');
+  const managerEmail = uniqueEmail('manager-next-type');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  await manager.goto(anketaUrl);
+  const picker = manager.getByLabel('Next meeting type');
+  await expect(picker).toHaveValue('regular');
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await expect(picker).toHaveCount(0);
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .uncheck({ force: true });
+  await picker.selectOption({ label: 'Career growth' });
+
+  const archiveRequest = manager.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await manager.getByRole('button', { name: 'Archive' }).click();
+  expect((await archiveRequest).postDataJSON()).toMatchObject({
+    nextTemplateKey: 'career_growth',
+  });
+  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+
+  const successorUrl = await openSuccessor(manager, anketaUrl);
+  await expectCareerGrowthOnMySide(manager, 'manager');
+  // The successor's own default goes back to the per-template rule.
+  await expect(manager.getByLabel('Next meeting type')).toHaveValue('regular');
+
+  await employee.goto(successorUrl);
+  await expectCareerGrowthOnMySide(employee, 'employee');
+});
+
+/**
+ * GitHub issue #140: "Cancel as missed" on the overdue card archives with
+ * whatever the archive form currently shows, next meeting type included.
+ */
+test('cancel as missed creates the successor with the chosen next meeting type', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-next-type-missed');
+  const managerEmail = uniqueEmail('manager-next-type-missed');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(employee, managerEmail, -3);
+  await expect(employee.locator('.overdue-card')).toBeVisible();
+
+  await employee
+    .getByLabel('Next meeting type')
+    .selectOption({ label: 'Career growth' });
+  const archiveRequest = employee.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await employee.getByRole('button', { name: 'Cancel as missed' }).click();
+  expect((await archiveRequest).postDataJSON()).toMatchObject({
+    missed: true,
+    nextTemplateKey: 'career_growth',
+  });
+  await expect(employee.locator('.overdue-card')).toHaveCount(0);
+  await expect(employee.getByText('missed', { exact: true })).toBeVisible();
+
+  await openSuccessor(employee, anketaUrl);
+  await expectCareerGrowthOnMySide(employee, 'employee');
 });
 
 /**

@@ -21,6 +21,14 @@ readonly class ArchiveAnketaRequest
         public ?string $mySealedKey = null,
         #[Assert\Type('string')]
         public ?string $counterpartSealedKey = null,
+        // The "Next meeting type" picker (GitHub issue #140). Sent only when the user
+        // changed it from the page's default; absent means the server's own default
+        // (AnketaLifecycleService::defaultNextTemplate()), which also keeps old clients
+        // working unchanged. Checked against Anketa::TEMPLATE_KEYS by
+        // AnketaController::archive(), and only when a successor will be created, so a
+        // one-off or blocked pair never fails on it.
+        #[Assert\Type('string')]
+        public ?string $nextTemplateKey = null,
     ) {
     }
 

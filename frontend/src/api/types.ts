@@ -91,6 +91,12 @@ export interface AnketaDetail {
    * issue #111). Set once at creation, never changes.
    */
   oneOff: boolean;
+  /**
+   * The archive form's default "Next meeting type" (GitHub issue #140): what the
+   * successor gets unless someone picks another type. Null for a one-off (no
+   * successor) and once archived (no archive form).
+   */
+  nextCycleTemplateKey: TemplateKey | null;
 }
 
 /**

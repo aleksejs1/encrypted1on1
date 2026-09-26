@@ -924,6 +924,158 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame($before, $after);
     }
 
+    /**
+     * Archives $anketaId with auto-recreation and returns the successor's list row
+     * (GitHub issue #140 tests).
+     *
+     * @param array<string, mixed> $extra
+     *
+     * @return array<string, mixed>
+     */
+    private function archiveAndGetSuccessor(KernelBrowser $client, string $anketaId, array $extra = []): array
+    {
+        $beforeIds = array_column($this->jsonRequest($client, 'GET', '/api/anketas')['json'], 'id');
+
+        $result = $this->jsonRequest($client, 'POST', "/api/anketas/{$anketaId}/archive", $extra + [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+        self::assertSame(200, $result['status']);
+
+        $afterList = $this->jsonRequest($client, 'GET', '/api/anketas')['json'];
+        $newIds = array_values(array_diff(array_column($afterList, 'id'), $beforeIds));
+        self::assertCount(1, $newIds);
+
+        return self::findById($afterList, $newIds[0]);
+    }
+
+    /** GitHub issue #140: without nextTemplateKey the server applies its own default, as before. */
+    public function testArchiveWithoutNextTemplateKeyUsesTheDefault(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-default');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'career_growth'])['json']['id'];
+
+        self::assertSame('regular', $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['nextCycleTemplateKey']);
+
+        $next = $this->archiveAndGetSuccessor($employeeClient, $anketaId);
+        self::assertSame('regular', $next['templateKey']);
+        self::assertFalse($next['oneOff']);
+
+        // Archived: no archive form left, so no default.
+        self::assertNull($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['nextCycleTemplateKey']);
+    }
+
+    /** GitHub issue #140: a chosen next meeting type overrides the default. */
+    public function testArchiveWithNextTemplateKeyCreatesThatType(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-chosen');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $next = $this->archiveAndGetSuccessor($employeeClient, $anketaId, ['nextTemplateKey' => 'career_growth']);
+        self::assertSame('career_growth', $next['templateKey']);
+        // A successor, not a one-off: it's the pair's chain anketa and recurs.
+        self::assertFalse($next['oneOff']);
+    }
+
+    /** "Cancel as missed" sends the same choice, so it creates the same type. */
+    public function testMissedArchiveWithNextTemplateKeyCreatesThatType(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-missed');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $next = $this->archiveAndGetSuccessor($employeeClient, $anketaId, ['missed' => true, 'nextTemplateKey' => 'support_checkin']);
+        self::assertSame('support_checkin', $next['templateKey']);
+
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertTrue(self::findById($list, $anketaId)['missed']);
+    }
+
+    public function testArchiveRejectsAnInvalidNextTemplateKeyAndChangesNothing(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-invalid');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'nextTemplateKey' => 'made-up-template',
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+
+        self::assertSame(400, $result['status']);
+        self::assertStringContainsString('nextTemplateKey', $result['json']['error']);
+        $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
+        self::assertCount(1, $list);
+        self::assertNull(self::findById($list, $anketaId)['archivedAt']);
+    }
+
+    /** Ignored without a next meeting, the same as nextMeetingDate. */
+    public function testArchiveIgnoresNextTemplateKeyWhenSkippingTheNextMeeting(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-skip');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => true,
+            'nextTemplateKey' => 'made-up-template',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertCount(1, $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+    }
+
+    /** A blocked pair gets no successor either, so the same holds. */
+    public function testArchiveOfABlockedPairIgnoresNextTemplateKey(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-blocked');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
+        $managerEntity->setBlocked(true);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'nextTemplateKey' => 'made-up-template',
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertCount(1, $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+    }
+
+    /** A one-off has no successor: an override is resolved to nothing and never fails. */
+    public function testArchiveOfAOneOffIgnoresNextTemplateKey(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-one-off');
+        $chainId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $oneOffId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'career_growth'])['json']['id'];
+        self::assertNull($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$oneOffId}")['json']['nextCycleTemplateKey']);
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$oneOffId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            // Not even a valid key: with no successor it's never looked at.
+            'nextTemplateKey' => 'made-up-template',
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+        ]);
+
+        self::assertSame(200, $result['status']);
+        $ids = array_column($this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'], 'id');
+        sort($ids);
+        $expected = [$chainId, $oneOffId];
+        sort($expected);
+        self::assertSame($expected, $ids);
+    }
+
     public function testRescheduleRejectsOnceArchived(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('reschedule-archived');

@@ -2,11 +2,16 @@
 
 namespace App\Tests\Unit\Anketa;
 
+use App\Anketa\AnketaLifecycleService;
 use App\Anketa\AnketaPresenter;
 use App\Entity\Anketa;
 use App\Entity\Company;
 use App\Entity\Goal;
 use App\Entity\User;
+use App\Notification\AnketaNotifier;
+use App\Repository\AnketaRepository;
+use App\Repository\GoalRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
 class AnketaPresenterTest extends TestCase
@@ -18,7 +23,12 @@ class AnketaPresenterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->presenter = new AnketaPresenter();
+        $this->presenter = new AnketaPresenter(new AnketaLifecycleService(
+            self::createStub(EntityManagerInterface::class),
+            self::createStub(GoalRepository::class),
+            self::createStub(AnketaRepository::class),
+            self::createStub(AnketaNotifier::class),
+        ));
         $this->company = new Company('Acme Inc');
         $this->employee = new User('employee@example.com', 'hash', 'emp-pub-key', 'emp-enc-key', $this->company);
         $this->employee->setDisplayName('Alice Employee');
@@ -108,6 +118,40 @@ class AnketaPresenterTest extends TestCase
 
         self::assertTrue($this->presenter->summarize($anketa, $this->employee)['oneOff']);
         self::assertTrue($this->presenter->serializeDetail($anketa, $this->employee, [])['oneOff']);
+        // No successor, so no default next meeting type either (GitHub issue #140).
+        self::assertNull($this->presenter->serializeDetail($anketa, $this->employee, [])['nextCycleTemplateKey']);
+    }
+
+    /** GitHub issue #140: the archive form's default comes from defaultNextTemplate(). */
+    public function testSerializeDetailReturnsTheDefaultNextTemplate(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'sealed-emp',
+            managerSealedKey: 'sealed-mgr',
+            periodicityDays: 14,
+            templateKey: 'career_growth',
+        );
+
+        self::assertSame('regular', $this->presenter->serializeDetail($anketa, $this->employee, [])['nextCycleTemplateKey']);
+    }
+
+    /** An archived anketa has no archive form left, so no default next meeting type. */
+    public function testSerializeDetailReturnsNoNextTemplateOnceArchived(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'sealed-emp',
+            managerSealedKey: 'sealed-mgr',
+            periodicityDays: 14,
+        );
+        $anketa->archive(false);
+
+        self::assertNull($this->presenter->serializeDetail($anketa, $this->employee, [])['nextCycleTemplateKey']);
     }
 
     public function testSummarizeFromManagerPerspective(): void
@@ -198,6 +242,8 @@ class AnketaPresenterTest extends TestCase
         self::assertArrayNotHasKey('templateKey', $liveState);
         // Same for oneOff (GitHub issue #111).
         self::assertArrayNotHasKey('oneOff', $liveState);
+        // A detail-only field (GitHub issue #140), never part of the 4s poll.
+        self::assertArrayNotHasKey('nextCycleTemplateKey', $liveState);
     }
 
     public function testIsKeyOutdated(): void

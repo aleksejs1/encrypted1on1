@@ -31,6 +31,7 @@
     getQuestionsForSide,
     type Side,
     type Answers,
+    type TemplateKey,
   } from '../anketa/questions';
   import { updateBlobWithRetry } from '../anketa/blobSync';
   import type { AnketaDetail, AnketaLiveState } from '../api/types';
@@ -159,6 +160,10 @@
   let missed = $state(false);
   let skipNextMeeting = $state(false);
   let nextMeetingDate = $state('');
+  // The archive form's "Next meeting type" (GitHub issue #140). Page-level for the same reason as
+  // skipNextMeeting/nextMeetingDate: handleArchive() reads it for both buttons.
+  // Null only when there's no picker (a one-off, or already archived).
+  let nextTemplateChoice = $state<TemplateKey | null>(null);
 
   let myUserId = $state('');
   /** Short display label per participant (first name, or full email if no name is set) — inside the anketa's tight layout, only the tighter comments/outcomes/goals author tags and the two side headings use this. */
@@ -343,6 +348,7 @@
         defaultNext.setDate(defaultNext.getDate() + periodicityDays);
         nextMeetingDate = defaultNext.toISOString().slice(0, 10);
       }
+      nextTemplateChoice = anketa.nextCycleTemplateKey;
 
       let key: Uint8Array;
       try {
@@ -1021,7 +1027,9 @@
    * `skipNextMeeting`/`nextMeetingDate` stay page-level state (bound down into
    * AnketaArchiveSection for editing) precisely so this function keeps reading
    * whatever's currently set in that form regardless of which button triggered it,
-   * matching the behavior before either component existed.
+   * matching the behavior before either component existed. The same goes for
+   * `nextTemplateChoice` (GitHub issue #140): "cancel as missed" deliberately
+   * creates the successor type the archive form currently shows.
    *
    * A one-off anketa (GitHub issue #111) never gets a successor — the server
    * forces that regardless of the request — so it's sent as an explicit skip,
@@ -1067,6 +1075,12 @@
         body = {
           ...body,
           nextMeetingDate: new Date(nextMeetingDate).toISOString(),
+          // Sent only when changed from the default, so an untouched form
+          // sends exactly the old request and the server applies its own
+          // current default.
+          ...(nextTemplateChoice !== detail.nextCycleTemplateKey
+            ? { nextTemplateKey: nextTemplateChoice }
+            : {}),
           mySealedKey: mySealedKeyNext,
           counterpartSealedKey: counterpartSealedKeyNext,
           ...(outcomesBlobNext ? { outcomesBlob: outcomesBlobNext } : {}),
@@ -1522,6 +1536,7 @@
           oneOff={detail.oneOff}
           bind:skipNextMeeting
           bind:nextMeetingDate
+          bind:nextTemplateChoice
           onArchive={handleArchive}
         />
       {/if}
