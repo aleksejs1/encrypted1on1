@@ -60,6 +60,8 @@ export interface AnketaDetail {
   counterpartId: string;
   counterpartEmail: string;
   counterpartName: string;
+  /** Served by the backend all along; the private-notes panel (GitHub issue #132) is the first to read it here. */
+  counterpartDeleted: boolean;
   meetingDate: string;
   archivedAt: string | null;
   mySealedKey: string;

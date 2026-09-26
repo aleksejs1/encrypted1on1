@@ -9,6 +9,7 @@
   import AnketaOutcomes from '../anketa/AnketaOutcomes.svelte';
   import AnketaGoals from '../anketa/AnketaGoals.svelte';
   import AnketaArchiveSection from '../anketa/AnketaArchiveSection.svelte';
+  import PrivateNotes from '../anketa/PrivateNotes.svelte';
   import {
     addComment,
     deleteComment,
@@ -1283,6 +1284,23 @@
         if (detail) detail = { ...detail, meetingDate };
       }}
     />
+
+    <!-- Keyed by id: this page is reused across anketa ids, and each anketa's
+         notes panel must be a fresh instance whose old one really unmounts
+         (GitHub issue #132 §6.3). -->
+    {#key id}
+      <!-- Only once `detail` is this anketa's: it keeps the previous
+           anketa's value until the new one loads, and the panel's privacy
+           line names the counterpart. -->
+      {#if detail.id === id}
+        <PrivateNotes
+          anketaId={id}
+          counterpartName={detail.counterpartName}
+          counterpartEmail={detail.counterpartEmail}
+          counterpartDeleted={detail.counterpartDeleted}
+        />
+      {/if}
+    {/key}
 
     <!-- My side -->
     <section class="card side-card">

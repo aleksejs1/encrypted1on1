@@ -219,6 +219,18 @@ const SOLID_PAIRS: Pair[] = [
     min: 4.5,
   },
   {
+    name: 'private notes text on the notes panel surface',
+    fg: '--color-text',
+    bg: '--color-notes-surface',
+    min: 4.5,
+  },
+  {
+    name: 'private notes "Only you" tag / ghost buttons on the notes panel surface',
+    fg: '--color-accent-ink',
+    bg: '--color-notes-surface',
+    min: 4.5,
+  },
+  {
     name: '.btn-primary / checked .seg-opt text on its accent fill',
     fg: '--color-on-accent',
     bg: '--color-accent',
@@ -246,7 +258,7 @@ const SOLID_PAIRS: Pair[] = [
 
 /** Selectors whose `color` resolves to the shared --color-text-muted token, checked against every solid background it can appear on. */
 const MUTED_TEXT_SELECTORS = ['.text-muted', '.card-meta', 'h4', '.table th'];
-const SURFACE_VARS = ['--color-bg', '--color-surface'];
+const SURFACE_VARS = ['--color-bg', '--color-surface', '--color-notes-surface'];
 
 describe('color token contrast (WCAG 2.1 AA)', () => {
   for (const [themeName, tokens] of Object.entries(THEMES)) {
