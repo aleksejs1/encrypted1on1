@@ -1006,7 +1006,10 @@ class AnketaControllerTest extends ApiTestCase
         ]);
 
         self::assertSame(400, $result['status']);
-        self::assertStringContainsString('nextTemplateKey', $result['json']['error']);
+        self::assertSame(
+            '"nextTemplateKey" must be one of: '.implode(', ', Anketa::TEMPLATE_KEYS).'.',
+            $result['json']['error'],
+        );
         $list = $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'];
         self::assertCount(1, $list);
         self::assertNull(self::findById($list, $anketaId)['archivedAt']);
