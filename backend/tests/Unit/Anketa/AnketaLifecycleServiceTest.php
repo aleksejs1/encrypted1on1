@@ -227,6 +227,7 @@ class AnketaLifecycleServiceTest extends TestCase
             mySealedKey: 'next-emp-key',
             counterpartSealedKey: 'next-mgr-key',
             outcomesBlob: null,
+            nextTemplateKey: 'regular',
         );
 
         self::assertTrue($anketa->isArchived());
@@ -235,9 +236,6 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertSame('next-mgr-key', $nextAnketa->sealedKeyFor($this->manager));
         self::assertNotNull($writtenArchivedAt);
         self::assertEquals($writtenArchivedAt->modify('+14 days'), $nextAnketa->getMeetingDate());
-        // 'regular' maps to itself in Anketa::NEXT_CYCLE_TEMPLATE_KEY.
-        // testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap proves archive() goes
-        // through the map; AnketaTest::testNextCycleTemplateKeyFor has the full table.
         self::assertSame('regular', $nextAnketa->getTemplateKey());
     }
 
@@ -247,8 +245,9 @@ class AnketaLifecycleServiceTest extends TestCase
     public static function nextCycleTemplateKeyProvider(): array
     {
         return [
-            // One non-identity mapping is enough to prove archive() goes through the
+            // One non-identity mapping is enough to prove the default goes through the
             // map; the full per-template table is AnketaTest::testNextCycleTemplateKeyFor's.
+            'regular' => ['regular', 'regular'],
             'onboarding' => ['onboarding', 'regular'],
             // The entity accepts any string (the DTO layer rejects an unrecognized key
             // as user input) — stale data from a retired template, or bad data.
@@ -257,11 +256,12 @@ class AnketaLifecycleServiceTest extends TestCase
     }
 
     /**
-     * The auto-recreated successor's template comes from Anketa::NEXT_CYCLE_TEMPLATE_KEY,
-     * not a blind carry-forward the way periodicityDays is.
+     * GitHub issue #140: the default successor template comes from
+     * Anketa::NEXT_CYCLE_TEMPLATE_KEY, not a blind carry-forward the way
+     * periodicityDays is.
      */
     #[\PHPUnit\Framework\Attributes\DataProvider('nextCycleTemplateKeyProvider')]
-    public function testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap(string $templateKey, string $expectedNextTemplateKey): void
+    public function testDefaultNextTemplateUsesNextCycleTemplateKeyMap(string $templateKey, string $expectedNextTemplateKey): void
     {
         $anketa = new Anketa(
             employee: $this->employee,
@@ -271,6 +271,42 @@ class AnketaLifecycleServiceTest extends TestCase
             managerSealedKey: 'mgr-key',
             periodicityDays: 14,
             templateKey: $templateKey,
+        );
+
+        self::assertSame($expectedNextTemplateKey, $this->createService()->defaultNextTemplate($anketa));
+    }
+
+    /** A one-off never has a successor, so it has no default next template either. */
+    public function testDefaultNextTemplateIsNullForAOneOff(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'career_growth',
+            oneOff: true,
+        );
+
+        self::assertNull($this->createService()->defaultNextTemplate($anketa));
+    }
+
+    /**
+     * GitHub issue #140: archive() creates the successor with exactly the template key
+     * it's given — here a non-default one for a regular anketa — and never consults
+     * the map itself.
+     */
+    public function testArchiveCreatesTheSuccessorWithTheGivenTemplateKey(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
         );
 
         $goalRepository = self::createStub(GoalRepository::class);
@@ -283,14 +319,49 @@ class AnketaLifecycleServiceTest extends TestCase
             actor: $this->employee,
             missed: false,
             skipNextMeeting: false,
-            nextMeetingDate: null,
             mySealedKey: 'next-emp-key',
             counterpartSealedKey: 'next-mgr-key',
-            outcomesBlob: null,
+            nextTemplateKey: 'career_growth',
         );
 
         self::assertNotNull($nextAnketa);
-        self::assertSame($expectedNextTemplateKey, $nextAnketa->getTemplateKey());
+        self::assertSame('career_growth', $nextAnketa->getTemplateKey());
+        self::assertFalse($nextAnketa->isOneOff());
+    }
+
+    /**
+     * A missing template key while a successor is due is a programming error (the
+     * controller always resolves one), not a fallback: the same defensive 400 as a
+     * missing sealed key, thrown before the transaction opens. Not reachable through
+     * the controller, so tested here directly.
+     */
+    public function testArchiveThrowsExceptionWhenNextAnketaMissingTemplateKey(): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+        );
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::never())->method('wrapInTransaction');
+
+        $service = $this->createService(entityManager: $entityManager);
+
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessageMatches('/Next anketa requires a template key\./');
+
+        $service->archive(
+            anketa: $anketa,
+            actor: $this->employee,
+            missed: false,
+            skipNextMeeting: false,
+            mySealedKey: 'next-emp-key',
+            counterpartSealedKey: 'next-mgr-key',
+        );
     }
 
     /**
@@ -340,6 +411,7 @@ class AnketaLifecycleServiceTest extends TestCase
                 skipNextMeeting: false,
                 mySealedKey: 'next-emp-key',
                 counterpartSealedKey: 'next-mgr-key',
+                nextTemplateKey: 'regular',
             );
             self::fail('Expected AnketaAlreadyArchivedException.');
         } catch (AnketaAlreadyArchivedException) {

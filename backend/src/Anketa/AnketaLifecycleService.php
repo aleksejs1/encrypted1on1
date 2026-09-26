@@ -131,6 +131,12 @@ class AnketaLifecycleService
      * blocked (see shouldCreateNext()), auto-recreates
      * the subsequent anketa with carried-forward uncompleted goals, flushes, and notifies the counterpart.
      *
+     * $nextTemplateKey is the successor's template, already resolved by the caller
+     * (the user's "Next meeting type" choice, or defaultNextTemplate()) before anything
+     * is mutated — resolving it here would be too late for a check that has to leave
+     * the anketa unarchived when it fails. Required whenever a successor is created;
+     * ignored otherwise.
+     *
      * The archive itself goes through AnketaRepository::markArchivedIfOpen(), in the same
      * transaction as the successor's insert, so of two concurrent archive requests only
      * one creates a successor (GitHub issue #130); the other gets
@@ -147,14 +153,20 @@ class AnketaLifecycleService
         ?string $mySealedKey = null,
         ?string $counterpartSealedKey = null,
         ?string $outcomesBlob = null,
+        ?string $nextTemplateKey = null,
     ): ?Anketa {
         $nextPeriodicityDays = $this->nextAnketaPeriodicity($anketa, $skipNextMeeting, $mySealedKey, $counterpartSealedKey);
+        // A programming error, not a fallback: AnketaController::archive() always
+        // resolves one. Thrown before the transaction, for nextAnketaPeriodicity()'s reason.
+        if (null !== $nextPeriodicityDays && null === $nextTemplateKey) {
+            throw new BadRequestHttpException('Next anketa requires a template key.');
+        }
 
         // The callback returns false (never throws) when the anketa was already
         // archived — same reason as InviteController::create(): wrapInTransaction()
         // closes the EntityManager on any exception.
         $nextAnketa = $this->entityManager->wrapInTransaction(function () use (
-            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob,
+            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $nextTemplateKey,
         ): Anketa|false|null {
             $archivedAt = new \DateTimeImmutable();
             // Must stay the transaction's first statement. On SQLite (WAL), a deferred
@@ -173,6 +185,7 @@ class AnketaLifecycleService
                 return null;
             }
             // Checked by nextAnketaPeriodicity() above; parameters, so not re-read.
+            // ($nextTemplateKey's check above already narrows it for PHPStan.)
             \assert(null !== $mySealedKey && null !== $counterpartSealedKey);
 
             return $this->createNextAnketa(
@@ -184,6 +197,7 @@ class AnketaLifecycleService
                 $mySealedKey,
                 $counterpartSealedKey,
                 $outcomesBlob,
+                $nextTemplateKey,
             );
         });
 
@@ -197,6 +211,25 @@ class AnketaLifecycleService
         }
 
         return $nextAnketa;
+    }
+
+    /**
+     * The template the successor of $anketa gets when nobody picks a different one at
+     * archive (GitHub issue #140): the per-template recurrence map,
+     * Anketa::nextCycleTemplateKeyFor(), which is now only the default — the "Next
+     * meeting type" picker can override it. Null for a one-off, which never has a
+     * successor. Deliberately doesn't check the archived state: archive() needs it
+     * before the anketa is archived, and AnketaPresenter emits null for an archived
+     * anketa itself. The one place this rule lives, for both the presenter's
+     * nextCycleTemplateKey and AnketaController::archive().
+     */
+    public function defaultNextTemplate(Anketa $anketa): ?string
+    {
+        if ($anketa->isOneOff()) {
+            return null;
+        }
+
+        return Anketa::nextCycleTemplateKeyFor($anketa->getTemplateKey());
     }
 
     public function shouldCreateNext(Anketa $anketa, bool $skipNextMeeting): bool
@@ -251,15 +284,13 @@ class AnketaLifecycleService
         string $mySealedKey,
         string $counterpartSealedKey,
         ?string $outcomesBlob,
+        string $nextTemplateKey,
     ): Anketa {
         $isEmployee = $anketa->isEmployee($actor);
 
-        // Deliberately NOT $anketa->getTemplateKey() here, unlike periodicityDays two
-        // lines below — a template choice should not blindly carry forward the way
-        // periodicity does: a non-recurring template auto-recreating itself forever
-        // would be wrong. Anketa::nextCycleTemplateKeyFor() looks up the per-template
-        // recurrence rule (see its own docblock) — see AnketaLifecycleServiceTest::
-        // testArchiveWithNextMeetingUsesNextCycleTemplateKeyMap.
+        // Uses only the template key it's given (see archive()), never
+        // $anketa->getTemplateKey() — a template choice doesn't blindly carry forward
+        // the way periodicity does. The default comes from defaultNextTemplate().
         return $this->createWithCarryForward(
             employee: $anketa->getEmployee(),
             manager: $anketa->getManager(),
@@ -269,7 +300,7 @@ class AnketaLifecycleService
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             carryFrom: $anketa,
-            templateKey: Anketa::nextCycleTemplateKeyFor($anketa->getTemplateKey()),
+            templateKey: $nextTemplateKey,
         );
     }
 

@@ -462,6 +462,9 @@ class AnketaController
 
         $mySealedKey = null;
         $counterpartSealedKey = null;
+        // Resolved here, before anything is mutated, and only when a successor will
+        // actually be created — a one-off or blocked pair never fails on an override.
+        $nextTemplateKey = null;
         if ($createNext) {
             $periodicityDays = $anketa->getPeriodicityDays();
             if (null === $periodicityDays) {
@@ -471,6 +474,10 @@ class AnketaController
             $counterpartSealedKey = $payload->counterpartSealedKey;
             if (null === $mySealedKey || null === $counterpartSealedKey) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_sealed_keys')], 400);
+            }
+            $nextTemplateKey = $payload->nextTemplateKey ?? $this->lifecycleService->defaultNextTemplate($anketa);
+            if (!\in_array($nextTemplateKey, Anketa::TEMPLATE_KEYS, true)) {
+                return new JsonResponse(['error' => $this->translator->trans('errors.next_template_key_must_be_one_of', ['%templateKeys%' => implode(', ', Anketa::TEMPLATE_KEYS)])], 400);
             }
         }
 
@@ -484,6 +491,7 @@ class AnketaController
                 mySealedKey: $mySealedKey,
                 counterpartSealedKey: $counterpartSealedKey,
                 outcomesBlob: $payload->outcomesBlob,
+                nextTemplateKey: $nextTemplateKey,
             );
         } catch (AnketaAlreadyArchivedException) {
             // This request's copy predates the archive that won; re-read it for the

@@ -65,6 +65,7 @@ errors:
     counterpart_not_found: 'Interlocuteur introuvable.'
     periodicity_required: '"periodicityDays" doit être un entier positif pour un nouveau binôme.'
     template_key_must_be_one_of: '"templateKey" doit être l''une des valeurs suivantes : %templateKeys%.'
+    next_template_key_must_be_one_of: '"nextTemplateKey" doit être l''une des valeurs suivantes : %templateKeys%.'
     comments_conflict: 'Les commentaires ont changé depuis votre dernière lecture.'
     answers_conflict: 'Vos réponses ont changé depuis votre dernière lecture.'
     outcomes_conflict: 'Les résultats ont changé depuis votre dernière lecture.'

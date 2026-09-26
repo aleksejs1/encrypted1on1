@@ -228,6 +228,9 @@
       {#if counterpartId && pairHasOpenAnketa}
         <p class="text-muted periodicity-note">
           {$_('createAnketa.pairHasOpenAnketa')}
+          {#if templateKey !== 'regular'}
+            {$_('createAnketa.pairHasOpenAnketaHowToSwitch')}
+          {/if}
         </p>
       {/if}
 

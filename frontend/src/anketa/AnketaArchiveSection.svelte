@@ -1,6 +1,11 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import DateInput from '../design/DateInput.svelte';
+  import {
+    ANKETA_TEMPLATES,
+    templatePickerKeys,
+    type TemplateKey,
+  } from './questions';
 
   let {
     archiving,
@@ -8,6 +13,7 @@
     oneOff,
     skipNextMeeting = $bindable<boolean>(),
     nextMeetingDate = $bindable<string>(),
+    nextTemplateChoice = $bindable<TemplateKey | null>(),
     onArchive,
   }: {
     archiving: boolean;
@@ -20,6 +26,7 @@
     oneOff: boolean;
     skipNextMeeting: boolean;
     nextMeetingDate: string;
+    nextTemplateChoice: TemplateKey | null;
     onArchive: (missed: boolean) => Promise<void>;
   } = $props();
 </script>
@@ -36,6 +43,7 @@
         type="checkbox"
         class="native-checkbox"
         bind:checked={skipNextMeeting}
+        disabled={archiving}
       />
       {$_('anketa.skipNextMeeting')}
     </label>
@@ -44,7 +52,26 @@
         <label for="next-meeting-date"
           >{$_('anketa.nextMeetingDateLabel')}</label
         >
-        <DateInput id="next-meeting-date" bind:value={nextMeetingDate} />
+        <DateInput
+          id="next-meeting-date"
+          bind:value={nextMeetingDate}
+          disabled={archiving}
+        />
+      </div>
+      <div class="field archive-template-field">
+        <label for="next-meeting-type"
+          >{$_('anketa.nextMeetingTypeLabel')}</label
+        >
+        <select
+          id="next-meeting-type"
+          class="input"
+          bind:value={nextTemplateChoice}
+          disabled={archiving}
+        >
+          {#each ANKETA_TEMPLATES as key (key)}
+            <option value={key}>{$_(templatePickerKeys(key).labelKey)}</option>
+          {/each}
+        </select>
       </div>
     {/if}
   {/if}
@@ -79,6 +106,11 @@
 
   .archive-date-field {
     max-width: 220px;
+    margin-bottom: 12px;
+  }
+
+  .archive-template-field {
+    max-width: 320px;
     margin-bottom: 12px;
   }
 </style>

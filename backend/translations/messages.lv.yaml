@@ -61,6 +61,7 @@ errors:
     counterpart_not_found: 'Otra puse nav atrasta.'
     periodicity_required: '"periodicityDays" jaunam pārim jābūt pozitīvam veselam skaitlim.'
     template_key_must_be_one_of: '"templateKey" jābūt vienam no: %templateKeys%.'
+    next_template_key_must_be_one_of: '"nextTemplateKey" jābūt vienam no: %templateKeys%.'
     comments_conflict: 'Komentāri ir mainījušies kopš pēdējās nolasīšanas.'
     answers_conflict: 'Jūsu atbildes ir mainījušās kopš pēdējās nolasīšanas.'
     outcomes_conflict: 'Tikšanās rezultāti ir mainījušies kopš pēdējās nolasīšanas.'

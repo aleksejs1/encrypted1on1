@@ -13,6 +13,11 @@ use App\Entity\User;
  */
 class AnketaPresenter
 {
+    public function __construct(
+        private readonly AnketaLifecycleService $lifecycleService,
+    ) {
+    }
+
     /**
      * @return array{id: string, goalUuid: string, authorId: string, title: string,
      *     description: string|null, targetDate: string|null, status: string, createdAt: string}
@@ -77,7 +82,8 @@ class AnketaPresenter
      *     commentsBlob: string|null, commentsVersion: int,
      *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
      *     authorId: string, title: string, description: string|null, targetDate: string|null, status: string,
-     *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int}
+     *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int,
+     *     nextCycleTemplateKey: string|null}
      */
     public function serializeDetail(Anketa $anketa, User $user, array $goals): array
     {
@@ -102,6 +108,9 @@ class AnketaPresenter
             'goals' => array_values(array_map(fn (Goal $goal) => $this->serializeGoal($goal), $goals)),
             'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
             'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
+            // The archive form's "Next meeting type" default (GitHub issue #140). Null
+            // once archived (there's no archive form left) and for a one-off (no successor).
+            'nextCycleTemplateKey' => $anketa->isArchived() ? null : $this->lifecycleService->defaultNextTemplate($anketa),
         ];
     }
 

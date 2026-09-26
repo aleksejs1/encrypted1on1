@@ -46,6 +46,17 @@ Both are maintainer decisions, 2026-09-23, made during review of the #106 implem
   ticking "don't create the next meeting" and creating a regular anketa by hand, a step that is easy
   to forget.
 
+## Amended by GitHub issue #140
+
+The archive form now has a **Next meeting type** picker (maintainer decision D8 in
+[#133](https://github.com/aleksejs1/encrypted1on1/issues/133), confirmed 2026-09-24). The rule above
+stays the **default**: the picker starts on `regular`, and a request that doesn't change it gets
+the server's own default (`AnketaLifecycleService::defaultNextTemplate()`). What changes is that a
+pair can now pick the support check-in (or any other type) as the next meeting when archiving, from either the
+Archive button or "cancel as missed". The rejected "skip next meeting" default above failed because
+it silently changed what the buttons did; the picker changes nothing unless someone picks another
+type, and the choice is visible on the same page.
+
 ## Verification
 
 `AnketaTest::testNextCycleTemplateKeyFor` has a `support_checkin` case, and

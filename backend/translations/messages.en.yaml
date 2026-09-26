@@ -68,6 +68,7 @@ errors:
     counterpart_not_found: 'Counterpart not found.'
     periodicity_required: '"periodicityDays" must be a positive integer for a new pair.'
     template_key_must_be_one_of: '"templateKey" must be one of: %templateKeys%.'
+    next_template_key_must_be_one_of: '"nextTemplateKey" must be one of: %templateKeys%.'
     comments_conflict: 'Comments changed since you last read them.'
     answers_conflict: 'Your answers changed since you last read them.'
     outcomes_conflict: 'Outcomes changed since you last read them.'
