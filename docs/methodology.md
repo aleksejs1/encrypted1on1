@@ -1,6 +1,6 @@
 # The 1:1 methodology
 
-This describes the *meeting practice* the app is built around — why 1:1s matter, how a cycle is meant to be conducted, and what each question is actually asking. For the mechanics of the screens that support this (draft autosave, publishing, comments), see [user-flow.md](user-flow.md). For why goal titles specifically are the one field the server can see, see [encryption.md](encryption.md).
+This describes the *meeting practice* the app is built around — why 1:1s matter, how a cycle is meant to be conducted, and what each question is actually asking. For step-by-step field manuals and meeting-type playbooks for managers and employees, see [playbooks/](playbooks/). For the mechanics of the screens that support this (draft autosave, publishing, comments), see [user-flow.md](user-flow.md). For why goal titles specifically are the one field the server can see, see [encryption.md](encryption.md).
 
 ## Why 1:1s, and why this format
 
@@ -17,7 +17,7 @@ An anketa isn't a form you fill out *during* the meeting — it's built around a
 3. **The meeting itself is a conversation, not a form review.** The employee walks through their side and talks about it; then the manager does the same with theirs. The anketa is the agenda and the shared memory of what was said — it doesn't replace the conversation, it makes the conversation better prepared.
 4. **Outcomes get captured together, then the anketa is archived.** Whatever was actually agreed — commitments, follow-ups — goes into the shared outcomes list *during or right after* the meeting, since that's a negotiated result of the conversation, not something either side could have written alone beforehand.
 
-Answers stay editable for the entire period between meetings, right up until published — there's no "too early to start" and no artificial cutoff a few days before the meeting. Nothing about the format assumes you'll sit down and fill the whole thing out in one sitting the night before.
+Answers stay editable for the entire period between meetings — even after publishing, answers can be edited in place right up until the anketa is archived. There's no "too early to start" and no artificial cutoff before the meeting. Nothing about the format assumes you'll sit down and fill the whole thing out in one sitting the night before.
 
 ## Why the anketa stays open the whole cycle
 

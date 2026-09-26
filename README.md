@@ -33,7 +33,7 @@ See [`CLAUDE.md`](CLAUDE.md)'s "Current stage" section and [`docs/history.md`](d
 
 ## Documentation
 
-- **[docs/](docs/)** — start here: [how the encryption works](docs/encryption.md), the [1:1 methodology](docs/methodology.md) behind it, the [user flow](docs/user-flow.md) it produces, the [application architecture](docs/architecture.md), and [how to deploy it](docs/deployment.md) (dev, both production setups, and a full [configuration reference](docs/deployment.md#configuration)).
+- **[docs/](docs/)** — start here: [how the encryption works](docs/encryption.md), the [1:1 methodology](docs/methodology.md) behind it, the beginner-friendly [1:1 playbooks](docs/playbooks/) (for managers, direct reports, and all meeting templates), the [user flow](docs/user-flow.md) it produces, the [application architecture](docs/architecture.md), and [how to deploy it](docs/deployment.md) (dev, both production setups, and a full [configuration reference](docs/deployment.md#configuration)).
 - **[CLAUDE.md](CLAUDE.md)** — development notes for anyone working on the codebase itself.
 
 ## Quick start (dev)
