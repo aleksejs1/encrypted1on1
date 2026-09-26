@@ -182,14 +182,48 @@ describe('getQuestionsForSide', () => {
           formVersion,
           templateKey,
         )) {
+          // Literal text (a company template's custom question) has no
+          // key to resolve; the built-in templates never use it.
           const keys = [
             question.titleKey,
             ...question.fields.flatMap((f) => [
               f.labelKey,
               ...(f.options ?? []).map((o) => o.labelKey),
             ]),
-          ];
+          ].filter((key) => key !== undefined);
           expect(keys.filter((key) => !resolves(key))).toEqual([]);
+        }
+      }
+    }
+  });
+
+  // Literal text (titleText/labelText/noLabel) is for company templates only;
+  // the key check above skips it, so a built-in using it would slip through
+  // untranslated.
+  it('uses i18n keys for every built-in title, field label and option label', () => {
+    for (const templateKey of ANKETA_TEMPLATES) {
+      for (const side of ['employee', 'manager'] as const) {
+        for (
+          let formVersion = 1;
+          formVersion <= CURRENT_ANKETA_FORM_VERSION;
+          formVersion++
+        ) {
+          for (const question of getQuestionsForSide(
+            side,
+            formVersion,
+            templateKey,
+          )) {
+            expect(question.titleKey !== undefined, question.id).toBe(true);
+            for (const field of question.fields) {
+              expect(field.labelKey !== undefined, field.id).toBe(true);
+              for (const option of field.options ?? []) {
+                expect(
+                  option.labelKey !== undefined,
+                  `${field.id}/${option.value}`,
+                ).toBe(true);
+              }
+            }
+          }
         }
       }
     }

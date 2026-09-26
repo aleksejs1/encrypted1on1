@@ -1,37 +1,77 @@
 /**
- * The employee/manager question set, described once as data — per the
- * spec's "Технические требования": not duplicated across templates,
- * validation, and translations, and explicitly not a form-builder (the
- * questions are the same for the whole app, just not copy-pasted through
- * the codebase).
+ * The employee/manager question sets, described once as data — per the
+ * spec's technical requirements: not duplicated across templates,
+ * validation, and translations. The built-in templates live here; a company
+ * template (GitHub issue #141) is data from the server, turned into the same
+ * `Question` shape by `questionsFromDefinition()` at the end of this file.
  *
- * Display text lives in the i18n locale files (Phase 6h), not here — every
- * `*Key` field below is a translation key (`questions.employee.*`/
- * `questions.fields.*`/`questions.options.*` in `src/i18n/locales/*.json`),
- * resolved through svelte-i18n's `$_()` at render time (`AnswerField.svelte`,
- * `Anketa.svelte`). Field/option ids are stable data identifiers (used as
- * `Answers` keys and radio/checkbox values) — those never change with locale.
+ * The built-in questions' display text lives in the i18n locale files
+ * (Phase 6h), not here — every `*Key` field below is a translation key
+ * (`questions.employee.*`/`questions.fields.*`/`questions.options.*` in
+ * `src/i18n/locales/*.json`). A company template's custom question carries
+ * literal `*Text` instead. `displayText()` resolves either, at render time
+ * (`AnswerField.svelte`, `AnswerBlock.svelte`). Field/option ids are stable
+ * data identifiers (used as `Answers` keys and radio/checkbox values) — those
+ * never change with locale.
  */
 
-type FieldType = 'radio' | 'checkboxes' | 'text' | 'list';
+import type { TemplateDefinition } from './templateDefinition';
 
-export interface FieldOption {
-  value: string;
-  labelKey: string;
-}
+/** Also the field types a company template's custom question may use. */
+export const FIELD_TYPES = ['radio', 'checkboxes', 'text', 'list'] as const;
+export type FieldType = (typeof FIELD_TYPES)[number];
 
-export interface QuestionField {
+/*
+ * Every piece of display text is either an i18n key (`*Key`, the built-in
+ * questions) or literal text (`*Text`, a company template's custom question —
+ * GitHub issue #141), told apart by property name, so every built-in literal
+ * below stays as it is. `displayText()` resolves either one. `noLabel` is a custom
+ * field whose optional label was left out.
+ */
+
+// `?: never` makes each variant exclusive: a label can't be both a key and
+// literal text.
+export type FieldOption = { value: string } & (
+  | { labelKey: string; labelText?: never }
+  | { labelText: string; labelKey?: never }
+);
+
+export type QuestionField = {
   /** Stable key within a side's answer data object. */
   id: string;
   type: FieldType;
-  labelKey: string;
   options?: FieldOption[];
-}
+} & (
+  | { labelKey: string; labelText?: never; noLabel?: never }
+  | { labelText: string; labelKey?: never; noLabel?: never }
+  | { noLabel: true; labelKey?: never; labelText?: never }
+);
 
-export interface Question {
+export type Question = {
   id: string;
-  titleKey: string;
   fields: QuestionField[];
+} & (
+  | { titleKey: string; titleText?: never }
+  | { titleText: string; titleKey?: never }
+);
+
+/**
+ * The display text of a question title, field label or option label: the
+ * translation of its key, or its literal text. Empty for a field with no label.
+ * Literal text is always rendered as plain text by the callers, never as HTML
+ * or Markdown.
+ */
+export function displayText(
+  labelled: Question | QuestionField | FieldOption,
+  translate: (key: string) => string,
+): string {
+  if ('fields' in labelled) {
+    return labelled.titleKey !== undefined
+      ? translate(labelled.titleKey)
+      : labelled.titleText;
+  }
+  if (labelled.labelKey !== undefined) return translate(labelled.labelKey);
+  return labelled.labelText ?? '';
 }
 
 export type Side = 'employee' | 'manager';
@@ -326,6 +366,66 @@ const managerQuestions: Question[] = [
   employeeAchievementsQuestion,
   managerDiscussQuestion,
 ];
+
+/**
+ * The built-in question blocks a company template may reuse (GitHub issue #141),
+ * per side: the regular template's. Append-only — removing an id would make
+ * already-saved template versions invalid. Must match
+ * `TemplateDefinitionValidator::{EMPLOYEE,MANAGER}_BUILTIN_QUESTION_IDS` in the
+ * backend; `templateDefinition.test.ts` cross-checks them by reading the PHP source.
+ */
+export const EMPLOYEE_BUILTIN_QUESTION_IDS = [
+  'mood',
+  'feelings',
+  'workload',
+  'growth',
+  'friction',
+  'achievements',
+  'discuss',
+] as const;
+
+export const MANAGER_BUILTIN_QUESTION_IDS = [
+  'periodSummary',
+  'feedback',
+  'support',
+  'employeeAchievements',
+  'managerDiscuss',
+] as const;
+
+export type EmployeeBuiltinQuestionId =
+  (typeof EMPLOYEE_BUILTIN_QUESTION_IDS)[number];
+export type ManagerBuiltinQuestionId =
+  (typeof MANAGER_BUILTIN_QUESTION_IDS)[number];
+
+/**
+ * Each allowlisted id's `Question` — the very object the built-in templates
+ * use, so answers, comments, trends and the Report key on the same field ids.
+ * `Record` over the id types is the exhaustiveness check.
+ */
+const BUILTIN_QUESTIONS: {
+  employee: Record<
+    EmployeeBuiltinQuestionId,
+    (formVersion: number) => Question
+  >;
+  manager: Record<ManagerBuiltinQuestionId, (formVersion: number) => Question>;
+} = {
+  employee: {
+    mood: () => moodQuestion,
+    feelings: feelingsQuestion,
+    workload: () => workloadQuestion,
+    growth: () => growthQuestion,
+    friction: () => frictionQuestion,
+    achievements: () => achievementsQuestion,
+    discuss: () => discussQuestion,
+  },
+  manager: {
+    periodSummary: () => periodSummaryQuestion,
+    feedback: () => feedbackQuestion,
+    support: () => supportQuestion,
+    employeeAchievements: () => employeeAchievementsQuestion,
+    managerDiscuss: () => managerDiscussQuestion,
+  },
+};
 
 /**
  * Onboarding ("First 1:1") template — sourced from the landing playbook's three agenda
@@ -772,4 +872,53 @@ export function templatePickerKeys(
 export function templateListLabelKey(templateKey: TemplateKey): string | null {
   const template = templateFor(templateKey);
   return template === TEMPLATES.regular ? null : template.labelKey;
+}
+
+/**
+ * One side of a company template's definition as questions (GitHub issue #141).
+ * Takes plain JSON data that already passed `validateTemplateDefinition()`,
+ * in its canonical, trimmed form (as the server stores it; an editor preview
+ * passes `trimTemplateDefinition()`'s result), and renders its text as given.
+ * It throws on a built-in id this bundle doesn't know rather than render it.
+ * A built-in block is the built-in `Question` itself (`feelings` at
+ * `formVersion`), and a custom block becomes a one-field `Question` with
+ * literal text.
+ */
+export function questionsFromDefinition(
+  definition: TemplateDefinition,
+  side: Side,
+  formVersion: number,
+): Question[] {
+  const builtins: Record<string, (formVersion: number) => Question> =
+    BUILTIN_QUESTIONS[side];
+  return definition[side].map((block): Question => {
+    if (block.kind === 'builtin') {
+      if (!Object.prototype.hasOwnProperty.call(builtins, block.questionId)) {
+        throw new Error(`Unknown built-in question: ${block.questionId}`);
+      }
+      return builtins[block.questionId](formVersion);
+    }
+    const { field } = block;
+    return {
+      id: block.id,
+      titleText: block.title,
+      fields: [
+        {
+          id: field.id,
+          type: field.type,
+          ...(field.label === undefined
+            ? { noLabel: true as const }
+            : { labelText: field.label }),
+          ...(field.options === undefined
+            ? {}
+            : {
+                options: field.options.map((option) => ({
+                  value: option.value,
+                  labelText: option.label,
+                })),
+              }),
+        },
+      ],
+    };
+  });
 }

@@ -24,8 +24,14 @@ final class DisplayNameField
      * of those characters have any legitimate reason to appear in a person's name. Left
      * unstripped, a bidi override could visually reorder the name to impersonate a
      * different real name in that picker.
+     *
+     * TemplateDefinitionValidator *rejects* this same set in company template text,
+     * and frontend/src/anketa/templateDefinition.ts mirrors it. Widening it therefore
+     * makes already-saved template versions containing a newly listed character fail
+     * validation, and the anketa page is to validate a version before rendering it
+     * (GitHub issue #144): check the stored versions before adding a character here.
      */
-    private const STRIP_PATTERN = '/[\x{0000}-\x{001F}\x{007F}-\x{009F}\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u';
+    public const STRIP_PATTERN = '/[\x{0000}-\x{001F}\x{007F}-\x{009F}\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u';
 
     public static function parse(mixed $raw, TranslatorInterface $translator): string|JsonResponse
     {
