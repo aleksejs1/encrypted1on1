@@ -127,7 +127,7 @@
     "dateFormatTitle": "Format de date",
     "dateFormatHint": "Comment les dates sont affichées dans toute l'application, sur cet appareil.",
     "exportTitle": "Exporter vos données",
-    "exportHint": "Téléchargez tout ce que vous pouvez actuellement voir — vos propres réponses (y compris les brouillons non publiés), les réponses publiées de vos interlocuteurs, les commentaires, les résultats et les objectifs — au format JSON.",
+    "exportHint": "Téléchargez tout ce que vous pouvez actuellement voir — vos propres réponses (y compris les brouillons non publiés), les réponses publiées de vos interlocuteurs, les commentaires, les résultats, les objectifs et vos notes privées — au format JSON.",
     "exportButton": "Exporter en JSON",
     "exporting": "Préparation de l'export…",
     "exportGenericError": "Impossible d'exporter vos données.",
@@ -667,6 +667,7 @@
     "loadServerConfirmButton": "Remplacer",
     "cancel": "Annuler",
     "counter": "{percent} % de la longueur maximale",
-    "footerLoss": "Perdues si vous réinitialisez un mot de passe oublié."
+    "footerLoss": "Perdues si vous réinitialisez un mot de passe oublié.",
+    "footerExport": "L'export en garde une copie."
   }
 }

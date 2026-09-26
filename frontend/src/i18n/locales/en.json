@@ -127,7 +127,7 @@
     "dateFormatTitle": "Date format",
     "dateFormatHint": "How dates are displayed throughout the app, on this device.",
     "exportTitle": "Export your data",
-    "exportHint": "Download everything you can currently see — your own answers (including unpublished drafts), your counterparts' published answers, comments, outcomes, and goals — as a JSON file.",
+    "exportHint": "Download everything you can currently see — your own answers (including unpublished drafts), your counterparts' published answers, comments, outcomes, goals, and your private notes — as a JSON file.",
     "exportButton": "Export as JSON",
     "exporting": "Preparing export…",
     "exportGenericError": "Could not export your data.",
@@ -653,6 +653,7 @@
     "loadServerConfirmButton": "Replace",
     "cancel": "Cancel",
     "counter": "{percent}% of the maximum length",
-    "footerLoss": "Lost if you reset a forgotten password."
+    "footerLoss": "Lost if you reset a forgotten password.",
+    "footerExport": "Export keeps a copy."
   }
 }
