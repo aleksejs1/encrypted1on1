@@ -2,6 +2,7 @@
 
 Reader-facing documentation for encrypted1on1 — what the system does and how, as it stands today.
 
+- **[playbooks/](playbooks/)** — beginner-friendly playbooks and step-by-step field manuals for managers and direct reports, combining conversational habits outside the platform with practical workflows inside encrypted1on1 across all meeting templates.
 - **[encryption.md](encryption.md)** — the cryptographic design: key derivation, what's encrypted with what, and a threat model (what a full server compromise does and doesn't reveal).
 - **[methodology.md](methodology.md)** — the 1:1 practice itself: why it matters, how a cycle is meant to be conducted, and what each question is actually asking.
 - **[user-flow.md](user-flow.md)** — the system from a user's perspective: getting an account, logging in, account settings, running a 1:1 cycle end to end, what happens if you forget your password.
