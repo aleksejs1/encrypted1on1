@@ -175,6 +175,71 @@ test('hiding the panel takes the notes text out of the page', async ({
   await expect(notesText(employee)).toHaveValue('not for screen sharing');
 });
 
+test('the notes are a sticky column beside the form when wide, and a top card when narrow', async ({
+  browser,
+}) => {
+  const { employee, anketaUrl } = await makePair(browser, 'notes-layout');
+  const mySide = employee.locator('section.side-card').first();
+  // The panel's last line: the whole panel is in view when this is.
+  const footer = notesPanel(employee).getByText('Lost if you reset');
+  // The e2e tsconfig has no DOM types, so page code is passed as strings.
+  const scrollToTop = () => employee.evaluate('window.scrollTo(0, 0)');
+  await employee.setViewportSize({ width: 1440, height: 900 });
+  await employee.goto(anketaUrl);
+  await typeAndSave(employee, 'layout check');
+
+  for (const width of [1440, 900]) {
+    await employee.setViewportSize({ width, height: 700 });
+    await scrollToTop();
+    const panel = await notesPanel(employee).boundingBox();
+    const form = await mySide.boundingBox();
+    expect(panel!.x).toBeGreaterThanOrEqual(form!.x + form!.width);
+    // No horizontal overflow at either width.
+    expect(
+      await employee.evaluate(
+        'document.documentElement.scrollWidth <= window.innerWidth',
+      ),
+    ).toBe(true);
+    // The status line and footer are in view at the top of the page, below
+    // the app header, not only once the panel sticks.
+    await expect(footer).toBeInViewport({ ratio: 1 });
+
+    // Still in view at the bottom of the page.
+    await employee.evaluate(
+      'window.scrollTo(0, document.documentElement.scrollHeight)',
+    );
+    await expect(notesText(employee)).toBeInViewport();
+    await expect(footer).toBeInViewport({ ratio: 1 });
+  }
+
+  // Narrow: a card under the header, above my side, as wide as the form.
+  await employee.setViewportSize({ width: 700, height: 900 });
+  await scrollToTop();
+  const card = await notesPanel(employee).boundingBox();
+  const form = await mySide.boundingBox();
+  expect(card!.y + card!.height).toBeLessThanOrEqual(form!.y);
+  expect(card!.width).toBeCloseTo(form!.width, 0);
+
+  // Hide takes the text out of the page in both layouts, and the wide one
+  // shrinks to a rail.
+  for (const width of [700, 1440]) {
+    await employee.setViewportSize({ width, height: 900 });
+    await notesPanel(employee)
+      .getByRole('button', { name: 'Hide notes' })
+      .click();
+    await expect(notesText(employee)).toHaveCount(0);
+    expect(await employee.content()).not.toContain('layout check');
+    if (width === 1440) {
+      const rail = await notesPanel(employee).boundingBox();
+      expect(rail!.width).toBeLessThan(200);
+    }
+    await notesPanel(employee)
+      .getByRole('button', { name: 'Show notes' })
+      .click();
+    await expect(notesText(employee)).toHaveValue('layout check');
+  }
+});
+
 test('two tabs editing the same notes: "Keep both" loses nothing', async ({
   browser,
 }) => {
