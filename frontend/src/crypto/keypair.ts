@@ -88,14 +88,25 @@ export async function unpackWrappedPrivateKey(
  * were; only a forgotten-password reset (a fresh keypair) changes it. See
  * docs/decisions/2026-09-24-drafts-survive-password-change.md.
  */
-export async function deriveDraftKey(
+export function deriveDraftKey(privateKey: Uint8Array): Promise<Uint8Array> {
+  return deriveSymmetricKey(privateKey, 'e1o1drft');
+}
+
+/**
+ * A symmetric key derived from the X25519 private key under its own 8-byte
+ * context label (libsodium's BLAKE2b-based crypto_kdf). Each purpose uses its
+ * own label, so the keys are independent: drafts ('e1o1drft') and the private
+ * notes backup ('e1o1note', crypto/privateNotes.ts).
+ */
+export async function deriveSymmetricKey(
   privateKey: Uint8Array,
+  context: string,
 ): Promise<Uint8Array> {
   const sodium = await getSodium();
   return sodium.crypto_kdf_derive_from_key(
     sodium.crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
     1,
-    'e1o1drft',
+    context,
     privateKey,
   );
 }

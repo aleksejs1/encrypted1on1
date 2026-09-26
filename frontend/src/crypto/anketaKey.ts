@@ -30,7 +30,7 @@ export async function unsealAnketaKey(
   );
 }
 
-const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 1;
 
 interface Envelope<T> {
   schemaVersion: number;
@@ -41,10 +41,16 @@ interface Envelope<T> {
  * The versioned envelope from the spec, packed as nonce||ciphertext base64 —
  * same shape as keypair.ts's pack/unpack, reusing the same AEAD primitive
  * rather than introducing a second one for "blob" vs "private key" content.
+ *
+ * `associatedData` binds the ciphertext to a context without encrypting it:
+ * decryption fails unless the same bytes are passed back. Private notes use
+ * it to tie a blob to its anketa and author (crypto/privateNotes.ts). Every
+ * other caller passes none, so its format and behavior are unchanged.
  */
 export async function encryptBlob<T>(
   data: T,
   key: Uint8Array,
+  associatedData: Uint8Array | null = null,
 ): Promise<string> {
   const sodium = await getSodium();
   const envelope: Envelope<T> = { schemaVersion: SCHEMA_VERSION, data };
@@ -55,7 +61,7 @@ export async function encryptBlob<T>(
   );
   const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
     plaintext,
-    null,
+    associatedData,
     null,
     nonce,
     key,
@@ -70,6 +76,7 @@ export async function encryptBlob<T>(
 export async function decryptBlob<T>(
   packed: string,
   key: Uint8Array,
+  associatedData: Uint8Array | null = null,
 ): Promise<Envelope<T>> {
   const sodium = await getSodium();
   const combined = await fromBase64(packed);
@@ -80,7 +87,7 @@ export async function decryptBlob<T>(
   const plaintext = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
     null,
     ciphertext,
-    null,
+    associatedData,
     nonce,
     key,
   );

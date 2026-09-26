@@ -32,6 +32,8 @@ export class WrongPasswordError extends Error {
 }
 
 let cached: Identity | null = null;
+/** See loggedInUserId(). A $state, so App.svelte can react to login and logout. */
+let unlockedUserId = $state<string | null>(null);
 let inflight: Promise<Identity> | null = null;
 /**
  * The single source of truth for "has this tab's identity been invalidated
@@ -146,6 +148,7 @@ export async function ensureUnlocked(
     }
 
     cached = identity;
+    unlockedUserId = identity.userId;
     setDisplayNameState(identity.displayName);
     return identity;
   })();
@@ -204,7 +207,18 @@ export function clearIdentity(): void {
 export function invalidateIdentity(): void {
   generation++;
   inflight = null;
+  unlockedUserId = null;
   clearIdentity();
+}
+
+/**
+ * The logged-in, unlocked user's id, or null. Synchronous, for a check that
+ * can't await: private notes' unload warning only fires for the user whose
+ * text it's about (anketa/notesSession.ts). Unlike `cached`, a routine
+ * clearIdentity() cache-bust leaves it; only a logout clears it.
+ */
+export function loggedInUserId(): string | null {
+  return unlockedUserId;
 }
 
 /** Called by AccountSettings.svelte after saving a new display name — updates both the cached Identity and the reactive mirror AppHeader.svelte reads from. */

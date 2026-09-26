@@ -6,6 +6,7 @@ import {
   apiPost,
   apiPut,
   resetCsrfToken,
+  warmCsrfToken,
 } from './client';
 
 function jsonResponse(body: unknown): Response {
@@ -185,5 +186,103 @@ describe('api/client signal forwarding', () => {
       '/api/anketas?page=2',
       expect.objectContaining({ signal: controller.signal }),
     );
+  });
+});
+
+describe('api/client keepalive and CSRF warm-up', () => {
+  beforeEach(() => {
+    resetCsrfToken();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('forwards keepalive on apiPut', async () => {
+    const fetchMock = makeFetchMock([
+      jsonResponse({ token: 'csrf-token' }),
+      jsonResponse({ ok: true }),
+    ]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiPut('/api/anketas/1/private-notes', {}, { keepalive: true });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/anketas/1/private-notes',
+      expect.objectContaining({ keepalive: true }),
+    );
+  });
+
+  it('caches the token up front, so a later PUT makes only its own request', async () => {
+    const fetchMock = makeFetchMock([
+      jsonResponse({ token: 'csrf-token' }),
+      jsonResponse({ ok: true }),
+    ]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await warmCsrfToken();
+    await apiPut('/api/anketas/1/private-notes', {});
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/csrf-token',
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/anketas/1/private-notes',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf-token' }),
+      }),
+    );
+  });
+
+  it('never caches a token fetched across a reset (a logout)', async () => {
+    let releaseToken: (response: Response) => void = () => {};
+    const fetchMock = vi.fn((input: RequestInfo | URL) =>
+      String(input) === '/api/csrf-token' && fetchMock.mock.calls.length === 1
+        ? new Promise<Response>((resolve) => {
+            releaseToken = resolve;
+          })
+        : Promise.resolve(
+            String(input) === '/api/csrf-token'
+              ? jsonResponse({ token: 'new-session-token' })
+              : jsonResponse({ ok: true }),
+          ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const warming = warmCsrfToken();
+    resetCsrfToken();
+    releaseToken(jsonResponse({ token: 'old-session-token' }));
+    await warming;
+    await apiPut('/api/login', {});
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/login',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-CSRF-Token': 'new-session-token',
+        }),
+      }),
+    );
+  });
+
+  it('fails on a CSRF token error instead of sending "undefined"', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: 'boom' }), { status: 500 }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      apiPut('/api/anketas/1/private-notes', {}),
+    ).rejects.toMatchObject({
+      status: 500,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

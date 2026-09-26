@@ -22,22 +22,48 @@ export interface RequestOptions {
    * write itself having been cancelled.
    */
   signal?: AbortSignal;
+  /**
+   * Lets the request outlive the page (fetch's `keepalive`), for a last save
+   * on `pagehide`. Browsers cap a keepalive body at about 64 KB, so callers
+   * only set it for a small enough body.
+   */
+  keepalive?: boolean;
 }
 
 let csrfToken: string | null = null;
+/**
+ * Bumped by resetCsrfToken(). A token fetch that started before a logout must
+ * not cache its token after the reset: it belongs to the old session, and the
+ * next state-changing request (logging back in) would fail with a 403.
+ */
+let csrfEpoch = 0;
 
 async function getCsrfToken(options?: RequestOptions): Promise<string> {
   if (csrfToken) {
     options?.signal?.throwIfAborted();
     return csrfToken;
   }
+  const startedEpoch = csrfEpoch;
   const response = await fetch('/api/csrf-token', {
     credentials: 'include',
     signal: options?.signal,
   });
+  // An error body has no token: fail, rather than send "undefined" and get a
+  // 403 that reads as an ended session.
+  if (!response.ok) throw await toApiError(response);
   const data = (await response.json()) as { token: string };
-  csrfToken = data.token;
-  return csrfToken;
+  if (startedEpoch === csrfEpoch) csrfToken = data.token;
+  return data.token;
+}
+
+/**
+ * Fetches and caches the CSRF token ahead of time (private notes' panel does
+ * on load, GitHub issue #132 §6.3). With a cached token, a PUT issued inside a
+ * `pagehide` handler goes out within that task, before the page is gone,
+ * instead of waiting on a token fetch that may never complete.
+ */
+export async function warmCsrfToken(): Promise<void> {
+  await getCsrfToken();
 }
 
 /**
@@ -49,6 +75,7 @@ async function getCsrfToken(options?: RequestOptions): Promise<string> {
  */
 export function resetCsrfToken(): void {
   csrfToken = null;
+  csrfEpoch += 1;
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
@@ -121,6 +148,7 @@ async function send<T>(
     },
     body: JSON.stringify(body),
     signal: options?.signal,
+    keepalive: options?.keepalive,
   });
   if (!response.ok) {
     throw await toApiError(response);

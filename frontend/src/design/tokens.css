@@ -101,6 +101,15 @@
 :root {
   --color-bg: #f5ead8;
   --color-surface: #ebddc5;
+  /*
+   * The private-notes panel's surface (anketa/PrivateNotes.svelte): one neutral
+   * step away from the shared cards, without borrowing the accent or success
+   * tints. Light theme: halfway between --color-bg and --color-surface. A darker
+   * step (--color-text mixed 4% into the surface) put .banner-error under 4.5:1.
+   * Dark theme: --color-text mixed 4% into the surface. A solid hex per theme,
+   * so contrast.test.ts can check text on it.
+   */
+  --color-notes-surface: #f0e4ce;
   --color-text: #201e1d;
   --color-accent: #c67139;
   --color-accent-2: #7a8a5e;
@@ -188,6 +197,7 @@
 :root[data-theme='dark'] {
   --color-bg: #211f1a;
   --color-surface: #322e26;
+  --color-notes-surface: #3a362d;
   --color-text: #f3ece0;
   --color-divider: color-mix(in srgb, #f3ece0 16%, transparent);
   --color-accent: #f6a06b;
@@ -254,6 +264,7 @@
   :root:not([data-theme='light']):not([data-theme='dark']) {
     --color-bg: #211f1a;
     --color-surface: #322e26;
+    --color-notes-surface: #3a362d;
     --color-text: #f3ece0;
     --color-divider: color-mix(in srgb, #f3ece0 16%, transparent);
     --color-accent: #f6a06b;

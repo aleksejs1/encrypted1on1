@@ -23,6 +23,10 @@
   import { _ } from 'svelte-i18n';
   import { routerState } from './router.svelte';
   import { authState, checkAuth } from './auth.svelte';
+  import { ensureUnlocked, loggedInUserId } from './crypto/identity.svelte';
+  import { deriveNotesBackupKey } from './crypto/privateNotes';
+  import { discardUnopenableNotesBackups } from './anketa/notesBackup';
+  import { refreshNotesUnloadWarning } from './anketa/notesUnloadWarning';
   import {
     PATHS,
     MIGRATED_AUTHED_PATHS,
@@ -49,6 +53,22 @@
     checkAuth().catch((error: unknown) => {
       console.error(error);
     });
+  });
+
+  // Private notes left unsaved in this tab's backup warn on closing it, on
+  // every page and after a refresh, for the logged-in user only
+  // (anketa/notesUnloadWarning.ts).
+  $effect(() => {
+    const userId = loggedInUserId();
+    refreshNotesUnloadWarning(userId);
+    if (userId === null) return;
+    // Backups under the keypair from before a forgotten-password reset can
+    // never be restored: dropped, so they can't keep the warning on.
+    void ensureUnlocked()
+      .then((identity) => deriveNotesBackupKey(identity.privateKey))
+      .then((backupKey) => discardUnopenableNotesBackups(userId, backupKey))
+      .then(() => refreshNotesUnloadWarning(loggedInUserId()))
+      .catch(() => {});
   });
 
   const activationMatch = $derived(routerState.path.match(ACTIVATION_PATTERN));
