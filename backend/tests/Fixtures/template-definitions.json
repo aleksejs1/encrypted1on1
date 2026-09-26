@@ -1,0 +1,1553 @@
+{
+  "_comment": "Shared by TemplateDefinitionValidatorTest.php and frontend/src/anketa/templateDefinition.test.ts (GitHub issue #141): both validators must return exactly these errors. A case's definition is `definition` if given, else a copy of `base` with each `set` [path, value] applied and each `unset` path removed, or the generated definition for `generated` (blocks per side) or `sized` (exact canonical byte length), with `padWithWhitespace` then wrapping the text at that path in ASCII whitespace the canonical form trims away. Paths are slash-separated; list indices are numbers.",
+  "base": {
+    "schemaVersion": 1,
+    "employee": [
+      {
+        "kind": "builtin",
+        "questionId": "mood"
+      },
+      {
+        "kind": "custom",
+        "id": "c_emp0000001",
+        "title": "  How is your week, ž?  ",
+        "field": {
+          "id": "c_empf000001",
+          "type": "radio",
+          "label": "Pick one, ж",
+          "options": [
+            {
+              "value": "o_00000001",
+              "label": "Yes ж"
+            },
+            {
+              "value": "o_00000002",
+              "label": "No ž"
+            }
+          ]
+        }
+      }
+    ],
+    "manager": [
+      {
+        "kind": "builtin",
+        "questionId": "feedback"
+      },
+      {
+        "kind": "custom",
+        "id": "c_mgr0000001",
+        "title": "Notes",
+        "field": {
+          "id": "c_mgrf000001",
+          "type": "text"
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "the base definition is valid",
+      "errors": []
+    },
+    {
+      "name": "a title is checked after trimming ASCII whitespace",
+      "set": [
+        [
+          "employee/1/title",
+          "\t\n Hi \r\n"
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "a title of only ASCII whitespace is empty",
+      "set": [
+        [
+          "employee/1/title",
+          " \t\n\r\u000b\f "
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_length"
+        }
+      ]
+    },
+    {
+      "name": "NBSP is not trimmed, so a title of one NBSP is one character",
+      "set": [
+        [
+          "employee/1/title",
+          "\u00a0"
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "a title of exactly 200 Cyrillic code points is valid",
+      "set": [
+        [
+          "employee/1/title",
+          "жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж"
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "a title of 201 code points is too long",
+      "set": [
+        [
+          "employee/1/title",
+          "žžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžžž"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_length"
+        }
+      ]
+    },
+    {
+      "name": "an emoji counts as one code point",
+      "set": [
+        [
+          "employee/1/title",
+          "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "a newline inside a title is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "one\ntwo"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a tab inside a title is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "one\ttwo"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a C1 control character is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "a\u0085b"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a zero-width space is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "a\u200bb"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a bidi override is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "a\u202eb"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a bidi isolate is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "a\u2068b"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a BOM is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "\ufeffa"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a line separator (U+2028) is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "a\u2028b"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a paragraph separator (U+2029) is rejected",
+      "set": [
+        [
+          "employee/1/title",
+          "a\u2029b"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "a title must be a string",
+      "set": [
+        [
+          "employee/1/title",
+          5
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a list is not a title, and nothing more is checked",
+      "set": [
+        [
+          "employee/1/title",
+          [
+            "x"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a rejected character is the only error, even in a text that is also too long",
+      "set": [
+        [
+          "employee/1/title",
+          "\u200bжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_chars"
+        }
+      ]
+    },
+    {
+      "name": "the definition must be an object",
+      "definition": [],
+      "errors": [
+        {
+          "path": "",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an empty object is a definition missing its keys",
+      "definition": {},
+      "errors": [
+        {
+          "path": "",
+          "code": "missing_key"
+        }
+      ]
+    },
+    {
+      "name": "an object with a numeric key is an object, not a list",
+      "definition": {
+        "0": 1
+      },
+      "errors": [
+        {
+          "path": "",
+          "code": "unknown_key"
+        }
+      ]
+    },
+    {
+      "name": "a string is not a definition",
+      "definition": "template",
+      "errors": [
+        {
+          "path": "",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an unknown top-level key is rejected",
+      "set": [
+        [
+          "name",
+          "x"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "",
+          "code": "unknown_key"
+        }
+      ]
+    },
+    {
+      "name": "a missing side is rejected",
+      "unset": [
+        "manager"
+      ],
+      "errors": [
+        {
+          "path": "",
+          "code": "missing_key"
+        }
+      ]
+    },
+    {
+      "name": "schemaVersion must be 1",
+      "set": [
+        [
+          "schemaVersion",
+          2
+        ]
+      ],
+      "errors": [
+        {
+          "path": "schemaVersion",
+          "code": "schema_version"
+        }
+      ]
+    },
+    {
+      "name": "schemaVersion must be the number 1",
+      "set": [
+        [
+          "schemaVersion",
+          "1"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "schemaVersion",
+          "code": "schema_version"
+        }
+      ]
+    },
+    {
+      "name": "an empty side is rejected",
+      "set": [
+        [
+          "employee",
+          []
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee",
+          "code": "block_count"
+        }
+      ]
+    },
+    {
+      "name": "an empty object is not a list of blocks",
+      "set": [
+        [
+          "manager",
+          {}
+        ]
+      ],
+      "errors": [
+        {
+          "path": "manager",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an object with numeric keys is not a list of blocks",
+      "set": [
+        [
+          "employee",
+          {
+            "0": {
+              "kind": "builtin",
+              "questionId": "mood"
+            }
+          }
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a side must be a list",
+      "set": [
+        [
+          "employee",
+          {
+            "kind": "builtin"
+          }
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an over-long side is rejected without checking its blocks",
+      "set": [
+        [
+          "employee",
+          [
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee",
+          "code": "block_count"
+        }
+      ]
+    },
+    {
+      "name": "more than 30 blocks per side are rejected",
+      "generated": 31,
+      "errors": [
+        {
+          "path": "employee",
+          "code": "block_count"
+        },
+        {
+          "path": "manager",
+          "code": "block_count"
+        }
+      ]
+    },
+    {
+      "name": "30 blocks per side with 12 options each are valid",
+      "generated": 30,
+      "errors": []
+    },
+    {
+      "name": "a block must be an object",
+      "set": [
+        [
+          "employee/0",
+          "mood"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a list is not a block",
+      "set": [
+        [
+          "employee/0",
+          [
+            "x"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a block with a numeric key has no kind",
+      "set": [
+        [
+          "employee/0",
+          {
+            "0": "x"
+          }
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/kind",
+          "code": "kind"
+        }
+      ]
+    },
+    {
+      "name": "a block needs a known kind",
+      "set": [
+        [
+          "employee/0/kind",
+          "other"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/kind",
+          "code": "kind"
+        }
+      ]
+    },
+    {
+      "name": "a block kind must be a string",
+      "set": [
+        [
+          "employee/0/kind",
+          1
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/kind",
+          "code": "kind"
+        }
+      ]
+    },
+    {
+      "name": "a block without a kind is rejected",
+      "unset": [
+        "employee/0/kind"
+      ],
+      "errors": [
+        {
+          "path": "employee/0/kind",
+          "code": "kind"
+        }
+      ]
+    },
+    {
+      "name": "a built-in block takes no other keys",
+      "set": [
+        [
+          "employee/0/title",
+          "Mood"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0",
+          "code": "unknown_key"
+        }
+      ]
+    },
+    {
+      "name": "a built-in block needs a questionId",
+      "unset": [
+        "employee/0/questionId"
+      ],
+      "errors": [
+        {
+          "path": "employee/0",
+          "code": "missing_key"
+        }
+      ]
+    },
+    {
+      "name": "a manager-side built-in is not allowed on the employee side",
+      "set": [
+        [
+          "employee/0/questionId",
+          "feedback"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/questionId",
+          "code": "builtin_not_allowed"
+        }
+      ]
+    },
+    {
+      "name": "an unknown built-in is not allowed",
+      "set": [
+        [
+          "manager/0/questionId",
+          "workingAgreement"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "manager/0/questionId",
+          "code": "builtin_not_allowed"
+        }
+      ]
+    },
+    {
+      "name": "a prototype-shaped built-in is not allowed",
+      "set": [
+        [
+          "employee/0/questionId",
+          "constructor"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/questionId",
+          "code": "builtin_not_allowed"
+        }
+      ]
+    },
+    {
+      "name": "__proto__ is not allowed as a built-in",
+      "set": [
+        [
+          "employee/0/questionId",
+          "__proto__"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/questionId",
+          "code": "builtin_not_allowed"
+        }
+      ]
+    },
+    {
+      "name": "a built-in appears at most once",
+      "set": [
+        [
+          "employee/2",
+          {
+            "kind": "builtin",
+            "questionId": "mood"
+          }
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/2/questionId",
+          "code": "builtin_repeated"
+        }
+      ]
+    },
+    {
+      "name": "a custom block id must match the format",
+      "set": [
+        [
+          "employee/1/id",
+          "c_ABCDEFGHIJ"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a custom block id can't end with a newline",
+      "set": [
+        [
+          "employee/1/id",
+          "c_emp0000001\n"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a custom block id can't be __proto__",
+      "set": [
+        [
+          "employee/1/id",
+          "__proto__"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a custom block id can't be an outcome-style UUID",
+      "set": [
+        [
+          "employee/1/id",
+          "6f1c2a4e-1b2c-4d5e-8f90-123456789abc"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a custom block id must be a string",
+      "set": [
+        [
+          "employee/1/id",
+          [
+            1
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a field id must match the format",
+      "set": [
+        [
+          "employee/1/field/id",
+          "c_short"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a field id must be a string",
+      "set": [
+        [
+          "employee/1/field/id",
+          12
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/id",
+          "code": "id_format"
+        }
+      ]
+    },
+    {
+      "name": "a field needs an id",
+      "unset": [
+        "employee/1/field/id"
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field",
+          "code": "missing_key"
+        }
+      ]
+    },
+    {
+      "name": "a questionId must be a string",
+      "set": [
+        [
+          "employee/0/questionId",
+          5
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/0/questionId",
+          "code": "builtin_not_allowed"
+        }
+      ]
+    },
+    {
+      "name": "ids are unique across both sides",
+      "set": [
+        [
+          "manager/1/id",
+          "c_emp0000001"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "manager/1/id",
+          "code": "id_duplicate"
+        }
+      ]
+    },
+    {
+      "name": "a field id can't repeat a block id",
+      "set": [
+        [
+          "employee/1/field/id",
+          "c_emp0000001"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/id",
+          "code": "id_duplicate"
+        }
+      ]
+    },
+    {
+      "name": "a custom block takes no other keys",
+      "set": [
+        [
+          "employee/1/description",
+          "x"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1",
+          "code": "unknown_key"
+        }
+      ]
+    },
+    {
+      "name": "a custom block needs a field",
+      "unset": [
+        "employee/1/field"
+      ],
+      "errors": [
+        {
+          "path": "employee/1",
+          "code": "missing_key"
+        }
+      ]
+    },
+    {
+      "name": "a field must be an object",
+      "set": [
+        [
+          "employee/1/field",
+          [
+            1
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a field takes no other keys",
+      "set": [
+        [
+          "employee/1/field/help",
+          "x"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field",
+          "code": "unknown_key"
+        }
+      ]
+    },
+    {
+      "name": "a field needs a known type",
+      "set": [
+        [
+          "employee/1/field/type",
+          "select"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/type",
+          "code": "field_type"
+        }
+      ]
+    },
+    {
+      "name": "a field type must be a string",
+      "set": [
+        [
+          "employee/1/field/type",
+          5
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/type",
+          "code": "field_type"
+        }
+      ]
+    },
+    {
+      "name": "a field label may be omitted",
+      "unset": [
+        "employee/1/field/label"
+      ],
+      "errors": []
+    },
+    {
+      "name": "a field label can't be empty",
+      "set": [
+        [
+          "employee/1/field/label",
+          ""
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/label",
+          "code": "text_length"
+        }
+      ]
+    },
+    {
+      "name": "a field label of 300 code points is valid",
+      "set": [
+        [
+          "employee/1/field/label",
+          "ļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļ"
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "a field label of 301 code points is too long",
+      "set": [
+        [
+          "employee/1/field/label",
+          "ļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļļ"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/label",
+          "code": "text_length"
+        }
+      ]
+    },
+    {
+      "name": "a radio field needs options",
+      "unset": [
+        "employee/1/field/options"
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_count"
+        }
+      ]
+    },
+    {
+      "name": "a radio field needs at least two options",
+      "set": [
+        [
+          "employee/1/field/options",
+          [
+            {
+              "value": "o_00000001",
+              "label": "Yes ж"
+            }
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_count"
+        }
+      ]
+    },
+    {
+      "name": "too few options are rejected without checking them",
+      "set": [
+        [
+          "employee/1/field/options",
+          [
+            "x"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_count"
+        }
+      ]
+    },
+    {
+      "name": "a checkboxes field can have 12 options",
+      "set": [
+        [
+          "employee/1/field/type",
+          "checkboxes"
+        ],
+        [
+          "employee/1/field/options",
+          [
+            {
+              "value": "o_00000000",
+              "label": "Opt 0"
+            },
+            {
+              "value": "o_00000001",
+              "label": "Opt 1"
+            },
+            {
+              "value": "o_00000002",
+              "label": "Opt 2"
+            },
+            {
+              "value": "o_00000003",
+              "label": "Opt 3"
+            },
+            {
+              "value": "o_00000004",
+              "label": "Opt 4"
+            },
+            {
+              "value": "o_00000005",
+              "label": "Opt 5"
+            },
+            {
+              "value": "o_00000006",
+              "label": "Opt 6"
+            },
+            {
+              "value": "o_00000007",
+              "label": "Opt 7"
+            },
+            {
+              "value": "o_00000008",
+              "label": "Opt 8"
+            },
+            {
+              "value": "o_00000009",
+              "label": "Opt 9"
+            },
+            {
+              "value": "o_00000010",
+              "label": "Opt 10"
+            },
+            {
+              "value": "o_00000011",
+              "label": "Opt 11"
+            }
+          ]
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "a field can't have 13 options",
+      "set": [
+        [
+          "employee/1/field/options",
+          [
+            {
+              "value": "o_00000000",
+              "label": "Opt 0"
+            },
+            {
+              "value": "o_00000001",
+              "label": "Opt 1"
+            },
+            {
+              "value": "o_00000002",
+              "label": "Opt 2"
+            },
+            {
+              "value": "o_00000003",
+              "label": "Opt 3"
+            },
+            {
+              "value": "o_00000004",
+              "label": "Opt 4"
+            },
+            {
+              "value": "o_00000005",
+              "label": "Opt 5"
+            },
+            {
+              "value": "o_00000006",
+              "label": "Opt 6"
+            },
+            {
+              "value": "o_00000007",
+              "label": "Opt 7"
+            },
+            {
+              "value": "o_00000008",
+              "label": "Opt 8"
+            },
+            {
+              "value": "o_00000009",
+              "label": "Opt 9"
+            },
+            {
+              "value": "o_00000010",
+              "label": "Opt 10"
+            },
+            {
+              "value": "o_00000011",
+              "label": "Opt 11"
+            },
+            {
+              "value": "o_00000012",
+              "label": "Opt 12"
+            }
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_count"
+        }
+      ]
+    },
+    {
+      "name": "options must be a list",
+      "set": [
+        [
+          "employee/1/field/options",
+          {
+            "value": "o_00000001"
+          }
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an object with numeric keys is not a list of options",
+      "set": [
+        [
+          "employee/1/field/options",
+          {
+            "0": {
+              "value": "o_00000001",
+              "label": "A"
+            },
+            "1": {
+              "value": "o_00000002",
+              "label": "B"
+            }
+          }
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "a text field can't have options",
+      "set": [
+        [
+          "employee/1/field/type",
+          "text"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_forbidden"
+        }
+      ]
+    },
+    {
+      "name": "a list field can't have options",
+      "set": [
+        [
+          "employee/1/field/type",
+          "list"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "options_forbidden"
+        }
+      ]
+    },
+    {
+      "name": "a field label must be a string",
+      "set": [
+        [
+          "employee/1/field/label",
+          5
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/label",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an option label must be a string",
+      "set": [
+        [
+          "employee/1/field/options/0/label",
+          5
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0/label",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "null is not a list of options",
+      "set": [
+        [
+          "employee/1/field/options",
+          null
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "the same option value may appear in two different fields",
+      "set": [
+        [
+          "manager/1/field",
+          {
+            "id": "c_mgrf000001",
+            "type": "checkboxes",
+            "options": [
+              {
+                "value": "o_00000001",
+                "label": "A"
+              },
+              {
+                "value": "o_00000002",
+                "label": "B"
+              }
+            ]
+          }
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "an option must be an object",
+      "set": [
+        [
+          "employee/1/field/options",
+          [
+            "x",
+            "y"
+          ]
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0",
+          "code": "type"
+        },
+        {
+          "path": "employee/1/field/options/1",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "an option value must match the format",
+      "set": [
+        [
+          "employee/1/field/options/1/value",
+          "o_1"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/1/value",
+          "code": "option_value_format"
+        }
+      ]
+    },
+    {
+      "name": "an option value can't end with a newline",
+      "set": [
+        [
+          "employee/1/field/options/0/value",
+          "o_00000001\n"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0/value",
+          "code": "option_value_format"
+        }
+      ]
+    },
+    {
+      "name": "an option value must be a string",
+      "set": [
+        [
+          "employee/1/field/options/0/value",
+          5
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0/value",
+          "code": "option_value_format"
+        }
+      ]
+    },
+    {
+      "name": "option values are unique within a field",
+      "set": [
+        [
+          "employee/1/field/options/1/value",
+          "o_00000001"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/1/value",
+          "code": "option_value_duplicate"
+        }
+      ]
+    },
+    {
+      "name": "an option label of 100 code points is valid",
+      "set": [
+        [
+          "employee/1/field/options/0/label",
+          "дддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд"
+        ]
+      ],
+      "errors": []
+    },
+    {
+      "name": "an option label can't be empty",
+      "set": [
+        [
+          "employee/1/field/options/0/label",
+          " "
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0/label",
+          "code": "text_length"
+        }
+      ]
+    },
+    {
+      "name": "an option label of 101 code points is too long",
+      "set": [
+        [
+          "employee/1/field/options/0/label",
+          "ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0/label",
+          "code": "text_length"
+        }
+      ]
+    },
+    {
+      "name": "an option takes no other keys",
+      "set": [
+        [
+          "employee/1/field/options/0/color",
+          "red"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0",
+          "code": "unknown_key"
+        }
+      ]
+    },
+    {
+      "name": "an option needs a label",
+      "unset": [
+        "employee/1/field/options/0/label"
+      ],
+      "errors": [
+        {
+          "path": "employee/1/field/options/0",
+          "code": "missing_key"
+        }
+      ]
+    },
+    {
+      "name": "every violation is reported, in traversal order",
+      "set": [
+        [
+          "employee/1/title",
+          ""
+        ],
+        [
+          "employee/1/field/type",
+          "select"
+        ],
+        [
+          "manager/0/questionId",
+          "mood"
+        ]
+      ],
+      "errors": [
+        {
+          "path": "employee/1/title",
+          "code": "text_length"
+        },
+        {
+          "path": "employee/1/field/type",
+          "code": "field_type"
+        },
+        {
+          "path": "manager/0/questionId",
+          "code": "builtin_not_allowed"
+        }
+      ]
+    },
+    {
+      "name": "a definition of exactly the byte cap is valid",
+      "sized": 65536,
+      "errors": []
+    },
+    {
+      "name": "the cap applies after trimming",
+      "sized": 65536,
+      "padWithWhitespace": "employee/0/title",
+      "errors": []
+    },
+    {
+      "name": "one byte over the cap is too large",
+      "sized": 65537,
+      "errors": [
+        {
+          "path": "",
+          "code": "too_large"
+        }
+      ]
+    }
+  ]
+}

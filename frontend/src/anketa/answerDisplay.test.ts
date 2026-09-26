@@ -145,7 +145,9 @@ describe('GENERIC_LABEL_KEYS', () => {
         (['employee', 'manager'] as const).flatMap((side) =>
           getQuestionsForSide(side, CURRENT_ANKETA_FORM_VERSION, templateKey),
         ),
-      ).flatMap((question) => question.fields.map((field) => field.labelKey)),
+      ).flatMap((question) =>
+        question.fields.flatMap((field) => field.labelKey ?? []),
+      ),
     );
     for (const key of GENERIC_LABEL_KEYS) {
       expect(labelKeys.has(key), key).toBe(true);
@@ -159,6 +161,7 @@ describe('GENERIC_LABEL_KEYS', () => {
       .filter(
         (field) =>
           (field.type === 'radio' || field.type === 'checkboxes') &&
+          field.labelKey !== undefined &&
           GENERIC_LABEL_KEYS.has(field.labelKey),
       )
       .map((field) => field.id);

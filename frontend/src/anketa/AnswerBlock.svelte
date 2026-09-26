@@ -3,7 +3,7 @@
   import AnswerField from './AnswerField.svelte';
   import CommentThread from './CommentThread.svelte';
   import type { Comment } from './comments';
-  import type { Answers, Question } from './questions';
+  import { displayText, type Answers, type Question } from './questions';
   import { readonlyVisibleFields } from './answerDisplay';
 
   /**
@@ -84,7 +84,7 @@
        deleting a field's last comment hides the field along with its
        thread (CommentThread's onFocusLost, GitHub issue #149), or when a
        removed list entry takes focus with it (AnswerField's, #151). -->
-  <h4 tabindex="-1" bind:this={heading}>{$_(question.titleKey)}</h4>
+  <h4 tabindex="-1" bind:this={heading}>{displayText(question, $_)}</h4>
   {#if shownFields.length === 0}
     <p class="text-muted answer-empty block-empty">
       {$_('answerField.noAnswer')}

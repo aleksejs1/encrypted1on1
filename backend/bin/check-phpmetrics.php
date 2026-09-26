@@ -45,6 +45,10 @@ const ALLOWED = [
     'App\\Controller\\AuthController' => [
         'Too complex method code' => "login()'s complexity (ccnMethodMax=7) is the same stacked-guard-clause shape (rate limit, credential check, blocked-account gate, Phase D's company-suspension gate), not tangled branching — lower than earlier recorded here because both CSRF (GitHub issue #71's CsrfProtectionListener) and the manual field-presence checks (issue #71's LoginRequest DTO/validator) moved out of this method's body.",
     ],
+    'App\\Template\\TemplateDefinitionValidator' => [
+        'Too complex class code' => 'One branch per rule of the template definition schema (GitHub issue #141, #133 §5.1), spread across small methods that each check one node kind and stay under the per-method limit. It mirrors frontend/src/anketa/templateDefinition.ts check for check, in the same traversal order, so the two can be compared side by side; splitting the rules across classes would only spread that mirror across files.',
+        'Too long' => 'Same reason as its class-complexity entry: the full rule set of one schema, kept in one class so it stays a readable mirror of the frontend validator.',
+    ],
     'App\\Controller\\ActivationController' => [
         'Too complex method code' => "complete()'s complexity (ccnMethodMax=12) comes from the same linear sequence of independent guard clauses (rate limit, token usability, required fields, display-name validation) before persisting the activated user, not tangled branching. CSRF is no longer one of these guard clauses (GitHub issue #71's CsrfProtectionListener centralized it out of the method body).",
     ],

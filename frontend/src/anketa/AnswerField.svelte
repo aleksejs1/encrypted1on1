@@ -1,6 +1,11 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import type { QuestionField, ListEntry, AnswerValue } from './questions';
+  import {
+    displayText,
+    type QuestionField,
+    type ListEntry,
+    type AnswerValue,
+  } from './questions';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { renderAnswerMarkdown } from './markdown';
   import MarkdownEditor from './MarkdownEditor.svelte';
@@ -99,7 +104,10 @@
   const chosenOptions = $derived(selectedOptions(field, value));
   const showEmptyLine = $derived(collapsed && empty);
   const hideLabel = $derived(
-    collapsed && !empty && GENERIC_LABEL_KEYS.has(field.labelKey),
+    collapsed &&
+      !empty &&
+      field.labelKey !== undefined &&
+      GENERIC_LABEL_KEYS.has(field.labelKey),
   );
 
   /**
@@ -217,8 +225,8 @@
 <!-- data-field-id: a stable hook for frontend/scripts' generators, which
      run in every UI locale and so can't find a field by its label text. -->
 <div class="field" data-field-id={field.id} bind:this={root}>
-  {#if !hideLabel}
-    <span class="label">{$_(field.labelKey)}</span>
+  {#if !hideLabel && !field.noLabel}
+    <span class="label">{displayText(field, $_)}</span>
   {/if}
 
   {#if showEmptyLine}
@@ -229,13 +237,13 @@
     <!-- At most one option for a radio; {#each} rather than [0], so this
          never reads past an empty list. -->
     {#each chosenOptions as option (option.value)}
-      <p class="answer-choice">{$_(option.labelKey)}</p>
+      <p class="answer-choice">{displayText(option, $_)}</p>
     {/each}
   {:else if collapsed && field.type === 'checkboxes'}
     <!-- role="list": WebKit drops list semantics once list-style is none. -->
     <ul class="pills answer-choices" role="list">
       {#each chosenOptions as option (option.value)}
-        <li class="tag pill pill-chosen">{$_(option.labelKey)}</li>
+        <li class="tag pill pill-chosen">{displayText(option, $_)}</li>
       {/each}
     </ul>
   {:else if field.type === 'radio'}
@@ -250,7 +258,7 @@
             disabled={readonly}
             onchange={() => (value = option.value)}
           /><span class="dot"></span>
-          {$_(option.labelKey)}
+          {displayText(option, $_)}
         </label>
       {/each}
     </div>
@@ -266,7 +274,7 @@
           disabled={readonly}
           onclick={() => toggleCheckbox(option.value, !checked)}
         >
-          {$_(option.labelKey)}
+          {displayText(option, $_)}
         </button>
       {/each}
     </div>
