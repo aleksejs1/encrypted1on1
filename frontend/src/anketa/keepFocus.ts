@@ -140,15 +140,21 @@ export function fallbackFocusOptions(click: MouseEvent): FocusOptions {
 
 /**
  * Capture-phase keydown handler for a region whose actions move focus (a
- * comment thread, the outcomes card, a list's entries): drops an
- * auto-repeated Enter. Each action lands focus on the next control, so an
- * Enter held a moment too long would otherwise carry over. It would submit an
- * edit just opened, flip Delete/Cancel back and forth, or retry a failed add
- * or delete on every repeat. Not for a region holding a textarea, where a
+ * comment thread, the outcomes card, a list's entries, the template
+ * editor): drops an auto-repeated Enter. Each action lands focus on the next
+ * control, so an Enter held a moment too long would otherwise carry over. It
+ * would submit an edit just opened, flip Delete/Cancel back and forth, or
+ * retry a failed add or delete on every repeat. Except in a textarea, where a
  * held Enter legitimately adds lines.
  */
 export function ignoreHeldEnter(event: KeyboardEvent): void {
-  if (event.key === 'Enter' && event.repeat) event.preventDefault();
+  if (
+    event.key === 'Enter' &&
+    event.repeat &&
+    !(event.target instanceof HTMLTextAreaElement)
+  ) {
+    event.preventDefault();
+  }
 }
 
 /**

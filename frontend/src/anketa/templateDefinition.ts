@@ -20,7 +20,7 @@ import {
   type Side,
 } from './questions';
 
-type TemplateBlock =
+export type TemplateBlock =
   | {
       kind: 'builtin';
       questionId: EmployeeBuiltinQuestionId | ManagerBuiltinQuestionId;
@@ -75,7 +75,7 @@ export const MAX_BLOCKS_PER_SIDE = 30;
 export const MAX_TITLE_LENGTH = 200;
 export const MAX_FIELD_LABEL_LENGTH = 300;
 export const MAX_OPTION_LABEL_LENGTH = 100;
-const MIN_OPTIONS = 2;
+export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 12;
 
 const ID_PATTERN = /^c_[a-z0-9]{10}$/;
@@ -113,7 +113,7 @@ const REJECTED_CHARS = new RegExp(
  * stores. A scan from each end rather than a regex, which backtracks
  * quadratically on a long run of inner spaces.
  */
-function trimTemplateText(text: string): string {
+export function trimTemplateText(text: string): string {
   let start = 0;
   let end = text.length;
   while (start < end && ASCII_WHITESPACE.includes(text[start])) start++;
@@ -133,6 +133,29 @@ function codePointLength(text: string, max: number): number {
   for (const _codePoint of text) length++;
   return length;
 }
+
+/**
+ * What's wrong with a template text, or null — the backend's
+ * `TemplateDefinitionValidator::textProblem()`: `type` (not a string),
+ * `text_chars` (a rejected character) or `text_length` (empty unless
+ * `allowEmpty`, or over `max` code points, once trimmed). Also used for a
+ * template's name and description (#133 §5.2).
+ */
+export function templateTextProblem(
+  value: unknown,
+  max: number,
+  allowEmpty = false,
+): 'type' | 'text_chars' | 'text_length' | null {
+  if (typeof value !== 'string') return 'type';
+  const trimmed = trimTemplateText(value);
+  if (REJECTED_CHARS.test(trimmed)) return 'text_chars';
+  if (trimmed === '') return allowEmpty ? null : 'text_length';
+  return codePointLength(trimmed, max) > max ? 'text_length' : null;
+}
+
+/** A template's name and description limits: `CustomTemplateVersion::MAX_*_LENGTH`. */
+export const MAX_TEMPLATE_NAME_LENGTH = 120;
+export const MAX_TEMPLATE_DESCRIPTION_LENGTH = 300;
 
 /** The canonical encoding's size in UTF-8 bytes — the backend's `strlen(json_encode(...))`. */
 export function definitionByteLength(definition: unknown): number {
@@ -207,17 +230,8 @@ export function validateTemplateDefinition(
   };
 
   const checkText = (value: unknown, path: string, max: number): void => {
-    if (typeof value !== 'string') {
-      fail(path, 'type');
-      return;
-    }
-    const trimmed = trimTemplateText(value);
-    if (REJECTED_CHARS.test(trimmed)) {
-      fail(path, 'text_chars');
-      return;
-    }
-    const length = codePointLength(trimmed, max);
-    if (length < 1 || length > max) fail(path, 'text_length');
+    const problem = templateTextProblem(value, max);
+    if (problem !== null) fail(path, problem);
   };
 
   const checkId = (value: unknown, path: string): void => {

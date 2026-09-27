@@ -875,6 +875,24 @@ export function templateListLabelKey(templateKey: TemplateKey): string | null {
 }
 
 /**
+ * The title key of a built-in question a company template can reuse, for the
+ * template editor: the question's own `titleKey`, not one rebuilt by naming
+ * convention. Built-in questions always carry a key.
+ */
+export function builtinQuestionTitleKey(
+  side: Side,
+  questionId: EmployeeBuiltinQuestionId | ManagerBuiltinQuestionId,
+): string {
+  const builtins: Record<string, (formVersion: number) => Question> =
+    BUILTIN_QUESTIONS[side];
+  const titleKey = builtins[questionId](CURRENT_ANKETA_FORM_VERSION).titleKey;
+  if (titleKey === undefined) {
+    throw new Error(`Built-in question without a title key: ${questionId}`);
+  }
+  return titleKey;
+}
+
+/**
  * One side of a company template's definition as questions (GitHub issue #141).
  * Takes plain JSON data that already passed `validateTemplateDefinition()`,
  * in its canonical, trimmed form (as the server stores it; an editor preview

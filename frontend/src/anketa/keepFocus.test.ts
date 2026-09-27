@@ -205,4 +205,14 @@ describe('ignoreHeldEnter', () => {
     ignoreHeldEnter(event);
     expect(event.defaultPrevented).toBe(false);
   });
+
+  it('keeps a held Enter in a textarea, where it adds lines', () => {
+    const textarea = document.createElement('textarea');
+    document.body.append(textarea);
+    const event = keydown('Enter', true);
+    textarea.addEventListener('keydown', ignoreHeldEnter);
+    textarea.dispatchEvent(event);
+    textarea.remove();
+    expect(event.defaultPrevented).toBe(false);
+  });
 });

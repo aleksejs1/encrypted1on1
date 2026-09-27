@@ -15,6 +15,8 @@
   import AdminPanel from './admin/AdminPanel.svelte';
   import AdminReports from './admin/AdminReports.svelte';
   import AdminInvites from './admin/AdminInvites.svelte';
+  import AdminTemplates from './admin/AdminTemplates.svelte';
+  import TemplateEditor from './admin/TemplateEditor.svelte';
   import PlatformAdminPanel from './admin/PlatformAdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
@@ -33,6 +35,7 @@
     ACTIVATION_PATTERN,
     RESET_PASSWORD_PATTERN,
     ANKETA_PATTERN,
+    ADMIN_TEMPLATE_PATTERN,
     isKnownPath,
   } from './routes';
 
@@ -73,6 +76,10 @@
 
   const activationMatch = $derived(routerState.path.match(ACTIVATION_PATTERN));
   const anketaMatch = $derived(routerState.path.match(ANKETA_PATTERN));
+  // Covers /admin/templates/new too; the routing chain checks that literal first.
+  const adminTemplateMatch = $derived(
+    routerState.path.match(ADMIN_TEMPLATE_PATTERN),
+  );
   const resetPasswordMatch = $derived(
     routerState.path.match(RESET_PASSWORD_PATTERN),
   );
@@ -108,6 +115,7 @@
       routerState.path === PATHS.createCompany ||
       !authState.authenticated ||
       !!anketaMatch ||
+      !!adminTemplateMatch ||
       MIGRATED_AUTHED_PATHS.includes(routerState.path) ||
       (authState.authenticated && !knownPath),
   );
@@ -152,6 +160,16 @@
     <AdminReports />
   {:else if routerState.path === PATHS.adminInvites}
     <AdminInvites />
+  {:else if routerState.path === PATHS.adminTemplates}
+    <AdminTemplates />
+  {:else if routerState.path === PATHS.adminTemplateNew}
+    <TemplateEditor id={null} />
+  {:else if adminTemplateMatch}
+    <!-- Keyed: moving from one template to another must not keep the first
+         one's draft (it would save it under the second one's id). -->
+    {#key adminTemplateMatch[1]}
+      <TemplateEditor id={adminTemplateMatch[1]} />
+    {/key}
   {:else if routerState.path === PATHS.platformAdmin}
     <PlatformAdminPanel />
   {:else if routerState.path === PATHS.anketaList}

@@ -19,7 +19,7 @@ const COMPOSE_FILE = path.join(REPO_ROOT, 'docker-compose.e2e.yml');
  * Requires the isolated e2e stack (docker-compose.e2e.yml) to already be
  * running — see `make e2e-up`.
  */
-export function createActivationLink(email: string): string {
+export function createActivationLink(email: string, admin = false): string {
   const output = execFileSync(
     'docker',
     [
@@ -33,6 +33,7 @@ export function createActivationLink(email: string): string {
       'bin/console',
       'app:create-activation-link',
       email,
+      ...(admin ? ['--admin'] : []),
       '--no-ansi',
     ],
     { encoding: 'utf-8' },
