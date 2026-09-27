@@ -7,6 +7,7 @@
  */
 import type { Side, TemplateKey } from '../anketa/questions';
 import type { Goal } from '../anketa/goals';
+import type { TemplateDefinition } from '../anketa/templateDefinition';
 
 /** GET /api/me */
 export interface MeResponse {
@@ -138,4 +139,19 @@ export interface AnketaLiveState {
   commentsVersion: number;
   outcomesVersion: number;
   goalCheckpointsVersion: number;
+}
+
+/**
+ * One row of GET /api/admin/templates (GitHub issue #142): a company template
+ * with its current version's content. Also the `current` row of a 409
+ * version_conflict from PUT /api/admin/templates/{id}.
+ */
+export interface AdminTemplate {
+  id: string;
+  currentVersion: number;
+  archivedAt: string | null;
+  updatedAt: string;
+  name: string;
+  description: string;
+  definition: TemplateDefinition;
 }

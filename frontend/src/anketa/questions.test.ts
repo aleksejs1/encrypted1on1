@@ -1,7 +1,6 @@
 /// <reference types="node" />
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { repoFile } from '../testRepoFile';
 import {
   ANKETA_TEMPLATES,
   CURRENT_ANKETA_FORM_VERSION,
@@ -237,12 +236,7 @@ describe('getQuestionsForSide', () => {
   // checked out (CI does), and TEMPLATE_KEYS written as a literal array of single-quoted
   // strings.
   it("matches the backend's Anketa::TEMPLATE_KEYS", () => {
-    const php = readFileSync(
-      fileURLToPath(
-        new URL('../../../backend/src/Entity/Anketa.php', import.meta.url),
-      ),
-      'utf-8',
-    );
+    const php = repoFile('backend/src/Entity/Anketa.php');
     const list = /const\s+(?:array\s+)?TEMPLATE_KEYS\s*=\s*\[([^\]]*)\]/.exec(
       php,
     )?.[1];

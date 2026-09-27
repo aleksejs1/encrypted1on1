@@ -10,7 +10,12 @@ window.addEventListener('popstate', () => {
   routerState.path = window.location.pathname;
 });
 
-export function navigate(to: string): void {
-  history.pushState(null, '', to);
+/**
+ * `replace` swaps the current history entry instead of adding one, for a page
+ * that shouldn't be returned to with Back (a "new" form after it has saved).
+ */
+export function navigate(to: string, { replace = false } = {}): void {
+  if (replace) history.replaceState(null, '', to);
+  else history.pushState(null, '', to);
   routerState.path = to;
 }

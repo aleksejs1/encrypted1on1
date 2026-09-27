@@ -1,7 +1,5 @@
-/// <reference types="node" />
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { repoFile } from '../testRepoFile';
 import {
   EMPLOYEE_BUILTIN_QUESTION_IDS,
   FIELD_TYPES,
@@ -13,6 +11,9 @@ import {
 } from './questions';
 import {
   DISPLAY_NAME_REJECTED_CLASS,
+  MAX_TEMPLATE_DESCRIPTION_LENGTH,
+  MAX_TEMPLATE_NAME_LENGTH,
+  templateTextProblem,
   TYPES_WITH_OPTIONS,
   MAX_BLOCKS_PER_SIDE,
   MAX_FIELD_LABEL_LENGTH,
@@ -24,13 +25,6 @@ import {
   validateTemplateDefinition,
   type TemplateDefinition,
 } from './templateDefinition';
-
-// Reaches outside the frontend package, like questions.test.ts's TEMPLATE_KEYS check.
-const repoFile = (path: string) =>
-  readFileSync(
-    fileURLToPath(new URL(`../../../${path}`, import.meta.url)),
-    'utf8',
-  );
 
 interface Case {
   name: string;
@@ -357,6 +351,32 @@ describe('the rejected characters', () => {
     );
 
     expect(asJs).toBe(DISPLAY_NAME_REJECTED_CLASS);
+  });
+});
+
+describe('templateTextProblem', () => {
+  it('mirrors the backend’s rules for a name or description', () => {
+    expect(templateTextProblem(5, 10)).toBe('type');
+    expect(templateTextProblem('a\u200bb', 10)).toBe('text_chars');
+    expect(templateTextProblem('a\u2028b', 10)).toBe('text_chars');
+    expect(templateTextProblem(' \t ', 10)).toBe('text_length');
+    expect(templateTextProblem(' \t ', 10, true)).toBeNull();
+    expect(templateTextProblem('ж'.repeat(10), 10)).toBeNull();
+    expect(templateTextProblem('ж'.repeat(11), 10)).toBe('text_length');
+    expect(templateTextProblem('  ok  ', 2)).toBeNull();
+  });
+
+  // The editor checks name and description against the same limits the
+  // backend's CustomTemplateVersion enforces.
+  it("uses the backend's name and description limits", () => {
+    const php = repoFile('backend/src/Entity/CustomTemplateVersion.php');
+    const constant = (name: string) =>
+      Number(new RegExp(`const\\s+${name}\\s*=\\s*(\\d+)`).exec(php)?.[1]);
+
+    expect(constant('MAX_NAME_LENGTH')).toBe(MAX_TEMPLATE_NAME_LENGTH);
+    expect(constant('MAX_DESCRIPTION_LENGTH')).toBe(
+      MAX_TEMPLATE_DESCRIPTION_LENGTH,
+    );
   });
 });
 

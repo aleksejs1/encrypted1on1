@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isKnownPath, MIGRATED_AUTHED_PATHS, PATHS } from './routes';
+import {
+  ADMIN_TEMPLATE_PATTERN,
+  adminTemplatePath,
+  isKnownPath,
+  MIGRATED_AUTHED_PATHS,
+  PATHS,
+} from './routes';
 
 describe('isKnownPath', () => {
   it('accepts every static path', () => {
@@ -13,6 +19,8 @@ describe('isKnownPath', () => {
     expect(isKnownPath('/reset-password/some-token')).toBe(true);
     expect(isKnownPath('/anketas/abc123')).toBe(true);
     expect(isKnownPath('/anketas/new')).toBe(true);
+    expect(isKnownPath('/admin/templates/new')).toBe(true);
+    expect(isKnownPath('/admin/templates/abc123')).toBe(true);
   });
 
   it('rejects unrecognized paths', () => {
@@ -20,9 +28,19 @@ describe('isKnownPath', () => {
     expect(isKnownPath('/anketas')).toBe(false);
     expect(isKnownPath('/anketas/')).toBe(false);
     expect(isKnownPath('/anketas/abc/def')).toBe(false);
+    expect(isKnownPath('/admin/templates/')).toBe(false);
+    expect(isKnownPath('/admin/templates/abc/def')).toBe(false);
     expect(isKnownPath('/activate')).toBe(false);
     expect(isKnownPath('/activate/')).toBe(false);
     expect(isKnownPath('')).toBe(false);
+  });
+});
+
+describe('adminTemplatePath', () => {
+  it('builds a path the template pattern matches, back to the same id', () => {
+    const path = adminTemplatePath('0192-abc');
+    expect(path).toBe('/admin/templates/0192-abc');
+    expect(ADMIN_TEMPLATE_PATTERN.exec(path)?.[1]).toBe('0192-abc');
   });
 });
 
