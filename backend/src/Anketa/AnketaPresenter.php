@@ -71,6 +71,21 @@ class AnketaPresenter
     }
 
     /**
+     * A row of the anketa list: the summary plus a custom anketa's template name
+     * (GitHub issue #144, #133 §5.4), which the list shows as its meeting type. Not in
+     * summarize() itself, so the 4s live-state poll never loads the version.
+     *
+     * @return array<string, mixed>
+     */
+    public function summarizeForList(Anketa $anketa, User $user): array
+    {
+        return [
+            ...$this->summarize($anketa, $user),
+            'customTemplateName' => $anketa->getCustomTemplateVersion()?->getName(),
+        ];
+    }
+
+    /**
      * @param Goal[] $goals
      *
      * @return array{id: string, myRole: string, counterpartId: string, counterpartEmail: string,
@@ -83,11 +98,16 @@ class AnketaPresenter
      *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
      *     authorId: string, title: string, description: string|null, targetDate: string|null, status: string,
      *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int,
-     *     nextCycleTemplateKey: string|null}
+     *     nextCycleTemplateKey: string|null, nextCustomTemplateId: string|null,
+     *     customTemplateVersionId: string|null, customTemplateName: string|null}
      */
     public function serializeDetail(Anketa $anketa, User $user, array $goals): array
     {
         $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
+        // The archive form's "Next meeting type" default (GitHub issues #140, #144). Null
+        // once archived (there's no archive form left) and for a one-off (no successor).
+        $nextTemplate = $anketa->isArchived() ? null : $this->lifecycleService->defaultNextTemplate($anketa);
+        $customTemplateVersion = $anketa->getCustomTemplateVersion();
 
         return [
             ...$this->summarize($anketa, $user),
@@ -108,9 +128,15 @@ class AnketaPresenter
             'goals' => array_values(array_map(fn (Goal $goal) => $this->serializeGoal($goal), $goals)),
             'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
             'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
-            // The archive form's "Next meeting type" default (GitHub issue #140). Null
-            // once archived (there's no archive form left) and for a one-off (no successor).
-            'nextCycleTemplateKey' => $anketa->isArchived() ? null : $this->lifecycleService->defaultNextTemplate($anketa),
+            'nextCycleTemplateKey' => $nextTemplate['key'] ?? null,
+            // The company template to preselect when the default is 'custom': the
+            // template's id, so its latest version, not necessarily this anketa's.
+            'nextCustomTemplateId' => $nextTemplate['customTemplateId'] ?? null,
+            // A custom anketa's questions: the page fetches the definition by this id
+            // (GET /api/template-versions/{id}); it isn't in this payload, which the
+            // bulk endpoint repeats for every anketa.
+            'customTemplateVersionId' => $customTemplateVersion?->getId(),
+            'customTemplateName' => $customTemplateVersion?->getName(),
         ];
     }
 

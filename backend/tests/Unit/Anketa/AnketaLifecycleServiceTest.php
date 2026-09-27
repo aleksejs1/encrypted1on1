@@ -6,6 +6,8 @@ use App\Anketa\AnketaAlreadyArchivedException;
 use App\Anketa\AnketaLifecycleService;
 use App\Entity\Anketa;
 use App\Entity\Company;
+use App\Entity\CustomTemplate;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
@@ -273,7 +275,105 @@ class AnketaLifecycleServiceTest extends TestCase
             templateKey: $templateKey,
         );
 
-        self::assertSame($expectedNextTemplateKey, $this->createService()->defaultNextTemplate($anketa));
+        self::assertSame(['key' => $expectedNextTemplateKey, 'customTemplateId' => null], $this->createService()->defaultNextTemplate($anketa));
+    }
+
+    /**
+     * GitHub issue #144: a custom anketa recurs on its company template, named by the
+     * template's id, not this anketa's version, so the successor gets whatever version
+     * is current by then.
+     */
+    public function testDefaultNextTemplateOfACustomAnketaIsItsTemplate(): void
+    {
+        $version = $this->templateVersion();
+        $anketa = $this->customAnketa($version);
+
+        self::assertSame(
+            ['key' => 'custom', 'customTemplateId' => $version->getTemplate()->getId()],
+            $this->createService()->defaultNextTemplate($anketa),
+        );
+        self::assertNotSame($version->getId(), $version->getTemplate()->getId());
+    }
+
+    /** Once an admin archives the template, the pair goes back to Regular by default. */
+    public function testDefaultNextTemplateOfACustomAnketaIsRegularOnceItsTemplateIsArchived(): void
+    {
+        $version = $this->templateVersion();
+        $anketa = $this->customAnketa($version);
+        $version->getTemplate()->setArchived(true);
+
+        self::assertSame(['key' => 'regular', 'customTemplateId' => null], $this->createService()->defaultNextTemplate($anketa));
+    }
+
+    /** A custom one-off has no successor either. */
+    public function testDefaultNextTemplateIsNullForACustomOneOff(): void
+    {
+        self::assertNull($this->createService()->defaultNextTemplate($this->customAnketa($this->templateVersion(), oneOff: true)));
+    }
+
+    /** GitHub issue #144: the successor gets exactly the version it's given. */
+    public function testArchiveCreatesTheSuccessorOnTheGivenTemplateVersion(): void
+    {
+        $version = $this->templateVersion();
+        $anketa = $this->customAnketa($version);
+        $nextVersion = new CustomTemplateVersion($version->getTemplate(), 2, 'Weekly v2', '', '{}', $this->manager);
+
+        $goalRepository = self::createStub(GoalRepository::class);
+        $goalRepository->method('findInProgressForAnketa')->willReturn([]);
+
+        $nextAnketa = $this->createService(goalRepository: $goalRepository)->archive(
+            anketa: $anketa,
+            actor: $this->employee,
+            missed: false,
+            skipNextMeeting: false,
+            mySealedKey: 'next-emp-key',
+            counterpartSealedKey: 'next-mgr-key',
+            nextTemplateKey: 'custom',
+            nextCustomTemplateVersion: $nextVersion,
+        );
+
+        self::assertNotNull($nextAnketa);
+        self::assertSame('custom', $nextAnketa->getTemplateKey());
+        self::assertSame($nextVersion, $nextAnketa->getCustomTemplateVersion());
+    }
+
+    /** A custom anketa created by createAnketa() keeps its version. */
+    public function testCreateAnketaStoresTheTemplateVersion(): void
+    {
+        $version = $this->templateVersion();
+
+        $anketa = $this->createService()->createAnketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'custom',
+            customTemplateVersion: $version,
+        );
+
+        self::assertSame($version, $anketa->getCustomTemplateVersion());
+    }
+
+    private function templateVersion(): CustomTemplateVersion
+    {
+        return new CustomTemplateVersion(new CustomTemplate($this->manager), 1, 'Weekly', '', '{}', $this->manager);
+    }
+
+    private function customAnketa(CustomTemplateVersion $version, bool $oneOff = false): Anketa
+    {
+        return new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+            templateKey: 'custom',
+            oneOff: $oneOff,
+            customTemplateVersion: $version,
+        );
     }
 
     /** A one-off never has a successor, so it has no default next template either. */

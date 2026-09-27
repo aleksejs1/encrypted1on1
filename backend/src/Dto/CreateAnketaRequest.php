@@ -32,6 +32,11 @@ readonly class CreateAnketaRequest
         public ?string $outcomesBlob = null,
 
         public string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
+
+        // The company template (GitHub issue #144), with templateKey 'custom' and only
+        // then. A template id, not a version: the server resolves it to the current one.
+        #[Assert\Type('string')]
+        public ?string $customTemplateId = null,
     ) {
     }
 
@@ -56,6 +61,15 @@ readonly class CreateAnketaRequest
     {
         if (!\in_array($this->templateKey, Anketa::TEMPLATE_KEYS, true)) {
             DtoViolation::add($context, 'templateKey', 'errors.template_key_must_be_one_of', ['%templateKeys%' => implode(', ', Anketa::TEMPLATE_KEYS)]);
+        }
+    }
+
+    #[Assert\Callback]
+    public function validateCustomTemplateId(ExecutionContextInterface $context): void
+    {
+        $hasId = null !== $this->customTemplateId && '' !== $this->customTemplateId;
+        if ((Anketa::CUSTOM_TEMPLATE_KEY === $this->templateKey) !== $hasId) {
+            DtoViolation::add($context, 'customTemplateId', 'errors.custom_template_id_mismatch');
         }
     }
 }

@@ -99,7 +99,10 @@ class AnketaControllerTest extends ApiTestCase
      */
     public static function templateKeyProvider(): array
     {
-        return array_combine(Anketa::TEMPLATE_KEYS, array_map(static fn (string $key): array => [$key], Anketa::TEMPLATE_KEYS));
+        // 'custom' needs a company template; CustomTemplateAnketaTest covers it.
+        $keys = array_values(array_diff(Anketa::TEMPLATE_KEYS, [Anketa::CUSTOM_TEMPLATE_KEY]));
+
+        return array_combine($keys, array_map(static fn (string $key): array => [$key], $keys));
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('templateKeyProvider')]

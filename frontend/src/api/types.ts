@@ -5,7 +5,7 @@
  * copy, so a backend field rename is a compile error everywhere it's used
  * instead of a silent `undefined` in whichever copy nobody updated.
  */
-import type { Side, TemplateKey } from '../anketa/questions';
+import type { AnketaTemplateKey, Side } from '../anketa/questions';
 import type { Goal } from '../anketa/goals';
 import type { TemplateDefinition } from '../anketa/templateDefinition';
 
@@ -46,12 +46,21 @@ export interface AnketaSummary {
   counterpartDeleted: boolean;
   /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
   formVersion: number;
-  /** Which built-in meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
-  templateKey: TemplateKey;
+  /** Which meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
+  templateKey: AnketaTemplateKey;
   /** Null only on legacy anketas from before periodicity existed. */
   periodicityDays: number | null;
   /** See AnketaDetail's own `oneOff` — GitHub issue #111. */
   oneOff: boolean;
+}
+
+/**
+ * One row of GET /api/anketas: the summary plus, for an anketa on a company
+ * template, that template's name as it was when the anketa was created
+ * (GitHub issue #144). Not in the live-state poll.
+ */
+export interface AnketaListRow extends AnketaSummary {
+  customTemplateName: string | null;
 }
 
 /** GET /api/anketas/{id} */
@@ -84,8 +93,15 @@ export interface AnketaDetail {
   missed: boolean;
   /** The question-set version this anketa was created against — see frontend/src/anketa/questions.ts. */
   formVersion: number;
-  /** Which built-in meeting-type template this anketa uses — see frontend/src/anketa/questions.ts. */
-  templateKey: TemplateKey;
+  /**
+   * Which meeting-type template this anketa uses — see frontend/src/anketa/questions.ts.
+   * `'custom'` is a company template's version, `customTemplateVersionId`.
+   */
+  templateKey: AnketaTemplateKey;
+  /** The company template version a `'custom'` anketa renders; null otherwise. */
+  customTemplateVersionId: string | null;
+  /** That version's name; null unless `'custom'`. */
+  customTemplateName: string | null;
   /**
    * Created by hand while the pair already had another open anketa — no
    * carry-forward, and archiving it never auto-creates a next meeting (GitHub
@@ -97,7 +113,13 @@ export interface AnketaDetail {
    * successor gets unless someone picks another type. Null for a one-off (no
    * successor) and once archived (no archive form).
    */
-  nextCycleTemplateKey: TemplateKey | null;
+  nextCycleTemplateKey: AnketaTemplateKey | null;
+  /**
+   * The company template to preselect when `nextCycleTemplateKey` is `'custom'`
+   * (GitHub issue #144): the template's id, so the successor gets its latest
+   * version. Null otherwise.
+   */
+  nextCustomTemplateId: string | null;
 }
 
 /**
@@ -139,6 +161,20 @@ export interface AnketaLiveState {
   commentsVersion: number;
   outcomesVersion: number;
   goalCheckpointsVersion: number;
+}
+
+/** One row of GET /api/templates: an active company template (GitHub issue #144). */
+export interface CompanyTemplate {
+  id: string;
+  name: string;
+  description: string;
+}
+
+/** GET /api/template-versions/{id}: what a custom anketa renders. */
+export interface TemplateVersion {
+  name: string;
+  /** Server-validated, but checked again before it's rendered. */
+  definition: unknown;
 }
 
 /**

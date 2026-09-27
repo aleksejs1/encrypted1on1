@@ -29,6 +29,29 @@ class CustomTemplateVersionRepository extends ServiceEntityRepository
         return $this->findOneBy(['id' => $id, 'company' => $company]);
     }
 
+    /**
+     * The version a new anketa on template `$templateId` gets (GitHub issue #144, #133
+     * §7.2): its current one, if the template is the company's and not archived. Null
+     * otherwise, which the caller answers with 422 `template_unavailable`.
+     */
+    public function findCurrentActiveForCompany(string $templateId, Company $company): ?CustomTemplateVersion
+    {
+        /** @var CustomTemplateVersion|null $version */
+        $version = $this->createQueryBuilder('v')
+            ->addSelect('t')
+            ->join('v.template', 't')
+            ->where('t.id = :id')
+            ->andWhere('t.company = :company')
+            ->andWhere('v.version = t.currentVersion')
+            ->andWhere('t.archivedAt IS NULL')
+            ->setParameter('id', $templateId)
+            ->setParameter('company', $company->getId())
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $version;
+    }
+
     public function findCurrent(CustomTemplate $template): ?CustomTemplateVersion
     {
         return $this->findOneBy(['template' => $template, 'version' => $template->getCurrentVersion()]);

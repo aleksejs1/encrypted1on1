@@ -2,6 +2,7 @@
 
 namespace App\Dto;
 
+use App\Entity\Anketa;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
@@ -29,7 +30,24 @@ readonly class ArchiveAnketaRequest
         // one-off or blocked pair never fails on it.
         #[Assert\Type('string')]
         public ?string $nextTemplateKey = null,
+        // The company template for nextTemplateKey 'custom' (GitHub issue #144), and
+        // only for it; resolved to its current version by AnketaController::archive().
+        #[Assert\Type('string')]
+        public ?string $nextCustomTemplateId = null,
     ) {
+    }
+
+    #[Assert\Callback]
+    public function validateNextCustomTemplateId(ExecutionContextInterface $context): void
+    {
+        // Ignored with skipNextMeeting, like the other next-meeting fields.
+        if (true === $this->skipNextMeeting) {
+            return;
+        }
+        $hasId = null !== $this->nextCustomTemplateId && '' !== $this->nextCustomTemplateId;
+        if ((Anketa::CUSTOM_TEMPLATE_KEY === $this->nextTemplateKey) !== $hasId) {
+            DtoViolation::add($context, 'nextCustomTemplateId', 'errors.next_custom_template_id_mismatch');
+        }
     }
 
     #[Assert\Callback]

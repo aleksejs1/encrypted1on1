@@ -42,7 +42,10 @@ class AnketaRepository extends ServiceEntityRepository
 
     /**
      * Every anketa the user participates in, ordered by meetingDate DESC,
-     * eager-joining employee and manager.
+     * eager-joining employee and manager, and a custom anketa's template version and
+     * template: the list shows the version's name, and the detail's next-template
+     * default reads whether the template is archived (GitHub issue #144), so without
+     * the join each custom row would cost two more queries.
      *
      * @return Anketa[]
      */
@@ -50,9 +53,11 @@ class AnketaRepository extends ServiceEntityRepository
     {
         /** @var Anketa[] $result */
         $result = $this->createQueryBuilder('a')
-            ->select('a', 'e', 'm')
+            ->select('a', 'e', 'm', 'ctv', 'ct')
             ->innerJoin('a.employee', 'e')
             ->innerJoin('a.manager', 'm')
+            ->leftJoin('a.customTemplateVersion', 'ctv')
+            ->leftJoin('ctv.template', 'ct')
             ->where('a.employee = :user OR a.manager = :user')
             ->setParameter('user', $user)
             ->orderBy('a.meetingDate', 'DESC')

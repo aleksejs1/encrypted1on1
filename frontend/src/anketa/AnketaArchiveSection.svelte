@@ -1,11 +1,13 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import DateInput from '../design/DateInput.svelte';
+  import type { CompanyTemplate } from '../api/types';
+  import { ANKETA_TEMPLATES, templatePickerKeys } from './questions';
   import {
-    ANKETA_TEMPLATES,
-    templatePickerKeys,
-    type TemplateKey,
-  } from './questions';
+    customChoice,
+    customTemplateIdOf,
+    type TemplateChoice,
+  } from './templateChoice';
 
   let {
     archiving,
@@ -13,7 +15,10 @@
     oneOff,
     skipNextMeeting = $bindable<boolean>(),
     nextMeetingDate = $bindable<string>(),
-    nextTemplateChoice = $bindable<TemplateKey | null>(),
+    nextTemplateChoice = $bindable<TemplateChoice | null>(),
+    defaultChoice,
+    companyTemplates,
+    templateRetired,
     onArchive,
   }: {
     archiving: boolean;
@@ -26,9 +31,29 @@
     oneOff: boolean;
     skipNextMeeting: boolean;
     nextMeetingDate: string;
-    nextTemplateChoice: TemplateKey | null;
+    nextTemplateChoice: TemplateChoice | null;
+    /** What the server does if nothing else is picked. */
+    defaultChoice: TemplateChoice | null;
+    /** The company's active templates (GitHub issue #144); empty if they couldn't be loaded. */
+    companyTemplates: CompanyTemplate[];
+    /**
+     * This anketa's company template was archived, so the default is back to
+     * Regular (#133 §7.4).
+     */
+    templateRetired: boolean;
     onArchive: (missed: boolean) => Promise<void>;
   } = $props();
+
+  // The default must always be one of the options, even a company template
+  // missing from the list (it failed to load, or changed meanwhile): otherwise
+  // the select would show another option, and that would count as a change.
+  const defaultMissing = $derived(
+    defaultChoice !== null &&
+      customTemplateIdOf(defaultChoice) !== null &&
+      !companyTemplates.some(
+        (template) => customChoice(template.id) === defaultChoice,
+      ),
+  );
 </script>
 
 <section class="card">
@@ -71,8 +96,27 @@
           {#each ANKETA_TEMPLATES as key (key)}
             <option value={key}>{$_(templatePickerKeys(key).labelKey)}</option>
           {/each}
+          {#if defaultMissing}
+            <option value={defaultChoice}
+              >{$_('anketa.nextMeetingTypeSameTemplate')}</option
+            >
+          {/if}
+          {#if companyTemplates.length > 0}
+            <optgroup label={$_('anketa.nextMeetingTypeCompanyTemplates')}>
+              {#each companyTemplates as template (template.id)}
+                <option value={customChoice(template.id)}
+                  >{template.name}</option
+                >
+              {/each}
+            </optgroup>
+          {/if}
         </select>
       </div>
+      {#if templateRetired}
+        <p class="text-muted archive-template-retired">
+          {$_('anketa.templateRetired')}
+        </p>
+      {/if}
     {/if}
   {/if}
   {#if answersEditOpen}
@@ -111,6 +155,10 @@
 
   .archive-template-field {
     max-width: 320px;
+    margin-bottom: 12px;
+  }
+
+  .archive-template-retired {
     margin-bottom: 12px;
   }
 </style>

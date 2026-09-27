@@ -6,6 +6,8 @@ use App\Anketa\AnketaLifecycleService;
 use App\Anketa\AnketaPresenter;
 use App\Entity\Anketa;
 use App\Entity\Company;
+use App\Entity\CustomTemplate;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
@@ -135,7 +137,59 @@ class AnketaPresenterTest extends TestCase
             templateKey: 'career_growth',
         );
 
-        self::assertSame('regular', $this->presenter->serializeDetail($anketa, $this->employee, [])['nextCycleTemplateKey']);
+        $detail = $this->presenter->serializeDetail($anketa, $this->employee, []);
+        self::assertSame('regular', $detail['nextCycleTemplateKey']);
+        self::assertNull($detail['nextCustomTemplateId']);
+        self::assertNull($detail['customTemplateVersionId']);
+        self::assertNull($detail['customTemplateName']);
+    }
+
+    /**
+     * GitHub issue #144 (#133 §5.4): a custom anketa's detail names its version and
+     * template, and its default next template is that template; the list row carries
+     * the name; the live-state poll carries none of it.
+     */
+    public function testACustomAnketasTemplateFields(): void
+    {
+        $version = new CustomTemplateVersion(new CustomTemplate($this->manager), 1, 'Weekly sync', '', '{}', $this->manager);
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'sealed-emp',
+            managerSealedKey: 'sealed-mgr',
+            periodicityDays: 14,
+            templateKey: 'custom',
+            customTemplateVersion: $version,
+        );
+
+        $detail = $this->presenter->serializeDetail($anketa, $this->employee, []);
+        self::assertSame('custom', $detail['templateKey']);
+        self::assertSame($version->getId(), $detail['customTemplateVersionId']);
+        self::assertSame('Weekly sync', $detail['customTemplateName']);
+        self::assertSame('custom', $detail['nextCycleTemplateKey']);
+        self::assertSame($version->getTemplate()->getId(), $detail['nextCustomTemplateId']);
+
+        self::assertSame('Weekly sync', $this->presenter->summarizeForList($anketa, $this->employee)['customTemplateName']);
+        self::assertNull($this->presenter->summarizeForList(new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-10-01 10:00:00'),
+            employeeSealedKey: 'sealed-emp',
+            managerSealedKey: 'sealed-mgr',
+            periodicityDays: 14,
+        ), $this->employee)['customTemplateName']);
+
+        $liveState = $this->presenter->serializeLiveState($anketa, $this->employee);
+        self::assertArrayNotHasKey('customTemplateName', $liveState);
+        self::assertArrayNotHasKey('customTemplateVersionId', $liveState);
+
+        // Once archived, there's no archive form to preselect anything in.
+        $anketa->archive(false);
+        $archived = $this->presenter->serializeDetail($anketa, $this->employee, []);
+        self::assertNull($archived['nextCycleTemplateKey']);
+        self::assertNull($archived['nextCustomTemplateId']);
+        self::assertSame('Weekly sync', $archived['customTemplateName']);
     }
 
     /** An archived anketa has no archive form left, so no default next meeting type. */

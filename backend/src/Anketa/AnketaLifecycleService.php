@@ -3,6 +3,7 @@
 namespace App\Anketa;
 
 use App\Entity\Anketa;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
@@ -46,6 +47,7 @@ class AnketaLifecycleService
         ?Anketa $carryFrom = null,
         string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
         bool $oneOff = false,
+        ?CustomTemplateVersion $customTemplateVersion = null,
     ): Anketa {
         if ($oneOff) {
             $outcomesBlob = null;
@@ -61,6 +63,7 @@ class AnketaLifecycleService
             periodicityDays: $periodicityDays,
             templateKey: $templateKey,
             oneOff: $oneOff,
+            customTemplateVersion: $customTemplateVersion,
         );
 
         if (null !== $outcomesBlob) {
@@ -102,6 +105,7 @@ class AnketaLifecycleService
         ?User $creator = null,
         string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
         bool $oneOff = false,
+        ?CustomTemplateVersion $customTemplateVersion = null,
     ): Anketa {
         $anketa = $this->createWithCarryForward(
             employee: $employee,
@@ -114,6 +118,7 @@ class AnketaLifecycleService
             carryFrom: $carryFrom,
             templateKey: $templateKey,
             oneOff: $oneOff,
+            customTemplateVersion: $customTemplateVersion,
         );
 
         $this->entityManager->flush();
@@ -135,7 +140,9 @@ class AnketaLifecycleService
      * (the user's "Next meeting type" choice, or defaultNextTemplate()) before anything
      * is mutated — resolving it here would be too late for a check that has to leave
      * the anketa unarchived when it fails. Required whenever a successor is created;
-     * ignored otherwise.
+     * ignored otherwise. So is $nextCustomTemplateVersion, the company template's
+     * version the caller resolved for a 'custom' key (GitHub issue #144); the
+     * successor's constructor refuses a key and version that don't go together.
      *
      * The archive itself goes through AnketaRepository::markArchivedIfOpen(), in the same
      * transaction as the successor's insert, so of two concurrent archive requests only
@@ -154,6 +161,7 @@ class AnketaLifecycleService
         ?string $counterpartSealedKey = null,
         ?string $outcomesBlob = null,
         ?string $nextTemplateKey = null,
+        ?CustomTemplateVersion $nextCustomTemplateVersion = null,
     ): ?Anketa {
         $nextPeriodicityDays = $this->nextAnketaPeriodicity($anketa, $skipNextMeeting, $mySealedKey, $counterpartSealedKey);
         // A programming error, not a fallback: AnketaController::archive() always
@@ -166,7 +174,7 @@ class AnketaLifecycleService
         // archived — same reason as InviteController::create(): wrapInTransaction()
         // closes the EntityManager on any exception.
         $nextAnketa = $this->entityManager->wrapInTransaction(function () use (
-            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $nextTemplateKey,
+            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $nextTemplateKey, $nextCustomTemplateVersion,
         ): Anketa|false|null {
             $archivedAt = new \DateTimeImmutable();
             // Must stay the transaction's first statement. On SQLite (WAL), a deferred
@@ -198,6 +206,7 @@ class AnketaLifecycleService
                 $counterpartSealedKey,
                 $outcomesBlob,
                 $nextTemplateKey,
+                $nextCustomTemplateVersion,
             );
         });
 
@@ -217,19 +226,34 @@ class AnketaLifecycleService
      * The template the successor of $anketa gets when nobody picks a different one at
      * archive (GitHub issue #140): the per-template recurrence map,
      * Anketa::nextCycleTemplateKeyFor(), which is now only the default — the "Next
-     * meeting type" picker can override it. Null for a one-off, which never has a
-     * successor. Deliberately doesn't check the archived state: archive() needs it
-     * before the anketa is archived, and AnketaPresenter emits null for an archived
-     * anketa itself. The one place this rule lives, for both the presenter's
-     * nextCycleTemplateKey and AnketaController::archive().
+     * meeting type" picker can override it. A custom anketa (GitHub issue #144, #133
+     * §7.4) recurs on its company template, as the template's id rather than this
+     * anketa's version, so the successor gets the template's latest version; once an
+     * admin has archived the template, the default is Regular instead. Null for a
+     * one-off, which never has a successor. Deliberately doesn't check the anketa's
+     * archived state: archive() needs it before the anketa is archived, and
+     * AnketaPresenter emits null for an archived anketa itself. The one place this rule
+     * lives, for both the presenter's next-template fields and
+     * AnketaController::archive().
+     *
+     * @return array{key: string, customTemplateId: string|null}|null
      */
-    public function defaultNextTemplate(Anketa $anketa): ?string
+    public function defaultNextTemplate(Anketa $anketa): ?array
     {
         if ($anketa->isOneOff()) {
             return null;
         }
 
-        return Anketa::nextCycleTemplateKeyFor($anketa->getTemplateKey());
+        $version = $anketa->getCustomTemplateVersion();
+        if (null !== $version) {
+            $template = $version->getTemplate();
+
+            return $template->isArchived()
+                ? ['key' => Anketa::DEFAULT_TEMPLATE_KEY, 'customTemplateId' => null]
+                : ['key' => Anketa::CUSTOM_TEMPLATE_KEY, 'customTemplateId' => $template->getId()];
+        }
+
+        return ['key' => Anketa::nextCycleTemplateKeyFor($anketa->getTemplateKey()), 'customTemplateId' => null];
     }
 
     public function shouldCreateNext(Anketa $anketa, bool $skipNextMeeting): bool
@@ -285,6 +309,7 @@ class AnketaLifecycleService
         string $counterpartSealedKey,
         ?string $outcomesBlob,
         string $nextTemplateKey,
+        ?CustomTemplateVersion $nextCustomTemplateVersion,
     ): Anketa {
         $isEmployee = $anketa->isEmployee($actor);
 
@@ -301,6 +326,7 @@ class AnketaLifecycleService
             outcomesBlob: $outcomesBlob,
             carryFrom: $anketa,
             templateKey: $nextTemplateKey,
+            customTemplateVersion: $nextCustomTemplateVersion,
         );
     }
 

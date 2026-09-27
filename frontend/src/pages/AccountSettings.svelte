@@ -33,7 +33,9 @@
     type DateFormatId,
   } from '../dateFormat';
   import { dateFormatState, setDateFormat } from '../datePreference.svelte';
-  import type { Answers } from '../anketa/questions';
+  import type { AnketaTemplateKey, Answers } from '../anketa/questions';
+  import { templateExporter } from '../anketa/templateExport';
+  import { fetchTemplateVersion } from '../api/templates';
   import { decryptDraft, migrateLegacyDrafts } from '../anketa/drafts';
   import {
     openNotesForExport,
@@ -239,6 +241,9 @@
     outcomesBlob: string | null;
     goals: Goal[];
     goalCheckpointsBlob: string | null;
+    templateKey: AnketaTemplateKey;
+    formVersion: number;
+    customTemplateVersionId: string | null;
   }
 
   /** One side's answers blob and publish time from a bulk row. */
@@ -276,6 +281,9 @@
       const list = await apiGet<AnketaBulkRow[]>('/api/anketas/bulk');
       const notesRows = await apiGet<OwnNotesRow[]>('/api/me/private-notes');
 
+      const exportTemplate = templateExporter((versionId) =>
+        fetchTemplateVersion(versionId),
+      );
       const exportedAnketas = [];
       for (const detail of list) {
         // A wrong-key AEAD failure here means this anketa was sealed under a keypair
@@ -347,6 +355,9 @@
           myRole: detail.myRole,
           meetingDate: detail.meetingDate,
           archivedAt: detail.archivedAt,
+          templateKey: detail.templateKey,
+          formVersion: detail.formVersion,
+          ...(await exportTemplate(detail.customTemplateVersionId)),
           myAnswers,
           myDraftUnreadable,
           counterpartAnswers,

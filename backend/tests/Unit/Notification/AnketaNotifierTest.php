@@ -4,10 +4,13 @@ namespace App\Tests\Unit\Notification;
 
 use App\Entity\Anketa;
 use App\Entity\Company;
+use App\Entity\CustomTemplate;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Email;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 class AnketaNotifierTest extends TestCase
@@ -100,8 +103,11 @@ class AnketaNotifierTest extends TestCase
         $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
         $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
 
+        // 'custom' (GitHub issue #144) needs a company template version, and its email
+        // must say nothing about the template either.
+        $version = new CustomTemplateVersion(new CustomTemplate($manager), 1, 'PIP follow-up', '', '{}', $manager);
         foreach ([...Anketa::TEMPLATE_KEYS, 'not-a-real-key'] as $templateKey) {
-            $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $templateKey);
+            $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, $templateKey, customTemplateVersion: Anketa::CUSTOM_TEMPLATE_KEY === $templateKey ? $version : null);
             $notifier->notifyAnketaCreated($anketa, $employee, $manager);
         }
 
@@ -109,6 +115,43 @@ class AnketaNotifierTest extends TestCase
         foreach ($capturedParams as $parameters) {
             self::assertSame(['%creator%', '%date%', '%url%'], array_keys($parameters));
         }
+    }
+
+    /**
+     * GitHub issue #144 (#133 §7.5): an anketa on a company template gets exactly the
+     * email a Regular one does — nothing about the template, not even its name, which
+     * is admin-written text that can say why a pair meets.
+     */
+    public function testACustomAnketasCreatedEmailIsTheSameAsARegularOnes(): void
+    {
+        $sent = [];
+        $mailer = self::createStub(MailerInterface::class);
+        $mailer->method('send')->willReturnCallback(static function (Email $email) use (&$sent): void {
+            $sent[] = $email;
+        });
+        $translator = self::createStub(TranslatorInterface::class);
+        $translator->method('trans')->willReturnCallback(
+            static fn (string $id, array $parameters = []): string => $id.' '.json_encode($parameters),
+        );
+        $notifier = new AnketaNotifier($mailer, $translator, 'https://example.com', 'noreply@example.com');
+
+        $company = new Company('Test Co');
+        $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
+        $date = new \DateTimeImmutable('+1 day');
+        $regular = new Anketa($employee, $manager, $date, 'sealed-e', 'sealed-m', 30);
+        $version = new CustomTemplateVersion(new CustomTemplate($manager), 1, 'PIP follow-up', 'For the plan', '{}', $manager);
+        $custom = new Anketa($employee, $manager, $date, 'sealed-e', 'sealed-m', 30, 'custom', customTemplateVersion: $version);
+
+        $notifier->notifyAnketaCreated($regular, $employee, $manager);
+        $notifier->notifyAnketaCreated($custom, $employee, $manager);
+
+        self::assertCount(2, $sent);
+        // The link names each anketa by its own id; everything else must match.
+        $masked = static fn (mixed $text, Anketa $anketa): string => str_replace($anketa->getId(), '{id}', \is_string($text) ? $text : '');
+        self::assertSame($masked($sent[0]->getSubject(), $regular), $masked($sent[1]->getSubject(), $custom));
+        self::assertSame($masked($sent[0]->getTextBody(), $regular), $masked($sent[1]->getTextBody(), $custom));
+        self::assertStringNotContainsString('PIP', $masked($sent[1]->getTextBody(), $custom));
     }
 
     private function makeNotifier(MailerInterface $mailer): AnketaNotifier

@@ -29,12 +29,30 @@
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
   import {
     getQuestionsForSide,
+    type Question,
     type Side,
     type Answers,
-    type TemplateKey,
   } from '../anketa/questions';
+  import {
+    questionSetFromDefinition,
+    type QuestionSet,
+  } from '../anketa/customQuestions';
+  import {
+    defaultNextChoice,
+    nextTemplateFields,
+    type TemplateChoice,
+  } from '../anketa/templateChoice';
+  import {
+    fetchCompanyTemplates,
+    fetchTemplateVersion,
+  } from '../api/templates';
   import { updateBlobWithRetry } from '../anketa/blobSync';
-  import type { AnketaDetail, AnketaLiveState } from '../api/types';
+  import { beginAction, refocus } from '../anketa/keepFocus';
+  import type {
+    AnketaDetail,
+    AnketaLiveState,
+    CompanyTemplate,
+  } from '../api/types';
   import {
     decryptBlob,
     encryptBlob,
@@ -163,7 +181,25 @@
   // The archive form's "Next meeting type" (GitHub issue #140). Page-level for the same reason as
   // skipNextMeeting/nextMeetingDate: handleArchive() reads it for both buttons.
   // Null only when there's no picker (a one-off, or already archived).
-  let nextTemplateChoice = $state<TemplateKey | null>(null);
+  let nextTemplateChoice = $state<TemplateChoice | null>(null);
+  /** The picker's default, from the detail: what an untouched form gets. */
+  let nextTemplateDefault = $state<TemplateChoice | null>(null);
+  /** The picker's company templates (GitHub issue #144); empty if they couldn't be loaded. */
+  let companyTemplates = $state<CompanyTemplate[]>([]);
+
+  /**
+   * A custom anketa's questions (GitHub issue #144, #133 §7.3), fetched from
+   * its template version after the detail. Until they're there, or if they
+   * can't be loaded, the answer sections aren't shown; the rest of the page,
+   * the archive card included, is, so a pair is never stuck on this anketa.
+   */
+  type CustomQuestionsState =
+    | { status: 'builtin' }
+    | { status: 'loading' }
+    | { status: 'failed' }
+    | { status: 'ready'; questions: QuestionSet };
+  let customQuestions = $state<CustomQuestionsState>({ status: 'builtin' });
+  let pageMain = $state<HTMLElement>();
 
   let myUserId = $state('');
   /** Short display label per participant (first name, or full email if no name is set) — inside the anketa's tight layout, only the tighter comments/outcomes/goals author tags and the two side headings use this. */
@@ -326,6 +362,16 @@
       if (!mk) throw new Error($_('anketa.errorNotLoggedIn'));
 
       detail = anketa;
+      // Both run alongside the rest of load(), and neither fails it.
+      if (anketa.templateKey === 'custom') {
+        void loadCustomQuestions(anketa);
+      } else {
+        customQuestions = { status: 'builtin' };
+      }
+      companyTemplates = [];
+      if (anketa.archivedAt === null && !anketa.oneOff) {
+        void loadCompanyTemplates(anketa.id);
+      }
       draftKey = await deriveDraftKey(identity.privateKey);
       myUserId = identity.userId;
       authorNames = {
@@ -348,7 +394,8 @@
         defaultNext.setDate(defaultNext.getDate() + periodicityDays);
         nextMeetingDate = defaultNext.toISOString().slice(0, 10);
       }
-      nextTemplateChoice = anketa.nextCycleTemplateKey;
+      nextTemplateDefault = defaultNextChoice(anketa);
+      nextTemplateChoice = nextTemplateDefault;
 
       let key: Uint8Array;
       try {
@@ -459,6 +506,94 @@
       loadError =
         error instanceof ApiError ? error.message : $_('anketa.errorLoad');
     }
+  }
+
+  async function loadCustomQuestions(anketa: AnketaDetail): Promise<void> {
+    customQuestions = { status: 'loading' };
+    let questions: QuestionSet | null = null;
+    try {
+      if (anketa.customTemplateVersionId !== null) {
+        const version = await fetchTemplateVersion(
+          anketa.customTemplateVersionId,
+          readAbort,
+        );
+        questions = questionSetFromDefinition(
+          version.definition,
+          anketa.formVersion,
+        );
+      }
+    } catch (error) {
+      if (isAbortError(error)) return;
+    }
+    // Another anketa may have been opened in this page meanwhile.
+    if (detail?.id !== anketa.id) return;
+    customQuestions =
+      questions === null
+        ? { status: 'failed' }
+        : { status: 'ready', questions };
+  }
+
+  /**
+   * Retry swaps its banner for a loading line, so focus goes back to Retry if
+   * the questions fail again, or to my side's heading once they're there
+   * (#149, #151). Not if the user has moved on meanwhile.
+   */
+  async function retryCustomQuestions(): Promise<void> {
+    if (!detail) return;
+    const started = beginAction();
+    await loadCustomQuestions(detail);
+    void refocus(
+      pageMain,
+      customQuestions.status === 'failed'
+        ? '[data-action="retry-questions"]'
+        : '[data-my-side-heading]',
+      { startedOn: started },
+    );
+  }
+
+  /** The archive picker's company templates; built-ins only if they can't be loaded. */
+  async function loadCompanyTemplates(anketaId: string): Promise<void> {
+    let templates: CompanyTemplate[] = [];
+    try {
+      templates = await fetchCompanyTemplates(readAbort);
+    } catch {
+      // Not a load error: the picker still has the built-ins and its default.
+    }
+    if (detail?.id === anketaId) companyTemplates = templates;
+  }
+
+  /** The questions of one side, built-in or from the company template. */
+  function questionsFor(side: Side): Question[] {
+    if (!detail) return [];
+    if (detail.templateKey !== 'custom') {
+      return getQuestionsForSide(side, detail.formVersion, detail.templateKey);
+    }
+    return customQuestions.status === 'ready'
+      ? customQuestions.questions[side]
+      : [];
+  }
+
+  /**
+   * After a 422 `template_unavailable` from archive (#133 §7.4): the chosen
+   * template was archived meanwhile. Refreshes only the picker's default,
+   * choice and list, not the whole page, which would drop the chosen date and
+   * any edit in progress. The next click archives with the new default.
+   */
+  async function refreshNextTemplate(): Promise<void> {
+    if (!detail) return;
+    const anketaId = detail.id;
+    const [fresh] = await Promise.all([
+      apiGet<AnketaDetail>(`/api/anketas/${anketaId}`),
+      loadCompanyTemplates(anketaId),
+    ]);
+    if (detail?.id !== anketaId) return;
+    detail = {
+      ...detail,
+      nextCycleTemplateKey: fresh.nextCycleTemplateKey,
+      nextCustomTemplateId: fresh.nextCustomTemplateId,
+    };
+    nextTemplateDefault = defaultNextChoice(fresh);
+    nextTemplateChoice = nextTemplateDefault;
   }
 
   const LIVE_STATE_POLL_INTERVAL_MS = 4000;
@@ -1078,9 +1213,7 @@
           // Sent only when changed from the default, so an untouched form
           // sends exactly the old request and the server applies its own
           // current default.
-          ...(nextTemplateChoice !== detail.nextCycleTemplateKey
-            ? { nextTemplateKey: nextTemplateChoice }
-            : {}),
+          ...nextTemplateFields(nextTemplateChoice, nextTemplateDefault),
           mySealedKey: mySealedKeyNext,
           counterpartSealedKey: counterpartSealedKeyNext,
           ...(outcomesBlobNext ? { outcomesBlob: outcomesBlobNext } : {}),
@@ -1109,6 +1242,17 @@
         missed = alreadyArchived.missed === true;
         enterArchivedState();
         actionError = $_('anketa.alreadyArchivedElsewhere');
+      } else if (
+        error instanceof ApiError &&
+        (error.body as { code?: string } | null)?.code ===
+          'template_unavailable'
+      ) {
+        actionError = error.message;
+        try {
+          await refreshNextTemplate();
+        } catch {
+          // The error is already shown; the next click tries again.
+        }
       } else {
         actionError =
           error instanceof ApiError ? error.message : $_('anketa.errorArchive');
@@ -1283,7 +1427,11 @@
 <!-- With the anketa loaded, the page is three blocks: the header, the notes
      panel and the rest. Narrow, they stack in that order; from 840px the notes
      become a sticky column on the right (GitHub issue #132 §6.1). -->
-<main class:with-notes={!loadError && detail} class:notes-hidden={notesHidden}>
+<main
+  bind:this={pageMain}
+  class:with-notes={!loadError && detail}
+  class:notes-hidden={notesHidden}
+>
   {#if loadError}
     <p role="alert" class="banner-error">{loadError}</p>
   {:else if !detail}
@@ -1295,6 +1443,7 @@
         counterpartName={detail.counterpartName}
         counterpartEmail={detail.counterpartEmail}
         meetingDate={detail.meetingDate}
+        templateName={detail.customTemplateName}
         {archived}
         {missed}
         {archiving}
@@ -1326,155 +1475,55 @@
     {/key}
 
     <div class="anketa-main">
-      <!-- My side -->
-      <section class="card side-card">
-        <div class="heading-row">
-          <h2>
-            {$_('anketa.mySideHeading', {
-              values: {
-                role: $_(
-                  detail.myRole === 'employee'
-                    ? 'common.roleEmployee'
-                    : 'common.roleManager',
-                ),
-              },
-            })}
-          </h2>
-          <LockIcon encrypted />
-        </div>
-
-        {#if draftUnreadable && !myPublished && !archived}
+      {#if customQuestions.status === 'failed'}
+        <section class="card">
           <p role="alert" class="banner-error">
-            {$_('anketa.draftUnreadable')}
-          </p>
-        {/if}
-
-        <div class="blocks">
-          {#each getQuestionsForSide(detail.myRole, detail.formVersion, detail.templateKey) as question (question.id)}
-            <AnswerBlock
-              {question}
-              bind:answers={myAnswers}
-              readonly={mySideReadonly}
-              collapsed={mySideCollapsed}
-              showComments={myPublished}
-              bind:fieldsWithOpenEntryEdit
-              bind:commentThreadsBusy
-              {commentsByTarget}
-              {authorNames}
-              {myUserId}
-              {recentlyArrivedCommentIds}
-              {submitComment}
-              onEditComment={handleEditComment}
-              onDeleteComment={handleDeleteComment}
-              anketaId={id}
-            />
-          {/each}
-        </div>
-
-        {#if archived && !myPublished}
-          <!-- Never published before the anketa closed — a distinct message
-             from the "published, then archived" branch below, not the same
-             badgePublished text, since this side genuinely never published.
-             Checked ahead of `!myPublished` so archived always wins here,
-             matching the same "editing never offered once archived" rule
-             editingMyAnswers' docblock already states for the post-publish
-             side — this closes the pre-publish half of that same rule,
-             which a real gap let a never-reloaded tab (routine now that the
-             live-update poll can flip `archived` mid-session) slip past:
-             the draft stayed editable and Publish stayed enabled with
-             nothing checking archived here at all. -->
-          <span class="tag tag-neutral side-publish-btn"
-            >{$_('anketa.badgeArchived')}</span
-          >
-        {:else if !myPublished}
-          <p class="text-muted save-state">
-            {#if saveState === 'saving'}{$_(
-                'anketa.savingDraft',
-              )}{:else if saveState === 'saved'}{$_(
-                'anketa.savedDraft',
-              )}{:else if saveState === 'error'}{$_('anketa.saveError')}{/if}
+            {$_('anketa.questionsUnavailable')}
           </p>
           <button
             type="button"
-            class="btn btn-primary side-publish-btn"
-            onclick={handlePublish}
-            disabled={publishing || anyEntryEditOpen}
+            class="btn btn-secondary"
+            data-action="retry-questions"
+            onclick={retryCustomQuestions}
           >
-            {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
+            {$_('anketa.retry')}
           </button>
-        {:else if archived}
-          <span class="tag tag-accent side-publish-btn"
-            >{$_('anketa.badgePublished')}</span
-          >
-        {:else if editingMyAnswers}
-          <div class="answers-edit-actions">
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick={handleSaveAnswersEdit}
-              disabled={savingAnswersEdit || anyEntryEditOpen}
-            >
-              {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost"
-              onclick={cancelEditingAnswers}
-              disabled={savingAnswersEdit || anyEntryEditOpen}
-            >
-              {$_('anketa.cancel')}
-            </button>
+        </section>
+      {:else if customQuestions.status === 'loading'}
+        <p class="text-muted">{$_('anketa.loadingQuestions')}</p>
+      {:else}
+        <!-- My side -->
+        <section class="card side-card">
+          <div class="heading-row">
+            <h2 tabindex="-1" data-my-side-heading>
+              {$_('anketa.mySideHeading', {
+                values: {
+                  role: $_(
+                    detail.myRole === 'employee'
+                      ? 'common.roleEmployee'
+                      : 'common.roleManager',
+                  ),
+                },
+              })}
+            </h2>
+            <LockIcon encrypted />
           </div>
-        {:else}
-          <div class="answers-edit-actions">
-            <span class="tag tag-accent side-publish-btn"
-              >{$_('anketa.badgePublished')}</span
-            >
-            <button
-              type="button"
-              class="btn btn-ghost"
-              onclick={startEditingAnswers}
-              disabled={archiving}
-            >
-              {$_('anketa.editAnswers')}
-            </button>
-          </div>
-        {/if}
-      </section>
 
-      <!-- Counterpart side -->
-      <section class="card side-card">
-        <div class="heading-row">
-          <h2>
-            {$_('anketa.counterpartSideHeading', {
-              values: {
-                name: shortDisplayName(
-                  detail.counterpartName,
-                  detail.counterpartEmail,
-                ),
-                role: counterpartSide
-                  ? $_(
-                      counterpartSide === 'employee'
-                        ? 'common.roleEmployee'
-                        : 'common.roleManager',
-                    )
-                  : '',
-              },
-            })}
-          </h2>
-          <LockIcon encrypted />
-        </div>
-        {#if !counterpartAnswers}
-          <p class="text-muted">{$_('anketa.notPublishedYet')}</p>
-        {:else if counterpartSide}
+          {#if draftUnreadable && !myPublished && !archived}
+            <p role="alert" class="banner-error">
+              {$_('anketa.draftUnreadable')}
+            </p>
+          {/if}
+
           <div class="blocks">
-            {#each getQuestionsForSide(counterpartSide, detail.formVersion, detail.templateKey) as question (question.id)}
+            {#each questionsFor(detail.myRole) as question (question.id)}
               <AnswerBlock
                 {question}
-                bind:answers={counterpartAnswers}
-                readonly
-                collapsed
-                showComments
+                bind:answers={myAnswers}
+                readonly={mySideReadonly}
+                collapsed={mySideCollapsed}
+                showComments={myPublished}
+                bind:fieldsWithOpenEntryEdit
                 bind:commentThreadsBusy
                 {commentsByTarget}
                 {authorNames}
@@ -1487,8 +1536,126 @@
               />
             {/each}
           </div>
-        {/if}
-      </section>
+
+          {#if archived && !myPublished}
+            <!-- Never published before the anketa closed — a distinct message
+               from the "published, then archived" branch below, not the same
+               badgePublished text, since this side genuinely never published.
+               Checked ahead of `!myPublished` so archived always wins here,
+               matching the same "editing never offered once archived" rule
+               editingMyAnswers' docblock already states for the post-publish
+               side — this closes the pre-publish half of that same rule,
+               which a real gap let a never-reloaded tab (routine now that the
+               live-update poll can flip `archived` mid-session) slip past:
+               the draft stayed editable and Publish stayed enabled with
+               nothing checking archived here at all. -->
+            <span class="tag tag-neutral side-publish-btn"
+              >{$_('anketa.badgeArchived')}</span
+            >
+          {:else if !myPublished}
+            <p class="text-muted save-state">
+              {#if saveState === 'saving'}{$_(
+                  'anketa.savingDraft',
+                )}{:else if saveState === 'saved'}{$_(
+                  'anketa.savedDraft',
+                )}{:else if saveState === 'error'}{$_('anketa.saveError')}{/if}
+            </p>
+            <button
+              type="button"
+              class="btn btn-primary side-publish-btn"
+              onclick={handlePublish}
+              disabled={publishing || anyEntryEditOpen}
+            >
+              {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
+            </button>
+          {:else if archived}
+            <span class="tag tag-accent side-publish-btn"
+              >{$_('anketa.badgePublished')}</span
+            >
+          {:else if editingMyAnswers}
+            <div class="answers-edit-actions">
+              <button
+                type="button"
+                class="btn btn-primary"
+                onclick={handleSaveAnswersEdit}
+                disabled={savingAnswersEdit || anyEntryEditOpen}
+              >
+                {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost"
+                onclick={cancelEditingAnswers}
+                disabled={savingAnswersEdit || anyEntryEditOpen}
+              >
+                {$_('anketa.cancel')}
+              </button>
+            </div>
+          {:else}
+            <div class="answers-edit-actions">
+              <span class="tag tag-accent side-publish-btn"
+                >{$_('anketa.badgePublished')}</span
+              >
+              <button
+                type="button"
+                class="btn btn-ghost"
+                onclick={startEditingAnswers}
+                disabled={archiving}
+              >
+                {$_('anketa.editAnswers')}
+              </button>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Counterpart side -->
+        <section class="card side-card">
+          <div class="heading-row">
+            <h2>
+              {$_('anketa.counterpartSideHeading', {
+                values: {
+                  name: shortDisplayName(
+                    detail.counterpartName,
+                    detail.counterpartEmail,
+                  ),
+                  role: counterpartSide
+                    ? $_(
+                        counterpartSide === 'employee'
+                          ? 'common.roleEmployee'
+                          : 'common.roleManager',
+                      )
+                    : '',
+                },
+              })}
+            </h2>
+            <LockIcon encrypted />
+          </div>
+          {#if !counterpartAnswers}
+            <p class="text-muted">{$_('anketa.notPublishedYet')}</p>
+          {:else if counterpartSide}
+            <div class="blocks">
+              {#each questionsFor(counterpartSide) as question (question.id)}
+                <AnswerBlock
+                  {question}
+                  bind:answers={counterpartAnswers}
+                  readonly
+                  collapsed
+                  showComments
+                  bind:commentThreadsBusy
+                  {commentsByTarget}
+                  {authorNames}
+                  {myUserId}
+                  {recentlyArrivedCommentIds}
+                  {submitComment}
+                  onEditComment={handleEditComment}
+                  onDeleteComment={handleDeleteComment}
+                  anketaId={id}
+                />
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/if}
 
       <AnketaOutcomes
         items={allOutcomes}
@@ -1537,6 +1704,10 @@
           bind:skipNextMeeting
           bind:nextMeetingDate
           bind:nextTemplateChoice
+          defaultChoice={nextTemplateDefault}
+          {companyTemplates}
+          templateRetired={detail.templateKey === 'custom' &&
+            detail.nextCycleTemplateKey !== 'custom'}
           onArchive={handleArchive}
         />
       {/if}

@@ -64,8 +64,17 @@ class Anketa
      * `frontend/src/anketa/questions.test.ts` cross-checks the two lists by reading this
      * file, and `AnketaTest` checks every key here has an explicit
      * `NEXT_CYCLE_TEMPLATE_KEY` entry.
+     *
+     * `'custom'` (GitHub issue #144) is not a question set of its own: it means the
+     * anketa uses a company template's version, `$customTemplateVersion`, which is set
+     * if and only if the key is `'custom'` (see the constructor). The frontend's
+     * cross-check compares this list with `[...ANKETA_TEMPLATES, 'custom']`, reading
+     * it as a literal array of strings (so no `self::CUSTOM_TEMPLATE_KEY` here).
      */
-    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth', 'support_checkin'];
+    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth', 'support_checkin', 'custom'];
+
+    /** An anketa on a company template's version (GitHub issue #144, #133 §5.3). */
+    public const CUSTOM_TEMPLATE_KEY = 'custom';
 
     /** The template a new anketa gets when none is explicitly chosen — one named
      * constant instead of the literal `'regular'` repeated across this class,
@@ -103,6 +112,11 @@ class Anketa
         'onboarding' => 'regular',
         'career_growth' => 'regular',
         'support_checkin' => 'regular',
+        // Only so every key has an entry: a custom anketa's successor comes from
+        // AnketaLifecycleService::defaultNextTemplate(), which resolves the template
+        // (or falls back to Regular once it's archived). Nothing else may ask this map
+        // for 'custom', since a 'custom' key alone can't create an anketa.
+        self::CUSTOM_TEMPLATE_KEY => self::CUSTOM_TEMPLATE_KEY,
     ];
 
     /**
@@ -269,6 +283,18 @@ class Anketa
     #[ORM\Column(type: 'boolean', options: ['default' => false])]
     private bool $oneOff;
 
+    /**
+     * The company template version this anketa renders, set if and only if templateKey
+     * is 'custom' (GitHub issue #144, #133 §5.3), and never changed afterwards: versions
+     * are immutable, so later edits or archiving of the template leave this anketa as it
+     * was created. A plaintext reference, like templateKey: the server can see which of
+     * the company's templates, by name, each anketa uses (maintainer decision D4, see
+     * docs/encryption.md). Versions are never deleted, so it can't dangle.
+     */
+    #[ORM\ManyToOne(targetEntity: CustomTemplateVersion::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?CustomTemplateVersion $customTemplateVersion;
+
     public function __construct(
         User $employee,
         User $manager,
@@ -278,11 +304,18 @@ class Anketa
         int $periodicityDays,
         string $templateKey = self::DEFAULT_TEMPLATE_KEY,
         bool $oneOff = false,
+        ?CustomTemplateVersion $customTemplateVersion = null,
     ) {
         $employeeCompany = $employee->getCompany();
         $managerCompany = $manager->getCompany();
         if ($employeeCompany !== $managerCompany && $employeeCompany->getId() !== $managerCompany->getId()) {
             throw new \InvalidArgumentException('Employee and manager must belong to the same company.');
+        }
+        if ((self::CUSTOM_TEMPLATE_KEY === $templateKey) !== (null !== $customTemplateVersion)) {
+            throw new \InvalidArgumentException('A template version is required for the custom template key, and only for it.');
+        }
+        if (null !== $customTemplateVersion && $customTemplateVersion->getCompany()->getId() !== $employeeCompany->getId()) {
+            throw new \InvalidArgumentException('The template version must belong to the anketa\'s company.');
         }
 
         $this->id = Uuid::v7()->toRfc4122();
@@ -299,6 +332,7 @@ class Anketa
         $this->formVersion = self::CURRENT_FORM_VERSION;
         $this->templateKey = $templateKey;
         $this->oneOff = $oneOff;
+        $this->customTemplateVersion = $customTemplateVersion;
     }
 
     public function getCompany(): Company
@@ -319,6 +353,11 @@ class Anketa
     public function isOneOff(): bool
     {
         return $this->oneOff;
+    }
+
+    public function getCustomTemplateVersion(): ?CustomTemplateVersion
+    {
+        return $this->customTemplateVersion;
     }
 
     public function getId(): string
