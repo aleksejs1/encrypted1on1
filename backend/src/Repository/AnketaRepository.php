@@ -135,6 +135,28 @@ class AnketaRepository extends ServiceEntityRepository
         return 1 === $affected;
     }
 
+    /**
+     * Overwrites the discussed-questions blob (GitHub issue #168) only if it's still at
+     * `$expectedVersion` and the anketa is still open, as one conditional UPDATE, and
+     * reports whether it did, so of two concurrent saves against the same version only
+     * one can match. Both participants ticking boxes at the same moment is this blob's
+     * main use case. The same approach as markArchivedIfOpen() and
+     * AnketaPrivateNoteRepository::overwriteIfVersion().
+     */
+    public function saveDiscussedIfVersion(Anketa $anketa, string $blob, int $expectedVersion): bool
+    {
+        $affected = $this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.discussedBlob = :blob, a.discussedVersion = a.discussedVersion + 1'
+            .' WHERE a.id = :id AND a.discussedVersion = :expectedVersion AND a.archivedAt IS NULL'
+        )
+            ->setParameter('blob', $blob)
+            ->setParameter('id', $anketa->getId())
+            ->setParameter('expectedVersion', $expectedVersion)
+            ->execute();
+
+        return 1 === $affected;
+    }
+
     private function chainAnketasForPair(User $a, User $b): QueryBuilder
     {
         return $this->createQueryBuilder('anketa')

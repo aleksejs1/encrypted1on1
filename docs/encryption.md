@@ -61,7 +61,7 @@ Each anketa (a single 1:1 meeting cycle between one manager and one employee) ge
 2. It's **sealed** — `crypto_box_seal`, libsodium's anonymous public-key encryption — to each participant's X25519 public key, once per side. "Anonymous" means no sender keypair is needed or used; anyone can seal a message to a public key, but only the holder of the matching private key can open it. This is what lets the creator hand the same key to a counterpart they may never interact with directly, through the server, without the server ever holding the unsealed key.
 3. Both sealed copies (`employeeSealedKey`, `managerSealedKey`) go to the server. Each participant unseals *their own* copy locally with their own private key when they load the anketa.
 
-Everything the two participants share about that anketa — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
+Everything the two participants share about that anketa — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints, which questions were marked as discussed during the meeting — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
 
 ### Envelope format
 
@@ -119,6 +119,7 @@ Assume the worst case: an attacker has read access to the entire database, every
 - The company's template library: every template's name, description and questions, in every version (the second exception above). A template name is arbitrary admin text, so it can say more than a built-in meeting type does: a template named "PIP follow-up" would tell anyone who can read the database why each pair using it meets.
 - Which company template, and which version of it, each anketa uses (GitHub issue #144, decision D4). This reveals more than the built-in meeting type does: those are four public values, while a template name is whatever an admin wrote. A generic, legitimate template like "PIP follow-up" tells anyone who can read the database, per pair, exactly why they meet. The alternative, an encrypted copy of the questions in each anketa, was rejected: the server couldn't check it, so a modified client could put any questions on the other participant's page, and its size would identify the template anyway. Never shown in any admin report or notification email.
 - That an anketa exists, was published, has N comments — metadata, not content.
+- When the "discussed" checkboxes on an anketa were changed. The list is padded to a fixed size (`DISCUSSED_PADDING_BYTES` in `frontend/src/anketa/discussed.ts`) before it's encrypted, since the question IDs differ in length and the built-in ones are public: its size reveals neither which questions are ticked nor how many, unless a very long custom template's list outgrows one padding step, which reveals a rough count.
 - That a user has private notes on an anketa, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
 - Which admin invited whom, account creation dates, blocked/admin flags.
 
@@ -128,6 +129,7 @@ Assume the worst case: an attacker has read access to the entire database, every
 - Outcome items' text.
 - Private notes' text. Inside the app, neither the counterpart nor a company admin can learn whether they exist; someone who can read the database sees what's listed under *Visible*.
 - Goal progress checkpoint text.
+- Which questions were marked as discussed.
 - Any user's password, or anything that lets one be recovered.
 - Any user's master key or private key (only wrapped/sealed forms are ever stored).
 

@@ -45,6 +45,7 @@
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
+  import { decryptDiscussed } from '../anketa/discussed';
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
@@ -241,6 +242,7 @@
     outcomesBlob: string | null;
     goals: Goal[];
     goalCheckpointsBlob: string | null;
+    discussedBlob: string | null;
     templateKey: AnketaTemplateKey;
     formVersion: number;
     customTemplateVersionId: string | null;
@@ -347,6 +349,10 @@
               )
             ).data
           : [];
+        const discussed = await decryptDiscussed(
+          detail.discussedBlob,
+          anketaKey,
+        );
 
         exportedAnketas.push({
           id: detail.id,
@@ -365,6 +371,7 @@
           outcomes,
           goals: detail.goals,
           goalCheckpoints,
+          discussed,
         });
       }
 

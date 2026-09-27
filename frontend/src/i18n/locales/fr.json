@@ -312,7 +312,10 @@
     "errorAddGoal": "Impossible d'ajouter l'objectif.",
     "errorSaveGoal": "Impossible d'enregistrer l'objectif.",
     "errorUpdateGoalStatus": "Impossible de mettre à jour le statut de l'objectif.",
-    "errorAddCheckpoint": "Impossible d'ajouter le jalon."
+    "errorAddCheckpoint": "Impossible d'ajouter le jalon.",
+    "markAsDiscussed": "Marquer comme abordé",
+    "discussed": "Abordé",
+    "errorUpdateDiscussed": "Impossible de mettre à jour le statut abordé."
   },
   "commentThread": {
     "toggle": "{count, plural, =0 {Commentaire} one {# commentaire} other {# commentaires}}",

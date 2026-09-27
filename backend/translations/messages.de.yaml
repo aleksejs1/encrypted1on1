@@ -82,6 +82,7 @@ errors:
     answers_conflict: 'Ihre Antworten haben sich geändert, seit Sie sie zuletzt gelesen haben.'
     outcomes_conflict: 'Die Ergebnisse haben sich geändert, seit Sie sie zuletzt gelesen haben.'
     goal_checkpoints_conflict: 'Die Ziel-Zwischenstände haben sich geändert, seit Sie sie zuletzt gelesen haben.'
+    discussed_conflict: 'Die besprochenen Fragen haben sich geändert, seit Sie sie zuletzt gelesen haben.'
     private_notes_conflict: 'Ihre privaten Notizen haben sich geändert, seit Sie sie zuletzt gelesen haben.'
     private_notes_too_large: 'Die privaten Notizen sind zu lang zum Speichern.'
     private_notes_key_invalid: '"encryptedNotesKey" ist kein gültiger verschlüsselter Schlüssel.'

@@ -287,7 +287,9 @@ class AnketaPresenterTest extends TestCase
         self::assertSame(0, $liveState['managerBlobVersion']);
         self::assertSame(0, $liveState['outcomesVersion']);
         self::assertSame(0, $liveState['goalCheckpointsVersion']);
+        self::assertSame(0, $liveState['discussedVersion']);
         self::assertArrayNotHasKey('commentsBlob', $liveState);
+        self::assertArrayNotHasKey('discussedBlob', $liveState);
         self::assertArrayNotHasKey('mySealedKey', $liveState);
         // Immutable once created, so it has nothing to poll for — explicitly stripped
         // back out in serializeLiveState() even though summarize() (which this spreads)
