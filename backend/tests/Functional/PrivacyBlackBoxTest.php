@@ -31,7 +31,7 @@ class PrivacyBlackBoxTest extends ApiTestCase
             self::assertNull($this->findMarkerInDatabase($marker), "encrypted content ({$label}) must not appear anywhere in the database");
         }
 
-        // The one deliberate plaintext exception (a goal's title) — confirms the scan
+        // The deliberate goal plaintext exception (a goal's title) — confirms the scan
         // mechanism itself genuinely works, not vacuously passing everything.
         self::assertNotNull($this->findMarkerInDatabase($scenario['goalTitleMarker']), 'goal title is meant to be plaintext — the scan should find it, proving it actually scans');
     }
@@ -101,7 +101,7 @@ class PrivacyBlackBoxTest extends ApiTestCase
      * anketa key genuinely crypto_box_seal'ed to both real public keys, and real
      * AEAD-encrypted content in every encrypted field this app has — each with its own
      * unique random marker as the "plaintext" — plus one real Goal whose title carries
-     * its own marker (the one deliberate, documented plaintext exception).
+     * its own marker (the goal plaintext exception, the one this anketa can carry).
      *
      * @return array{
      *     anketaId: string, anketaKeyRaw: string,

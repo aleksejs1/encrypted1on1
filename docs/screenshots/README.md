@@ -22,7 +22,7 @@ A fresh anketa, employee side, nothing filled in yet — mood/workload as radio 
 
 ![A fully filled-in, published anketa](anketa_employee.png)
 
-The same anketa once both sides are published: real answers on both sides (in a streamlined read-only view displaying only chosen options and answered fields), meeting outcomes, and a goal with a progress checkpoint. To the right: the author's encrypted private notes panel, sticky and autosaved as you type. The lock icons next to each heading are a direct, in-UI reminder of what's encrypted and what isn't (see [encryption.md](../encryption.md#the-one-deliberate-plaintext-exception) for the one exception, called out in the Goals section itself via its own "more info" toggle).
+The same anketa once both sides are published: real answers on both sides (in a streamlined read-only view displaying only chosen options and answered fields), meeting outcomes, and a goal with a progress checkpoint. To the right: the author's encrypted private notes panel, sticky and autosaved as you type. The lock icons next to each heading are a direct, in-UI reminder of what's encrypted and what isn't (see [encryption.md](../encryption.md#deliberate-plaintext-exceptions) for the goal exception, called out in the Goals section itself via its own "more info" toggle).
 
 ## Report
 

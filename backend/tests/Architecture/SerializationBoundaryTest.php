@@ -7,6 +7,8 @@ use App\Entity\ActivationToken;
 use App\Entity\Anketa;
 use App\Entity\AnketaPrivateNote;
 use App\Entity\Company;
+use App\Entity\CustomTemplate;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\Goal;
 use App\Entity\InviteRecord;
 use App\Entity\PasswordResetToken;
@@ -78,6 +80,8 @@ class SerializationBoundaryTest extends TestCase
         self::assertFalse(self::hasApiResourceAttribute(ActivationToken::class));
         self::assertFalse(self::hasApiResourceAttribute(PasswordResetToken::class));
         self::assertFalse(self::hasApiResourceAttribute(Company::class), 'Company has no company-admin-settings endpoint yet (see private/cloud-service-plan.md, Phase B/C) — must stay a plain entity, not an ApiResource, until that phase deliberately adds one.');
+        self::assertFalse(self::hasApiResourceAttribute(CustomTemplate::class), 'CustomTemplate is served only by AdminTemplateController/TemplateController, with their explicit company checks and admin gate.');
+        self::assertFalse(self::hasApiResourceAttribute(CustomTemplateVersion::class), 'CustomTemplateVersion holds a company\'s plaintext template library (D1) — only AdminTemplateController/TemplateController may serve it, company-scoped.');
         self::assertFalse(self::hasApiResourceAttribute(InviteRecord::class), 'InviteRecord holds invitee/inviter email addresses — GET /api/admin/invites and GET /api/platform-admin/invites are plain controllers with their own company-scoping logic, not generic API Platform CRUD.');
     }
 

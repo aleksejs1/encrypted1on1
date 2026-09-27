@@ -10,8 +10,9 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 /**
  * The company-admin gate (401 unauthenticated, 403 non-admin) shared by
  * every controller scoped to the requesting admin's own company —
- * `AdminController`, `AdminReportController`, and `InviteController`
- * (its `list()` method, GitHub issue #24) at the time of writing. A
+ * `AdminController`, `AdminReportController`, `InviteController`
+ * (its `list()` method, GitHub issue #24) and `AdminTemplateController`
+ * (the company template library, GitHub issue #142) at the time of writing. A
  * trait, not a service, since these call sites just need the same
  * private method, not a collaborator to inject. Deliberately *not*
  * declaring `$authSession`/`$translator` properties here — every using

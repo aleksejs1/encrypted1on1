@@ -73,6 +73,7 @@ Each named limiter (`config/packages/rate_limiter.php`) reads its request count 
 | `delete_account` | Account deletion | `DELETE_ACCOUNT_RATE_LIMIT` / `DELETE_ACCOUNT_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
 | `signup` | `REGISTRATION_MODE=domain` self-signup | `SIGNUP_RATE_LIMIT` / `SIGNUP_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
 | `create_company` | `CLOUD_MODE=1` self-service company creation | `CREATE_COMPANY_RATE_LIMIT` / `CREATE_COMPANY_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
+| `template_save` | A company admin creating or editing a company template (per admin); only saves that get as far as writing a new version count (a save rejected as invalid or unchanged doesn't) | `TEMPLATE_SAVE_RATE_LIMIT` / `TEMPLATE_SAVE_RATE_LIMIT_INTERVAL` | 60 / 1 hour |
 
 ### Frontend build-time (baked into the static bundle)
 

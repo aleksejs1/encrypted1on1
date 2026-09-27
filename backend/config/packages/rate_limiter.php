@@ -6,7 +6,7 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
  * Named limiters (three from Phase 7f, two more for password reset, one more for
  * the in-app change-password flow, one more for account deletion, one more for
  * REGISTRATION_MODE=domain self-signup, one more for Phase B's cloud-mode
- * self-service company creation) — see
+ * self-service company creation, one more for company template saves) — see
  * docs/history.md for why the original three endpoints specifically, and why
  * neither GET /api/activation-tokens/{token} nor
  * GET /api/password-reset-tokens/{token} is limited (read-only, side-effect-free,
@@ -73,6 +73,14 @@ return static function (ContainerConfigurator $container): void {
                 'policy' => 'sliding_window',
                 'limit' => '%env(int:CREATE_COMPANY_RATE_LIMIT)%',
                 'interval' => '%env(CREATE_COMPANY_RATE_LIMIT_INTERVAL)%',
+            ],
+            // Company template saves (create and edit, GitHub issue #142), keyed by the
+            // admin's user id: every save can append an immutable version, so storage
+            // has to be bounded per admin, not just per company (#133 §6).
+            'template_save' => [
+                'policy' => 'sliding_window',
+                'limit' => '%env(int:TEMPLATE_SAVE_RATE_LIMIT)%',
+                'interval' => '%env(TEMPLATE_SAVE_RATE_LIMIT_INTERVAL)%',
             ],
         ],
     ]);

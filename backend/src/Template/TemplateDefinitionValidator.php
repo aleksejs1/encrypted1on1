@@ -134,7 +134,7 @@ final class TemplateDefinitionValidator
         $copy = new \stdClass();
         foreach (get_object_vars($node) as $key => $value) {
             $copy->{$key} = \is_string($value) && \in_array($key, ['title', 'label'], true)
-                ? trim($value, self::ASCII_WHITESPACE)
+                ? self::trimText($value)
                 : self::trimTexts($value);
         }
 
@@ -196,22 +196,39 @@ final class TemplateDefinitionValidator
 
     private function checkText(mixed $value, string $path, int $max): void
     {
-        if (!\is_string($value)) {
-            $this->fail($path, 'type');
-
-            return;
+        $problem = self::textProblem($value, $max);
+        if (null !== $problem) {
+            $this->fail($path, $problem);
         }
-        $trimmed = trim($value, self::ASCII_WHITESPACE);
+    }
+
+    /**
+     * What's wrong with a template text, or null: `type` (not a string), `text_chars`
+     * (a rejected character, or invalid UTF-8) or `text_length` (empty unless
+     * $allowEmpty, or over $max code points, once trimmed). Also used for a template's
+     * name and description (#133 §5.2), which follow the same rules.
+     */
+    public static function textProblem(mixed $value, int $max, bool $allowEmpty = false): ?string
+    {
+        if (!\is_string($value)) {
+            return 'type';
+        }
+        $trimmed = self::trimText($value);
         // 1 is a rejected character; false is invalid UTF-8.
         if (0 !== preg_match(DisplayNameField::STRIP_PATTERN, $trimmed) || 0 !== preg_match(self::LINE_SEPARATORS, $trimmed)) {
-            $this->fail($path, 'text_chars');
+            return 'text_chars';
+        }
+        if ('' === $trimmed) {
+            return $allowEmpty ? null : 'text_length';
+        }
 
-            return;
-        }
-        $length = mb_strlen($trimmed, 'UTF-8');
-        if ($length < 1 || $length > $max) {
-            $this->fail($path, 'text_length');
-        }
+        return mb_strlen($trimmed, 'UTF-8') > $max ? 'text_length' : null;
+    }
+
+    /** $text with ASCII whitespace trimmed from both ends, as it's stored. */
+    public static function trimText(string $text): string
+    {
+        return trim($text, self::ASCII_WHITESPACE);
     }
 
     private function checkId(mixed $value, string $path): void

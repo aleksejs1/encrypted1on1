@@ -10,7 +10,8 @@ use Doctrine\ORM\Query\Filter\SQLFilter;
  *
  * Automatically appends `{$targetTableAlias}.company_id = {$this->getParameter('company_id')}`
  * to queries targeting tenant-scoped entities carrying a direct `company` relation
- * (users, anketas, invite_records, activation_tokens, anketa_private_notes).
+ * (users, anketas, invite_records, activation_tokens, anketa_private_notes,
+ * custom_templates, custom_template_versions).
  *
  * Note on PasswordResetToken: Issue #69 listed password_reset_tokens alongside users,
  * anketas, invite_records, and activation_tokens under the assumption it carried a company_id FK;
