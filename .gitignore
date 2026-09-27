@@ -9,3 +9,6 @@
 
 # Real cloud-deployment secrets — copy .env.cloud.example to this and fill it in.
 /.env.cloud
+
+# The maintainer's local brand assets (banners, logos) — kept out of the repo.
+/docs/branding/

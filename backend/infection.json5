@@ -14,6 +14,20 @@
         // its coverage data.
         "excludes": ["Command/LoadTestSqliteCommand.php"]
     },
+    "mutators": {
+        "@default": true,
+        // Removing an AuthSession::closeForReading() call can't be observed from a
+        // test: the session listener saves the session at the end of every response
+        // anyway, so the call only releases its file lock earlier (see its docblock).
+        "MethodCallRemoval": {
+            "ignoreSourceCodeByRegex": [".*->closeForReading\\(.*"]
+        },
+        // Tests run without a SENTRY_DSN, so a \Sentry\captureException() call is a
+        // no-op there and removing it can't be observed either.
+        "FunctionCallRemoval": {
+            "ignoreSourceCodeByRegex": [".*Sentry\\\\captureException\\(.*"]
+        }
+    },
     "logs": {
         "text": "var/infection.log",
         "summary": "var/infection-summary.log"

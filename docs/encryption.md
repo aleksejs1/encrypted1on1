@@ -85,11 +85,27 @@ Each participant can keep private notes on an anketa, readable only by their aut
 - **Tab-local backup.** Text not yet saved is kept in `sessionStorage`, encrypted with a key derived from the private key (`crypto_kdf_derive_from_key`, its own context label, like the [draft key](#draft-key)). It's gone when the tab closes.
 - **Password change and reset.** An in-app password change re-wraps the same private key, so notes and backups still open. A forgotten-password reset generates a new keypair, and notes written before it can't be opened any more: nobody else holds their key, so unlike an anketa, a counterpart can't re-share it. The panel says so and offers to start new notes, and the data export flags them as `unreadable`. The panel footer, the reset page and this section warn about it.
 
-## The one deliberate plaintext exception
+## Deliberate plaintext exceptions
+
+Two things are stored unencrypted on the server on purpose. Both were explicitly discussed and decided as product trade-offs, not because encrypting them was hard. Nothing else in the application gets an exception.
+
+### Goals
 
 A goal's **title, description, status, and target date** are stored unencrypted on the server, in a real database table with real columns — not inside an encrypted blob. This is a narrow, explicit, product-level exception, made so goals can be listed, filtered, and carried forward from one anketa cycle to the next by the server itself, rather than requiring the client to fetch and decrypt every historical anketa just to know which goals are still open.
 
-A goal's **progress checkpoints** — the actual updates on how it's going — stay fully encrypted like everything else. Nothing else in the application gets this exception; it exists because it was explicitly discussed and decided as a product trade-off, not because encrypting it was hard.
+A goal's **progress checkpoints** — the actual updates on how it's going — stay fully encrypted like everything else.
+
+### Company templates
+
+A company admin can build a library of custom anketa templates. A template's **name, description and questions** (question titles, field labels, option labels), and every earlier version of them, are stored unencrypted. This is company configuration, written once by an admin and shown the same way to everyone who uses it: the same kind of data as the built-in question wording, which is public in this repository's source code. It never contains anything a participant said. **Answers to a template's questions are end-to-end encrypted like any other answer.**
+
+Encrypting the library would need a company-wide key sealed to every member and handed over, revoked and recovered as people join, leave and reset passwords: a large, security-critical key-distribution system out of proportion for question wording. Encrypting it with the admin's own key would leave nobody else able to use the template. Maintainer decision D1 in [GitHub issue #133](https://github.com/aleksejs1/encrypted1on1/issues/133), 2026-09-24.
+
+What that means in practice:
+- Every member of the company, employees included, can read the whole library: the list of active templates is served to every member, for the meeting-type picker ([GitHub issue #144](https://github.com/aleksejs1/encrypted1on1/issues/144) adds the picker).
+- The server, and on the Cloud deployment its operator, can read it too.
+- The template editor ([GitHub issue #143](https://github.com/aleksejs1/encrypted1on1/issues/143)) is to warn about this permanently, and ask admins not to put people's names, or anything that reveals why a particular meeting is happening, into a template.
+- Templates never appear in admin reports, notification emails or the platform-admin interface.
 
 ## Threat model — what a full server compromise reveals
 
@@ -98,7 +114,8 @@ Assume the worst case: an attacker has read access to the entire database, every
 **Visible:**
 - Email addresses, who is paired with whom (employee/manager relationships), meeting dates, periodicity, archived/missed/overdue status.
 - Each anketa's meeting type (which built-in template it uses, e.g. regular check-in or career conversation), and whether it was a one-off created next to the pair's regular anketa. These are classifiers, not answers. Note that one of them, the support & workload check-in, does hint at why a pair met. It is never shown in any admin report or notification email, but whoever can read the database can see it.
-- Goal titles, descriptions, statuses, and target dates (the one exception above).
+- Goal titles, descriptions, statuses, and target dates (the first exception above).
+- The company's template library: every template's name, description and questions, in every version (the second exception above). A template name is arbitrary admin text, so it can say more than a built-in meeting type does: a template named "PIP follow-up" would tell anyone who can read the database why each pair using it meets. Which anketa uses which template becomes visible to the server once anketas can use company templates (GitHub issue #144).
 - That an anketa exists, was published, has N comments — metadata, not content.
 - That a user has private notes on an anketa, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
 - Which admin invited whom, account creation dates, blocked/admin flags.
