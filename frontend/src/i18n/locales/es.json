@@ -312,7 +312,10 @@
     "errorAddGoal": "No se pudo añadir el objetivo.",
     "errorSaveGoal": "No se pudo guardar el objetivo.",
     "errorUpdateGoalStatus": "No se pudo actualizar el estado del objetivo.",
-    "errorAddCheckpoint": "No se pudo añadir el punto de control."
+    "errorAddCheckpoint": "No se pudo añadir el punto de control.",
+    "markAsDiscussed": "Marcar como tratado",
+    "discussed": "Tratado",
+    "errorUpdateDiscussed": "No se pudo actualizar el estado de la pregunta."
   },
   "commentThread": {
     "toggle": "{count, plural, =0 {Comentar} one {# comentario} other {# comentarios}}",

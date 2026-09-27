@@ -78,6 +78,7 @@ class PrivacyBlackBoxTest extends ApiTestCase
         self::assertSame($scenario['encryptedMarkers']['comments'], $this->decryptBlob($detail['commentsBlob'], $anketaKey));
         self::assertSame($scenario['encryptedMarkers']['outcomes'], $this->decryptBlob($detail['outcomesBlob'], $anketaKey));
         self::assertSame($scenario['encryptedMarkers']['checkpoint'], $this->decryptBlob($detail['goalCheckpointsBlob'], $anketaKey));
+        self::assertSame($scenario['encryptedMarkers']['discussed'], $this->decryptBlob($detail['discussedBlob'], $anketaKey));
     }
 
     public function testDecryptingWithTheWrongKeyFails(): void
@@ -148,6 +149,7 @@ class PrivacyBlackBoxTest extends ApiTestCase
             'comments' => $marker('comments'),
             'outcomes' => $marker('outcomes'),
             'checkpoint' => $marker('checkpoint'),
+            'discussed' => $marker('discussed'),
         ];
         $goalTitleMarker = $marker('goal-title');
 
@@ -172,6 +174,12 @@ class PrivacyBlackBoxTest extends ApiTestCase
             'expectedVersion' => 0,
         ]);
         self::assertSame(200, $outcomes['status']);
+
+        $discussed = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/discussed", [
+            'blob' => $this->encryptBlob($encryptedMarkers['discussed'], $anketaKeyRaw),
+            'expectedVersion' => 0,
+        ]);
+        self::assertSame(200, $discussed['status']);
 
         $goal = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/goals", [
             'goalUuid' => "privacy-{$label}-goal",

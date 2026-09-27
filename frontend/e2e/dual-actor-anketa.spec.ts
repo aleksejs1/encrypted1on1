@@ -2423,3 +2423,112 @@ test("an anketa whose questions can't be loaded still archives", async ({
   failVersions = false;
   await openSuccessor(employee, anketaUrl);
 });
+
+test('discussed question checkboxes live-sync across sessions and freeze on archive', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-discussed');
+  const managerEmail = uniqueEmail('manager-discussed');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  // Employee publishes their answers so manager can see questions on counterpart side
+  const employeeMySide = employee.locator('.side-card').first();
+  await employeeMySide.locator('textarea').first().fill('Initial mood update');
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // Manager opens the anketa once and keeps the tab open
+  await manager.goto(anketaUrl);
+
+  const employeeMoodBlock = questionBlock(employeeMySide, 'Mood');
+  const employeeMoodToggle = employeeMoodBlock.getByRole('checkbox', {
+    name: /discussed/i,
+  });
+
+  const managerCounterpartSide = manager.locator('.side-card').nth(1);
+  const managerMoodBlock = questionBlock(managerCounterpartSide, 'Mood');
+  const managerMoodToggle = managerMoodBlock.getByRole('checkbox', {
+    name: /discussed/i,
+  });
+
+  await expect(employeeMoodToggle).not.toBeChecked();
+  await expect(managerMoodToggle).not.toBeChecked();
+
+  // Employee marks Mood as discussed
+  await employeeMoodToggle.click();
+  await expect(employeeMoodToggle).toBeChecked();
+  await expect(employeeMoodBlock).toHaveClass(/discussed/);
+
+  // Manager's tab receives the update via live-state poll without reloading
+  await expect(managerMoodToggle).toBeChecked({ timeout: 8000 });
+  await expect(managerMoodBlock).toHaveClass(/discussed/);
+
+  // Manager unchecks Mood from their own tab
+  await managerMoodToggle.click();
+  await expect(managerMoodToggle).not.toBeChecked();
+  await expect(managerMoodBlock).not.toHaveClass(/discussed/);
+
+  // Employee's tab receives the uncheck via poll
+  await expect(employeeMoodToggle).not.toBeChecked({ timeout: 8000 });
+  await expect(employeeMoodBlock).not.toHaveClass(/discussed/);
+
+  // Two clicks in quick succession: the second is queued behind the first
+  // save, not dropped, and both reach the counterpart.
+  const employeeWorkloadToggle = questionBlock(
+    employeeMySide,
+    'Workload',
+  ).getByRole('checkbox', { name: /discussed/i });
+  const managerWorkloadToggle = questionBlock(
+    managerCounterpartSide,
+    'Workload',
+  ).getByRole('checkbox', { name: /discussed/i });
+  await employeeMoodToggle.click();
+  await employeeWorkloadToggle.click();
+  await expect(employeeMoodToggle).toBeChecked();
+  await expect(employeeWorkloadToggle).toBeChecked();
+  await expect(managerMoodToggle).toBeChecked({ timeout: 8000 });
+  await expect(managerWorkloadToggle).toBeChecked({ timeout: 8000 });
+
+  // Uncompleted items do not block archiving; archiving succeeds
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expectArchived(employee);
+
+  // Archived state renders checkboxes as disabled (read-only) while preserving state
+  const employeeArchivedMood = questionBlock(
+    employee.locator('.side-card').first(),
+    'Mood',
+  );
+  const employeeArchivedToggle = employeeArchivedMood.getByRole('checkbox', {
+    name: /discussed/i,
+  });
+  await expect(employeeArchivedToggle).toBeDisabled();
+  await expect(employeeArchivedToggle).toBeChecked();
+  await expect(employeeArchivedMood).toHaveClass(/discussed/);
+
+  // An unticked block shows no checkbox once archived, on either tab.
+  const growthTitle = 'Growth. What did you learn, discover, take away?';
+  await expect(
+    questionBlock(employee.locator('.side-card').first(), growthTitle),
+  ).toBeVisible();
+  await expect(
+    questionBlock(manager.locator('.side-card').nth(1), growthTitle),
+  ).toBeVisible();
+  await expect(
+    questionBlock(
+      employee.locator('.side-card').first(),
+      growthTitle,
+    ).getByRole('checkbox', { name: /discussed/i }),
+  ).toHaveCount(0);
+  await expect(
+    questionBlock(manager.locator('.side-card').nth(1), growthTitle).getByRole(
+      'checkbox',
+      { name: /discussed/i },
+    ),
+  ).toHaveCount(0, { timeout: 8000 });
+});

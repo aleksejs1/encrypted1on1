@@ -312,7 +312,10 @@
     "errorAddGoal": "Das Ziel konnte nicht hinzugefügt werden.",
     "errorSaveGoal": "Das Ziel konnte nicht gespeichert werden.",
     "errorUpdateGoalStatus": "Der Zielstatus konnte nicht aktualisiert werden.",
-    "errorAddCheckpoint": "Der Zwischenstand konnte nicht hinzugefügt werden."
+    "errorAddCheckpoint": "Der Zwischenstand konnte nicht hinzugefügt werden.",
+    "markAsDiscussed": "Als besprochen markieren",
+    "discussed": "Besprochen",
+    "errorUpdateDiscussed": "Der Besprechungsstatus konnte nicht aktualisiert werden."
   },
   "commentThread": {
     "toggle": "{count, plural, =0 {Kommentar} one {# Kommentar} other {# Kommentare}}",

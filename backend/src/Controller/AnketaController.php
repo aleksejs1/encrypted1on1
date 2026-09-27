@@ -298,6 +298,33 @@ class AnketaController
         return new JsonResponse(['goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion()]);
     }
 
+    #[Route('/api/anketas/{id}/discussed', name: 'anketa_discussed', methods: ['PUT'])]
+    public function saveDiscussed(
+        string $id,
+        #[MapRequestPayload] SaveVersionedBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
+        [$anketa] = $this->findAccessible($id, $request);
+        $expectedVersion = (int) $payload->expectedVersion;
+
+        if (!$this->anketaRepository->saveDiscussedIfVersion($anketa, (string) $payload->blob, $expectedVersion)) {
+            // A stale version or an archived anketa: re-read which one it was. The
+            // archived 409 carries no blob, so the client doesn't retry it as a conflict.
+            $this->entityManager->refresh($anketa);
+            if ($anketa->isArchived()) {
+                throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
+            }
+
+            return new JsonResponse([
+                'error' => $this->translator->trans('errors.discussed_conflict'),
+                'discussedBlob' => $anketa->getDiscussedBlob(),
+                'discussedVersion' => $anketa->getDiscussedVersion(),
+            ], 409);
+        }
+
+        return new JsonResponse(['discussedVersion' => $expectedVersion + 1]);
+    }
+
     #[Route('/api/anketas/{id}/goals', name: 'anketa_goal_create', methods: ['POST'])]
     public function createGoal(
         string $id,

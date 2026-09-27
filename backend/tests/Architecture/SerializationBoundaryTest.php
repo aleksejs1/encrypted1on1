@@ -47,6 +47,7 @@ class SerializationBoundaryTest extends TestCase
             'commentsBlob' => ['commentsBlob'],
             'outcomesBlob' => ['outcomesBlob'],
             'goalCheckpointsBlob' => ['goalCheckpointsBlob'],
+            'discussedBlob' => ['discussedBlob'],
         ];
     }
 

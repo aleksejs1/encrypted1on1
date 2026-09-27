@@ -88,6 +88,8 @@ export interface AnketaDetail {
   goals: Goal[];
   goalCheckpointsBlob: string | null;
   goalCheckpointsVersion: number;
+  discussedBlob: string | null;
+  discussedVersion: number;
   counterpartPublicKey: string;
   periodicityDays: number | null;
   missed: boolean;
@@ -161,6 +163,7 @@ export interface AnketaLiveState {
   commentsVersion: number;
   outcomesVersion: number;
   goalCheckpointsVersion: number;
+  discussedVersion: number;
 }
 
 /** One row of GET /api/templates: an active company template (GitHub issue #144). */

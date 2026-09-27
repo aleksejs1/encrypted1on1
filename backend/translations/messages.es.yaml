@@ -78,6 +78,7 @@ errors:
     answers_conflict: 'Tus respuestas han cambiado desde la última vez que las leíste.'
     outcomes_conflict: 'Los resultados de la reunión han cambiado desde la última vez que los leíste.'
     goal_checkpoints_conflict: 'Los avances de los objetivos han cambiado desde la última vez que los leíste.'
+    discussed_conflict: 'Las preguntas tratadas han cambiado desde la última vez que las leíste.'
     private_notes_conflict: 'Tus notas privadas han cambiado desde la última vez que las leíste.'
     private_notes_too_large: 'Las notas privadas son demasiado largas para guardarlas.'
     private_notes_key_invalid: '"encryptedNotesKey" no es una clave cifrada válida.'

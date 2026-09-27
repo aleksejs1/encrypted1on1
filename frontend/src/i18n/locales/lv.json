@@ -312,7 +312,10 @@
     "errorAddGoal": "Neizdevās pievienot mērķi.",
     "errorSaveGoal": "Neizdevās saglabāt mērķi.",
     "errorUpdateGoalStatus": "Neizdevās atjaunināt mērķa statusu.",
-    "errorAddCheckpoint": "Neizdevās pievienot kontrolpunktu."
+    "errorAddCheckpoint": "Neizdevās pievienot kontrolpunktu.",
+    "markAsDiscussed": "Atzīmēt kā apspriestu",
+    "discussed": "Apspriests",
+    "errorUpdateDiscussed": "Neizdevās atjaunināt apspriešanas statusu."
   },
   "commentThread": {
     "toggle": "{count, plural, =0 {Komentēt} zero {# komentāru} one {# komentārs} other {# komentāri}}",

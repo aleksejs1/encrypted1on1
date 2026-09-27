@@ -312,7 +312,10 @@
     "errorAddGoal": "Не удалось добавить цель.",
     "errorSaveGoal": "Не удалось сохранить цель.",
     "errorUpdateGoalStatus": "Не удалось обновить статус цели.",
-    "errorAddCheckpoint": "Не удалось добавить чекпоинт."
+    "errorAddCheckpoint": "Не удалось добавить чекпоинт.",
+    "markAsDiscussed": "Отметить как обсуждённое",
+    "discussed": "Обсуждено",
+    "errorUpdateDiscussed": "Не удалось обновить статус обсуждения."
   },
   "commentThread": {
     "toggle": "{count, plural, =0 {Комментировать} one {# комментарий} few {# комментария} many {# комментариев} other {# комментария}}",

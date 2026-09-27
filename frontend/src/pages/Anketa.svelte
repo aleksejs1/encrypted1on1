@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
@@ -26,6 +26,12 @@
   import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
   import { carryForwardOutcomes, type OutcomeItem } from '../anketa/outcomes';
   import { pruneStaleBusyEntries } from '../anketa/commentThreadsBusy';
+  import {
+    decryptDiscussed,
+    encodeDiscussed,
+    type DiscussedBlobData,
+  } from '../anketa/discussed';
+  import { DiscussedSync } from '../anketa/discussedSync';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
   import {
     getQuestionsForSide,
@@ -243,6 +249,15 @@
   let appliedOutcomesVersion = $state(0);
   let appliedGoalCheckpointsVersion = $state(0);
   let appliedCounterpartBlobVersion = $state(0);
+  /**
+   * The "discussed" checkboxes (GitHub issue #168): one DiscussedSync per
+   * loaded anketa, created once its key and list are known. Null until then,
+   * which hides the checkboxes. The two $state values mirror its view.
+   */
+  // $state.raw: a class instance, replaced whole, never mutated through the proxy.
+  let discussedSync = $state.raw<DiscussedSync | null>(null);
+  let discussedQuestions = $state<DiscussedBlobData>([]);
+  let discussedError = $state<string | null>(null);
 
   /**
    * Aggregates every CommentThread instance's own open-edit/delete/draft
@@ -327,6 +342,8 @@
   // actual component destroy), not per id-change, so it wouldn't help there
   // even if applied.
   const readAbort = abortOnDestroy();
+  // No more discussed saves once the page is gone (one in flight finishes).
+  onDestroy(() => discussedSync?.stop());
 
   $effect(() => {
     void id;
@@ -350,6 +367,16 @@
     fieldsWithOpenEntryEdit = {};
     commentThreadsBusy = {};
     recentlyArrivedCommentIds = {};
+    // untrack: this runs synchronously inside the $effect that calls load(),
+    // and stop()'s onChange reads discussedSync, which would make that effect
+    // re-run whenever load() sets it.
+    const loadId = id;
+    untrack(() => {
+      discussedSync?.stop();
+      discussedSync = null;
+      discussedQuestions = [];
+      discussedError = null;
+    });
     // Set when the stored draft should be re-saved as soon as the page is
     // loaded, without waiting for an edit — see below.
     let resaveDraft = false;
@@ -439,6 +466,42 @@
           key,
         );
         allCheckpoints = envelope.data;
+      }
+
+      const discussedItems = await decryptDiscussed(anketa.discussedBlob, key);
+      // Bound to this anketa's id and key: a save still in flight after the
+      // page moves to another anketa can only ever write to this one.
+      const discussedAnketaId = anketa.id;
+      const sync: DiscussedSync = new DiscussedSync({
+        items: discussedItems,
+        version: anketa.discussedVersion,
+        save: async (items, expectedVersion) => {
+          const blob = await encryptBlob(encodeDiscussed(items), key);
+          const result = await apiPut<{ discussedVersion: number }>(
+            `/api/anketas/${discussedAnketaId}/discussed`,
+            { blob, expectedVersion },
+          );
+          return result.discussedVersion;
+        },
+        decrypt: (blob) => decryptDiscussed(blob, key),
+        onChange: (view) => {
+          if (discussedSync !== sync) return;
+          discussedQuestions = view.discussed;
+          discussedError = view.error;
+        },
+        onArchived: () => {
+          if (discussedSync === sync) enterArchivedState();
+        },
+        genericError: () => $_('anketa.errorUpdateDiscussed'),
+      });
+      // A slower load() of a previously opened anketa must not bind its
+      // sync to the page now showing another one; and two overlapping loads
+      // of the same anketa must not leave two syncs saving at once.
+      if (id === loadId) {
+        discussedSync?.stop();
+        discussedSync = sync;
+        discussedQuestions = sync.view().discussed;
+        if (anketa.archivedAt !== null) sync.stop();
       }
 
       const myBlob =
@@ -800,6 +863,10 @@
       live[counterpartKeys.blobVersion] !== appliedCounterpartBlobVersion;
     const commentsChanged = live.commentsVersion !== appliedCommentsVersion;
     const outcomesChanged = live.outcomesVersion !== appliedOutcomesVersion;
+    // `>`: a live-state read that left before this tab's own save landed can
+    // be older than the version that save already confirmed.
+    const discussedChanged =
+      discussedSync !== null && live.discussedVersion > discussedSync.version;
     const checkpointsChanged =
       live.goalCheckpointsVersion !== appliedGoalCheckpointsVersion;
 
@@ -812,7 +879,8 @@
       !counterpartBlobChanged &&
       !commentsChanged &&
       !outcomesChanged &&
-      !checkpointsChanged
+      !checkpointsChanged &&
+      !discussedChanged
     ) {
       return;
     }
@@ -856,6 +924,11 @@
     const willApplyCheckpoints =
       checkpointsChanged && !anyCheckpointAdding && !anyCommentThreadBusy;
     const willApplyMyBlob = myBlobChanged && !wasEditingMyAnswers;
+    // DiscussedSync.applyRemote() re-checks busy and the version itself, after
+    // the awaits below, so the snapshot here only saves a pointless fetch.
+    const pollDiscussedSync = discussedSync;
+    const willApplyDiscussed =
+      discussedChanged && pollDiscussedSync !== null && !pollDiscussedSync.busy;
 
     const needsFullDetail =
       counterpartPublishedChanged ||
@@ -863,7 +936,8 @@
       willApplyMyBlob ||
       willApplyComments ||
       willApplyOutcomes ||
-      willApplyCheckpoints;
+      willApplyCheckpoints ||
+      willApplyDiscussed;
     if (!needsFullDetail) return;
 
     const fresh = await apiGet<AnketaDetail>(`/api/anketas/${pollId}`);
@@ -957,6 +1031,11 @@
           new Set(decrypted.map((c) => c.id)),
         );
       }
+    }
+
+    if (willApplyDiscussed && pollDiscussedSync === discussedSync) {
+      const decrypted = await decryptDiscussed(fresh.discussedBlob, anketaKey);
+      pollDiscussedSync?.applyRemote(decrypted, fresh.discussedVersion);
     }
 
     if (willApplyMyBlob) {
@@ -1085,6 +1164,7 @@
   function enterArchivedState(): void {
     archived = true;
     exitAnswersEditSession();
+    discussedSync?.stop();
   }
 
   /**
@@ -1175,6 +1255,21 @@
     archiving = true;
     actionError = null;
     try {
+      // Save the last "discussed" ticks first: archiving freezes them. If
+      // that fails, its banner explains why; Archive again goes ahead. The
+      // wait can be long enough for the page to open another anketa.
+      const archiveId = id;
+      const saved = (await discussedSync?.settled()) ?? true;
+      if (id !== archiveId) return;
+      if (!saved) {
+        // Archived meanwhile (the save got the archived 409), or the save
+        // failed, whose own banner says why: either way this click didn't
+        // archive, so say so.
+        actionError = archived
+          ? $_('anketa.alreadyArchivedElsewhere')
+          : $_('anketa.errorArchive');
+        return;
+      }
       let body: Record<string, unknown> = { missed: missedFlag };
 
       if (skipNextMeeting || detail.oneOff) {
@@ -1533,6 +1628,12 @@
                 onEditComment={handleEditComment}
                 onDeleteComment={handleDeleteComment}
                 anketaId={id}
+                isDiscussed={discussedQuestions.includes(question.id)}
+                onToggleDiscussed={myPublished && discussedSync
+                  ? () => discussedSync?.toggle(question.id)
+                  : undefined}
+                {archived}
+                disabled={archived || archiving}
               />
             {/each}
           </div>
@@ -1650,6 +1751,12 @@
                   onEditComment={handleEditComment}
                   onDeleteComment={handleDeleteComment}
                   anketaId={id}
+                  isDiscussed={discussedQuestions.includes(question.id)}
+                  onToggleDiscussed={discussedSync
+                    ? () => discussedSync?.toggle(question.id)
+                    : undefined}
+                  {archived}
+                  disabled={archived || archiving}
                 />
               {/each}
             </div>
@@ -1694,6 +1801,9 @@
 
       {#if actionError}
         <p role="alert" class="banner-error">{actionError}</p>
+      {/if}
+      {#if discussedError}
+        <p role="alert" class="banner-error">{discussedError}</p>
       {/if}
 
       {#if !archived}

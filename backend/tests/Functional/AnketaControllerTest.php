@@ -358,6 +358,70 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(409, $result['status']);
     }
 
+    public function testSaveDiscussedSucceedsAndIncrementsVersion(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('discussed-ok');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/discussed", [
+            'blob' => 'discussed-blob-v1',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(1, $result['json']['discussedVersion']);
+
+        $detail = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertSame('discussed-blob-v1', $detail['discussedBlob']);
+        self::assertSame(1, $detail['discussedVersion']);
+
+        $liveState = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}/live-state")['json'];
+        self::assertSame(1, $liveState['discussedVersion']);
+    }
+
+    public function testSaveDiscussedConflictReturns409(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('discussed-conflict');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $first = $this->jsonRequest($managerClient, 'PUT', "/api/anketas/{$anketaId}/discussed", [
+            'blob' => 'manager-discussed',
+            'expectedVersion' => 0,
+        ]);
+        self::assertSame(200, $first['status']);
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/discussed", [
+            'blob' => 'employee-discussed',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('manager-discussed', $result['json']['discussedBlob']);
+        self::assertSame(1, $result['json']['discussedVersion']);
+        self::assertArrayHasKey('error', $result['json']);
+    }
+
+    public function testSaveDiscussedArchivedReturns409(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('discussed-archived');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => true,
+        ]);
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/discussed", [
+            'blob' => 'employee-discussed',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        // No blob/version in the body, so the client's conflict retry doesn't treat it
+        // as a stale version and retry.
+        self::assertArrayNotHasKey('discussedVersion', $result['json']);
+    }
+
     public function testLiveStateReturnsCurrentScalarsAndVersions(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('live-state-ok');
@@ -379,6 +443,7 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(1, $result['json']['commentsVersion']);
         self::assertSame(1, $result['json']['outcomesVersion']);
         self::assertSame(0, $result['json']['goalCheckpointsVersion']);
+        self::assertSame(0, $result['json']['discussedVersion']);
         self::assertSame(0, $result['json']['employeeBlobVersion']);
         self::assertSame(0, $result['json']['managerBlobVersion']);
         self::assertNull($result['json']['myPublishedAt']);

@@ -312,7 +312,10 @@
     "errorAddGoal": "Could not add the goal.",
     "errorSaveGoal": "Could not save the goal.",
     "errorUpdateGoalStatus": "Could not update the goal status.",
-    "errorAddCheckpoint": "Could not add the checkpoint."
+    "errorAddCheckpoint": "Could not add the checkpoint.",
+    "markAsDiscussed": "Mark as discussed",
+    "discussed": "Discussed",
+    "errorUpdateDiscussed": "Could not update the discussed status."
   },
   "commentThread": {
     "toggle": "{count, plural, =0 {Comment} one {# comment} other {# comments}}",

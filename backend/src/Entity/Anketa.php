@@ -253,6 +253,18 @@ class Anketa
     #[ORM\Column(type: 'integer')]
     private int $goalCheckpointsVersion = 0;
 
+    /**
+     * Question IDs marked as discussed during the meeting (GitHub issue #168), encrypted
+     * under anketaKey. Written only by AnketaRepository::saveDiscussedIfVersion(), an
+     * atomic conditional UPDATE, so there's no setter here. DB-level default for the
+     * same populated-table reason as templateKey's.
+     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $discussedBlob = null;
+
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $discussedVersion = 0;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -634,6 +646,16 @@ class Anketa
         ++$this->goalCheckpointsVersion;
 
         return true;
+    }
+
+    public function getDiscussedBlob(): ?string
+    {
+        return $this->discussedBlob;
+    }
+
+    public function getDiscussedVersion(): int
+    {
+        return $this->discussedVersion;
     }
 
     public function isArchived(): bool

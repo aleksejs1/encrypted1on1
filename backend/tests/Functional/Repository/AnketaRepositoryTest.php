@@ -102,6 +102,52 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertTrue($reloaded->isMissed());
     }
 
+    /**
+     * GitHub issue #168: two participants ticking boxes at the same moment both send
+     * expectedVersion 0. Only the first may win; the second must not overwrite it.
+     */
+    public function testSaveDiscussedIfVersionOnlySucceedsOnceForAVersion(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('discussed-once');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        self::assertTrue($anketaRepo->saveDiscussedIfVersion($anketa, 'first', 0));
+        self::assertFalse($anketaRepo->saveDiscussedIfVersion($anketa, 'second', 0));
+        self::assertTrue($anketaRepo->saveDiscussedIfVersion($anketa, 'third', 1));
+
+        $em->clear();
+        $reloaded = $anketaRepo->find($anketaId);
+        self::assertNotNull($reloaded);
+        self::assertSame('third', $reloaded->getDiscussedBlob());
+        self::assertSame(2, $reloaded->getDiscussedVersion());
+    }
+
+    public function testSaveDiscussedIfVersionRefusesAnArchivedAnketa(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('discussed-archived');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        // The stale in-memory copy a request loaded just before the archive landed.
+        self::assertTrue($anketaRepo->markArchivedIfOpen($anketa, new \DateTimeImmutable('2026-09-01 10:00:00'), false));
+        self::assertFalse($anketaRepo->saveDiscussedIfVersion($anketa, 'late', 0));
+
+        $em->clear();
+        $reloaded = $anketaRepo->find($anketaId);
+        self::assertNotNull($reloaded);
+        self::assertNull($reloaded->getDiscussedBlob());
+        self::assertSame(0, $reloaded->getDiscussedVersion());
+    }
+
     public function testFindMostRecentArchivedForPairReturnsNullWhenUnarchived(): void
     {
         [$empClient, $employee, , $manager] = $this->makePair('unarchived');

@@ -98,6 +98,7 @@ class AnketaPresenter
      *     outcomesBlob: string|null, outcomesVersion: int, goals: list<array{id: string, goalUuid: string,
      *     authorId: string, title: string, description: string|null, targetDate: string|null, status: string,
      *     createdAt: string}>, goalCheckpointsBlob: string|null, goalCheckpointsVersion: int,
+     *     discussedBlob: string|null, discussedVersion: int,
      *     nextCycleTemplateKey: string|null, nextCustomTemplateId: string|null,
      *     customTemplateVersionId: string|null, customTemplateName: string|null}
      */
@@ -128,6 +129,8 @@ class AnketaPresenter
             'goals' => array_values(array_map(fn (Goal $goal) => $this->serializeGoal($goal), $goals)),
             'goalCheckpointsBlob' => $anketa->getGoalCheckpointsBlob(),
             'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
+            'discussedBlob' => $anketa->getDiscussedBlob(),
+            'discussedVersion' => $anketa->getDiscussedVersion(),
             'nextCycleTemplateKey' => $nextTemplate['key'] ?? null,
             // The company template to preselect when the default is 'custom': the
             // template's id, so its latest version, not necessarily this anketa's.
@@ -145,7 +148,7 @@ class AnketaPresenter
      *     counterpartName: string, meetingDate: string, myPublishedAt: string|null, counterpartPublishedAt: string|null,
      *     archivedAt: string|null, missed: bool, periodicityDays: int|null, counterpartKeyOutdated: bool,
      *     counterpartDeleted: bool, formVersion: int, employeeBlobVersion: int, managerBlobVersion: int,
-     *     commentsVersion: int, outcomesVersion: int, goalCheckpointsVersion: int}
+     *     commentsVersion: int, outcomesVersion: int, goalCheckpointsVersion: int, discussedVersion: int}
      */
     public function serializeLiveState(Anketa $anketa, User $user): array
     {
@@ -156,6 +159,7 @@ class AnketaPresenter
             'commentsVersion' => $anketa->getCommentsVersion(),
             'outcomesVersion' => $anketa->getOutcomesVersion(),
             'goalCheckpointsVersion' => $anketa->getGoalCheckpointsVersion(),
+            'discussedVersion' => $anketa->getDiscussedVersion(),
         ];
         // templateKey is immutable once an anketa is created, so it has nothing to poll
         // for — dropped explicitly rather than left in as wasted payload on every 4s
