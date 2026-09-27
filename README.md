@@ -10,11 +10,11 @@ More: [screenshots](docs/screenshots/) — login, the anketa list, an empty vs f
 
 ## Status
 
-Production-ready and feature-complete (v1.5.0):
+Production-ready and feature-complete (v1.6.0):
 - **End-to-end encrypted 1:1 cycles:** role-specific questions for employees and managers, Markdown-formatted answers with strict sanitization, private drafts, silent in-place editing, threaded comments, shared checklist outcomes with author ownership, and goal tracking with encrypted progress checkpoints.
 - **Private meeting notes:** an author-scoped encrypted notepad on every anketa (sticky side-column on desktop, card on mobile) that neither counterparts, server operators, nor admins can read. Includes background autosave, multi-tab conflict resolution, "Hide notes" for screen-sharing privacy, and inclusion in user data exports.
 - **Meeting templates & custom library:** 4 built-in templates (Regular check-in, First 1:1 / Onboarding, Career growth, Support & workload check-in) plus company-authored custom templates created by admins in an interactive editor; immutable template versioning; next-meeting type picker at archive; ad-hoc one-off meetings that don't fork recurring chains or duplicate carry-forward items; automatic safe recurrence fallback to regular check-ins.
-- **Live in-meeting collaboration:** real-time background sync during meetings so counterpart answer edits, new comments (with ARIA live announcements), outcomes, and checkpoints appear automatically without page reloads.
+- **Live in-meeting collaboration:** real-time background sync during meetings so counterpart answer edits, new comments (with ARIA live announcements), outcomes, and checkpoints appear automatically without page reloads; either participant can tick questions off as discussed, dimming them on both screens as an encrypted, size-padded agenda tracker.
 - **Streamlined read-only view:** clean display for published and archived anketas showing only answered questions and selected choices rather than long lists of empty fields or disabled controls.
 - **Analytics & reports:** grouped anketa list by date or counterpart, mood/workload sparklines, upcoming meeting countdown badges, client-side cross-period growth reports, and company admin adoption reports.
 - **Security & resilience:** zero-knowledge ciphertext storage, drafts encrypted with keys derived from private keys (surviving password changes), forgotten-password recovery with keypair regeneration and counterpart re-sharing, atomic archiving (no duplicate successors), rate limiting, CSP+SRI hardening with explicit HSTS, and automated privacy test gates.
