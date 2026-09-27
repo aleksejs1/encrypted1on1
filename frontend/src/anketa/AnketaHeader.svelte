@@ -11,6 +11,7 @@
     counterpartName,
     counterpartEmail,
     meetingDate,
+    templateName,
     archived,
     missed,
     archiving,
@@ -23,6 +24,8 @@
     counterpartName: string;
     counterpartEmail: string;
     meetingDate: string;
+    /** A custom anketa's company template name (GitHub issue #144); null otherwise. */
+    templateName: string | null;
     archived: boolean;
     missed: boolean;
     archiving: boolean;
@@ -94,6 +97,9 @@
     >{$_('anketa.meetingLabel')}
     {formatDisplayDate(meetingDate)}</span
   >
+  {#if templateName}<span class="text-muted template-name"
+      >· {templateName}</span
+    >{/if}
   {#if archived}<span class="tag tag-neutral">{$_('anketa.badgeArchived')}</span
     >{/if}
   {#if missed}<span class="tag tag-neutral">{$_('anketa.badgeMissed')}</span
@@ -174,6 +180,10 @@
   h1 {
     font-size: 26px;
     margin-bottom: 4px;
+  }
+
+  .template-name {
+    overflow-wrap: anywhere;
   }
 
   .meta {

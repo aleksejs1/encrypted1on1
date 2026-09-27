@@ -246,10 +246,12 @@ describe('getQuestionsForSide', () => {
       'Anketa::TEMPLATE_KEYS not found as a literal array in Anketa.php — update this regex',
     ).toBeDefined();
     // Sorted: membership is what matters (the backend only uses in_array), and
-    // ANKETA_TEMPLATES' own order is the picker's display order.
+    // ANKETA_TEMPLATES' own order is the picker's display order. The backend
+    // also has 'custom', a company template (GitHub issue #144), which isn't a
+    // built-in question set.
     expect(
       [...(list ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]).sort(),
-    ).toEqual([...ANKETA_TEMPLATES].sort());
+    ).toEqual([...ANKETA_TEMPLATES, 'custom'].sort());
   });
 
   it('degrades an unrecognized templateKey to regular rather than throwing', () => {
@@ -270,6 +272,10 @@ describe('getQuestionsForSide', () => {
   describe('templateListLabelKey', () => {
     it("returns no list label for 'regular'", () => {
       expect(templateListLabelKey('regular')).toBeNull();
+    });
+
+    it("returns no list label for 'custom': the list shows the template's name", () => {
+      expect(templateListLabelKey('custom')).toBeNull();
     });
 
     it("returns the picker's own label key for every non-default template", () => {

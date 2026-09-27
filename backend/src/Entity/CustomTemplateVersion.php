@@ -46,7 +46,7 @@ class CustomTemplateVersion
     private int $version;
 
     #[ORM\Column(type: 'string', length: self::MAX_NAME_LENGTH)]
-    #[AllowPlaintext(reason: 'A company template\'s name: configuration an admin writes for the whole company to pick from, never participant content. Maintainer decision D1 (GitHub issue #133), documented in docs/encryption.md as the second plaintext exception; the admin editor (GitHub issue #143) is to warn not to put names or reasons in it.')]
+    #[AllowPlaintext(reason: 'A company template\'s name: configuration an admin writes for the whole company to pick from, never participant content. Maintainer decision D1 (GitHub issue #133), documented in docs/encryption.md as the second plaintext exception; the admin editor (GitHub issue #143) warns not to put names or reasons in it.')]
     private string $name;
 
     #[ORM\Column(type: 'string', length: self::MAX_DESCRIPTION_LENGTH, options: ['default' => ''])]

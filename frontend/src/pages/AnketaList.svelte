@@ -4,7 +4,7 @@
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import type {
     AnketaDetail as AnketaDetailFull,
-    AnketaSummary,
+    AnketaListRow,
   } from '../api/types';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { ensureUnlocked } from '../crypto/identity.svelte';
@@ -118,7 +118,7 @@
    * happens (view toggle, list refetch after reshare) — the same freshness
    * every other per-anketa value on this page already has.
    */
-  function rowDisplay(anketa: AnketaSummary): RowDisplay {
+  function rowDisplay(anketa: AnketaListRow): RowDisplay {
     const days = daysUntilMeeting(anketa.meetingDate);
     const overdue = anketa.archivedAt === null && days < 0;
 
@@ -152,11 +152,18 @@
         ? $_('anketaList.daysUntilMeeting', { values: { days } })
         : null;
 
+    // A company template shows its own name (GitHub issue #144), as it was
+    // when the anketa was created.
     const templateLabelKey =
       anketa.archivedAt === null
         ? templateListLabelKey(anketa.templateKey)
         : null;
-    const templateLabel = templateLabelKey ? $_(templateLabelKey) : null;
+    const templateLabel =
+      anketa.archivedAt === null && anketa.templateKey === 'custom'
+        ? anketa.customTemplateName
+        : templateLabelKey
+          ? $_(templateLabelKey)
+          : null;
 
     return { badges, daysLabel, templateLabel };
   }
@@ -167,7 +174,7 @@
   const readAbort = abortOnDestroy();
 
   let anketas = $state(
-    apiGet<AnketaSummary[]>('/api/anketas', { signal: readAbort }),
+    apiGet<AnketaListRow[]>('/api/anketas', { signal: readAbort }),
   );
 
   let groupBy = $state<'date' | 'counterpart'>('date');
@@ -271,7 +278,7 @@
     await apiPut(`/api/anketas/${anketaId}/reshare-key`, { sealedKey });
   }
 
-  async function reshareAll(outdated: AnketaSummary[]): Promise<void> {
+  async function reshareAll(outdated: AnketaListRow[]): Promise<void> {
     resharing = true;
     reshareResult = null;
     let failures = 0;
@@ -294,7 +301,7 @@
     // (rather than relying on {#await}'s own handling) because if the page
     // was unmounted mid-loop, readAbort has already fired and {#await} has
     // no live subscriber left to catch the resulting rejection itself.
-    const refreshed = apiGet<AnketaSummary[]>('/api/anketas', {
+    const refreshed = apiGet<AnketaListRow[]>('/api/anketas', {
       signal: readAbort,
     });
     refreshed.catch(() => {});
@@ -305,7 +312,7 @@
 <main>
   <h1>{$_('anketaList.title')}</h1>
 
-  {#snippet anketaRow(anketa: AnketaSummary)}
+  {#snippet anketaRow(anketa: AnketaListRow)}
     {@const row = rowDisplay(anketa)}
     <a href="/anketas/{anketa.id}" class="card elev-sm anketa-row">
       <div class="avatar">

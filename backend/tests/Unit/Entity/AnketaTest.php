@@ -4,6 +4,8 @@ namespace App\Tests\Unit\Entity;
 
 use App\Entity\Anketa;
 use App\Entity\Company;
+use App\Entity\CustomTemplate;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\User;
 use PHPUnit\Framework\TestCase;
 
@@ -291,6 +293,57 @@ class AnketaTest extends TestCase
         self::assertIsArray($map);
 
         self::assertSame([], array_values(array_diff(Anketa::TEMPLATE_KEYS, array_keys($map))));
+    }
+
+    /** GitHub issue #144 (#133 §5.3): 'custom' and a template version come together. */
+    public function testACustomAnketaKeepsItsTemplateVersion(): void
+    {
+        [$employee, $manager, $version] = $this->customTemplateParts();
+
+        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, 'custom', customTemplateVersion: $version);
+
+        self::assertSame('custom', $anketa->getTemplateKey());
+        self::assertSame($version, $anketa->getCustomTemplateVersion());
+        self::assertNull($this->makeAnketa()->getCustomTemplateVersion());
+    }
+
+    public function testTheCustomKeyRequiresATemplateVersion(): void
+    {
+        [$employee, $manager] = $this->customTemplateParts();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/^A template version is required for the custom template key, and only for it\.$/');
+        new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, 'custom');
+    }
+
+    public function testATemplateVersionRequiresTheCustomKey(): void
+    {
+        [$employee, $manager, $version] = $this->customTemplateParts();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/^A template version is required for the custom template key, and only for it\.$/');
+        new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, 'regular', customTemplateVersion: $version);
+    }
+
+    public function testTheTemplateVersionMustBeTheAnketasCompanys(): void
+    {
+        [$employee, $manager] = $this->customTemplateParts();
+        [, $otherCompanysAdmin] = $this->customTemplateParts();
+        $foreignVersion = new CustomTemplateVersion(new CustomTemplate($otherCompanysAdmin), 1, 'Theirs', '', '{}', $otherCompanysAdmin);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches("/^The template version must belong to the anketa's company\\.$/");
+        new Anketa($employee, $manager, new \DateTimeImmutable('+1 day'), 'sealed-e', 'sealed-m', 30, 'custom', customTemplateVersion: $foreignVersion);
+    }
+
+    /** @return array{User, User, CustomTemplateVersion} an employee and manager of a new company, and a template version of that company */
+    private function customTemplateParts(): array
+    {
+        $company = new Company('Test Co');
+        $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
+
+        return [$employee, $manager, new CustomTemplateVersion(new CustomTemplate($manager), 1, 'Weekly', '', '{}', $manager)];
     }
 
     public function testResealKeyForUpdatesOnlyTheTargetedSide(): void

@@ -782,6 +782,15 @@ export const ANKETA_TEMPLATES = [
 ] as const;
 export type TemplateKey = (typeof ANKETA_TEMPLATES)[number];
 
+/**
+ * What an anketa's `templateKey` can be: a built-in template, or `'custom'` for a
+ * company template's version (GitHub issue #144), whose questions come from its
+ * definition instead of this registry. `ANKETA_TEMPLATES` and everything keyed by
+ * `TemplateKey` stay built-in only, so `getQuestionsForSide()` can't be handed
+ * `'custom'` by mistake. The backend's `Anketa::TEMPLATE_KEYS` is both.
+ */
+export type AnketaTemplateKey = TemplateKey | 'custom';
+
 interface AnketaTemplate {
   employeeQuestions(formVersion: number): Question[];
   /** The manager side has never varied by version — see `getQuestionsForSide()`. */
@@ -867,9 +876,13 @@ export function templatePickerKeys(
  * `AnketaList.svelte`'s meeting-type label i18n key for `templateKey` (GitHub issue
  * #107), reusing the picker's own label. Null for `'regular'` — the default isn't worth
  * labelling on every row — and so, via `templateFor()`'s fallback, for an unrecognized
- * key too, matching how the detail page would render that anketa.
+ * key too, matching how the detail page would render that anketa. Null for `'custom'`
+ * too: the list shows the company template's name instead (GitHub issue #144).
  */
-export function templateListLabelKey(templateKey: TemplateKey): string | null {
+export function templateListLabelKey(
+  templateKey: AnketaTemplateKey,
+): string | null {
+  if (templateKey === 'custom') return null;
   const template = templateFor(templateKey);
   return template === TEMPLATES.regular ? null : template.labelKey;
 }

@@ -2068,3 +2068,358 @@ test('outcome and list entry actions keep keyboard focus', async ({
   await expect(outcomeThread.getByText('posted')).toBeVisible();
   await expect(commentInput).toHaveValue('typed meanwhile');
 });
+
+/**
+ * Company templates in anketas (GitHub issue #144, #133 §10 e2e 2–4 and 6).
+ * The manager is the company admin and writes the template through the admin
+ * API, the way the editor saves it (the editor has its own spec). The e2e
+ * company is shared by every test, so each template gets a unique name.
+ */
+const SPRINT_QUESTION = 'How was the sprint?';
+const SPRINT_NOTES = 'Notes for the sprint';
+
+function sprintDefinition(questionTitle: string): unknown {
+  return {
+    schemaVersion: 1,
+    employee: [
+      { kind: 'builtin', questionId: 'mood' },
+      {
+        kind: 'custom',
+        id: 'c_e2eradio01',
+        title: questionTitle,
+        field: {
+          id: 'c_e2eradio02',
+          type: 'radio',
+          options: [
+            { value: 'o_great001', label: 'Great' },
+            { value: 'o_rough001', label: 'Rough' },
+          ],
+        },
+      },
+    ],
+    manager: [
+      {
+        kind: 'custom',
+        id: 'c_e2enotes01',
+        title: SPRINT_NOTES,
+        field: { id: 'c_e2enotes02', type: 'text' },
+      },
+    ],
+  };
+}
+
+/** A request from `page`'s session, with its CSRF token, as the app sends it. */
+async function sessionRequest(
+  page: Page,
+  method: 'POST' | 'PUT',
+  path: string,
+  data: unknown,
+): Promise<{ id?: string }> {
+  const { token } = (await (
+    await page.request.get('/api/csrf-token')
+  ).json()) as {
+    token: string;
+  };
+  const response = await page.request.fetch(path, {
+    method,
+    headers: { 'X-CSRF-Token': token },
+    data,
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  return (await response.json()) as { id?: string };
+}
+
+/** Creates a company template as `admin` and returns its id. */
+async function createCompanyTemplate(
+  admin: Page,
+  name: string,
+): Promise<string> {
+  const { id } = await sessionRequest(admin, 'POST', '/api/admin/templates', {
+    name,
+    definition: sprintDefinition(SPRINT_QUESTION),
+  });
+  expect(id).toBeDefined();
+  return id as string;
+}
+
+/** A pair of a new employee and a new admin who is the manager. */
+async function employeeAndAdmin(
+  browser: Browser,
+  label: string,
+): Promise<{ employee: Page; admin: Page; adminEmail: string }> {
+  const employeeEmail = uniqueEmail(`employee-${label}`);
+  const adminEmail = uniqueEmail(`admin-${label}`);
+  const employeeToken = createActivationLink(employeeEmail);
+  const adminToken = createActivationLink(adminEmail, true);
+  const employee = await activate(browser, employeeToken);
+  const admin = await activate(browser, adminToken);
+  return { employee, admin, adminEmail };
+}
+
+/** Archives from `page`'s archive form with `templateName` picked as the next type. */
+async function archiveChoosing(
+  page: Page,
+  templateName: string,
+): Promise<void> {
+  await page
+    .getByLabel('Next meeting type')
+    .selectOption({ label: templateName });
+  const archiveRequest = page.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await page.getByRole('button', { name: 'Archive' }).click();
+  expect((await archiveRequest).postDataJSON()).toMatchObject({
+    nextTemplateKey: 'custom',
+  });
+  await expectArchived(page);
+}
+
+test('a pair moves onto a company template at archive, and both sides use it', async ({
+  browser,
+}) => {
+  const { employee, admin, adminEmail } = await employeeAndAdmin(
+    browser,
+    'custom-move',
+  );
+  const templateName = `Sprint check ${Date.now()}`;
+  await createCompanyTemplate(admin, templateName);
+
+  const regularUrl = await createAnketa(employee, adminEmail, 3);
+  await admin.goto(regularUrl);
+  await archiveChoosing(admin, templateName);
+  const successorUrl = await openSuccessor(admin, regularUrl);
+
+  // The admin, as the manager, gets the template's manager side.
+  const adminMySide = admin.locator('.side-card').first();
+  await expect(
+    adminMySide.getByRole('heading', { name: SPRINT_NOTES }),
+  ).toBeVisible();
+  await expect(admin.locator('.meta')).toContainText(templateName);
+  // A company template recurs by default.
+  await expect(admin.getByLabel('Next meeting type')).toHaveValue(/^custom:/);
+
+  // The employee gets the built-in Mood and the custom radio question, and
+  // answers the custom one.
+  await employee.goto(successorUrl);
+  const employeeMySide = employee.locator('.side-card').first();
+  await expect(
+    employeeMySide.getByRole('heading', { name: 'Mood', exact: true }),
+  ).toBeVisible();
+  const sprintBlock = questionBlock(employeeMySide, SPRINT_QUESTION);
+  await sprintBlock.locator('label.radio', { hasText: 'Rough' }).click();
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // The manager sees the custom answer, and only the chosen option.
+  await admin.reload();
+  const counterpartSprint = questionBlock(
+    admin.locator('.side-card').nth(1),
+    SPRINT_QUESTION,
+  );
+  await expect(counterpartSprint.locator('.answer-choice')).toHaveText('Rough');
+  await expect(counterpartSprint).not.toContainText('Great');
+
+  // Both lists label the open anketa with the template's name.
+  for (const page of [employee, admin]) {
+    await page.goto('/');
+    await expect(
+      page.locator('.anketa-row', {
+        hasNot: page.locator('.tag', { hasText: 'archived' }),
+      }),
+    ).toContainText(templateName);
+  }
+});
+
+test('editing a company template leaves an open anketa as it is, and its successor gets the edit', async ({
+  browser,
+}) => {
+  const { employee, admin, adminEmail } = await employeeAndAdmin(
+    browser,
+    'custom-edit',
+  );
+  const templateName = `Sprint edit ${Date.now()}`;
+  const templateId = await createCompanyTemplate(admin, templateName);
+
+  // Created straight from the create page's company templates.
+  const anketaUrl = await createAnketa(employee, adminEmail, 3, templateName);
+  const employeeMySide = employee.locator('.side-card').first();
+  await expect(
+    employeeMySide.getByRole('heading', { name: SPRINT_QUESTION }),
+  ).toBeVisible();
+
+  const editedQuestion = 'How did the sprint really go?';
+  await sessionRequest(admin, 'PUT', `/api/admin/templates/${templateId}`, {
+    name: templateName,
+    description: '',
+    definition: sprintDefinition(editedQuestion),
+    expectedVersion: 1,
+  });
+
+  // The open anketa keeps the version it was created on.
+  await employee.reload();
+  await expect(
+    employeeMySide.getByRole('heading', { name: SPRINT_QUESTION }),
+  ).toBeVisible();
+  await expect(
+    employeeMySide.getByRole('heading', { name: editedQuestion }),
+  ).toHaveCount(0);
+
+  // Archived with the untouched default, the successor is on the new version.
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expectArchived(employee);
+  await openSuccessor(employee, anketaUrl);
+  await expect(
+    employee.locator('.side-card').first().getByRole('heading', {
+      name: editedQuestion,
+    }),
+  ).toBeVisible();
+});
+
+test('once a company template is archived, its anketa defaults back to Regular', async ({
+  browser,
+}) => {
+  const { employee, admin, adminEmail } = await employeeAndAdmin(
+    browser,
+    'custom-retired',
+  );
+  const templateName = `Sprint retired ${Date.now()}`;
+  const templateId = await createCompanyTemplate(admin, templateName);
+  const anketaUrl = await createAnketa(employee, adminEmail, 3, templateName);
+
+  await sessionRequest(
+    admin,
+    'PUT',
+    `/api/admin/templates/${templateId}/archived`,
+    {
+      archived: true,
+    },
+  );
+
+  await employee.reload();
+  // The anketa still renders its own version.
+  await expect(
+    employee.locator('.side-card').first().getByRole('heading', {
+      name: SPRINT_QUESTION,
+    }),
+  ).toBeVisible();
+  await expect(employee.getByLabel('Next meeting type')).toHaveValue('regular');
+  await expect(
+    employee.getByText('Your admin retired this template'),
+  ).toBeVisible();
+
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expectArchived(employee);
+  await openSuccessor(employee, anketaUrl);
+  await expect(
+    employee
+      .locator('.side-card')
+      .first()
+      .getByRole('heading', { name: 'Feelings', exact: true }),
+  ).toBeVisible();
+});
+
+test('a chosen template archived while the archive form is open: the error, a reset to Regular, then the archive', async ({
+  browser,
+}) => {
+  const { employee, admin, adminEmail } = await employeeAndAdmin(
+    browser,
+    'custom-race',
+  );
+  const templateName = `Sprint race ${Date.now()}`;
+  const templateId = await createCompanyTemplate(admin, templateName);
+  const anketaUrl = await createAnketa(employee, adminEmail, 3);
+
+  await employee
+    .getByLabel('Next meeting type')
+    .selectOption({ label: templateName });
+  const nextDate = employee.locator('#next-meeting-date');
+  const chosen = new Date();
+  chosen.setDate(chosen.getDate() + 20);
+  const chosenText = `${String(chosen.getDate()).padStart(2, '0')}.${String(chosen.getMonth() + 1).padStart(2, '0')}.${chosen.getFullYear()}`;
+  await nextDate.fill(chosenText);
+  await nextDate.blur();
+
+  await sessionRequest(
+    admin,
+    'PUT',
+    `/api/admin/templates/${templateId}/archived`,
+    {
+      archived: true,
+    },
+  );
+
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expect(
+    employee.getByText('This template is no longer available.'),
+  ).toBeVisible();
+  // Still open, back on the default, with the chosen date kept.
+  await expect(employee.getByRole('button', { name: 'Archive' })).toBeEnabled();
+  await expect(employee.getByLabel('Next meeting type')).toHaveValue('regular');
+  await expect(nextDate).toHaveValue(chosenText);
+
+  const archiveRequest = employee.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  expect((await archiveRequest).postDataJSON()).not.toHaveProperty(
+    'nextTemplateKey',
+  );
+  await expectArchived(employee);
+  await openSuccessor(employee, anketaUrl);
+  await expect(
+    employee
+      .locator('.side-card')
+      .first()
+      .getByRole('heading', { name: 'Feelings', exact: true }),
+  ).toBeVisible();
+});
+
+test("an anketa whose questions can't be loaded still archives", async ({
+  browser,
+}) => {
+  const { employee, admin, adminEmail } = await employeeAndAdmin(
+    browser,
+    'custom-unloadable',
+  );
+  const templateName = `Sprint unloadable ${Date.now()}`;
+  await createCompanyTemplate(admin, templateName);
+
+  let failVersions = true;
+  await employee.route('**/api/template-versions/*', (route: Route) =>
+    failVersions
+      ? route.fulfill({ status: 500, body: '{}' })
+      : route.continue(),
+  );
+  const anketaUrl = await createAnketa(employee, adminEmail, 3, templateName);
+
+  await expect(
+    employee.getByText("This anketa's questions couldn't be loaded."),
+  ).toBeVisible();
+  await expect(employee.locator('.side-card')).toHaveCount(0);
+
+  // Try again keeps keyboard focus: back on the button if it fails again,
+  // on my side's heading once the questions are there.
+  const retry = employee.getByRole('button', { name: 'Try again' });
+  await retry.focus();
+  await employee.keyboard.press('Enter');
+  await expect(retry).toBeFocused();
+  failVersions = false;
+  await employee.keyboard.press('Enter');
+  await expect(
+    employee.locator('.side-card').first().getByRole('heading', {
+      name: SPRINT_QUESTION,
+    }),
+  ).toBeVisible();
+  await expect(employee.locator('[data-my-side-heading]')).toBeFocused();
+
+  // And with it failing, the archive card still works.
+  failVersions = true;
+  await employee.reload();
+  await expect(
+    employee.getByText("This anketa's questions couldn't be loaded."),
+  ).toBeVisible();
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expectArchived(employee);
+  failVersions = false;
+  await openSuccessor(employee, anketaUrl);
+});

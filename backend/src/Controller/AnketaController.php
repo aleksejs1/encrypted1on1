@@ -16,10 +16,13 @@ use App\Dto\SaveVersionedBlobRequest;
 use App\Dto\UpdateGoalRequest;
 use App\Entity\Anketa;
 use App\Entity\AnketaPrivateNote;
+use App\Entity\Company;
+use App\Entity\CustomTemplateVersion;
 use App\Entity\Goal;
 use App\Entity\User;
 use App\Repository\AnketaPrivateNoteRepository;
 use App\Repository\AnketaRepository;
+use App\Repository\CustomTemplateVersionRepository;
 use App\Repository\GoalRepository;
 use App\Security\AuthSession;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -50,6 +53,7 @@ class AnketaController
         private readonly AnketaLifecycleService $lifecycleService,
         private readonly AnketaPresenter $presenter,
         private readonly AnketaPrivateNoteRepository $privateNoteRepository,
+        private readonly CustomTemplateVersionRepository $templateVersionRepository,
     ) {
     }
 
@@ -81,6 +85,18 @@ class AnketaController
         // same gap for manual creation, which had no such check at all.
         if ($counterpart->isBlocked() || null !== $counterpart->getDeletedAt()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.counterpart_not_found')], 404);
+        }
+
+        // A company template (GitHub issue #144): whatever version is current right now,
+        // so a picker loaded before an admin's edit still gets the latest one.
+        // Decided by the key: the DTO has checked that an id comes with 'custom', and
+        // an empty id without it counts as none.
+        $customTemplateVersion = null;
+        if (Anketa::CUSTOM_TEMPLATE_KEY === $payload->templateKey) {
+            $customTemplateVersion = $this->activeTemplateVersion($payload->customTemplateId ?? '', $user->getCompany());
+            if (null === $customTemplateVersion) {
+                return $this->templateUnavailable();
+            }
         }
 
         // The constructor (unlike createFromFormat(DATE_ATOM, ...)) accepts the
@@ -130,6 +146,7 @@ class AnketaController
             creator: $user,
             templateKey: $payload->templateKey,
             oneOff: $oneOff,
+            customTemplateVersion: $customTemplateVersion,
         );
 
         return new JsonResponse(['id' => $anketa->getId()], 201);
@@ -147,7 +164,7 @@ class AnketaController
 
         $anketas = $this->anketaRepository->findAllForUser($user);
 
-        return new JsonResponse(array_map(fn (Anketa $anketa) => $this->presenter->summarize($anketa, $user), $anketas));
+        return new JsonResponse(array_map(fn (Anketa $anketa) => $this->presenter->summarizeForList($anketa, $user), $anketas));
     }
 
     /**
@@ -465,6 +482,7 @@ class AnketaController
         // Resolved here, before anything is mutated, and only when a successor will
         // actually be created — a one-off or blocked pair never fails on an override.
         $nextTemplateKey = null;
+        $nextCustomTemplateVersion = null;
         if ($createNext) {
             $periodicityDays = $anketa->getPeriodicityDays();
             if (null === $periodicityDays) {
@@ -475,9 +493,22 @@ class AnketaController
             if (null === $mySealedKey || null === $counterpartSealedKey) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.missing_sealed_keys')], 400);
             }
-            $nextTemplateKey = $payload->nextTemplateKey ?? $this->lifecycleService->defaultNextTemplate($anketa);
+            // The DTO has already checked that an id comes with 'custom' and only then.
+            $default = $this->lifecycleService->defaultNextTemplate($anketa);
+            $nextTemplateKey = $payload->nextTemplateKey ?? $default['key'] ?? null;
+            $nextCustomTemplateId = null !== $payload->nextTemplateKey ? $payload->nextCustomTemplateId : $default['customTemplateId'] ?? null;
             if (!\in_array($nextTemplateKey, Anketa::TEMPLATE_KEYS, true)) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.next_template_key_must_be_one_of', ['%templateKeys%' => implode(', ', Anketa::TEMPLATE_KEYS)])], 400);
+            }
+            // A company template, chosen or by default, resolves to its current version.
+            // If it was archived in the meantime (#133 §7.4) this is a 422 with the
+            // anketa still open; the client refreshes its default, so the next attempt
+            // archives with Regular.
+            if (Anketa::CUSTOM_TEMPLATE_KEY === $nextTemplateKey) {
+                $nextCustomTemplateVersion = $this->activeTemplateVersion($nextCustomTemplateId ?? '', $user->getCompany());
+                if (null === $nextCustomTemplateVersion) {
+                    return $this->templateUnavailable();
+                }
             }
         }
 
@@ -492,6 +523,7 @@ class AnketaController
                 counterpartSealedKey: $counterpartSealedKey,
                 outcomesBlob: $payload->outcomesBlob,
                 nextTemplateKey: $nextTemplateKey,
+                nextCustomTemplateVersion: $nextCustomTemplateVersion,
             );
         } catch (AnketaAlreadyArchivedException) {
             // This request's copy predates the archive that won; re-read it for the
@@ -502,6 +534,29 @@ class AnketaController
         }
 
         return new JsonResponse(['ok' => true]);
+    }
+
+    /**
+     * A company template's current version, if the template belongs to $company and
+     * isn't archived (GitHub issue #144, #133 §7.2): the only way an anketa gets one, so
+     * no participant can put questions on a page that an admin didn't write.
+     */
+    private function activeTemplateVersion(string $templateId, Company $company): ?CustomTemplateVersion
+    {
+        return $this->templateVersionRepository->findCurrentActiveForCompany($templateId, $company);
+    }
+
+    /**
+     * Returned, not thrown: JsonExceptionListener would turn a thrown 422 into a 400
+     * without the `code` the client matches on (#133 §7.2). The same answer for a
+     * missing, archived or other company's template, so it reveals nothing about ids.
+     */
+    private function templateUnavailable(): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $this->translator->trans('errors.template_unavailable'),
+            'code' => 'template_unavailable',
+        ], 422);
     }
 
     /**

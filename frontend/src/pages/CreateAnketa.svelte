@@ -3,7 +3,13 @@
   import { onMount } from 'svelte';
   import { apiGet, apiGetAllPages, apiPost, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
-  import type { AnketaDetail, AnketaSummary, UserSummary } from '../api/types';
+  import type {
+    AnketaDetail,
+    AnketaSummary,
+    CompanyTemplate,
+    UserSummary,
+  } from '../api/types';
+  import { fetchCompanyTemplates } from '../api/templates';
   import {
     generateAnketaKey,
     sealAnketaKey,
@@ -14,11 +20,13 @@
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
   import { sortByRecentCounterparts } from '../anketa/recentCounterparts';
+  import { ANKETA_TEMPLATES, templatePickerKeys } from '../anketa/questions';
   import {
-    ANKETA_TEMPLATES,
-    templatePickerKeys,
-    type TemplateKey,
-  } from '../anketa/questions';
+    customChoice,
+    templateFields,
+    type TemplateChoice,
+  } from '../anketa/templateChoice';
+  import { PATHS } from '../routes';
   import { pairChainState } from '../anketa/pairChain';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
   import DateInput from '../design/DateInput.svelte';
@@ -34,7 +42,13 @@
 
   let counterpartId = $state('');
   let myRole = $state<'employee' | 'manager'>('employee');
-  let templateKey = $state<TemplateKey>('regular');
+  let templateChoice = $state<TemplateChoice>('regular');
+  /**
+   * The company's active templates (GitHub issue #144), listed after the
+   * built-ins. Null if they couldn't be loaded: the built-ins still work.
+   */
+  let companyTemplates = $state<CompanyTemplate[] | null>(null);
+  let isAdmin = $state(false);
   let meetingDate = $state('');
   let periodicityDays = $state(7);
   let submitting = $state(false);
@@ -74,10 +88,13 @@
       ensureUnlocked(),
       apiGetAllPages<UserSummary>('/api/users', { signal: readAbort }),
       apiGet<AnketaSummary[]>('/api/anketas', { signal: readAbort }),
+      loadCompanyTemplates(),
     ])
-      .then(([identity, allUsers, allAnketas]) => {
+      .then(([identity, allUsers, allAnketas, templates]) => {
         users = allUsers.filter((u) => u.id !== identity.userId);
         priorAnketas = allAnketas;
+        isAdmin = identity.isAdmin;
+        companyTemplates = templates;
       })
       .catch((error: unknown) => {
         if (isAbortError(error)) return;
@@ -87,6 +104,11 @@
             : $_('createAnketa.errorLoad');
       });
   });
+
+  /** The company templates, or null (never a rejection) if they can't be loaded. */
+  function loadCompanyTemplates(): Promise<CompanyTemplate[] | null> {
+    return fetchCompanyTemplates(readAbort).catch(() => null);
+  }
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
@@ -150,7 +172,7 @@
         // Unlike periodicity, template choice is never inherited-only — the picker is
         // shown (and sent) on every creation, continuing pair or not, since a manager
         // may deliberately want an ad-hoc template mid-cadence.
-        templateKey,
+        ...templateFields(templateChoice),
       });
 
       navigate(`/anketas/${result.id}`);
@@ -159,6 +181,17 @@
         error instanceof ApiError
           ? error.message
           : $_('createAnketa.genericError');
+      // The chosen company template was archived since this page loaded
+      // (#133 §7.2): back to Regular with a fresh list; everything else the
+      // user filled in stays.
+      if (
+        error instanceof ApiError &&
+        (error.body as { code?: string } | null)?.code ===
+          'template_unavailable'
+      ) {
+        templateChoice = 'regular';
+        companyTemplates = await loadCompanyTemplates();
+      }
     } finally {
       submitting = false;
     }
@@ -207,9 +240,11 @@
             {@const pickerKeys = templatePickerKeys(key)}
             <div class="template-option">
               <label class="radio">
-                <input type="radio" bind:group={templateKey} value={key} /><span
-                  class="dot"
-                ></span>
+                <input
+                  type="radio"
+                  bind:group={templateChoice}
+                  value={key}
+                /><span class="dot"></span>
                 {$_(pickerKeys.labelKey)}
               </label>
               <p class="text-muted template-description">
@@ -218,6 +253,42 @@
             </div>
           {/each}
         </div>
+        {#if companyTemplates}
+          <p class="company-templates-heading">
+            {$_('createAnketa.companyTemplatesHeading')}
+          </p>
+          {#if companyTemplates.length === 0}
+            {#if isAdmin}
+              <a class="company-templates-empty" href={PATHS.adminTemplateNew}
+                >{$_('createAnketa.companyTemplatesCreate')}</a
+              >
+            {:else}
+              <p class="text-muted company-templates-empty">
+                {$_('createAnketa.companyTemplatesNone')}
+              </p>
+            {/if}
+          {:else}
+            <div class="template-options">
+              {#each companyTemplates as template (template.id)}
+                <div class="template-option">
+                  <label class="radio">
+                    <input
+                      type="radio"
+                      bind:group={templateChoice}
+                      value={customChoice(template.id)}
+                    /><span class="dot"></span>
+                    <span class="template-name">{template.name}</span>
+                  </label>
+                  {#if template.description}
+                    <p class="text-muted template-description">
+                      {template.description}
+                    </p>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
       </fieldset>
 
       <div class="field">
@@ -228,7 +299,7 @@
       {#if counterpartId && pairHasOpenAnketa}
         <p class="text-muted periodicity-note">
           {$_('createAnketa.pairHasOpenAnketa')}
-          {#if templateKey !== 'regular'}
+          {#if templateChoice !== 'regular'}
             {$_('createAnketa.pairHasOpenAnketaHowToSwitch')}
           {/if}
         </p>
@@ -332,6 +403,23 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .company-templates-heading {
+    font-size: 13px;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    margin: 16px 0 8px;
+  }
+
+  .company-templates-empty {
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .template-name,
+  .template-description {
+    overflow-wrap: anywhere;
   }
 
   .template-description {
