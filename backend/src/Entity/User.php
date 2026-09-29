@@ -152,7 +152,8 @@ class User
     private string $locale = 'en';
 
     /**
-     * Gates AnketaNotifier::notifyMeetingTomorrow()/notifyNotFilledOut() only — the
+     * Gates AnketaNotifier's meeting reminders only (notifyMeetingTomorrow()/
+     * notifyNotFilledOut() and their Monday variants, GitHub issue #167) — the
      * "new anketa scheduled" email (notifyAnketaCreated()) stays mandatory regardless,
      * per the account-settings plan. Defaults true so nobody's reminders silently stop
      * without an explicit opt-out.

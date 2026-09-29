@@ -53,7 +53,7 @@ Everything the app reads from the environment. `backend/.env` (committed, dev-on
 | `FRONTEND_URL` | Yes | Same domain as `SERVER_NAME`, with scheme (`https://...`) — used to build the links inside notification/activation/reset emails. |
 | `MAILER_DSN` | Yes | A real SMTP DSN ([Symfony Mailer's DSN format](https://symfony.com/doc/current/mailer.html#using-built-in-transports)). The dev/test `smtp://mailpit:1025` placeholder only works against the dev Mailpit container. |
 | `MAILER_FROM` | Yes | The `From:` address on every outbound email. |
-| `TZ` | No (`UTC`) | Timezone for container-level tools (the `date` command, log timestamps) — display/log-only. PHP's own date handling (including the daily reminder job's "is the meeting tomorrow" check) hardcodes UTC explicitly and never reads this, confirmed directly — changing it doesn't affect when reminders fire. |
+| `TZ` | No (`UTC`) | Timezone for container-level tools (the `date` command, log timestamps) — display/log-only. PHP's own date handling (including the daily reminder job's "is the meeting tomorrow" and "is today Friday" checks) hardcodes UTC explicitly and never reads this, confirmed directly — changing it doesn't affect when reminders fire. |
 | `SENTRY_DSN` | No (empty = disabled) | Backend error tracking (`config/packages/sentry.php`, via `sentry/sentry-symfony`). An empty DSN is treated by the Sentry SDK the same as "disabled" — nothing is sent anywhere unless this is set. Only the encrypted1on1 Cloud deployment sets this today, and Sentry is already disclosed as a sub-processor in the landing site's Privacy Policy for exactly that. Self-hosted operators can opt in the same way by pointing it at their own Sentry project. Frontend errors aren't reported anywhere yet — if that's ever added, the Privacy Policy needs a further update to cover it. |
 
 Registration mode (`invite`/`admin_only`/`domain` — see [user-flow.md](user-flow.md#getting-an-account)) and the allowed email domain are no longer env vars — they're columns on the single `Company` row every deployment has (`private/cloud-service-plan.md`, not tracked in git, Phase A of a not-yet-built multi-tenant cloud offering). They default to `invite`/unrestricted, same as before. To change them, update that row directly: `docker compose exec app php bin/console dbal:run-sql "UPDATE companies SET registrationMode = 'domain', allowedEmailDomain = 'company.com'"`.
@@ -290,6 +290,17 @@ To restore a backup: `./docker/prod/restore.sh backups/data-<timestamp>.db` — 
 This only gets the data out of the volume and onto the host's disk — getting `./backups` itself somewhere durable (offsite, cloud storage) is your own infrastructure's concern, not something this app manages.
 
 Both scripts are also exercised end-to-end in CI (the `backup-restore` job, `scripts/test-backup-restore.sh`) — a real throwaway prod image, real seeded demo data, a real backup, a destroyed live database, a real restore, and a byte-for-byte check that the restored data matches — not just that the scripts exit 0.
+
+### Meeting reminders
+
+`app:send-reminders` emails both participants the day before each meeting, and on a Friday also about Monday's meetings (see [the decision record](decisions/2026-09-29-business-day-reminders.md)). Run it once a day, **every day including weekends**: Saturday's run reminds Sunday meetings, and Sunday's run is the fallback for a Monday meeting scheduled after Friday's run. Days are UTC days, so run it in UTC (`CRON_TZ=UTC`, or a host whose clock is UTC; otherwise a "Friday" run can land on a local Saturday) at an hour that is working time for most of your users:
+
+```
+CRON_TZ=UTC
+0 7 * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app php bin/console app:send-reminders >> reminders.log 2>&1
+```
+
+If a run reports failed anketas (exit code 1; an SMTP outage counts), rerun it the same day: the next day's run looks at the next day's meetings, so only a same-day rerun retries them (for a Monday meeting failed on Friday, Sunday's run also would, with "tomorrow" wording). Anketas reported as "couldn't be released" are not retried by any run; remind those participants by hand.
 
 ### Token cleanup
 

@@ -39,34 +39,53 @@ class AnketaNotifier
         ]);
     }
 
-    /** Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated(), which is always mandatory. */
-    public function notifyMeetingTomorrow(Anketa $anketa, User $recipient, User $counterpart): void
+    public function notifyMeetingTomorrow(Anketa $anketa, User $recipient, User $counterpart): bool
+    {
+        return $this->sendReminder('email.meeting_tomorrow', $anketa, $recipient, $counterpart);
+    }
+
+    public function notifyNotFilledOut(Anketa $anketa, User $recipient, User $counterpart): bool
+    {
+        return $this->sendReminder('email.not_filled_out', $anketa, $recipient, $counterpart);
+    }
+
+    /** Friday's reminder for a Monday meeting (GitHub issue #167) — "tomorrow" would be wrong. */
+    public function notifyMeetingMonday(Anketa $anketa, User $recipient, User $counterpart): bool
+    {
+        return $this->sendReminder('email.meeting_monday', $anketa, $recipient, $counterpart);
+    }
+
+    /** Friday's reminder for a Monday meeting (GitHub issue #167) — "tomorrow" would be wrong. */
+    public function notifyNotFilledOutMonday(Anketa $anketa, User $recipient, User $counterpart): bool
+    {
+        return $this->sendReminder('email.not_filled_out_monday', $anketa, $recipient, $counterpart);
+    }
+
+    /**
+     * Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated(), which is always
+     * mandatory. Returns false only when the mail transport failed (already logged), so
+     * SendRemindersCommand can leave the reminder due for a retry; an opted-out recipient
+     * counts as done.
+     */
+    private function sendReminder(string $key, Anketa $anketa, User $recipient, User $counterpart): bool
     {
         if (!$recipient->wantsMeetingReminders()) {
-            return;
+            return true;
         }
-        $this->send($recipient, 'email.meeting_tomorrow', [
+
+        return $this->send($recipient, $key, [
             '%counterpart%' => $counterpart->getEmail(),
             '%date%' => $this->formatDate($anketa),
             '%url%' => $this->anketaUrl($anketa),
         ]);
     }
 
-    /** Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated(), which is always mandatory. */
-    public function notifyNotFilledOut(Anketa $anketa, User $recipient, User $counterpart): void
-    {
-        if (!$recipient->wantsMeetingReminders()) {
-            return;
-        }
-        $this->send($recipient, 'email.not_filled_out', [
-            '%counterpart%' => $counterpart->getEmail(),
-            '%date%' => $this->formatDate($anketa),
-            '%url%' => $this->anketaUrl($anketa),
-        ]);
-    }
-
-    /** @param array<string, string> $params */
-    private function send(User $recipient, string $key, array $params): void
+    /**
+     * @param array<string, string> $params
+     *
+     * @return bool false if the mail transport failed, which is logged rather than thrown
+     */
+    private function send(User $recipient, string $key, array $params): bool
     {
         $locale = $recipient->getLocale();
         $email = (new Email())
@@ -77,8 +96,12 @@ class AnketaNotifier
 
         try {
             $this->mailer->send($email);
+
+            return true;
         } catch (TransportExceptionInterface $e) {
             error_log(sprintf('Failed to send notification email to %s: %s', $recipient->getEmail(), $e->getMessage()));
+
+            return false;
         }
     }
 

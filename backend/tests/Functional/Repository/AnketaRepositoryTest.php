@@ -5,6 +5,7 @@ namespace App\Tests\Functional\Repository;
 use App\Entity\Anketa;
 use App\Entity\Goal;
 use App\Entity\User;
+use App\Repository\AnketaRepository;
 use App\Tests\Support\ApiTestCase;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
@@ -100,6 +101,110 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertNotNull($reloaded);
         self::assertEquals($firstArchivedAt, $reloaded->getArchivedAt());
         self::assertTrue($reloaded->isMissed());
+    }
+
+    /**
+     * GitHub issue #167: the reminder job claims each anketa for its meeting day before
+     * sending, so of two overlapping runs only one sends.
+     */
+    public function testClaimReminderSucceedsOncePerMeetingDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('claim-once');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+
+        self::assertTrue($this->isDue($anketa, $monday));
+        self::assertTrue($anketaRepo->claimReminder($anketa->getId(), $monday, new \DateTimeImmutable()));
+        self::assertFalse($anketaRepo->claimReminder($anketa->getId(), $monday, new \DateTimeImmutable()));
+        self::assertFalse($this->isDue($anketa, $monday));
+    }
+
+    public function testReleaseReminderMakesItDueAgain(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('release');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        self::assertTrue($anketaRepo->claimReminder($anketa->getId(), $monday, new \DateTimeImmutable()));
+
+        $anketaRepo->releaseReminder($anketa->getId(), $monday, null);
+
+        self::assertTrue($this->isDue($anketa, $monday));
+    }
+
+    /** A meeting reminded for Monday, moved, failed to send, then moved back isn't reminded twice. */
+    public function testReleaseReminderRestoresThePreviousDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('release-restore');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        $sunday = new \DateTimeImmutable('2091-08-05T00:00:00Z');
+        self::assertTrue($anketaRepo->claimReminder($anketa->getId(), $monday, new \DateTimeImmutable()));
+        $anketa->reschedule($sunday);
+        $this->entityManager()->flush();
+        self::assertTrue($anketaRepo->claimReminder($anketa->getId(), $sunday, new \DateTimeImmutable()));
+
+        $anketaRepo->releaseReminder($anketa->getId(), $sunday, $monday);
+        $anketa->reschedule($monday);
+        $this->entityManager()->flush();
+
+        self::assertFalse($this->isDue($anketa, $monday));
+    }
+
+    /** A meeting moved since the select is skipped, not reminded with its old date. */
+    public function testClaimReminderMissesAMeetingMovedToAnotherDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('claim-moved');
+        $anketa->reschedule(new \DateTimeImmutable('2091-08-08T00:00:00Z'));
+        $this->entityManager()->flush();
+
+        self::assertFalse($anketaRepo->claimReminder($anketa->getId(), new \DateTimeImmutable('2091-08-06T00:00:00Z'), new \DateTimeImmutable()));
+    }
+
+    public function testClaimReminderRefusesAnArchivedAnketa(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('claim-archived');
+        self::assertTrue($anketaRepo->markArchivedIfOpen($anketa, new \DateTimeImmutable(), false));
+
+        self::assertFalse($anketaRepo->claimReminder($anketa->getId(), new \DateTimeImmutable('2091-08-06T00:00:00Z'), new \DateTimeImmutable()));
+    }
+
+    /**
+     * The claim records the day it was for: a move to another day makes a reminder due
+     * again, a move back to the reminded day (or within it) doesn't.
+     */
+    public function testAReminderIsDueAgainOnlyForAnotherDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('due-again');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        $wednesday = new \DateTimeImmutable('2091-08-08T00:00:00Z');
+        self::assertTrue($anketaRepo->claimReminder($anketa->getId(), $monday, new \DateTimeImmutable()));
+
+        $anketa->reschedule($monday->setTime(10, 0));
+        $this->entityManager()->flush();
+        self::assertFalse($this->isDue($anketa, $monday));
+
+        $anketa->reschedule($wednesday);
+        $this->entityManager()->flush();
+        self::assertTrue($this->isDue($anketa, $wednesday));
+
+        $anketa->reschedule($monday);
+        $this->entityManager()->flush();
+        self::assertFalse($this->isDue($anketa, $monday), 'moved back to the day already reminded');
+    }
+
+    /** @return array{0: AnketaRepository, 1: Anketa} */
+    private function reminderAnketa(string $label): array
+    {
+        [$empClient, , , $manager] = $this->makePair($label);
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'], ['meetingDate' => '2091-08-06T00:00:00Z'])['json']['id'];
+        $anketaRepo = $this->entityManager()->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        return [$anketaRepo, $anketa];
+    }
+
+    /** Checked for this one anketa: the shared test database can hold others meeting that day. */
+    private function isDue(Anketa $anketa, \DateTimeImmutable $dayStart): bool
+    {
+        return \in_array($anketa->getId(), $this->entityManager()->getRepository(Anketa::class)->findDueForReminder($dayStart), true);
     }
 
     /**

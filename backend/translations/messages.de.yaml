@@ -10,6 +10,12 @@ email:
     not_filled_out:
         subject: 'Erinnerung: Anketa für morgen ausfüllen'
         body: "Sie haben Ihren Teil für das morgige 1:1 mit %counterpart% (%date%) noch nicht ausgefüllt.\n\n%url%"
+    meeting_monday:
+        subject: 'Ihr 1:1 ist am Montag'
+        body: "Ihr 1:1 mit %counterpart% ist am Montag (%date%).\n\n%url%"
+    not_filled_out_monday:
+        subject: 'Erinnerung: Anketa für Montag ausfüllen'
+        body: "Sie haben Ihren Teil für das 1:1 am Montag mit %counterpart% (%date%) noch nicht ausgefüllt.\n\n%url%"
     invited:
         subject: 'Sie wurden zu encrypted1on1 eingeladen'
         body: "%inviter% hat Sie zu encrypted1on1 eingeladen.\n\nAktivieren Sie Ihr Konto: %url%"

@@ -8,6 +8,12 @@ email:
     not_filled_out:
         subject: 'Напоминание: заполните анкету к завтрашней встрече'
         body: "Вы ещё не заполнили свою часть анкеты к завтрашней встрече 1-на-1 с %counterpart% (%date%).\n\n%url%"
+    meeting_monday:
+        subject: 'Ваша встреча 1-на-1 в понедельник'
+        body: "Ваша встреча 1-на-1 с %counterpart% состоится в понедельник (%date%).\n\n%url%"
+    not_filled_out_monday:
+        subject: 'Напоминание: заполните анкету к встрече в понедельник'
+        body: "Вы ещё не заполнили свою часть анкеты к встрече 1-на-1 с %counterpart% в понедельник (%date%).\n\n%url%"
     invited:
         subject: 'Вас пригласили в encrypted1on1'
         body: "%inviter% пригласил(а) вас в encrypted1on1.\n\nАктивируйте аккаунт: %url%"
