@@ -241,7 +241,17 @@ class SendRemindersCommandTest extends ApiTestCase
             throw new TransportException('smtp down');
         };
 
-        [$exitCode, $display] = $this->runCommandAt('2091-08-01 06:00', expectSuccess: false);
+        // AnketaNotifier error_log()s the failure; kept off STDERR, which Infection's initial
+        // test run treats as a failure and stops on.
+        $log = tempnam(sys_get_temp_dir(), 'reminders-log');
+        $previousLog = ini_set('error_log', (string) $log);
+        try {
+            [$exitCode, $display] = $this->runCommandAt('2091-08-01 06:00', expectSuccess: false);
+        } finally {
+            ini_set('error_log', false === $previousLog ? '' : $previousLog);
+        }
+        self::assertStringContainsString('smtp down', (string) file_get_contents((string) $log));
+        unlink((string) $log);
 
         self::assertSame(1, $exitCode);
         self::assertStringContainsString('mail transport failed', $display);

@@ -74,10 +74,20 @@ class AnketaNotifierTest extends TestCase
         $notifier = $this->makeNotifier($mailer);
         [$anketa, $employee, $manager] = $this->makeAnketa();
 
-        self::assertFalse($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
-        self::assertFalse($notifier->notifyNotFilledOut($anketa, $employee, $manager));
-        self::assertFalse($notifier->notifyMeetingMonday($anketa, $employee, $manager));
-        self::assertFalse($notifier->notifyNotFilledOutMonday($anketa, $employee, $manager));
+        // The failure is error_log()ged; kept off STDERR, which Infection's initial test
+        // run treats as a failure and stops on.
+        $log = tempnam(sys_get_temp_dir(), 'notifier-log');
+        $previousLog = ini_set('error_log', (string) $log);
+        try {
+            self::assertFalse($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
+            self::assertFalse($notifier->notifyNotFilledOut($anketa, $employee, $manager));
+            self::assertFalse($notifier->notifyMeetingMonday($anketa, $employee, $manager));
+            self::assertFalse($notifier->notifyNotFilledOutMonday($anketa, $employee, $manager));
+        } finally {
+            ini_set('error_log', false === $previousLog ? '' : $previousLog);
+        }
+        self::assertStringContainsString('Failed to send notification email to employee@example.com: smtp down', (string) file_get_contents((string) $log));
+        unlink((string) $log);
 
         $employee->setMeetingRemindersEnabled(false);
         self::assertTrue($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
