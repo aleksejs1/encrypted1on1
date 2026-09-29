@@ -17,9 +17,9 @@ use Symfony\Component\Uid\Uuid;
 // Covers list()/bulk()'s `WHERE employee = :u OR manager = :u ORDER BY meetingDate DESC` —
 // a composite index lets either branch of the OR use it for both the filter and the sort.
 #[ORM\Index(columns: ['employee_id', 'manager_id', 'meetingDate'], name: 'idx_anketas_employee_manager_meeting_date')]
-// Covers SendRemindersCommand's daily `WHERE archivedAt IS NULL AND reminderSentAt IS NULL
-// AND meetingDate >= :start AND meetingDate < :end`.
-#[ORM\Index(columns: ['archivedAt', 'reminderSentAt', 'meetingDate'], name: 'idx_anketas_archived_reminder_meeting_date')]
+// Covers AnketaRepository::findDueForReminder()'s daily `WHERE archivedAt IS NULL
+// AND meetingDate >= :start AND meetingDate < :end` (plus a reminderMeetingDay check on the few rows left).
+#[ORM\Index(columns: ['archivedAt', 'meetingDate'], name: 'idx_anketas_archived_meeting_date')]
 class Anketa
 {
     /**
@@ -210,9 +210,23 @@ class Anketa
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $archivedAt = null;
 
-    /** Set once SendRemindersCommand (Phase 6e) has sent the day-before reminder batch for this anketa — guards against double-sending on a cron rerun. */
+    /**
+     * When SendRemindersCommand (Phase 6e) last claimed this anketa's reminder batch —
+     * just before sending it, even if every participant has opted out or the send then
+     * failed, so it isn't proof an email went out. See reminderMeetingDay.
+     */
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $reminderSentAt = null;
+
+    /**
+     * The meeting day (UTC) that reminder was for (GitHub issue #167). A reminder is due
+     * while this differs from the meeting's current day, so moving the meeting to another
+     * day makes a new one due and moving it back doesn't, with no reset to get right.
+     * The meeting's stored date is the picked calendar day at midnight, so its date part is
+     * the day. Stamped by AnketaRepository::claimReminder() before the emails go out.
+     */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $reminderMeetingDay = null;
 
     /** Set true only via the "cancel as missed" overdue action (Phase 6d) — skips the normal publish/discuss expectation but still auto-recreates the next anketa. */
     #[ORM\Column(type: 'boolean')]
@@ -668,9 +682,9 @@ class Anketa
         return $this->reminderSentAt;
     }
 
-    public function markReminderSent(): void
+    public function getReminderMeetingDay(): ?\DateTimeImmutable
     {
-        $this->reminderSentAt = new \DateTimeImmutable();
+        return $this->reminderMeetingDay;
     }
 
     /**
@@ -707,6 +721,7 @@ class Anketa
         $this->archivedAt = $archived ? new \DateTimeImmutable() : null;
         $this->missed = $missed;
         $this->reminderSentAt = null;
+        $this->reminderMeetingDay = null;
         $this->commentsBlob = $commentsBlob;
         $this->commentsVersion = $commentsVersion;
         $this->outcomesBlob = $outcomesBlob;

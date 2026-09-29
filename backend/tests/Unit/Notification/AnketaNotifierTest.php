@@ -8,7 +8,9 @@ use App\Entity\CustomTemplate;
 use App\Entity\CustomTemplateVersion;
 use App\Entity\User;
 use App\Notification\AnketaNotifier;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -59,6 +61,92 @@ class AnketaNotifierTest extends TestCase
         $employee->setMeetingRemindersEnabled(false);
 
         $notifier->notifyNotFilledOut($anketa, $employee, $manager);
+    }
+
+    /**
+     * GitHub issue #167: the reminder methods tell SendRemindersCommand whether the mail
+     * transport failed, so it can leave the reminder due; an opted-out recipient is done.
+     */
+    public function testRemindersReportAMailTransportFailure(): void
+    {
+        $mailer = self::createStub(MailerInterface::class);
+        $mailer->method('send')->willThrowException(new TransportException('smtp down'));
+        $notifier = $this->makeNotifier($mailer);
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+
+        self::assertFalse($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
+        self::assertFalse($notifier->notifyNotFilledOut($anketa, $employee, $manager));
+        self::assertFalse($notifier->notifyMeetingMonday($anketa, $employee, $manager));
+        self::assertFalse($notifier->notifyNotFilledOutMonday($anketa, $employee, $manager));
+
+        $employee->setMeetingRemindersEnabled(false);
+        self::assertTrue($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
+    }
+
+    public function testRemindersReportASuccessfulSend(): void
+    {
+        $notifier = $this->makeNotifier(self::createStub(MailerInterface::class));
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+
+        self::assertTrue($notifier->notifyMeetingMonday($anketa, $employee, $manager));
+    }
+
+    /** @return iterable<string, array{0: \Closure(AnketaNotifier, Anketa, User, User): bool, 1: string}> */
+    public static function mondayReminders(): iterable
+    {
+        yield 'meeting' => [
+            static fn (AnketaNotifier $notifier, Anketa $anketa, User $recipient, User $counterpart) => $notifier->notifyMeetingMonday($anketa, $recipient, $counterpart),
+            'email.meeting_monday',
+        ];
+        yield 'not filled out' => [
+            static fn (AnketaNotifier $notifier, Anketa $anketa, User $recipient, User $counterpart) => $notifier->notifyNotFilledOutMonday($anketa, $recipient, $counterpart),
+            'email.not_filled_out_monday',
+        ];
+    }
+
+    /**
+     * GitHub issue #167: Friday's reminder for a Monday meeting says "Monday", not "tomorrow".
+     *
+     * @param \Closure(AnketaNotifier, Anketa, User, User): bool $notify
+     */
+    #[DataProvider('mondayReminders')]
+    public function testMondayRemindersSendTheirOwnCopyToTheRecipient(\Closure $notify, string $key): void
+    {
+        $sent = [];
+        $mailer = self::createStub(MailerInterface::class);
+        $mailer->method('send')->willReturnCallback(static function (Email $email) use (&$sent): void {
+            $sent[] = $email;
+        });
+        $translator = self::createStub(TranslatorInterface::class);
+        $translator->method('trans')->willReturnCallback(
+            static fn (string $id, array $parameters = []): string => $id.' '.implode(',', array_keys($parameters)),
+        );
+        $notifier = new AnketaNotifier($mailer, $translator, 'https://example.com', 'noreply@example.com');
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+
+        $notify($notifier, $anketa, $employee, $manager);
+
+        self::assertCount(1, $sent);
+        self::assertSame('employee@example.com', $sent[0]->getTo()[0]->getAddress());
+        self::assertSame("$key.subject %counterpart%,%date%,%url%", $sent[0]->getSubject());
+        self::assertSame("$key.body %counterpart%,%date%,%url%", $sent[0]->getTextBody());
+    }
+
+    /**
+     * @param \Closure(AnketaNotifier, Anketa, User, User): bool $notify
+     * @param string                                             $key    unused here, shared provider
+     */
+    #[DataProvider('mondayReminders')]
+    public function testMondayRemindersDoNotSendWhenRecipientOptedOut(\Closure $notify, string $key): void
+    {
+        $mailer = $this->createMock(MailerInterface::class);
+        $mailer->expects(self::never())->method('send');
+
+        $notifier = $this->makeNotifier($mailer);
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+        $employee->setMeetingRemindersEnabled(false);
+
+        $notify($notifier, $anketa, $employee, $manager);
     }
 
     public function testNotifyAnketaCreatedSendsRegardlessOfTheOptOut(): void

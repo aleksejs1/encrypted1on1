@@ -8,6 +8,12 @@ email:
     not_filled_out:
         subject: 'Atgādinājums: aizpildiet anketu pirms rītdienas tikšanās'
         body: "Jūs vēl neesat aizpildījis(-usi) savu daļu rītdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
+    meeting_monday:
+        subject: 'Jūsu 1:1 tikšanās ir pirmdien'
+        body: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\n%url%"
+    not_filled_out_monday:
+        subject: 'Atgādinājums: aizpildiet anketu pirms pirmdienas tikšanās'
+        body: "Jūs vēl neesat aizpildījis(-usi) savu daļu pirmdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
     invited:
         subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
         body: "%inviter% jūs uzaicināja pievienoties encrypted1on1.\n\nAktivizējiet savu kontu: %url%"

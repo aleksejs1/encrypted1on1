@@ -190,8 +190,8 @@ class AuthController
     }
 
     /**
-     * Gates only the day-before/not-filled-out reminder emails (AnketaNotifier::
-     * notifyMeetingTomorrow()/notifyNotFilledOut()) — the "new anketa scheduled" email
+     * Gates only the meeting-reminder/not-filled-out emails (AnketaNotifier::
+     * notifyMeetingTomorrow()/notifyNotFilledOut() and their Monday variants) — the "new anketa scheduled" email
      * stays mandatory regardless, per the Account Settings plan.
      */
     #[Route('/api/me/notification-preferences', name: 'me_set_notification_preferences', methods: ['PUT'])]

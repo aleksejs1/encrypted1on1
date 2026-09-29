@@ -13,6 +13,12 @@ email:
     not_filled_out:
         subject: "Reminder: fill out tomorrow's anketa"
         body: "You haven't filled out your part yet for tomorrow's 1:1 with %counterpart% (%date%).\n\n%url%"
+    meeting_monday:
+        subject: 'Your 1:1 is on Monday'
+        body: "Your 1:1 with %counterpart% is on Monday (%date%).\n\n%url%"
+    not_filled_out_monday:
+        subject: "Reminder: fill out Monday's anketa"
+        body: "You haven't filled out your part yet for Monday's 1:1 with %counterpart% (%date%).\n\n%url%"
     invited:
         subject: "You've been invited to encrypted1on1"
         body: "%inviter% has invited you to encrypted1on1.\n\nActivate your account: %url%"

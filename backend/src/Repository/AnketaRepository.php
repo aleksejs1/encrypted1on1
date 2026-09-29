@@ -6,6 +6,7 @@ use App\Entity\Anketa;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\Types\Types;
+use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,6 +15,10 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class AnketaRepository extends ServiceEntityRepository
 {
+    /** An open anketa meeting on the `:start`–`:end` day, not yet reminded for that `:day`. See onDay(). */
+    private const string DUE_FOR_REMINDER = 'a.archivedAt IS NULL AND a.meetingDate >= :start AND a.meetingDate < :end'
+        .' AND (a.reminderMeetingDay IS NULL OR a.reminderMeetingDay <> :day)';
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Anketa::class);
@@ -111,6 +116,92 @@ class AnketaRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
 
         return $anketa;
+    }
+
+    /**
+     * Ids of open anketas meeting on the day starting at `$dayStart` whose reminder for
+     * that day hasn't been sent — the SendRemindersCommand selection (GitHub issue #167).
+     * Ids only: the command loads each anketa fresh right before claiming it, since a
+     * batch loaded up front goes stale while earlier emails send. Cross-tenant by design:
+     * the command disables CompanyFilter, since it reminds every company's meetings.
+     *
+     * @return list<string>
+     */
+    public function findDueForReminder(\DateTimeImmutable $dayStart): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->onDay($this->createQueryBuilder('a')
+            ->select('a.id')
+            ->where(self::DUE_FOR_REMINDER)
+            ->getQuery(), $dayStart)
+            ->getSingleColumnResult();
+
+        return $ids;
+    }
+
+    /**
+     * Stamps the anketa as reminded for the day starting at `$dayStart`, only if it still
+     * matches findDueForReminder()'s conditions, as one conditional UPDATE, and reports
+     * whether this call did it. The command claims before sending, so two overlapping runs
+     * can't both send, and a meeting moved to another day (or archived) since the select
+     * is skipped rather than reminded with its old date. The price: a crash between the
+     * claim and the send (a killed process; the command releases it on an exception, see
+     * releaseReminder()) loses that reminder for good, and a Friday claim for Monday also
+     * keeps Sunday's fallback from retrying it, where the old stamp-after-send sent a
+     * duplicate on the rerun instead.
+     *
+     * Cross-tenant by design, like the select and releaseReminder(): the only caller, the
+     * reminder CLI command, serves every company and disables CompanyFilter first. With
+     * the filter on, it would scope these UPDATEs too and skip other companies' anketas.
+     */
+    public function claimReminder(string $id, \DateTimeImmutable $dayStart, \DateTimeImmutable $sentAt): bool
+    {
+        $affected = $this->onDay($this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.reminderSentAt = :sentAt, a.reminderMeetingDay = :day'
+            .' WHERE a.id = :id AND '.self::DUE_FOR_REMINDER
+        ), $dayStart)
+            ->setParameter('sentAt', $sentAt, Types::DATETIME_IMMUTABLE)
+            ->setParameter('id', $id)
+            ->execute();
+
+        return 1 === $affected;
+    }
+
+    /**
+     * Undoes claimReminder() for the day starting at `$dayStart` when sending failed after
+     * the claim, restoring the day the anketa was reminded for before it, so the reminder
+     * is due again instead of lost (and a meeting later moved back to `$previousDay`
+     * isn't reminded twice). reminderSentAt keeps the failed attempt's time. Either
+     * participant may already have had their email; a rerun sends it again, the lesser
+     * failure.
+     */
+    public function releaseReminder(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
+    {
+        $this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.reminderMeetingDay = :previousDay WHERE a.id = :id AND a.reminderMeetingDay = :day'
+        )
+            ->setParameter('previousDay', $previousDay, Types::DATE_IMMUTABLE)
+            ->setParameter('id', $id)
+            ->setParameter('day', $dayStart, Types::DATE_IMMUTABLE)
+            ->execute();
+    }
+
+    /**
+     * Binds DUE_FOR_REMINDER's parameters for the UTC day starting at `$dayStart`.
+     *
+     * @template TKey
+     * @template TResult
+     *
+     * @param Query<TKey, TResult> $query
+     *
+     * @return Query<TKey, TResult>
+     */
+    private function onDay(Query $query, \DateTimeImmutable $dayStart): Query
+    {
+        return $query
+            ->setParameter('start', $dayStart, Types::DATETIME_IMMUTABLE)
+            ->setParameter('end', $dayStart->modify('+1 day'), Types::DATETIME_IMMUTABLE)
+            ->setParameter('day', $dayStart, Types::DATE_IMMUTABLE);
     }
 
     /**

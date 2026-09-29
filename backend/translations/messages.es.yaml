@@ -8,6 +8,12 @@ email:
     not_filled_out:
         subject: 'Recordatorio: completa el cuestionario antes de la reunión de mañana'
         body: "Todavía no has completado tu parte para la reunión 1:1 de mañana con %counterpart% (%date%).\n\n%url%"
+    meeting_monday:
+        subject: 'Tu reunión 1:1 es el lunes'
+        body: "Tu reunión 1:1 con %counterpart% es el lunes (%date%).\n\n%url%"
+    not_filled_out_monday:
+        subject: 'Recordatorio: completa el cuestionario antes de la reunión del lunes'
+        body: "Todavía no has completado tu parte para la reunión 1:1 del lunes con %counterpart% (%date%).\n\n%url%"
     invited:
         subject: 'Te han invitado a encrypted1on1'
         body: "%inviter% te ha invitado a encrypted1on1.\n\nActiva tu cuenta: %url%"

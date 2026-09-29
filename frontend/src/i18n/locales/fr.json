@@ -123,7 +123,7 @@
     "displayNameSaved": "Enregistré.",
     "notificationsTitle": "Notifications par e-mail",
     "meetingRemindersLabel": "E-mails de rappel de réunion",
-    "meetingRemindersHint": "Rappels la veille et relances « pas encore rempli ». Vous recevrez toujours un e-mail lorsqu'une nouvelle anketa est planifiée avec vous.",
+    "meetingRemindersHint": "Rappels avant une réunion et relances « pas encore rempli ». Vous recevrez toujours un e-mail lorsqu'une nouvelle anketa est planifiée avec vous.",
     "dateFormatTitle": "Format de date",
     "dateFormatHint": "Comment les dates sont affichées dans toute l'application, sur cet appareil.",
     "exportTitle": "Exporter vos données",
