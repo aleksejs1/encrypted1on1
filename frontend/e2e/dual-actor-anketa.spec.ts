@@ -352,15 +352,26 @@ test('achievements list entry can be edited in place, and the edit survives publ
   // disabled while that inline edit sits open and uncommitted — otherwise
   // clicking outer Save would persist the pre-edit text while silently
   // discarding whatever's mid-typed in the entry's own edit box.
+  // The new text is Markdown (#165): the entry renders it as bold, and the
+  // inline edit reopens on the raw source, not the rendered text.
   const postPublishEditedText = `E2E-ENTRY-POST-PUBLISH-EDIT-${Date.now()}`;
+  const postPublishEditedSource = `**${postPublishEditedText}**`;
   await employeeMySide.getByRole('button', { name: 'Edit' }).click();
   const outerSaveButton = employeeMySide
     .locator('.answers-edit-actions')
     .getByRole('button', { name: 'Save' });
   await entryRow.getByRole('button', { name: 'Edit' }).click();
   await expect(outerSaveButton).toBeDisabled();
-  await entryRow.locator('.entry-edit-input').fill(postPublishEditedText);
+  await entryRow.locator('.entry-edit-input').fill(postPublishEditedSource);
   await entryRow.getByRole('button', { name: 'Save' }).click();
+  await expect(entryRow.locator('.entry-text strong')).toHaveText(
+    postPublishEditedText,
+  );
+  await entryRow.getByRole('button', { name: 'Edit' }).click();
+  await expect(entryRow.locator('.entry-edit-input')).toHaveValue(
+    postPublishEditedSource,
+  );
+  await entryRow.getByRole('button', { name: 'Cancel' }).click();
   await expect(outerSaveButton).toBeEnabled();
   await outerSaveButton.click();
   await expect(employeeMySide.getByText('Published')).toBeVisible();
@@ -371,8 +382,11 @@ test('achievements list entry can be edited in place, and the edit survives publ
     .nth(1)
     .locator('.block', { hasText: 'Achievements' });
   await expect(
-    managerCounterpartAchievements.getByText(postPublishEditedText),
-  ).toBeVisible();
+    managerCounterpartAchievements.locator('.entry-text strong'),
+  ).toHaveText(postPublishEditedText);
+  await expect(
+    managerCounterpartAchievements.locator('.entry-text'),
+  ).toHaveText(postPublishEditedText);
   await expect(
     managerCounterpartAchievements.getByText(editedText, { exact: true }),
   ).not.toBeVisible();

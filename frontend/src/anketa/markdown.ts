@@ -1,4 +1,4 @@
-import { Marked } from 'marked';
+import { Marked, type Token } from 'marked';
 import DOMPurify from 'dompurify';
 
 /**
@@ -26,9 +26,9 @@ renderer.use({ tokenizer: { code: () => undefined } });
 
 /**
  * A DOMPurify instance scoped to this module, not the default-export global singleton — so the
- * `afterSanitizeAttributes` hook below only ever affects `renderAnswerMarkdown`'s own output,
- * never any unrelated future `dompurify` import elsewhere in the app that wouldn't expect its
- * sanitized links to be silently rewritten.
+ * `afterSanitizeAttributes` hook below only ever affects `renderAnswerMarkdown`'s and
+ * `renderInlineMarkdown`'s own output, never any unrelated future `dompurify` import elsewhere in
+ * the app that wouldn't expect its sanitized links to be silently rewritten.
  */
 const purifier = DOMPurify(window);
 
@@ -111,4 +111,97 @@ const SANITIZE_CONFIG = {
 export function renderAnswerMarkdown(source: string): string {
   const html = renderer.parse(source, { async: false }) as string;
   return purifier.sanitize(html, SANITIZE_CONFIG);
+}
+
+/**
+ * A separate instance for list entries, which are short plain-text log lines written long before
+ * they were read as Markdown, so all text shows exactly as typed apart from the Markdown syntax
+ * itself:
+ * - raw HTML and images render back as escaped source text rather than being left for DOMPurify
+ *   to remove. Every allowed tag has Markdown syntax of its own, and DOMPurify drops a mention
+ *   like "moved inline <style> tags" together with all the text after it;
+ * - text escapes every `&`, `<` and `>` itself. marked's own escaping keeps anything shaped like
+ *   an entity, which the browser then decodes (`&notes;` would show as "¬es;"), and skips text
+ *   after a typed `<code>`, `<kbd>`, `<pre>` or `<script>`, which it takes for a raw block;
+ * - a hard line break (two trailing spaces or a backslash before a newline) becomes a space, so
+ *   the words on either side never run together. No `breaks: true`: a lone `\n` stays a soft
+ *   break;
+ * - strikethrough needs `~~x~~`: GFM also accepts `~x~`, which would strike through an estimate
+ *   like "~2h~3h" (returning `false` hands a `~~` run back to the built-in tokenizer);
+ * - a link whose label is blank (only whitespace or zero-width characters) shows its Markdown
+ *   source instead of being an invisible, unnamed tab stop, and a link that isn't `http(s)://` or
+ *   `mailto:` shows just its label (or, typed in angle brackets, its source).
+ */
+const inlineRenderer = new Marked({
+  gfm: true,
+  renderer: {
+    text: ({ text }) => escapeAll(text),
+    html: ({ text }) => escapeAll(text),
+    image: ({ raw }) => escapeAll(raw),
+    br: () => ' ',
+    link(token) {
+      if (
+        !plainText(token.tokens).replace(
+          /[\s\p{Default_Ignorable_Code_Point}]/gu,
+          '',
+        )
+      ) {
+        return escapeAll(token.raw);
+      }
+      const label = this.parser.parseInline(token.tokens);
+      if (!/^(?:https?:\/\/|mailto:)/i.test(token.href)) {
+        // `<xsl:template>` or `<std::vector>` is an autolink to marked: keep the brackets.
+        return token.raw.startsWith('<') ? escapeAll(token.raw) : label;
+      }
+      return `<a href="${escapeAll(token.href)}">${label}</a>`;
+    },
+  },
+  tokenizer: {
+    del: (src) => (src.startsWith('~~') ? false : undefined),
+  },
+});
+
+/** For text and the href attribute alike. */
+function escapeAll(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** A label's text as typed, without its Markdown syntax. */
+function plainText(tokens: Token[]): string {
+  return tokens
+    .map((token) =>
+      'tokens' in token && token.tokens
+        ? plainText(token.tokens)
+        : 'text' in token
+          ? token.text
+          : token.raw,
+    )
+    .join('');
+}
+
+/**
+ * The free-text allowlist cut down to phrasing content, plus `del` for `~~strikethrough~~` (the
+ * free-text list doesn't have it), a second layer behind the renderer above: `parseInline()`
+ * never emits block tags, so the output is always valid inside a `<span>` or `<li>`.
+ */
+const INLINE_SANITIZE_CONFIG = {
+  ...SANITIZE_CONFIG,
+  ALLOWED_TAGS: ['strong', 'em', 'a', 'code', 'del'],
+};
+
+/**
+ * Renders a `field.type === 'list'` entry's inline Markdown (bold, italic, code, links,
+ * strikethrough) to sanitized HTML with no wrapping `<p>`. Block syntax (`# `, `- `, `> `) stays
+ * literal text, since `parseInline()` never runs the block tokenizer.
+ */
+export function renderInlineMarkdown(source: string): string {
+  // Decrypted answers aren't shape-checked, and marked throws on a non-string, which would take
+  // the whole page down with it. Stringified the way `{entry.text}` showed it before.
+  const text = String((source as unknown) ?? '');
+  const html = inlineRenderer.parseInline(text, { async: false }) as string;
+  return purifier.sanitize(html, INLINE_SANITIZE_CONFIG);
 }

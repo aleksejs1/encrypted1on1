@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { renderAnswerMarkdown } from './markdown';
+import { renderAnswerMarkdown, renderInlineMarkdown } from './markdown';
 
 describe('renderAnswerMarkdown', () => {
   it('renders plain text with no markdown syntax unchanged (backward-compat case)', () => {
@@ -101,5 +101,218 @@ describe('renderAnswerMarkdown', () => {
   it('renders empty or whitespace-only input to nothing meaningful', () => {
     expect(renderAnswerMarkdown('')).toBe('');
     expect(renderAnswerMarkdown('   ')).toBe('');
+  });
+});
+
+describe('renderInlineMarkdown', () => {
+  it('renders plain text unchanged, with no wrapping <p>', () => {
+    expect(renderInlineMarkdown('Shipped the release')).toBe(
+      'Shipped the release',
+    );
+  });
+
+  it('renders bold, italic, code, links and strikethrough', () => {
+    expect(renderInlineMarkdown('**bold** *italic* `code` ~~gone~~')).toBe(
+      '<strong>bold</strong> <em>italic</em> <code>code</code> <del>gone</del>',
+    );
+    expect(renderInlineMarkdown('[RFC](https://example.com)')).toBe(
+      '<a href="https://example.com" rel="noopener noreferrer" target="_blank">RFC</a>',
+    );
+  });
+
+  it('forces rel and target on an autolinked bare URL too', () => {
+    const html = renderInlineMarkdown('see https://example.com');
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('target="_blank"');
+  });
+
+  it('leaves block syntax as literal text', () => {
+    expect(renderInlineMarkdown('# not a heading')).toBe('# not a heading');
+    expect(renderInlineMarkdown('- not a list')).toBe('- not a list');
+    expect(renderInlineMarkdown('> not a quote')).toBe('&gt; not a quote');
+    expect(renderInlineMarkdown('    not code')).toBe('    not code');
+  });
+
+  it('escapes literal angle brackets and ampersands', () => {
+    expect(renderInlineMarkdown('a < b & c')).toBe('a &lt; b &amp; c');
+  });
+
+  it('shows tag-like text as typed, including raw-text tags mid-sentence', () => {
+    // DOMPurify drops a <style>/<script> and everything after it, so raw HTML
+    // must be escaped before it ever reaches the sanitizer.
+    expect(renderInlineMarkdown('Moved inline <style> tags into CSS')).toBe(
+      'Moved inline &lt;style&gt; tags into CSS',
+    );
+    expect(renderInlineMarkdown('Dropped <script> blocking, 2x')).toBe(
+      'Dropped &lt;script&gt; blocking, 2x',
+    );
+    expect(renderInlineMarkdown('x <b>y</b> <!-- z -->')).toBe(
+      'x &lt;b&gt;y&lt;/b&gt; &lt;!-- z --&gt;',
+    );
+  });
+
+  it('escapes text after a <code>, <kbd>, <pre> or <script> mention too', () => {
+    // marked treats these as the start of a raw block and flags the text after
+    // them as already escaped.
+    expect(renderInlineMarkdown('Wrapped <code> around x<y and more')).toBe(
+      'Wrapped &lt;code&gt; around x&lt;y and more',
+    );
+    expect(renderInlineMarkdown('Used <kbd> then <style/x> text after')).toBe(
+      'Used &lt;kbd&gt; then &lt;style/x&gt; text after',
+    );
+    expect(renderInlineMarkdown('Used <pre> then <a/b>click')).toBe(
+      'Used &lt;pre&gt; then &lt;a/b&gt;click',
+    );
+    expect(renderInlineMarkdown('Dropped <script> for a&b')).toBe(
+      'Dropped &lt;script&gt; for a&amp;b',
+    );
+  });
+
+  it('keeps a raw <img onerror> as inert text, never a tag', () => {
+    const html = renderInlineMarkdown('<img src="x" onerror="alert(1)">');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=');
+    expect(html).toContain('onerror=');
+  });
+
+  it('shows a Markdown image as its source text, never fetching it', () => {
+    expect(renderInlineMarkdown('![x](https://evil.example/p.gif)')).toBe(
+      '![x](https://evil.example/p.gif)',
+    );
+    const linked = renderInlineMarkdown(
+      '[![x](https://evil.example/p.gif)](https://example.com)',
+    );
+    expect(linked).not.toContain('<img');
+    expect(linked).toContain('href="https://example.com"');
+  });
+
+  it('strikes through only a double-tilde pair', () => {
+    expect(renderInlineMarkdown('~~gone~~ ok')).toBe('<del>gone</del> ok');
+    expect(renderInlineMarkdown('took ~2h~3h, not ~4h~')).toBe(
+      'took ~2h~3h, not ~4h~',
+    );
+  });
+
+  it('turns a link that is not http(s) or mailto into its text', () => {
+    for (const target of [
+      '/account',
+      '#top',
+      'https:/account',
+      '',
+      'data:text/html,hi',
+      'javascript:alert(1)',
+      'tel:123',
+      '//example.com',
+    ]) {
+      expect(renderInlineMarkdown(`[**x**](${target}) y`), target).toBe(
+        '<strong>x</strong> y',
+      );
+    }
+  });
+
+  it('keeps angle-bracketed text that marked reads as a non-web link', () => {
+    expect(
+      renderInlineMarkdown(
+        'Fixed <xsl:template> in <std::vector>, <JIRA:ABC-1>',
+      ),
+    ).toBe(
+      'Fixed &lt;xsl:template&gt; in &lt;std::vector&gt;, &lt;JIRA:ABC-1&gt;',
+    );
+    expect(renderInlineMarkdown('<https://example.com>')).toContain(
+      '<a href="https://example.com"',
+    );
+  });
+
+  it('keeps web and mail links, with the shared rel/target', () => {
+    expect(renderInlineMarkdown('[mail](MAILTO:a@example.com)')).toBe(
+      '<a href="MAILTO:a@example.com" rel="noopener noreferrer" target="_blank">mail</a>',
+    );
+    expect(renderInlineMarkdown('mail me@example.com')).toBe(
+      'mail <a href="mailto:me@example.com" rel="noopener noreferrer" target="_blank">me@example.com</a>',
+    );
+  });
+
+  it('links to the target as typed, entities included', () => {
+    // Every & is escaped, so the browser follows the same string a bare
+    // URL's label shows rather than decoding an entity into another host.
+    expect(
+      renderInlineMarkdown('[x](https://example.com/?a=1&amp;b=2&c=3)'),
+    ).toContain('href="https://example.com/?a=1&amp;amp;b=2&amp;c=3"');
+    const container = document.createElement('div');
+    container.innerHTML = renderInlineMarkdown(
+      'see https://evil.example&#64;localhost/account',
+    );
+    const link = container.querySelector('a');
+    expect(link).not.toBeNull();
+    expect(link?.textContent).toBe(link?.getAttribute('href'));
+  });
+
+  it('shows entity-like text as typed, everywhere', () => {
+    // marked's own escaping would keep these for the browser to decode, and
+    // the browser decodes a legacy entity even without its semicolon.
+    expect(renderInlineMarkdown('R&D notes&notes; tips&copyedit; &amp;')).toBe(
+      'R&amp;D notes&amp;notes; tips&amp;copyedit; &amp;amp;',
+    );
+    expect(
+      renderInlineMarkdown('`a&amp;b` [x&amp;y](https://example.com)'),
+    ).toBe(
+      '<code>a&amp;amp;b</code> <a href="https://example.com" rel="noopener noreferrer" target="_blank">x&amp;amp;y</a>',
+    );
+    expect(
+      renderInlineMarkdown('![Tom &amp; Jerry](x) <b title="&amp;">'),
+    ).toBe('![Tom &amp;amp; Jerry](x) &lt;b title=&quot;&amp;amp;&quot;&gt;');
+  });
+
+  it('shows a link with no visible text as its Markdown source', () => {
+    for (const source of [
+      '[](https://example.com)',
+      '[ ](https://example.com)',
+      '[\u200b](https://example.com)',
+      '[**\u200b**](https://example.com)',
+      '[` `](https://example.com)',
+      '[\u034f](https://example.com)',
+      '[\ufe0f](https://example.com)',
+      '[\u3164](https://example.com)',
+      '[](mailto:me@example.com?subject=hi)',
+      '[](https://example.com/a%2Fb%E2%80%AE)',
+    ]) {
+      expect(renderInlineMarkdown(`${source} tail`), source).toBe(
+        `${source} tail`,
+      );
+    }
+    // Even when the sanitizer would have removed the target.
+    expect(renderInlineMarkdown('[](javascript:alert(1)) tail')).toBe(
+      '[](javascript:alert(1)) tail',
+    );
+    expect(renderInlineMarkdown('[](tel:+371) call')).toBe('[](tel:+371) call');
+  });
+
+  it('keeps a link whose label is only an entity-like or escaped character', () => {
+    expect(renderInlineMarkdown('[&#8203;](https://example.com)')).toBe(
+      '<a href="https://example.com" rel="noopener noreferrer" target="_blank">&amp;#8203;</a>',
+    );
+    expect(renderInlineMarkdown('[<](https://example.com)')).toContain(
+      '>&lt;</a>',
+    );
+  });
+
+  it('shows a non-string entry as text instead of throwing', () => {
+    // Decrypted answers aren't shape-checked.
+    expect(renderInlineMarkdown(42 as unknown as string)).toBe('42');
+    expect(renderInlineMarkdown(null as unknown as string)).toBe('');
+    expect(renderInlineMarkdown(undefined as unknown as string)).toBe('');
+  });
+
+  it('never runs words together across a line break', () => {
+    expect(renderInlineMarkdown('a\nb')).toBe('a\nb');
+    expect(renderInlineMarkdown('a  \nb')).toBe('a b');
+    expect(renderInlineMarkdown('a\\\nb')).toBe('a b');
+  });
+
+  it('drops a javascript: link target', () => {
+    const html = renderInlineMarkdown('[x](javascript:alert(1))');
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('x');
   });
 });
