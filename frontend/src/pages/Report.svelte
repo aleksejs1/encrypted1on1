@@ -21,6 +21,7 @@
     GOAL_PROGRESS_MAX_INDEX,
   } from '../anketa/goalProgressTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
+  import InlineMarkdown from '../anketa/InlineMarkdown.svelte';
 
   interface AnketaBulkRow {
     id: string;
@@ -251,7 +252,7 @@
             <ul>
               {#each report.achievements as entry (entry.id)}
                 <li>
-                  {entry.text}
+                  <InlineMarkdown text={entry.text} />
                   <span class="text-muted entry-date"
                     >— {formatDisplayDate(entry.date)}</span
                   >
@@ -269,7 +270,7 @@
             <ul>
               {#each report.growth as entry (entry.id)}
                 <li>
-                  {entry.text}
+                  <InlineMarkdown text={entry.text} />
                   <span class="text-muted entry-date"
                     >— {formatDisplayDate(entry.date)}</span
                   >

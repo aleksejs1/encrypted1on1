@@ -474,7 +474,8 @@ textarea.input {
 /*
  * A published anketa free-text answer's Markdown, rendered to sanitized HTML via `{@html}`
  * (frontend/src/anketa/markdown.ts, used by AnswerField.svelte and MarkdownEditor.svelte's
- * preview). Global rules, not component-scoped: Svelte's per-component style scoping only tags
+ * preview), and `.inline-markdown`, a list entry's inline Markdown (AnswerField.svelte and
+ * Report.svelte). Global rules, not component-scoped: Svelte's per-component style scoping only tags
  * elements written literally in that component's own template — it never reaches elements
  * injected via `{@html}`, so nested markdown output (a `<p>`/`<ul>`/`<code>` the renderer
  * produced) needs plain global selectors like every other class in this file.
@@ -501,7 +502,17 @@ textarea.input {
   border-left: 3px solid var(--color-divider);
   color: var(--color-text-muted);
 }
-.answer-text code {
+.inline-markdown {
+  overflow-wrap: break-word;
+}
+/* A long URL or code token may break anywhere, so it never widens an entry row; words keep
+   whole. */
+.inline-markdown a,
+.inline-markdown code {
+  overflow-wrap: anywhere;
+}
+.answer-text code,
+.inline-markdown code {
   font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   font-size: 0.9em;
   background: color-mix(in srgb, var(--color-text) 8%, transparent);

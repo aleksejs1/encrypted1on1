@@ -65,11 +65,69 @@ syntax from intentional plain characters.
 ## Scope
 
 In scope: `field.type === 'text'` answers only. Out of scope, deliberately: `field.type === 'list'`
-entries (a different, add/edit-in-place UI shape), comment threads, the goal
-title/description/status plaintext exception. See
+entries (a different, add/edit-in-place UI shape; added later, see the next section), comment
+threads, the goal title/description/status plaintext exception. See
 `private/anketa-markdown-formatting-proposal.md` (not tracked in git — local working document) for
 the full library-selection rationale and phasing (Phase 2, pasted-rich-text-to-Markdown conversion
 via `node-html-markdown`, deferred).
+
+## Extension: inline Markdown in list entries (2026-09-30)
+
+[GitHub issue #165](https://github.com/aleksejs1/encrypted1on1/issues/165): `field.type === 'list'`
+entries (Achievements, Growth, What else to discuss, and any list question in a company template)
+now render inline Markdown: bold, italic, `code`, links and `~~strikethrough~~`, in the entry rows
+of `AnswerField.svelte` and the Achievements/Growth lists of `Report.svelte` (both through
+`InlineMarkdown.svelte`, the one `{@html}` site). The input stays a single-line `<input>` with no
+toolbar, and Edit shows the raw source.
+
+`renderInlineMarkdown()` in `markdown.ts` runs `marked`'s `parseInline()` on its own `Marked`
+instance, then the shared DOMPurify instance and hook, with the allowlist cut down to `strong`,
+`em`, `a`, `code` and `del`. Entries are years of plain-text log lines, so that instance's job is
+to show text exactly as typed apart from deliberate Markdown syntax. Review found the defaults
+losing or changing text in several ways, and each override below fixes one:
+
+- raw HTML and images render as escaped source text: DOMPurify would drop a mention like "moved
+  inline `<style>` tags" together with everything after it, and an image would be removed;
+- text escapes every `&`, `<` and `>` itself: `marked` keeps anything shaped like an entity, which
+  the browser decodes (`R&D notes&notes;` would show "¬es;"), and leaves text after a typed
+  `<code>`/`<kbd>`/`<pre>`/`<script>` unescaped;
+- a hard line break becomes a space, so words never run together, and there is no `breaks: true`;
+- strikethrough needs `~~x~~`: GFM's single-tilde form would strike through "~2h~3h";
+- a link whose label is blank (whitespace or zero-width characters only) shows its Markdown source
+  rather than an invisible, unnamed tab stop, and a link that isn't `http(s)://` or `mailto:` shows
+  just its label, or its source when typed in angle brackets (`marked` reads `<xsl:template>` or
+  `<std::vector>` as a link). A link target escapes every `&` too, so the browser follows the same
+  string a bare URL's label shows.
+
+Links deliberately follow free text's rules otherwise: a new tab for every link, and no check of
+where an `http(s)://` link points. Several review rounds added host checks, mail-address checks and
+Unicode-class heuristics, each then bypassed one case at a time; they were removed again in favour
+of a rule short enough to audit, since the counterpart can already write any link text they like.
+
+`parseInline()` never runs the block tokenizer, so an entry starting with `#`, `-`, `>` or
+indentation keeps that text. What does change for stored entries, with the stored text untouched
+and still shown by Edit:
+
+- emphasis pairs format, including code-like text never meant as Markdown: `__init__` shows a bold
+  "init" and `2*3*4` an italic "3" (`snake_case_name` is safe, GFM ignores intraword underscores);
+- a backslash before punctuation disappears (`\_temp` shows as `_temp`);
+- a bare URL, `www.` host or email address becomes a link;
+- a relative or non-web link (`[wiki](/wiki)`, `tel:`) shows as plain text, and an entity in a link
+  target stays literal, where a free-text answer's link would decode it;
+- a label of a character that draws blank without being zero-width (U+2800, say) or of a lone
+  `.`, or two links typed with nothing between them, can make a link that is hard to see or reads
+  as one word;
+- after a typed `<a` tag with attributes, a bare URL later in the entry isn't linked until a typed
+  `</a>` (`marked` still tracks the tag as an open link).
+
+Accepted: an entry is usually a short sentence, these lose at most a character or two of display,
+and backticks show code exactly. In the entry row, words wrap whole as before and only a link or
+code span may break anywhere, so a long URL or backticked path never widens the row.
+
+Not changed: meeting outcomes, comments and goal fields stay plain text, and free-text rendering is
+untouched. Review found three free-text gaps while checking this change, left for a separate fix:
+it lacks `del` (`~~x~~` shows as plain text), it passes raw HTML to DOMPurify (text after a
+`<style>`/`<script>` mention is dropped), and it keeps relative and blank-label links.
 
 ## Alternatives considered
 
@@ -88,3 +146,14 @@ fetch, disallowed tags/attributes). Verified end-to-end against the real dev sta
 crypto (not a placeholder): the demo employee account typed a Markdown answer, published it, and
 the demo manager account — a fully independent session — correctly decrypted and rendered the
 same sanitized HTML. Demo data reset afterward via `app:reset-demo-data`.
+
+List entries (#165): `markdown.test.ts` covers `renderInlineMarkdown()`: formatting, literal block
+syntax, escaped raw HTML (including `<style>`/`<script>` mid-sentence and text after a
+`<code>`-style tag), images, entity-like text, line breaks, strikethrough, non-string entries,
+link targets (relative, `javascript:`/`data:`/`tel:`, entities) and blank labels (zero-width
+characters, emphasis, a blank code span). The list-entry edit test in
+`frontend/e2e/dual-actor-anketa.spec.ts` saves a `**bold**` entry, checks that it renders as
+`<strong>`, that Edit reopens on the raw source, and that the manager's separate session decrypts
+and renders the same bold text after publish. The entry rows (at 360px and desktop width) and the
+Report page were also checked by screenshot on the e2e stack. Went through 15 `code-review` rounds;
+the last found no bugs.

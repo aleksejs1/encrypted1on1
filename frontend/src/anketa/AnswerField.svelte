@@ -8,6 +8,7 @@
   } from './questions';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { renderAnswerMarkdown } from './markdown';
+  import InlineMarkdown from './InlineMarkdown.svelte';
   import MarkdownEditor from './MarkdownEditor.svelte';
   import {
     fallbackFocusOptions,
@@ -338,7 +339,7 @@
               </button>
             </form>
           {:else}
-            <span class="entry-text">{entry.text}</span>
+            <InlineMarkdown class="entry-text" text={entry.text} />
             <span class="text-muted entry-date"
               >{formatDisplayDate(entry.date)}</span
             >
@@ -467,7 +468,9 @@
     flex-wrap: wrap;
   }
 
-  .entry-text {
+  /* :global: the span belongs to InlineMarkdown.svelte, so this component's
+     scoped styles don't reach it. */
+  .entry :global(.entry-text) {
     flex: 1;
   }
 
