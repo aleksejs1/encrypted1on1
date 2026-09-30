@@ -122,7 +122,9 @@ export function renderAnswerMarkdown(source: string): string {
  *   like "moved inline <style> tags" together with all the text after it;
  * - text escapes every `&`, `<` and `>` itself. marked's own escaping keeps anything shaped like
  *   an entity, which the browser then decodes (`&notes;` would show as "¬es;"), and skips text
- *   after a typed `<code>`, `<kbd>`, `<pre>` or `<script>`, which it takes for a raw block;
+ *   after a typed `<code>`, `<kbd>`, `<pre>` or `<script>`, which it takes for a raw block. A
+ *   text token's `raw` is used, not its `text`, where marked has already decoded numeric
+ *   references (`&#8203;` would be an invisible character);
  * - a hard line break (two trailing spaces or a backslash before a newline) becomes a space, so
  *   the words on either side never run together. No `breaks: true`: a lone `\n` stays a soft
  *   break;
@@ -135,7 +137,7 @@ export function renderAnswerMarkdown(source: string): string {
 const inlineRenderer = new Marked({
   gfm: true,
   renderer: {
-    text: ({ text }) => escapeAll(text),
+    text: (token) => escapeAll(token.type === 'text' ? token.raw : token.text),
     html: ({ text }) => escapeAll(text),
     image: ({ raw }) => escapeAll(raw),
     br: () => ' ',
@@ -176,7 +178,7 @@ function plainText(tokens: Token[]): string {
     .map((token) =>
       'tokens' in token && token.tokens
         ? plainText(token.tokens)
-        : 'text' in token
+        : token.type !== 'text' && 'text' in token
           ? token.text
           : token.raw,
     )
