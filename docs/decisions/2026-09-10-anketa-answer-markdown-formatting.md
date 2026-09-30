@@ -112,7 +112,7 @@ and still shown by Edit:
   "init" and `2*3*4` an italic "3" (`snake_case_name` is safe, GFM ignores intraword underscores);
 - a backslash before punctuation disappears (`\_temp` shows as `_temp`);
 - a bare URL, `www.` host or email address becomes a link;
-- a relative or non-web link (`[wiki](/wiki)`, `tel:`) shows as plain text, and an entity in a link
+- a relative or non-web link (to `/wiki`, or `tel:`) shows as plain text, and an entity in a link
   target stays literal, where a free-text answer's link would decode it;
 - a label of a character that draws blank without being zero-width (U+2800, say) or of a lone
   `.`, or two links typed with nothing between them, can make a link that is hard to see or reads
