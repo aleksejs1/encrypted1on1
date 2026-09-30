@@ -262,6 +262,10 @@ describe('renderInlineMarkdown', () => {
     expect(
       renderInlineMarkdown('![Tom &amp; Jerry](x) <b title="&amp;">'),
     ).toBe('![Tom &amp;amp; Jerry](x) &lt;b title=&quot;&amp;amp;&quot;&gt;');
+    // marked decodes numeric references in text tokens itself.
+    expect(renderInlineMarkdown('a&#8203;b &#64; **&#x41;**')).toBe(
+      'a&amp;#8203;b &amp;#64; <strong>&amp;#x41;</strong>',
+    );
   });
 
   it('shows a link with no visible text as its Markdown source', () => {
