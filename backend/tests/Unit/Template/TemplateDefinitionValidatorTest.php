@@ -157,6 +157,9 @@ class TemplateDefinitionValidatorTest extends TestCase
 
         self::assertSame([], $validator->validate($definition));
         // A second call would report every id as a duplicate if the seen-ids set leaked.
+        // PHPStan assumes the method is pure and reuses the first call's type, which is the
+        // very assumption this test checks.
+        // @phpstan-ignore staticMethod.alreadyNarrowedType
         self::assertSame([], $validator->validate($definition));
     }
 
