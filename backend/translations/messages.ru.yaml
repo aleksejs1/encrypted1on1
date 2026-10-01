@@ -29,6 +29,9 @@ email:
     company_signup:
         subject: 'Подтвердите новую компанию в encrypted1on1'
         body: "Мы получили запрос на создание новой компании «%company%» в encrypted1on1, где вы будете первым администратором.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
+    invite_renewal_requested:
+        subject: "%invitee% просит новое приглашение в encrypted1on1"
+        body: "%invitee% пытается активировать аккаунт в encrypted1on1, но срок действия ссылки-приглашения истёк.\n\nОтправьте новое приглашение: %url%"
 errors:
     not_authenticated: 'Вы не авторизованы.'
     missing_or_invalid_field: 'Отсутствует или некорректно поле «%field%».'
@@ -42,6 +45,10 @@ errors:
     meeting_date_must_be_valid_date: '«meetingDate» должно быть корректной датой.'
     outcomes_blob_must_be_string: '«outcomesBlob» должно быть строкой.'
     invalid_or_expired_activation_link: 'Недействительная или истёкшая ссылка активации.'
+    activation_link_expired: "Срок действия ссылки активации истёк."
+    account_already_active: "Аккаунт уже активирован. Войдите в систему."
+    activation_link_not_expired: "Ссылка активации ещё действительна."
+    invite_renewal_send_failed: "Не удалось отправить запрос. Попробуйте снова позже."
     invalid_or_expired_reset_link: 'Недействительная или истёкшая ссылка для сброса пароля.'
     missing_email_or_auth_key: 'Отсутствует «email» или «authKey».'
     invalid_email_or_password: 'Неверный email или пароль.'

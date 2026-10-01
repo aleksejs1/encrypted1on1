@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Repository\ActivationTokenRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -11,11 +12,23 @@ use Symfony\Component\Uid\Uuid;
  * both go through issue() below. Not an API Platform resource: accessed
  * only through the two custom activation controllers.
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: ActivationTokenRepository::class)]
 #[ORM\Table(name: 'activation_tokens')]
+// Kept two weeks past expiry since GitHub issue #169, and looked up by address there
+// (InviteRenewal, AccountDeleter) and pruned by expiresAt (the daily cleanup).
+#[ORM\Index(columns: ['email'], name: 'idx_activation_tokens_email')]
+#[ORM\Index(columns: ['expiresAt'], name: 'idx_activation_tokens_expires_at')]
 class ActivationToken
 {
     public const TOKEN_TTL_HOURS = 24;
+
+    /**
+     * How long app:cleanup-expired-tokens keeps a row past its expiresAt (GitHub issue
+     * #169). An expired row can never be redeemed (isUsable() checks expiresAt), but
+     * keeping it lets ActivationController tell an expired or already-used link apart
+     * from an unknown one, and offer a renewal request, for two weeks after expiry.
+     */
+    public const RETENTION_DAYS_AFTER_EXPIRY = 14;
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
@@ -27,7 +40,7 @@ class ActivationToken
     private string $tokenHash;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[AllowPlaintext(reason: 'Same as User::$email — always plaintext.')]
+    #[AllowPlaintext(reason: 'Same as User::$email — always plaintext. Kept until RETENTION_DAYS_AFTER_EXPIRY (14d) past the 24h TTL, used or not (GitHub issue #169), except that account deletion removes the deleted user\'s used and expired tokens in their own company (AccountDeleter; another company\'s rows for the same address are left to the daily cleanup, as for InviteRecord).')]
     private string $email;
 
     /**
@@ -102,9 +115,15 @@ class ActivationToken
         return $this->grantsAdmin;
     }
 
-    public function isUsable(): bool
+    public function isUsed(): bool
     {
-        return null === $this->usedAt && $this->expiresAt > new \DateTimeImmutable();
+        return null !== $this->usedAt;
+    }
+
+    /** `$now` lets a caller check several things against one instant (ActivationController::linkState()). */
+    public function isUsable(?\DateTimeImmutable $now = null): bool
+    {
+        return null === $this->usedAt && $this->expiresAt > ($now ?? new \DateTimeImmutable());
     }
 
     public function markUsed(): void

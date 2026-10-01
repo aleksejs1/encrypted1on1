@@ -31,6 +31,9 @@ email:
     company_signup:
         subject: 'Bestätigen Sie Ihr neues Unternehmen auf encrypted1on1'
         body: "Wir haben eine Anfrage erhalten, ein neues Unternehmen, \"%company%\", auf encrypted1on1 zu erstellen, mit Ihnen als dessen erstem Administrator.\n\nAktivieren Sie Ihr Konto: %url%\n\nWenn Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren."
+    invite_renewal_requested:
+        subject: "%invitee% bittet um eine neue Einladung zu encrypted1on1"
+        body: "%invitee% wollte das encrypted1on1-Konto aktivieren, aber der Einladungslink war bereits abgelaufen.\n\nSenden Sie eine neue Einladung: %url%"
 # API error messages (Phase 6j) — translated into the requesting user's active
 # UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
 errors:
@@ -46,6 +49,10 @@ errors:
     meeting_date_must_be_valid_date: '"meetingDate" muss ein gültiges Datum sein.'
     outcomes_blob_must_be_string: '"outcomesBlob" muss eine Zeichenkette sein.'
     invalid_or_expired_activation_link: 'Ungültiger oder abgelaufener Aktivierungslink.'
+    activation_link_expired: "Dieser Aktivierungslink ist abgelaufen."
+    account_already_active: "Das Konto ist bereits aktiv. Bitte melden Sie sich an."
+    activation_link_not_expired: "Dieser Aktivierungslink ist noch gültig."
+    invite_renewal_send_failed: "Die Anfrage konnte nicht gesendet werden. Bitte versuchen Sie es später erneut."
     invalid_or_expired_reset_link: 'Ungültiger oder abgelaufener Link zum Zurücksetzen des Passworts.'
     missing_email_or_auth_key: 'Fehlendes "email" oder "authKey".'
     invalid_email_or_password: 'Ungültige E-Mail oder ungültiges Passwort.'

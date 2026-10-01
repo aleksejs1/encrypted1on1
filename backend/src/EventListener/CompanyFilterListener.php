@@ -35,6 +35,19 @@ class CompanyFilterListener implements ResetInterface
      */
     public const string RESTORE_FOR_COMPANY_ID_ATTRIBUTE = 'app.restore_company_filter_for_company_id';
 
+    /**
+     * Activation-link endpoints (GitHub issue #169): the token decides the company, not
+     * the session. A visitor still logged in to one company (e.g. on Cloud) who opens a
+     * link into another must not have the token, its invite records and that company's
+     * admins filtered away; ActivationController scopes every query by the token's own
+     * company instead.
+     */
+    private const array TOKEN_SCOPED_ROUTES = [
+        'activation_token_lookup',
+        'activation_token_request_renewal',
+        'activation_token_complete',
+    ];
+
     public function __construct(
         private readonly AuthSession $authSession,
         private readonly EntityManagerInterface $entityManager,
@@ -58,7 +71,7 @@ class CompanyFilterListener implements ResetInterface
         $this->reset();
 
         $request = $event->getRequest();
-        if (!$request->hasSession()) {
+        if (!$request->hasSession() || \in_array($request->attributes->get('_route'), self::TOKEN_SCOPED_ROUTES, true)) {
             return;
         }
 

@@ -29,6 +29,9 @@ email:
     company_signup:
         subject: 'Apstipriniet savu jauno uzņēmumu encrypted1on1'
         body: "Mēs saņēmām pieprasījumu izveidot jaunu uzņēmumu \"%company%\" encrypted1on1, kur jūs būsiet tā pirmais administrators.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
+    invite_renewal_requested:
+        subject: "%invitee% lūdz jaunu ielūgumu uz encrypted1on1"
+        body: "%invitee% mēģināja aktivizēt savu encrypted1on1 kontu, bet ielūguma saitei bija beidzies derīguma termiņš.\n\nNosūtiet jaunu ielūgumu: %url%"
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
@@ -42,6 +45,10 @@ errors:
     meeting_date_must_be_valid_date: '"meetingDate" jābūt derīgam datumam.'
     outcomes_blob_must_be_string: '"outcomesBlob" jābūt virknei.'
     invalid_or_expired_activation_link: 'Nederīga vai beigusies aktivizācijas saite.'
+    activation_link_expired: "Aktivizācijas saitei ir beidzies derīguma termiņš."
+    account_already_active: "Konts jau ir aktivizēts. Lūdzu, piesakieties."
+    activation_link_not_expired: "Aktivizācijas saite joprojām ir derīga."
+    invite_renewal_send_failed: "Pieprasījumu neizdevās nosūtīt. Lūdzu, mēģiniet vēlreiz vēlāk."
     invalid_or_expired_reset_link: 'Nederīga vai beigusies paroles atiestatīšanas saite.'
     missing_email_or_auth_key: 'Trūkst "email" vai "authKey".'
     invalid_email_or_password: 'Nepareizs e-pasts vai parole.'

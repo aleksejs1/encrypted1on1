@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { _, locale } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
@@ -13,6 +14,7 @@
   import { storeMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { navigate } from '../router.svelte';
+  import { linkStateFromError, type LinkState } from '../activationLink';
   import {
     MIN_PASSWORD_LENGTH,
     STRENGTH_COLORS,
@@ -22,14 +24,26 @@
 
   const { token }: { token: string } = $props();
 
-  let email = $state<string | null>(null);
-  let lookupError = $state<string | null>(null);
+  let link = $state<LinkState>({ kind: 'loading' });
+  const email = $derived('ready' === link.kind ? link.email : null);
   let name = $state('');
   let password = $state('');
   let confirmPassword = $state('');
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
   let done = $state(false);
+  let renewalSending = $state(false);
+  let renewalError = $state<string | null>(null);
+  let renewalSentMessage = $state<HTMLElement | null>(null);
+  let heading = $state<HTMLElement | null>(null);
+
+  // After the button or form that had focus is replaced by another link state,
+  // focus lands on the outcome instead of <body>: the "Request sent"
+  // confirmation if that's the new state, the card's heading otherwise.
+  async function focusOutcome(): Promise<void> {
+    await tick();
+    (renewalSentMessage ?? heading)?.focus();
+  }
 
   // Cancels the mount-time lookup fetch below on unmount — see GitHub issue #95.
   const readAbort = abortOnDestroy();
@@ -39,16 +53,43 @@
       signal: readAbort,
     })
       .then((result) => {
-        email = result.email;
+        link = { kind: 'ready', email: result.email };
       })
       .catch((error: unknown) => {
         if (isAbortError(error)) return;
-        lookupError =
-          error instanceof ApiError
-            ? error.message
-            : $_('activate.lookupError');
+        link = linkStateFromError(error) ?? {
+          kind: 'error',
+          message: error instanceof ApiError ? error.message : null,
+        };
       });
   });
+
+  // GitHub issue #169: asks whoever invited this person for a new invite. The
+  // response is a link state too (already requested, activated meanwhile, …),
+  // so any of those replaces the page's state; only the per-IP rate limit, a
+  // failed send or a network error stays an error under the button.
+  async function requestRenewal(): Promise<void> {
+    if (renewalSending) return;
+    renewalSending = true;
+    renewalError = null;
+    try {
+      await apiPost(`/api/activation-tokens/${token}/request-renewal`, {});
+      link = { kind: 'expired', renewal: 'requested' };
+    } catch (error) {
+      const state = linkStateFromError(error);
+      if (null === state) {
+        renewalError =
+          error instanceof ApiError
+            ? error.message
+            : $_('activate.genericError');
+        return;
+      }
+      link = state;
+    } finally {
+      renewalSending = false;
+    }
+    await focusOutcome();
+  }
 
   const passwordScore = $derived(scoreOf(password));
   const passwordTooShort = $derived(
@@ -94,6 +135,14 @@
       markAuthenticated();
       navigate('/');
     } catch (error) {
+      // The link expired (or was used elsewhere) while the form was open: show
+      // that state, with its renewal option, instead of an error under the form.
+      const state = linkStateFromError(error);
+      if (null !== state) {
+        link = state;
+        void focusOutcome();
+        return;
+      }
       submitError =
         error instanceof ApiError ? error.message : $_('activate.genericError');
     } finally {
@@ -104,14 +153,64 @@
 
 <main>
   <div class="card elev-md">
-    <h1>{$_('activate.title')}</h1>
+    <h1 tabindex="-1" bind:this={heading}>{$_('activate.title')}</h1>
 
     {#if done}
       <p>{$_('activate.done')}</p>
-    {:else if lookupError}
-      <p class="banner-error">{lookupError}</p>
-    {:else if email === null}
+    {:else if 'loading' === link.kind}
       <p>{$_('common.loading')}</p>
+    {:else if 'error' === link.kind}
+      <p class="banner-error">{link.message ?? $_('activate.lookupError')}</p>
+    {:else if 'invalid' === link.kind}
+      <p class="banner-error">{$_('activate.invalidLink')}</p>
+    {:else if 'alreadyActive' === link.kind}
+      <p class="status-line">{$_('activate.alreadyActive')}</p>
+      <a href="/" class="btn btn-primary btn-block">{$_('activate.logIn')}</a>
+    {:else if 'expired' === link.kind}
+      <p class="banner-error">{$_('activate.expired')}</p>
+      {#if 'available' === link.renewal}
+        <p class="text-muted status-line">{$_('activate.renewalAvailable')}</p>
+        <button
+          type="button"
+          class="btn btn-primary btn-block"
+          disabled={renewalSending}
+          onclick={requestRenewal}
+        >
+          {renewalSending
+            ? $_('activate.renewalSending')
+            : $_('activate.renewalRequest')}
+        </button>
+        {#if renewalError}
+          <div role="alert" class="banner-error renewal-error">
+            {renewalError}
+          </div>
+        {/if}
+      {:else if 'requested' === link.renewal}
+        <p
+          class="banner-success"
+          role="status"
+          tabindex="-1"
+          bind:this={renewalSentMessage}
+        >
+          {$_('activate.renewalRequested')}
+        </p>
+      {:else if 'reissued' === link.renewal}
+        <p class="text-muted status-line">{$_('activate.renewalReissued')}</p>
+      {:else if 'create_company' === link.renewal}
+        <p class="text-muted status-line">
+          {$_('activate.renewalCreateCompany')}
+        </p>
+        <a href="/create-company" class="btn btn-primary btn-block"
+          >{$_('activate.createCompanyAgain')}</a
+        >
+      {:else if 'signup' === link.renewal}
+        <p class="text-muted status-line">{$_('activate.renewalSignup')}</p>
+        <a href="/signup" class="btn btn-primary btn-block"
+          >{$_('activate.signUpAgain')}</a
+        >
+      {:else}
+        <p class="text-muted status-line">{$_('activate.renewalNone')}</p>
+      {/if}
     {:else}
       <p class="text-muted email-line">
         <strong>{$_('activate.emailLabel')}</strong>
@@ -265,6 +364,18 @@
      the negative margin pulls it up into the label's own text instead. */
   .strength-label + .hint {
     margin-top: 6px;
+  }
+
+  .status-line {
+    margin: 12px 0 16px;
+  }
+
+  .renewal-error {
+    margin-top: 12px;
+  }
+
+  .banner-success {
+    margin-top: 12px;
   }
 
   .one-time-note {

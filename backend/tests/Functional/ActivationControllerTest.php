@@ -5,6 +5,9 @@ namespace App\Tests\Functional;
 use App\Entity\ActivationToken;
 use App\Entity\InviteRecord;
 use App\Tests\Support\ApiTestCase;
+use Doctrine\DBAL\Connection;
+use Doctrine\ORM\Events;
+use Symfony\Component\Uid\Uuid;
 
 class ActivationControllerTest extends ApiTestCase
 {
@@ -116,16 +119,18 @@ class ActivationControllerTest extends ApiTestCase
             'publicKey' => str_repeat('b', 44),
             'encryptedPrivateKey' => str_repeat('c', 44),
         ]);
-        self::assertSame(404, $second['status']);
+        // GitHub issue #169: the same state lookup() reports for a used link.
+        self::assertSame(409, $second['status']);
+        self::assertSame('already_activated', $second['json']['code']);
     }
 
-    public function testCompletingASecondValidTokenForAnAlreadyRegisteredEmailReturns404NotA500(): void
+    public function testASecondValidTokenForAnAlreadyRegisteredEmailReadsAsAlreadyActivated(): void
     {
-        // Two still-usable tokens for the same email — e.g. a resent invite, or two
-        // concurrent completions of the same token racing past the isUsable() check
-        // before either commits. Whichever completes second must hit User::$email's
-        // unique constraint and get the same "invalid or expired" outcome as
-        // testATokenCannotBeCompletedTwice, not an uncaught 500.
+        // Two still-usable tokens for the same email — e.g. a resent invite. Once one is
+        // completed, the other reads as already activated (GitHub issue #169), on lookup
+        // and on complete, the same outcome as testATokenCannotBeCompletedTwice. (Two
+        // truly concurrent completions instead hit User::$email's unique constraint in
+        // complete(), which answers the same, not a 500.)
         $client = static::createClient();
         $email = $this->uniqueEmail('activation-race');
         $firstRawToken = $this->issueToken($email);
@@ -143,8 +148,72 @@ class ActivationControllerTest extends ApiTestCase
             'publicKey' => str_repeat('b', 44),
             'encryptedPrivateKey' => str_repeat('c', 44),
         ]);
-        self::assertSame(404, $second['status']);
-        self::assertSame('Invalid or expired activation link.', $second['json']['error']);
+        self::assertSame(409, $second['status']);
+        self::assertSame('already_activated', $second['json']['code']);
+
+        $lookup = $this->jsonRequest($client, 'GET', "/api/activation-tokens/{$secondRawToken}");
+        self::assertSame([409, 'already_activated'], [$lookup['status'], $lookup['json']['code']]);
+    }
+
+    /**
+     * Two truly concurrent completions for one address both pass linkState() before
+     * either commits. Simulated by inserting the competing account right before this
+     * request's flush: the loser hits User::$email's unique constraint and answers 409
+     * already_activated, not a 500.
+     */
+    public function testACompletionThatLosesARaceForTheAddressIsAlreadyActivated(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $email = $this->uniqueEmail('activation-concurrent');
+        $rawToken = $this->issueToken($email);
+        $company = $this->singleCompanyProvider()->get();
+        $connection = $this->entityManager()->getConnection();
+        $listener = new class($connection, $email, $company->getId()) {
+            private bool $done = false;
+
+            public function __construct(private readonly Connection $connection, private readonly string $email, private readonly string $companyId)
+            {
+            }
+
+            public function onFlush(): void
+            {
+                if ($this->done) {
+                    return;
+                }
+                $this->done = true;
+                $this->connection->insert('users', [
+                    'id' => Uuid::v7()->toRfc4122(),
+                    'email' => $this->email,
+                    'authHash' => 'x',
+                    'publicKey' => 'x',
+                    'encryptedPrivateKey' => 'x',
+                    'createdAt' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                    'isAdmin' => 0,
+                    'isBlocked' => 0,
+                    'locale' => 'en',
+                    'meetingRemindersEnabled' => 1,
+                    'isDemo' => 0,
+                    'company_id' => $this->companyId,
+                    'isPlatformAdmin' => 0,
+                    'displayName' => '',
+                ]);
+            }
+        };
+        $this->entityManager()->getEventManager()->addEventListener([Events::onFlush], $listener);
+
+        try {
+            $result = $this->jsonRequest($client, 'POST', "/api/activation-tokens/{$rawToken}/complete", [
+                'authKey' => str_repeat('a', 44),
+                'publicKey' => str_repeat('b', 44),
+                'encryptedPrivateKey' => str_repeat('c', 44),
+            ]);
+        } finally {
+            $this->entityManager()->getEventManager()->removeEventListener([Events::onFlush], $listener);
+        }
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('already_activated', $result['json']['code']);
     }
 
     public function testCompleteIsRateLimitedAfterTooManyAttempts(): void
