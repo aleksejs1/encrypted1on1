@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { renderAnswerMarkdown, renderInlineMarkdown } from './markdown';
+import {
+  renderAnswerMarkdown,
+  renderInlineMarkdown,
+  sanitizeAnswerHtml,
+} from './markdown';
 
 describe('renderAnswerMarkdown', () => {
   it('renders plain text with no markdown syntax unchanged (backward-compat case)', () => {
@@ -29,52 +33,242 @@ describe('renderAnswerMarkdown', () => {
     expect(renderAnswerMarkdown('## Heading')).toContain('<h2>Heading</h2>');
   });
 
-  it('strips h1 down to unwrapped text — reserved for page titles, not answer content', () => {
-    const html = renderAnswerMarkdown('# Big heading');
-    expect(html).not.toContain('<h1');
-    expect(html).toContain('Big heading');
+  it('renders an h1 as h2 — page-title size is reserved for page titles', () => {
+    expect(renderAnswerMarkdown('# Big heading')).toBe(
+      '<h2>Big heading</h2>\n',
+    );
+    // Each heading stays its own block rather than running into the next.
+    expect(renderAnswerMarkdown('# Done\n# Next')).toBe(
+      '<h2>Done</h2>\n<h2>Next</h2>\n',
+    );
+    expect(renderAnswerMarkdown('Summary\n=====')).toBe('<h2>Summary</h2>\n');
+    expect(renderAnswerMarkdown('a\n\n#\n\nb')).toBe('<p>a</p>\n<p>b</p>\n');
+    // Nothing visible: the content without the heading, never an empty heading.
+    expect(renderAnswerMarkdown('a\n\n# \u200b\n\nb')).toBe(
+      '<p>a</p>\n\u200b<p>b</p>\n',
+    );
+    expect(renderAnswerMarkdown('# ` `')).toBe('<code> </code>');
+    // A heading of a link shown as its source keeps that text.
+    expect(renderAnswerMarkdown('# [](https://example.com)')).toBe(
+      '<h2>[](https://example.com)</h2>\n',
+    );
+    expect(renderAnswerMarkdown('[ ](foo)\n===')).toBe('<h2>[ ](foo)</h2>\n');
   });
 
-  it('strips a raw <script> tag', () => {
-    const html = renderAnswerMarkdown('before<script>alert(1)</script>after');
-    expect(html).not.toContain('<script');
-    expect(html).not.toContain('alert(1)');
-  });
-
-  it('strips an <img> tag entirely, even with an onerror handler', () => {
-    const html = renderAnswerMarkdown('<img src="x" onerror="alert(1)">');
-    expect(html).not.toContain('<img');
-    expect(html).not.toContain('onerror');
-  });
-
-  it('strips a style attribute that would trigger an unsolicited network fetch via CSS', () => {
-    // The gap an img-only denylist would have missed: a `style` attribute survives
-    // DOMPurify's own defaults unless explicitly excluded from ALLOWED_ATTR.
-    const html = renderAnswerMarkdown(
+  it('shows raw HTML as inert text: no tag, attribute or style survives', () => {
+    // Raw HTML is escaped before it reaches the sanitizer, so a payload never becomes
+    // an element (the allowlist stays as a second layer behind that).
+    for (const source of [
+      'before<script>alert(1)</script>after',
+      '<img src="x" onerror="alert(1)">',
       '<div style="background-image:url(https://evil.example/pixel.gif)">text</div>',
-    );
-    expect(html).not.toContain('style=');
-    expect(html).not.toContain('evil.example');
-    expect(html).toContain('text');
-  });
-
-  it('strips a disallowed tag (e.g. iframe) and a disallowed attribute (e.g. class)', () => {
-    const html = renderAnswerMarkdown(
       '<iframe src="https://evil.example"></iframe>',
+      '<p class="x" data-foo="bar" aria-label="x" onclick="alert(1)">hi</p>',
+    ]) {
+      const container = document.createElement('div');
+      container.innerHTML = renderAnswerMarkdown(source);
+      expect(container.querySelectorAll('*').length, source).toBe(1);
+      expect(container.querySelector('p')?.attributes.length, source).toBe(0);
+      expect(container.textContent, source).toBe(`${source}\n`);
+    }
+  });
+
+  it('keeps text after a raw-text tag mention, across paragraphs', () => {
+    // DOMPurify drops a <style>/<script>/<textarea> and everything after it.
+    expect(
+      renderAnswerMarkdown(
+        'Moved inline <style> tags into CSS.\n\nSecond paragraph',
+      ),
+    ).toBe(
+      '<p>Moved inline &lt;style&gt; tags into CSS.</p>\n<p>Second paragraph</p>\n',
     );
-    expect(html).not.toContain('<iframe');
-    expect(renderAnswerMarkdown('<p class="x">text</p>')).not.toContain(
-      'class=',
+    expect(renderAnswerMarkdown('We removed <script> tags and more')).toBe(
+      '<p>We removed &lt;script&gt; tags and more</p>\n',
+    );
+    expect(renderAnswerMarkdown('use <textarea> for input, then')).toBe(
+      '<p>use &lt;textarea&gt; for input, then</p>\n',
+    );
+    expect(renderAnswerMarkdown('Wrapped <code> around x<y & more')).toBe(
+      '<p>Wrapped &lt;code&gt; around x&lt;y &amp; more</p>\n',
     );
   });
 
-  it('strips data-* and aria-* attributes, which survive DOMPurify defaults regardless of ALLOWED_ATTR', () => {
-    const html = renderAnswerMarkdown(
-      '<p data-foo="bar" aria-label="x" onclick="alert(1)">hi</p>',
+  it('keeps line breaks after a line that starts with a tag', () => {
+    // As an HTML block, the <script> line would swallow the rest of the answer.
+    expect(
+      renderAnswerMarkdown('<script> line start\nsecond line\n\nthird'),
+    ).toBe('<p>&lt;script&gt; line start<br>second line</p>\n<p>third</p>\n');
+  });
+
+  it('starts a new paragraph at a later line that starts with a tag', () => {
+    // marked's paragraph rule; accepted, no text is lost.
+    expect(renderAnswerMarkdown('first\n<div> second')).toBe(
+      '<p>first</p>\n<p>&lt;div&gt; second</p>\n',
     );
-    expect(html).not.toContain('data-foo');
-    expect(html).not.toContain('aria-label');
-    expect(html).not.toContain('onclick');
+  });
+
+  it('shows typed inline HTML as source, inside Markdown structure too', () => {
+    expect(renderAnswerMarkdown('a <strong>x</strong> <br class="y">')).toBe(
+      '<p>a &lt;strong&gt;x&lt;/strong&gt; &lt;br class="y"&gt;</p>\n',
+    );
+    expect(renderAnswerMarkdown('- one **b**\n- two <i>')).toBe(
+      '<ul>\n<li>one <strong>b</strong></li>\n<li>two &lt;i&gt;</li>\n</ul>\n',
+    );
+    expect(renderAnswerMarkdown('| a |\n|---|\n| <x> |')).toContain(
+      '<td>&lt;x&gt;</td>',
+    );
+    expect(renderAnswerMarkdown('```\n<b>&amp;\n```')).toBe(
+      '<pre><code>&lt;b&gt;&amp;amp;\n</code></pre>\n',
+    );
+  });
+
+  it('shows entity-like text as typed', () => {
+    expect(renderAnswerMarkdown('R&D notes&notes; &amp; a&#8203;b')).toBe(
+      '<p>R&amp;D notes&amp;notes; &amp;amp; a&amp;#8203;b</p>\n',
+    );
+  });
+
+  it('shows a Markdown image as its source text, never fetching it', () => {
+    expect(renderAnswerMarkdown('![x](https://evil.example/p.gif)')).toBe(
+      '<p>![x](https://evil.example/p.gif)</p>\n',
+    );
+  });
+
+  it('strikes through only a double-tilde pair', () => {
+    expect(renderAnswerMarkdown('~~gone~~ took ~2h~3h')).toBe(
+      '<p><del>gone</del> took ~2h~3h</p>\n',
+    );
+  });
+
+  it('shows a link that is not http(s) or mailto as its source', () => {
+    for (const target of [
+      '/account',
+      '#top',
+      'example.com',
+      '//example.com',
+      'javascript:alert(1)',
+      'tel:1',
+    ]) {
+      expect(renderAnswerMarkdown(`[**x**](${target}) y`), target).toBe(
+        `<p>[**x**](${target}) y</p>\n`,
+      );
+    }
+    expect(renderAnswerMarkdown('[mail](mailto:a@example.com)')).toContain(
+      '<a href="mailto:a@example.com"',
+    );
+  });
+
+  it('shows a link with no visible text as its Markdown source', () => {
+    for (const source of [
+      '[](https://example.com)',
+      '[ ](https://example.com)',
+      '[\u200b](https://example.com)',
+    ]) {
+      expect(renderAnswerMarkdown(source), source).toBe(`<p>${source}</p>\n`);
+    }
+  });
+
+  it('has an allowlist that drops payload tags and attributes on its own', () => {
+    // The renderer escapes raw HTML before it gets here; this guards the second layer.
+    const container = document.createElement('div');
+    container.innerHTML = sanitizeAnswerHtml(
+      '<script>alert(1)</script><img src="x" onerror="alert(1)">' +
+        '<iframe src="https://evil.example"></iframe>' +
+        '<p style="background:url(https://evil.example/p.gif)" class="x" data-foo="1" ' +
+        'aria-label="x" onclick="alert(1)">hi</p><h1>t</h1>',
+    );
+    expect(container.innerHTML).toBe('<p>hi</p>t');
+  });
+
+  it('keeps the allowlist as a second layer for what the renderer emits', () => {
+    // Raw HTML never reaches DOMPurify, but marked's own output does: a table's
+    // align attribute is the part of it the allowlist removes (an h1 is covered by
+    // the direct test above).
+    expect(renderAnswerMarkdown('| a |\n|:--|\n| b |')).not.toContain('align');
+    expect(renderAnswerMarkdown('| a |\n|:--|\n| b |')).toContain('<th>a</th>');
+  });
+
+  it('keeps bare URLs linked after a typed, unclosed <a> tag', () => {
+    expect(
+      renderAnswerMarkdown('Wrap it in <a href="#">\n\nSee https://z.com'),
+    ).toContain('<a href="https://z.com"');
+  });
+
+  it('shows a line shaped like a link reference definition as typed', () => {
+    expect(renderAnswerMarkdown('see [x][y]\n\n[y]: /account')).toBe(
+      '<p>see [x][y]</p>\n<p>[y]: /account</p>\n',
+    );
+  });
+
+  it('keeps a typed <br> as a line break, the only way to get one in a table cell', () => {
+    expect(renderAnswerMarkdown('a<br>b<BR/>c')).toBe('<p>a<br>b<br>c</p>\n');
+    expect(
+      renderAnswerMarkdown('| Q3 |\n|---|\n| shipped<br>docs pending |'),
+    ).toContain('<td>shipped<br>docs pending</td>');
+    // A <br> shows nothing, so a link or heading of only that is blank.
+    expect(renderAnswerMarkdown('[<br>](https://example.com)')).toBe(
+      '<p>[&lt;br&gt;](https://example.com)</p>\n',
+    );
+    expect(renderAnswerMarkdown('[**<br/>**](https://example.com)')).toBe(
+      '<p>[**&lt;br/&gt;**](https://example.com)</p>\n',
+    );
+    expect(renderAnswerMarkdown('a\n\n# <br>\n\nb')).toBe(
+      '<p>a</p>\n<br><p>b</p>\n',
+    );
+    // List entries have no line breaks: there it shows as typed.
+    expect(renderInlineMarkdown('a<br>b')).toBe('a&lt;br&gt;b');
+  });
+
+  it('keeps line breaks inside text shown as source', () => {
+    expect(renderAnswerMarkdown('a <!--\nhidden\n-->\nb')).toBe(
+      '<p>a &lt;!--<br>hidden<br>--&gt;<br>b</p>\n',
+    );
+    expect(renderAnswerMarkdown('[a\nb](/x) ![c\nd](y)')).toBe(
+      '<p>[a<br>b](/x) ![c<br>d](y)</p>\n',
+    );
+  });
+
+  it('links a label that is only an image, shown as its source', () => {
+    expect(
+      renderInlineMarkdown('[![](https://x.example/p.png)](https://e.example)'),
+    ).toBe(
+      '<a href="https://e.example" rel="noopener noreferrer" target="_blank">![](https://x.example/p.png)</a>',
+    );
+    expect(
+      renderAnswerMarkdown('[![](https://x.example/p.png)](https://e.example)'),
+    ).toBe(
+      '<p><a href="https://e.example" rel="noopener noreferrer" target="_blank">![](https://x.example/p.png)</a></p>\n',
+    );
+  });
+
+  it('links a label that only looks like an autolink, shown as text', () => {
+    expect(renderAnswerMarkdown('[<xsl:template>](https://docs.example)')).toBe(
+      '<p><a href="https://docs.example" rel="noopener noreferrer" target="_blank">&lt;xsl:template&gt;</a></p>\n',
+    );
+  });
+
+  it('shows a link holding a link of its own as source', () => {
+    expect(
+      renderAnswerMarkdown('[<https://evil.example>](https://good.example)'),
+    ).toBe('<p>[&lt;https://evil.example&gt;](https://good.example)</p>\n');
+    expect(
+      renderInlineMarkdown('[<https://evil.example>](https://good.example)'),
+    ).toBe('[&lt;https://evil.example&gt;](https://good.example)');
+  });
+
+  it("keeps an ordered list's typed first number", () => {
+    expect(renderAnswerMarkdown('3. third\n4. fourth')).toBe(
+      '<ol start="3">\n<li>third</li>\n<li>fourth</li>\n</ol>\n',
+    );
+  });
+
+  it('shows a task-list box as typed instead of dropping it', () => {
+    expect(renderAnswerMarkdown('- [x] shipped\n- [ ] docs')).toBe(
+      '<ul>\n<li>[x] shipped</li>\n<li>[ ] docs</li>\n</ul>\n',
+    );
+    expect(renderAnswerMarkdown('- [x] loose\n\n- [ ] two')).toContain(
+      '<li><p>[x] loose</p>',
+    );
   });
 
   it('forces rel and target on every link regardless of markdown source', () => {
@@ -187,6 +381,12 @@ describe('renderInlineMarkdown', () => {
     expect(linked).toContain('href="https://example.com"');
   });
 
+  it('keeps bare URLs linked after a typed, unclosed <a> tag', () => {
+    expect(
+      renderInlineMarkdown('Wrap <a href="#"> then https://z.com'),
+    ).toContain(' then <a href="https://z.com"');
+  });
+
   it('strikes through only a double-tilde pair', () => {
     expect(renderInlineMarkdown('~~gone~~ ok')).toBe('<del>gone</del> ok');
     expect(renderInlineMarkdown('took ~2h~3h, not ~4h~')).toBe(
@@ -194,7 +394,7 @@ describe('renderInlineMarkdown', () => {
     );
   });
 
-  it('turns a link that is not http(s) or mailto into its text', () => {
+  it('shows a link that is not http(s) or mailto as its source', () => {
     for (const target of [
       '/account',
       '#top',
@@ -206,7 +406,7 @@ describe('renderInlineMarkdown', () => {
       '//example.com',
     ]) {
       expect(renderInlineMarkdown(`[**x**](${target}) y`), target).toBe(
-        '<strong>x</strong> y',
+        `[**x**](${target}) y`,
       );
     }
   });
@@ -314,9 +514,9 @@ describe('renderInlineMarkdown', () => {
     expect(renderInlineMarkdown('a\\\nb')).toBe('a b');
   });
 
-  it('drops a javascript: link target', () => {
-    const html = renderInlineMarkdown('[x](javascript:alert(1))');
-    expect(html).not.toContain('javascript:');
-    expect(html).toContain('x');
+  it('never links a javascript: target', () => {
+    expect(renderInlineMarkdown('[x](javascript:alert(1))')).toBe(
+      '[x](javascript:alert(1))',
+    );
   });
 });
