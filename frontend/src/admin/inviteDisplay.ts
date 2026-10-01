@@ -22,6 +22,8 @@ export interface Invite {
   createdAt: string;
   expiresAt: string;
   acceptedAt: string | null;
+  /** When the invitee asked for a new invite from the expired link (GitHub issue #169). */
+  renewalRequestedAt: string | null;
   status: 'pending' | 'accepted' | 'expired';
 }
 

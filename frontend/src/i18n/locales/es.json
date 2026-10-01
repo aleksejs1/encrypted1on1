@@ -162,7 +162,21 @@
       "good": "Buena",
       "strong": "Fuerte"
     },
-    "genericError": "Algo salió mal."
+    "genericError": "Algo salió mal.",
+    "invalidLink": "Este enlace no es válido. Si te invitaron, pide una nueva invitación al administrador de tu empresa.",
+    "alreadyActive": "Tu cuenta ya está activa. Inicia sesión con tu correo y contraseña.",
+    "logIn": "Iniciar sesión",
+    "expired": "Este enlace de activación ha caducado.",
+    "renewalAvailable": "Puedes pedir uno nuevo.",
+    "renewalRequest": "Solicitar nueva invitación",
+    "renewalSending": "Enviando solicitud…",
+    "renewalRequested": "Solicitud enviada. Recibirás una nueva invitación por correo cuando te la envíen.",
+    "renewalReissued": "Ya se te ha enviado una invitación más reciente. Usa el enlace del último correo de invitación.",
+    "renewalSignup": "Regístrate de nuevo para recibir un enlace nuevo.",
+    "signUpAgain": "Registrarse de nuevo",
+    "renewalCreateCompany": "Si estabas creando una empresa nueva, vuelve a empezar para recibir un enlace nuevo. Si no, pide uno nuevo a quien configuró esta cuenta.",
+    "createCompanyAgain": "Crear la empresa de nuevo",
+    "renewalNone": "Pide un enlace nuevo al administrador de tu empresa."
   },
   "anketaList": {
     "title": "Cuestionarios",
@@ -544,7 +558,14 @@
       "expired": "Caducada"
     },
     "senderSelfRegistered": "Autorregistro",
-    "senderDeleted": "Cuenta del remitente eliminada"
+    "senderDeleted": "Cuenta del remitente eliminada",
+    "actionsHeader": "Acciones",
+    "renewalRequested": "Renovación solicitada el {date}",
+    "resend": "Reenviar invitación",
+    "resendTo": "Reenviar invitación a {email}",
+    "resending": "Enviando…",
+    "resent": "Nueva invitación enviada a {email}.",
+    "resendError": "No se pudo enviar la invitación."
   },
   "adminReports": {
     "title": "Informes",

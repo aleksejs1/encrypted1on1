@@ -49,6 +49,11 @@
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
 
+  // `?invite=<email>`: the link in an "asked for a new invitation" email (GitHub
+  // issue #169) fills in the invite form below.
+  const inviteEmailFromUrl =
+    new URLSearchParams(window.location.search).get('invite') ?? '';
+
   // Cancels the mount-time fetch below on unmount — see GitHub issue #95.
   const readAbort = abortOnDestroy();
 
@@ -600,7 +605,7 @@
     </div>
 
     {#if showInvite}
-      <InviteForm />
+      <InviteForm initialEmail={inviteEmailFromUrl} />
     {/if}
 
     <div class="card elev-md">

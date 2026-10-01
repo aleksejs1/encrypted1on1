@@ -360,6 +360,15 @@ class User
     }
 
     /**
+     * The placeholder address delete() (and InviteRecord::scrubEmail()) writes over a real
+     * one, unique per row, at a reserved TLD that can never receive mail.
+     */
+    public static function scrubbedEmailFor(string $id): string
+    {
+        return sprintf('deleted-%s@deleted.invalid', $id);
+    }
+
+    /**
      * Self-service account deletion (AuthController::deleteAccount()) — anonymizes this
      * row in place rather than removing it (see $deletedAt's docblock for why). Scrubs
      * every identifying/sensitive field: email (rewritten to a non-identifying,
@@ -378,7 +387,7 @@ class User
      */
     public function delete(): void
     {
-        $this->email = sprintf('deleted-%s@deleted.invalid', $this->id);
+        $this->email = self::scrubbedEmailFor($this->id);
         $this->displayName = '';
         $this->authHash = bin2hex(random_bytes(32));
         $this->encryptedPrivateKey = '';

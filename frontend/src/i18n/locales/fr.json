@@ -162,7 +162,21 @@
       "good": "Bon",
       "strong": "Fort"
     },
-    "genericError": "Une erreur s'est produite."
+    "genericError": "Une erreur s'est produite.",
+    "invalidLink": "Ce lien n'est pas valide. Si vous avez été invité, demandez une nouvelle invitation à l'administrateur de votre entreprise.",
+    "alreadyActive": "Votre compte est déjà actif. Connectez-vous avec votre e-mail et votre mot de passe.",
+    "logIn": "Se connecter",
+    "expired": "Ce lien d'activation a expiré.",
+    "renewalAvailable": "Vous pouvez en demander un nouveau.",
+    "renewalRequest": "Demander une nouvelle invitation",
+    "renewalSending": "Envoi de la demande…",
+    "renewalRequested": "Demande envoyée. Une nouvelle invitation arrivera par e-mail dès qu'elle vous sera envoyée.",
+    "renewalReissued": "Une invitation plus récente vous a déjà été envoyée. Utilisez le lien du dernier e-mail d'invitation.",
+    "renewalSignup": "Inscrivez-vous à nouveau pour recevoir un nouveau lien.",
+    "signUpAgain": "S'inscrire à nouveau",
+    "renewalCreateCompany": "Si vous étiez en train de créer une entreprise, recommencez pour recevoir un nouveau lien. Sinon, demandez-en un nouveau à la personne qui a configuré ce compte.",
+    "createCompanyAgain": "Recréer l'entreprise",
+    "renewalNone": "Demandez un nouveau lien à l'administrateur de votre entreprise."
   },
   "anketaList": {
     "title": "Anketas",
@@ -557,7 +571,14 @@
       "expired": "Expirée"
     },
     "senderSelfRegistered": "Auto-inscrit",
-    "senderDeleted": "Compte de l'expéditeur supprimé"
+    "senderDeleted": "Compte de l'expéditeur supprimé",
+    "actionsHeader": "Actions",
+    "renewalRequested": "Renouvellement demandé le {date}",
+    "resend": "Renvoyer l'invitation",
+    "resendTo": "Renvoyer l'invitation à {email}",
+    "resending": "Envoi…",
+    "resent": "Nouvelle invitation envoyée à {email}.",
+    "resendError": "Impossible d'envoyer l'invitation."
   },
   "adminReports": {
     "title": "Rapports",

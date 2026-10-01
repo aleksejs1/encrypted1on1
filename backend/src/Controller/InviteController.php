@@ -8,7 +8,9 @@ use App\Entity\ActivationToken;
 use App\Entity\InviteRecord;
 use App\Entity\User;
 use App\Http\RateLimitResponse;
+use App\Invite\InviteRenewal;
 use App\Notification\InvitationNotifier;
+use App\Repository\InviteRecordRepository;
 use App\Security\AuthSession;
 use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
@@ -40,6 +42,8 @@ class InviteController
         private readonly InvitationNotifier $notifier,
         private readonly TranslatorInterface $translator,
         private readonly SeatLimitChecker $seatLimitChecker,
+        private readonly InviteRecordRepository $inviteRecordRepository,
+        private readonly InviteRenewal $inviteRenewal,
         #[Autowire(service: 'limiter.invite')]
         private readonly RateLimiterFactory $inviteLimiter,
     ) {
@@ -130,24 +134,31 @@ class InviteController
 
         $this->authSession->closeForReading($request);
 
-        // Fetch-joins invitedBy — toPayload() below reads getDeletedAt()/getDisplayName()/
-        // getEmail() on it for every row, which would otherwise be an N+1 lazy-load per
-        // invite (same "batch, not per-row" discipline AnketaController::bulk() and this
-        // file's own PlatformAdminController sibling already follow).
-        /** @var InviteRecord[] $inviteRecords */
-        $inviteRecords = $this->entityManager->createQueryBuilder()
-            ->select('i', 'invitedBy')
-            ->from(InviteRecord::class, 'i')
-            ->leftJoin('i.invitedBy', 'invitedBy')
-            ->where('i.company = :company')
-            ->orderBy('i.createdAt', 'DESC')
-            ->setParameter('company', $admin->getCompany())
-            ->getQuery()
-            ->getResult();
+        $inviteRecords = $this->inviteRecordRepository->findForCompanyNewestFirst($admin->getCompany());
 
         $now = new \DateTimeImmutable();
 
-        return new JsonResponse(array_map(fn (InviteRecord $inviteRecord) => self::toPayload($inviteRecord, $now), $inviteRecords));
+        // `resendable` (GitHub issue #169): each address's newest invite (the first one
+        // here, in InviteRecordRepository's order), when it expired unused and its address
+        // wasn't scrubbed by an account deletion, and the expired link itself would offer
+        // a renewal (InviteRenewal, the same rule the activation page uses). An older row
+        // is superseded by the newer one above it.
+        $newestExpired = [];
+        $seenEmails = [];
+        foreach ($inviteRecords as $inviteRecord) {
+            if (!isset($seenEmails[$inviteRecord->getEmail()]) && 'expired' === $inviteRecord->status($now) && !$inviteRecord->isScrubbed()) {
+                $newestExpired[] = $inviteRecord;
+            }
+            $seenEmails[$inviteRecord->getEmail()] = true;
+        }
+        $resendable = $this->inviteRenewal->resendableAmong($newestExpired, $admin->getCompany(), $now);
+
+        $payloads = array_map(fn (InviteRecord $inviteRecord) => [
+            ...self::toPayload($inviteRecord, $now),
+            'resendable' => isset($resendable[$inviteRecord->getId()]),
+        ], $inviteRecords);
+
+        return new JsonResponse($payloads);
     }
 
     /**
@@ -156,7 +167,7 @@ class InviteController
      * extraction bar" precedent AdminController/PlatformAdminController's own
      * near-identical listUsers() mappings already established.
      *
-     * @return array{id: string, email: string, invitedBy: array{name: string, email: string}|array{deleted: true}|null, createdAt: string, expiresAt: string, acceptedAt: string|null, status: string}
+     * @return array{id: string, email: string, invitedBy: array{name: string, email: string}|array{deleted: true}|null, createdAt: string, expiresAt: string, acceptedAt: string|null, renewalRequestedAt: string|null, status: string}
      */
     public static function toPayload(InviteRecord $inviteRecord, \DateTimeImmutable $now): array
     {
@@ -174,6 +185,7 @@ class InviteController
             'createdAt' => $inviteRecord->getCreatedAt()->format(\DATE_ATOM),
             'expiresAt' => $inviteRecord->getExpiresAt()->format(\DATE_ATOM),
             'acceptedAt' => $inviteRecord->getAcceptedAt()?->format(\DATE_ATOM),
+            'renewalRequestedAt' => $inviteRecord->getRenewalRequestedAt()?->format(\DATE_ATOM),
             'status' => $inviteRecord->status($now),
         ];
     }

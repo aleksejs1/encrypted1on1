@@ -6,7 +6,8 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
  * Named limiters (three from Phase 7f, two more for password reset, one more for
  * the in-app change-password flow, one more for account deletion, one more for
  * REGISTRATION_MODE=domain self-signup, one more for Phase B's cloud-mode
- * self-service company creation, one more for company template saves) — see
+ * self-service company creation, one more for company template saves, one more for
+ * invite-renewal requests on expired activation links) — see
  * docs/history.md for why the original three endpoints specifically, and why
  * neither GET /api/activation-tokens/{token} nor
  * GET /api/password-reset-tokens/{token} is limited (read-only, side-effect-free,
@@ -81,6 +82,16 @@ return static function (ContainerConfigurator $container): void {
                 'policy' => 'sliding_window',
                 'limit' => '%env(int:TEMPLATE_SAVE_RATE_LIMIT)%',
                 'interval' => '%env(TEMPLATE_SAVE_RATE_LIMIT_INTERVAL)%',
+            ],
+            // "Request new invitation" on an expired activation link (GitHub issue
+            // #169), IP-keyed: the caller has no account. The per-address 24h cooldown
+            // (InviteRecord::RENEWAL_COOLDOWN_HOURS) is what keeps the inviter from
+            // repeated emails; this only caps one client working through many links. 30,
+            // not 5: a Monday morning of new hires behind one office NAT shares it.
+            'invite_renewal_request' => [
+                'policy' => 'sliding_window',
+                'limit' => '%env(int:INVITE_RENEWAL_REQUEST_RATE_LIMIT)%',
+                'interval' => '%env(INVITE_RENEWAL_REQUEST_RATE_LIMIT_INTERVAL)%',
             ],
         ],
     ]);

@@ -2,7 +2,12 @@
   import { _ } from 'svelte-i18n';
   import { apiPost, ApiError } from '../api/client';
 
-  let email = $state('');
+  // Prefilled from the "requested a new invitation" email's link (GitHub
+  // issue #169), so re-inviting is one click on Send.
+  const { initialEmail = '' }: { initialEmail?: string } = $props();
+
+  // svelte-ignore state_referenced_locally
+  let email = $state(initialEmail);
   let submitting = $state(false);
   let error = $state<string | null>(null);
   let sent = $state(false);

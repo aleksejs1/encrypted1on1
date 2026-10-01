@@ -162,7 +162,21 @@
       "good": "Good",
       "strong": "Strong"
     },
-    "genericError": "Something went wrong."
+    "genericError": "Something went wrong.",
+    "invalidLink": "This link isn't valid. If you were invited, ask your company administrator for a new invitation.",
+    "alreadyActive": "Your account is already active. Log in with your email and password.",
+    "logIn": "Log in",
+    "expired": "This activation link has expired.",
+    "renewalAvailable": "You can ask for a new one.",
+    "renewalRequest": "Request new invitation",
+    "renewalSending": "Sending request…",
+    "renewalRequested": "Request sent. A new invitation will arrive by email once it's sent to you.",
+    "renewalReissued": "A newer invitation has already been sent to you. Use the link in the most recent invitation email.",
+    "renewalSignup": "Sign up again to get a new link.",
+    "signUpAgain": "Sign up again",
+    "renewalCreateCompany": "If you were creating a new company, start again to get a new link. Otherwise, ask whoever set up this account for a new one.",
+    "createCompanyAgain": "Create company again",
+    "renewalNone": "Ask your company administrator for a new link."
   },
   "anketaList": {
     "title": "Anketas",
@@ -540,7 +554,14 @@
       "expired": "Expired"
     },
     "senderSelfRegistered": "Self-registered",
-    "senderDeleted": "Sender account deleted"
+    "senderDeleted": "Sender account deleted",
+    "actionsHeader": "Actions",
+    "renewalRequested": "Renewal requested {date}",
+    "resend": "Re-send invite",
+    "resendTo": "Re-send invite to {email}",
+    "resending": "Sending…",
+    "resent": "New invitation sent to {email}.",
+    "resendError": "Could not send the invitation."
   },
   "adminReports": {
     "title": "Reports",

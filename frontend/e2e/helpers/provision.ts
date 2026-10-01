@@ -87,3 +87,46 @@ export function createPasswordResetLink(email: string): string {
   }
   return match[1];
 }
+
+function runSql(sql: string): void {
+  execFileSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      COMPOSE_FILE,
+      'exec',
+      '-T',
+      'backend',
+      'php',
+      'bin/console',
+      'dbal:run-sql',
+      sql,
+      '--no-ansi',
+    ],
+    { encoding: 'utf-8' },
+  );
+}
+
+function sqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+/**
+ * GitHub issue #169: turns the token createActivationLink() issued for
+ * `email` into an expired invite from `inviterEmail` — the InviteRecord
+ * InviteController::create() would have written, and an expiry an hour ago.
+ * Done in SQL because an invite sent through the UI only ever reaches the
+ * invitee by email, which the e2e stack doesn't deliver.
+ */
+export function expireAsInvite(email: string, inviterEmail: string): void {
+  runSql(
+    `UPDATE activation_tokens SET expiresAt = datetime('now', '-1 hour') WHERE email = ${sqlString(email)}`,
+  );
+  runSql(
+    'INSERT INTO invite_records (id, email, createdAt, expiresAt, company_id, invitedBy_id)' +
+      ` SELECT t.id, t.email, datetime('now', '-25 hours'), t.expiresAt, t.company_id, u.id` +
+      ` FROM activation_tokens t JOIN users u ON u.email = ${sqlString(inviterEmail)}` +
+      ` WHERE t.email = ${sqlString(email)}`,
+  );
+}

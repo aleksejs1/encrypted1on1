@@ -162,7 +162,21 @@
       "good": "Laba",
       "strong": "Stipra"
     },
-    "genericError": "Kaut kas nogāja greizi."
+    "genericError": "Kaut kas nogāja greizi.",
+    "invalidLink": "Šī saite nav derīga. Ja jūs uzaicināja, lūdziet uzņēmuma administratoram jaunu ielūgumu.",
+    "alreadyActive": "Jūsu konts jau ir aktivizēts. Piesakieties ar savu e-pastu un paroli.",
+    "logIn": "Pieteikties",
+    "expired": "Aktivizācijas saitei ir beidzies derīguma termiņš.",
+    "renewalAvailable": "Varat pieprasīt jaunu.",
+    "renewalRequest": "Pieprasīt jaunu ielūgumu",
+    "renewalSending": "Sūta pieprasījumu…",
+    "renewalRequested": "Pieprasījums nosūtīts. Jaunais ielūgums pienāks e-pastā, tiklīdz tas tiks nosūtīts.",
+    "renewalReissued": "Jums jau ir nosūtīts jaunāks ielūgums. Izmantojiet saiti no pēdējā ielūguma e-pasta.",
+    "renewalSignup": "Reģistrējieties vēlreiz, lai saņemtu jaunu saiti.",
+    "signUpAgain": "Reģistrēties vēlreiz",
+    "renewalCreateCompany": "Ja veidojāt jaunu uzņēmumu, sāciet no jauna, lai saņemtu jaunu saiti. Citādi lūdziet jaunu tam, kurš jums izveidoja šo kontu.",
+    "createCompanyAgain": "Izveidot uzņēmumu vēlreiz",
+    "renewalNone": "Lūdziet jaunu saiti uzņēmuma administratoram."
   },
   "anketaList": {
     "title": "Anketas",
@@ -542,7 +556,14 @@
       "expired": "Beidzies"
     },
     "senderSelfRegistered": "Pašreģistrācija",
-    "senderDeleted": "Nosūtītāja konts dzēsts"
+    "senderDeleted": "Nosūtītāja konts dzēsts",
+    "actionsHeader": "Darbības",
+    "renewalRequested": "Pieprasīts jauns {date}",
+    "resend": "Sūtīt vēlreiz",
+    "resendTo": "Sūtīt ielūgumu vēlreiz uz {email}",
+    "resending": "Sūta…",
+    "resent": "Jauns ielūgums nosūtīts uz {email}.",
+    "resendError": "Ielūgumu neizdevās nosūtīt."
   },
   "adminReports": {
     "title": "Pārskati",

@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Account\AccountDeleter;
 use App\Doctrine\CompanyFilter;
+use App\Entity\ActivationToken;
 use App\Entity\Anketa;
 use App\Entity\AnketaPrivateNote;
 use App\Entity\Company;
@@ -207,6 +208,50 @@ class AccountDeleterTest extends ApiTestCase
                 'DELETE FROM companies WHERE id = ?',
                 [$otherCompany->getId()],
             );
+        }
+    }
+
+    /**
+     * GitHub issue #169: activation tokens now outlive their expiry by two weeks, so the
+     * deleted user's own used token and any expired one for their address go too.
+     * Same scoping as the invite records above: a still-usable token and another
+     * company's token stay.
+     */
+    public function testDeleteRemovesUsedAndExpiredActivationTokensWithinCompanyOnly(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('deleter-tokens');
+        $userData = $this->activateUser($client, $email);
+
+        $em = $this->entityManager();
+        $user = $em->find(User::class, $userData['id']);
+        \assert($user instanceof User);
+        $company = $user->getCompany();
+        $otherCompany = new Company('Other Token Co');
+        $em->persist($otherCompany);
+
+        $hashes = ['expired' => bin2hex(random_bytes(32)), 'pending' => bin2hex(random_bytes(32)), 'other' => bin2hex(random_bytes(32))];
+        $em->persist(new ActivationToken($hashes['expired'], $email, $company, false, new \DateTimeImmutable('-1 hour')));
+        $em->persist(new ActivationToken($hashes['pending'], $email, $company, false, new \DateTimeImmutable('+1 day')));
+        $em->persist(new ActivationToken($hashes['other'], $email, $otherCompany, false, new \DateTimeImmutable('-1 hour')));
+        $em->flush();
+
+        try {
+            $this->accountDeleter()->delete($user);
+            $em->flush();
+            $em->clear();
+            if ($em->getFilters()->isEnabled(CompanyFilter::NAME)) {
+                $em->getFilters()->disable(CompanyFilter::NAME);
+            }
+
+            $repository = $em->getRepository(ActivationToken::class);
+            self::assertNull($repository->findOneBy(['tokenHash' => $hashes['expired']]), 'an expired token for the address must go');
+            self::assertSame([], array_filter($repository->findBy(['email' => $email, 'company' => $company]), fn (ActivationToken $token) => $token->isUsed()), 'the used token that created the account must go');
+            self::assertNotNull($repository->findOneBy(['tokenHash' => $hashes['pending']]), 'a still-usable token must stay');
+            self::assertNotNull($repository->findOneBy(['tokenHash' => $hashes['other']]), 'another company\'s token must stay');
+        } finally {
+            $em->getConnection()->executeStatement('DELETE FROM activation_tokens WHERE company_id = ?', [$otherCompany->getId()]);
+            $em->getConnection()->executeStatement('DELETE FROM companies WHERE id = ?', [$otherCompany->getId()]);
         }
     }
 

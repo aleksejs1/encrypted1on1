@@ -5,6 +5,7 @@ namespace App\Account;
 use App\Entity\Anketa;
 use App\Entity\InviteRecord;
 use App\Entity\User;
+use App\Repository\ActivationTokenRepository;
 use App\Repository\AnketaPrivateNoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -25,6 +26,7 @@ final class AccountDeleter
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AnketaPrivateNoteRepository $privateNoteRepository,
+        private readonly ActivationTokenRepository $activationTokenRepository,
     ) {
     }
 
@@ -99,6 +101,16 @@ final class AccountDeleter
 
         foreach ($inviteRecords as $inviteRecord) {
             $inviteRecord->scrubEmail();
+        }
+
+        // Same email, same scoping and the same pending-row exception, for the
+        // ActivationToken rows app:cleanup-expired-tokens now keeps for
+        // ActivationToken::RETENTION_DAYS_AFTER_EXPIRY days past expiry (GitHub issue
+        // #169). Deleted rather than scrubbed: an old link then reads as unknown, not
+        // as "already activated" for an account that no longer exists. remove(), like the
+        // private notes above, so it lands in the same flush as the anonymization.
+        foreach ($this->activationTokenRepository->findSpentFor($originalEmail, $user->getCompany(), $now) as $activationToken) {
+            $this->entityManager->remove($activationToken);
         }
 
         $user->delete();

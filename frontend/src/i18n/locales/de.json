@@ -162,7 +162,21 @@
       "good": "Gut",
       "strong": "Stark"
     },
-    "genericError": "Etwas ist schiefgelaufen."
+    "genericError": "Etwas ist schiefgelaufen.",
+    "invalidLink": "Dieser Link ist ungültig. Wenn Sie eingeladen wurden, bitten Sie den Administrator Ihres Unternehmens um eine neue Einladung.",
+    "alreadyActive": "Ihr Konto ist bereits aktiv. Melden Sie sich mit Ihrer E-Mail-Adresse und Ihrem Passwort an.",
+    "logIn": "Anmelden",
+    "expired": "Dieser Aktivierungslink ist abgelaufen.",
+    "renewalAvailable": "Sie können einen neuen anfordern.",
+    "renewalRequest": "Neue Einladung anfordern",
+    "renewalSending": "Anfrage wird gesendet…",
+    "renewalRequested": "Anfrage gesendet. Eine neue Einladung kommt per E-Mail, sobald sie Ihnen gesendet wird.",
+    "renewalReissued": "Ihnen wurde bereits eine neuere Einladung gesendet. Verwenden Sie den Link aus der neuesten Einladungs-E-Mail.",
+    "renewalSignup": "Registrieren Sie sich erneut, um einen neuen Link zu erhalten.",
+    "signUpAgain": "Erneut registrieren",
+    "renewalCreateCompany": "Wenn Sie ein neues Unternehmen angelegt haben, beginnen Sie erneut, um einen neuen Link zu erhalten. Andernfalls bitten Sie die Person, die dieses Konto eingerichtet hat, um einen neuen.",
+    "createCompanyAgain": "Unternehmen erneut anlegen",
+    "renewalNone": "Bitten Sie den Administrator Ihres Unternehmens um einen neuen Link."
   },
   "anketaList": {
     "title": "Anketas",
@@ -548,7 +562,14 @@
       "expired": "Abgelaufen"
     },
     "senderSelfRegistered": "Selbst registriert",
-    "senderDeleted": "Konto des Absenders gelöscht"
+    "senderDeleted": "Konto des Absenders gelöscht",
+    "actionsHeader": "Aktionen",
+    "renewalRequested": "Neue Einladung angefordert am {date}",
+    "resend": "Erneut einladen",
+    "resendTo": "Einladung erneut an {email} senden",
+    "resending": "Wird gesendet…",
+    "resent": "Neue Einladung an {email} gesendet.",
+    "resendError": "Die Einladung konnte nicht gesendet werden."
   },
   "adminReports": {
     "title": "Berichte",

@@ -74,6 +74,7 @@ Each named limiter (`config/packages/rate_limiter.php`) reads its request count 
 | `signup` | `REGISTRATION_MODE=domain` self-signup | `SIGNUP_RATE_LIMIT` / `SIGNUP_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
 | `create_company` | `CLOUD_MODE=1` self-service company creation | `CREATE_COMPANY_RATE_LIMIT` / `CREATE_COMPANY_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
 | `template_save` | A company admin creating or editing a company template (per admin); only saves that get as far as writing a new version count (a save rejected as invalid or unchanged doesn't) | `TEMPLATE_SAVE_RATE_LIMIT` / `TEMPLATE_SAVE_RATE_LIMIT_INTERVAL` | 60 / 1 hour |
+| `invite_renewal_request` | `POST /api/activation-tokens/{token}/request-renewal` ("Request new invitation" on an expired link) — IP-keyed, so set high enough for a whole office of new hires behind one address; each invitee address also has its own 24-hour cooldown | `INVITE_RENEWAL_REQUEST_RATE_LIMIT` / `INVITE_RENEWAL_REQUEST_RATE_LIMIT_INTERVAL` | 30 / 1 hour |
 
 ### Frontend build-time (baked into the static bundle)
 
@@ -304,7 +305,7 @@ If a run reports failed anketas (exit code 1; an SMTP outage counts), rerun it t
 
 ### Token cleanup
 
-`app:cleanup-expired-tokens` deletes `ActivationToken`/`PasswordResetToken` rows whose TTL has passed (24h/2h respectively — see each entity's own `TOKEN_TTL_HOURS`), used or not, and separately prunes `InviteRecord` rows (the admin-facing invite-history table, `GET /api/admin/invites`/`GET /api/platform-admin/invites`) past their own independent retention window (`InviteRecord::RETENTION_DAYS`, 90 days by default — unrelated to the two tokens' TTLs). Nothing else in the app ever removes a row from any of the three tables, so without this all of them grow forever. Cheap to run daily via cron, alongside the backup job:
+`app:cleanup-expired-tokens` deletes `PasswordResetToken` rows whose TTL has passed (2h, `TOKEN_TTL_HOURS`) and `ActivationToken` rows 14 days after theirs (24h; `RETENTION_DAYS_AFTER_EXPIRY` — an expired one can't be redeemed, but its row lets the activation page tell an expired or used link from an unknown one), used or not, and separately prunes `InviteRecord` rows (the admin-facing invite-history table, `GET /api/admin/invites`/`GET /api/platform-admin/invites`) past their own independent retention window (`InviteRecord::RETENTION_DAYS`, 90 days by default — unrelated to the two tokens' TTLs). Nothing else in the app ever removes a row from any of the three tables, so without this all of them grow forever. Cheap to run daily via cron, alongside the backup job:
 
 ```
 0 4 * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app php bin/console app:cleanup-expired-tokens >> cleanup.log 2>&1
