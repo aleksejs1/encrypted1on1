@@ -367,7 +367,9 @@
     </ul>
     {#if !readonly}
       <!-- A real form for the same IME reason as the entry edit above. -->
+      <!-- data-add-entry: Ctrl+S here mustn't drop its text (answersEdit.ts). -->
       <form
+        data-add-entry
         class="add-entry"
         onsubmit={(e) => {
           e.preventDefault();

@@ -256,6 +256,8 @@
     "mySideHeading": "Моя сторона ({role})",
     "badgePublished": "опубликовано",
     "editAnswers": "Изменить",
+    "editingAnswers": "Редактирование ответов",
+    "unsavedChanges": "Есть несохранённые изменения",
     "savingDraft": "Сохранение…",
     "savedDraft": "Сохранено.",
     "saveError": "Не удалось сохранить черновик.",

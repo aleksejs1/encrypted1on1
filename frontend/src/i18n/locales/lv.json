@@ -256,6 +256,8 @@
     "mySideHeading": "Mana daļa ({role})",
     "badgePublished": "publicēts",
     "editAnswers": "Rediģēt",
+    "editingAnswers": "Atbilžu rediģēšana",
+    "unsavedChanges": "Nesaglabātas izmaiņas",
     "savingDraft": "Saglabā…",
     "savedDraft": "Saglabāts.",
     "saveError": "Neizdevās saglabāt melnrakstu.",

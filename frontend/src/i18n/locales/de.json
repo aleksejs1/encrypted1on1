@@ -256,6 +256,8 @@
     "mySideHeading": "Meine Seite ({role})",
     "badgePublished": "veröffentlicht",
     "editAnswers": "Bearbeiten",
+    "editingAnswers": "Antworten werden bearbeitet",
+    "unsavedChanges": "Nicht gespeicherte Änderungen",
     "savingDraft": "Wird gespeichert…",
     "savedDraft": "Gespeichert.",
     "saveError": "Entwurf konnte nicht gespeichert werden.",

@@ -256,6 +256,8 @@
     "mySideHeading": "Mi parte ({role})",
     "badgePublished": "publicado",
     "editAnswers": "Editar",
+    "editingAnswers": "Editando respuestas",
+    "unsavedChanges": "Cambios sin guardar",
     "savingDraft": "Guardando…",
     "savedDraft": "Guardado.",
     "saveError": "No se pudo guardar el borrador.",

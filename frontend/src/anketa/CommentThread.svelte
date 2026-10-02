@@ -295,7 +295,13 @@
   }
 </script>
 
-<div class="thread" bind:this={root} onkeydowncapture={ignoreHeldEnter}>
+<!-- data-comment-thread: Ctrl+S here isn't an answers save (answersEdit.ts). -->
+<div
+  class="thread"
+  data-comment-thread
+  bind:this={root}
+  onkeydowncapture={ignoreHeldEnter}
+>
   <button type="button" class="btn btn-ghost toggle" onclick={toggleExpanded}>
     <svg
       class="icon"

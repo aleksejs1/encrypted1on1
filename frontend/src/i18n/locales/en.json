@@ -256,6 +256,8 @@
     "mySideHeading": "My side ({role})",
     "badgePublished": "published",
     "editAnswers": "Edit",
+    "editingAnswers": "Editing answers",
+    "unsavedChanges": "Unsaved changes",
     "savingDraft": "Saving…",
     "savedDraft": "Saved.",
     "saveError": "Could not save draft.",

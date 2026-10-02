@@ -22,6 +22,24 @@ test.afterEach(async ({ browser }) => {
   await Promise.all(browser.contexts().map((context) => context.close()));
 });
 
+/**
+ * My side's answers-edit Edit/Save/Cancel. They're both at the card's bottom
+ * and at its top (the header's Edit, then the sticky edit bar, GitHub issue
+ * #166), so a role-and-name lookup matches two buttons.
+ */
+function answersEditButton(
+  mySide: Locator,
+  action: 'edit' | 'save' | 'cancel',
+  place: 'top' | 'bottom' = 'bottom',
+): Locator {
+  // At the top, Edit is in the card's header and Save/Cancel in the bar.
+  const region =
+    place === 'bottom' ? 'bottom' : action === 'edit' ? 'header' : 'bar';
+  return mySide.locator(
+    `[data-answers-edit="${region}"] [data-action="${action}-answers"]`,
+  );
+}
+
 /** The `.block` on `side` whose `<h4>` title is exactly `title`. */
 function questionBlock(side: Locator, title: string): Locator {
   return side.locator('.block', {
@@ -154,10 +172,39 @@ test('employee and manager complete an anketa across two independent sessions', 
   // feature (docs/decisions/2026-09-07-editable-published-anketa-answers.md).
   // Real re-encryption with the same anketa key through the actual Edit/Save UI,
   // not just PUT /api/anketas/{id}/answers called directly.
+  // Started from the card's header and saved with Ctrl+S (GitHub issue
+  // #166): the sticky edit bar stays in view at the card's bottom, says
+  // there are unsaved changes, and closing the tab meanwhile warns.
   const employeeEditedMarker = `E2E-MARKER-EMPLOYEE-EDITED-${Date.now()}`;
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
-  await employeeMySide.locator('textarea').first().fill(employeeEditedMarker);
-  await employeeMySide.getByRole('button', { name: 'Save' }).click();
+  await answersEditButton(employeeMySide, 'edit', 'top').click();
+  const editBar = employeeMySide.locator('.answers-edit-bar');
+  await expect(
+    answersEditButton(employeeMySide, 'cancel', 'top'),
+  ).toBeFocused();
+  await expect(editBar).not.toContainText('Unsaved changes');
+  const firstAnswer = employeeMySide.locator('textarea').first();
+  await firstAnswer.fill(employeeEditedMarker);
+  await expect(editBar).toContainText('Unsaved changes');
+  await answersEditButton(employeeMySide, 'save').scrollIntoViewIfNeeded();
+  await expect(editBar).toBeInViewport();
+  const unloadDialog = employee.waitForEvent('dialog');
+  await employee.close({ runBeforeUnload: true });
+  const dialog = await unloadDialog;
+  expect(dialog.type()).toBe('beforeunload');
+  await dialog.dismiss();
+  // By its title: the textarea is gone once saved.
+  const firstAnswerTitle = await employeeMySide
+    .locator('.block', { has: employee.locator('textarea') })
+    .first()
+    .locator('h4')
+    .textContent();
+  const firstAnswerHeading = questionBlock(
+    employeeMySide,
+    (firstAnswerTitle ?? '').trim(),
+  ).locator('h4');
+  await firstAnswer.press('ControlOrMeta+s');
+  await expect(editBar).toHaveCount(0);
+  await expect(firstAnswerHeading).toBeFocused();
   await expect(employeeMySide.getByText('Published')).toBeVisible();
 
   // Manager — a separate session — reloads and sees the edited content, not the
@@ -356,12 +403,16 @@ test('achievements list entry can be edited in place, and the edit survives publ
   // inline edit reopens on the raw source, not the rendered text.
   const postPublishEditedText = `E2E-ENTRY-POST-PUBLISH-EDIT-${Date.now()}`;
   const postPublishEditedSource = `**${postPublishEditedText}**`;
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   const outerSaveButton = employeeMySide
     .locator('.answers-edit-actions')
     .getByRole('button', { name: 'Save' });
   await entryRow.getByRole('button', { name: 'Edit' }).click();
   await expect(outerSaveButton).toBeDisabled();
+  // An open entry edit counts as unsaved (GitHub issue #166).
+  await expect(employeeMySide.locator('.answers-edit-bar')).toContainText(
+    'Unsaved changes',
+  );
   await entryRow.locator('.entry-edit-input').fill(postPublishEditedSource);
   await entryRow.getByRole('button', { name: 'Save' }).click();
   await expect(entryRow.locator('.entry-text strong')).toHaveText(
@@ -543,9 +594,9 @@ test('published answer edits and new comments appear on an already-open tab with
   // tab. The counterpart's own answers are never locally edited, so this
   // section has no busy-gate to wait out — it should just show up.
   const markerB = `E2E-LIVE-MARKER-B-${Date.now()}`;
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   await employeeMySide.locator('textarea').first().fill(markerB);
-  await employeeMySide.getByRole('button', { name: 'Save' }).click();
+  await answersEditButton(employeeMySide, 'save').click();
   await expect(employeeMySide.getByText('Published')).toBeVisible();
 
   // No manager.reload() here — this has to arrive via the live-state poll.
@@ -617,14 +668,12 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
 
   // Employee opens edit mode and types a change, but never clicks Save —
   // this has to still be sitting open when the counterpart archives below.
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   await employeeMySide
     .locator('textarea')
     .first()
     .fill(`${originalMarker}-UNSAVED-EDIT`);
-  await expect(
-    employeeMySide.getByRole('button', { name: 'Save' }),
-  ).toBeVisible();
+  await expect(answersEditButton(employeeMySide, 'save')).toBeVisible();
   // Archiving from this tab waits for the edit to be saved or cancelled —
   // otherwise the edit would become unsaveable (GitHub issue #130 review).
   await expect(
@@ -1307,7 +1356,11 @@ async function clickSaveAndHoldIt(
       .getByRole('button', { name: 'Save' })
       .click(),
   ]);
-  await expect(mySide.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  await expect(
+    mySide.locator('.answers-edit-actions').getByRole('button', {
+      name: 'Saving…',
+    }),
+  ).toBeDisabled();
   return async () => {
     const responded = page.waitForResponse(pattern);
     release();
@@ -1375,7 +1428,7 @@ test('the read-only view hides unanswered fields and generic labels', async ({
   }
 
   // Edit brings every prompt and input back; Cancel collapses again.
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   const employeeFeelings = questionBlock(employeeMySide, 'Feelings');
   const employeeAchievements = questionBlock(employeeMySide, 'Achievements');
   await expect(employeeFeelings.locator('.block-empty')).toHaveCount(0);
@@ -1405,7 +1458,7 @@ test('the read-only view hides unanswered fields and generic labels', async ({
   await expect(managerThread.getByText('tell me more')).toBeVisible();
 
   await employee.reload();
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   await employeeMySide.locator('textarea').first().fill('');
   // The save is held in flight: the side is readonly then, but must keep the
   // edit-mode layout rather than collapsing (and re-expanding if it failed).
@@ -1603,7 +1656,7 @@ test('the read-only view shows only the chosen radio and checkbox options', asyn
   // is changed to Bad and saved, and the Save held in flight keeps every
   // option shown and selected (disabled) rather than flipping the answered
   // choices to text and back.
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   const employeeMood = questionBlock(employeeMySide, 'Mood');
   await expect(employeeMood.getByRole('radio', { name: 'Good' })).toBeChecked();
   await employeeMood.locator('label.radio', { hasText: 'Bad' }).click();
@@ -1789,9 +1842,9 @@ test('comment actions keep keyboard focus, down to a hidden field', async ({
 
   // The employee empties the notes; the field stays on the manager's tab
   // (via the live poll) only because of its remaining comment.
-  await employeeMySide.getByRole('button', { name: 'Edit' }).click();
+  await answersEditButton(employeeMySide, 'edit').click();
   await employeeMySide.locator('textarea').first().fill('');
-  await employeeMySide.getByRole('button', { name: 'Save' }).click();
+  await answersEditButton(employeeMySide, 'save').click();
   await expect(employeeMySide.getByText('Published')).toBeVisible();
   await expect(mood.locator('.field-empty')).toHaveText('No answer.', {
     timeout: 8000,
