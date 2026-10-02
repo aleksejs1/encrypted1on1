@@ -801,5 +801,50 @@
     "counter": "{percent} % der maximalen Länge",
     "footerLoss": "Gehen verloren, wenn Sie ein vergessenes Passwort zurücksetzen.",
     "footerExport": "Der Export bewahrt eine Kopie."
+  },
+  "templatePortability": {
+    "importNamesUnchecked": "Die Vorlagen Ihres Unternehmens konnten nicht geladen werden, daher wurde der Name nicht mit ihnen abgeglichen. Stellen Sie sicher, dass er nicht dem einer bestehenden Vorlage entspricht.",
+    "importAtCap": "Die importierte Vorlage konnte nicht hinzugefügt werden: Ihr Unternehmen hat das Vorlagenlimit erreicht.",
+    "import": "Vorlage importieren",
+    "defaultName": "Importierte Vorlage",
+    "importedSuffix": "(importiert)",
+    "importedNotice": "Vorlage importiert. Prüfen Sie sie und speichern Sie sie, um sie der Bibliothek Ihres Unternehmens hinzuzufügen.",
+    "importRenamed": "Eine Vorlage mit diesem Namen gibt es bereits, daher wurde diese in „{name}“ umbenannt, damit sie sich bei der Auswahl der Meeting-Art unterscheiden lassen.",
+    "exportHeading": "Exportieren und teilen",
+    "exportIntro": "Laden Sie diese Vorlage als Datei herunter oder kopieren Sie einen Link, der ihre Fragen jedem zeigt, der ihn öffnet. Beides lässt sich in die Bibliothek eines anderen Unternehmens importieren. Beides enthält, was auf dieser Seite steht, einschließlich nicht gespeicherter Änderungen.",
+    "shareWarning": "Eine Vorlage enthält nur ihre Fragen, niemals Antworten oder Notizen. Prüfen Sie vor dem Teilen, dass ihr Text keine internen Projekte, Personen oder anderen vertraulichen Angaben nennt.",
+    "download": "Datei herunterladen",
+    "copyLink": "Link kopieren",
+    "linkCopied": "Link kopiert.",
+    "copyByHand": "Der Link konnte nicht automatisch kopiert werden. Kopieren Sie ihn von hier:",
+    "longLink": "Dieser Link ist lang, und manche Apps kürzen ihn möglicherweise. Wenn er sich nicht öffnet, teilen Sie stattdessen die heruntergeladene Datei.",
+    "errors": {
+      "json": "Die Datei konnte nicht gelesen werden: Sie ist kein gültiges JSON.",
+      "link": "Der Vorlagen-Link ist ungültig oder unvollständig.",
+      "shape": "Dies ist keine encrypted1on1-Vorlage.",
+      "newer": "Diese Vorlage wurde mit einer neueren Version von encrypted1on1 exportiert. Aktualisieren Sie diese Instanz, um sie zu importieren.",
+      "name": "Der Name der Vorlage ist leer, zu lang oder enthält unzulässige Zeichen.",
+      "description": "Die Beschreibung der Vorlage ist zu lang oder enthält unzulässige Zeichen.",
+      "definition": "Diese Vorlage kann nicht importiert werden. {reason}",
+      "fileTooLarge": "Die Datei ist zu groß für eine Vorlage.",
+      "shareFailed": "Der Vorlagen-Link konnte nicht erstellt werden.",
+      "browser": "Zum Öffnen dieses Links ist ein neuerer Browser nötig. Versuchen Sie es mit einem aktuellen Browser.",
+      "fileUnreadable": "Die Datei konnte nicht gelesen werden."
+    }
+  },
+  "templatePreview": {
+    "authorNote": "Name, Beschreibung und Fragen auf dieser Seite stammen von der Person, die diesen Link geteilt hat, nicht von dieser Website.",
+    "viewerError": "Ihr Konto konnte nicht geprüft werden, daher ist das Hinzufügen noch nicht möglich.",
+    "retry": "Erneut versuchen",
+    "eyebrow": "Meeting-Vorlage",
+    "invalidTitle": "Vorlagenvorschau",
+    "intro": "Eine Meeting-Vorlage für encrypted1on1: die Fragen, die jede Seite für ein 1:1 beantwortet. Sie enthält keine Antworten oder Notizen.",
+    "adminHint": "Fügen Sie diese Vorlage der Bibliothek Ihres Unternehmens hinzu. Sie prüfen sie, bevor sie gespeichert wird.",
+    "install": "Zur Unternehmensbibliothek hinzufügen",
+    "memberHint": "Um diese Vorlage in Ihren Meetings zu nutzen, bitten Sie die Administration Ihres Unternehmens, sie hinzuzufügen.",
+    "copyForAdmin": "Link für die Administration kopieren",
+    "guestHint": "Entwickelt für encrypted1on1 – private, Ende-zu-Ende-verschlüsselte 1:1-Meetings. Um diese Vorlage zu nutzen, melden Sie sich als Administrator Ihres Unternehmens an und öffnen Sie diesen Link erneut.",
+    "logIn": "Anmelden",
+    "questions": "Fragen"
   }
 }

@@ -35,6 +35,7 @@
   import { dateFormatState, setDateFormat } from '../datePreference.svelte';
   import type { AnketaTemplateKey, Answers } from '../anketa/questions';
   import { templateExporter } from '../anketa/templateExport';
+  import { downloadJsonFile } from '../downloadFile';
   import { fetchTemplateVersion } from '../api/templates';
   import { decryptDraft, migrateLegacyDrafts } from '../anketa/drafts';
   import {
@@ -266,18 +267,6 @@
   let exporting = $state(false);
   let exportError = $state<string | null>(null);
 
-  function downloadJson(filename: string, data: unknown): void {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   async function handleExport(): Promise<void> {
     exporting = true;
     exportError = null;
@@ -395,15 +384,19 @@
         });
       }
 
-      downloadJson(
+      downloadJsonFile(
         `encrypted1on1-export-${new Date().toISOString().slice(0, 10)}.json`,
-        {
-          exportedAt: new Date().toISOString(),
-          email: identity.email,
-          displayName: identity.displayName,
-          anketas: exportedAnketas,
-          privateNotes: privateNotesForExport(openedNotes, exportedAnketas),
-        },
+        JSON.stringify(
+          {
+            exportedAt: new Date().toISOString(),
+            email: identity.email,
+            displayName: identity.displayName,
+            anketas: exportedAnketas,
+            privateNotes: privateNotesForExport(openedNotes, exportedAnketas),
+          },
+          null,
+          2,
+        ),
       );
     } catch (error) {
       exportError =

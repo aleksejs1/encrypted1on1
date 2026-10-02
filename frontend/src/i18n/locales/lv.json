@@ -795,5 +795,50 @@
     "counter": "{percent}% no maksimālā garuma",
     "footerLoss": "Tiks zaudētas, ja atiestatīsiet aizmirstu paroli.",
     "footerExport": "Eksports saglabā kopiju."
+  },
+  "templatePortability": {
+    "importNamesUnchecked": "Neizdevās ielādēt uzņēmuma veidnes, tāpēc nosaukums ar tām netika salīdzināts. Pārliecinieties, ka tas nesakrīt ar esošas veidnes nosaukumu.",
+    "importAtCap": "Importēto veidni neizdevās pievienot: uzņēmums ir sasniedzis veidņu limitu.",
+    "import": "Importēt veidni",
+    "defaultName": "Importēta veidne",
+    "importedSuffix": "(importēta)",
+    "importedNotice": "Veidne importēta. Pārskatiet to un saglabājiet, lai pievienotu uzņēmuma bibliotēkai.",
+    "importRenamed": "Veidne ar šādu nosaukumu jau pastāv, tāpēc šī pārdēvēta par “{name}”, lai tās varētu atšķirt, izvēloties tikšanās veidu.",
+    "exportHeading": "Eksportēt un kopīgot",
+    "exportIntro": "Lejupielādējiet šo veidni kā failu vai nokopējiet saiti, kas ikvienam, kurš to atver, parāda tās jautājumus. Abus var importēt citas uzņēmuma bibliotēkā. Abi satur to, kas ir šajā lapā, ieskaitot nesaglabātās izmaiņas.",
+    "shareWarning": "Veidnē ir tikai jautājumi, nekad atbildes vai piezīmes. Pirms kopīgošanas pārliecinieties, ka tekstā nav iekšēju projektu nosaukumu, cilvēku vārdu vai citas konfidenciālas informācijas.",
+    "download": "Lejupielādēt failu",
+    "copyLink": "Kopēt saiti",
+    "linkCopied": "Saite nokopēta.",
+    "copyByHand": "Saiti neizdevās nokopēt automātiski. Nokopējiet to šeit:",
+    "longLink": "Saite ir gara, un dažas lietotnes to var saīsināt. Ja tā neatveras, kopīgojiet lejupielādēto failu.",
+    "errors": {
+      "json": "Neizdevās nolasīt failu: tas nav derīgs JSON.",
+      "link": "Veidnes saite ir nederīga vai nepilnīga.",
+      "shape": "Šī nav encrypted1on1 veidne.",
+      "newer": "Šī veidne eksportēta no jaunākas encrypted1on1 versijas. Atjauniniet šo instanci, lai to importētu.",
+      "name": "Veidnes nosaukums ir tukšs, pārāk garš vai satur neatļautas rakstzīmes.",
+      "description": "Veidnes apraksts ir pārāk garš vai satur neatļautas rakstzīmes.",
+      "definition": "Šo veidni nevar importēt. {reason}",
+      "fileTooLarge": "Fails ir pārāk liels, lai būtu veidne.",
+      "shareFailed": "Neizdevās izveidot veidnes saiti.",
+      "browser": "Lai atvērtu šo saiti, nepieciešama jaunāka pārlūkprogramma. Mēģiniet to atvērt atjauninātā pārlūkprogrammā.",
+      "fileUnreadable": "Neizdevās nolasīt failu."
+    }
+  },
+  "templatePreview": {
+    "authorNote": "Nosaukumu, aprakstu un jautājumus šajā lapā uzrakstīja tas, kurš kopīgoja šo saiti, nevis šī vietne.",
+    "viewerError": "Neizdevās pārbaudīt jūsu kontu, tāpēc pievienošana vēl nav pieejama.",
+    "retry": "Mēģināt vēlreiz",
+    "eyebrow": "Tikšanās veidne",
+    "invalidTitle": "Veidnes priekšskatījums",
+    "intro": "encrypted1on1 tikšanās veidne: jautājumi, uz kuriem katra puse atbild pirms 1:1 tikšanās. Tajā nav atbilžu vai piezīmju.",
+    "adminHint": "Pievienojiet šo veidni uzņēmuma bibliotēkai. Pirms saglabāšanas varēsiet to pārskatīt.",
+    "install": "Pievienot uzņēmuma bibliotēkai",
+    "memberHint": "Lai izmantotu šo veidni savās tikšanās reizēs, palūdziet uzņēmuma administratoram to pievienot.",
+    "copyForAdmin": "Kopēt saiti administratoram",
+    "guestHint": "Veidots encrypted1on1 — privātām, pilnībā šifrētām 1:1 tikšanās reizēm. Lai izmantotu šo veidni, piesakieties kā uzņēmuma administrators un atveriet šo saiti vēlreiz.",
+    "logIn": "Pieteikties",
+    "questions": "Jautājumi"
   }
 }

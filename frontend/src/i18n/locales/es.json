@@ -797,5 +797,50 @@
     "counter": "{percent}% de la longitud máxima",
     "footerLoss": "Se pierden si restableces una contraseña olvidada.",
     "footerExport": "La exportación guarda una copia."
+  },
+  "templatePortability": {
+    "importNamesUnchecked": "No se pudieron cargar las plantillas de su empresa, así que el nombre no se comparó con ellas. Asegúrese de que no coincida con el de una plantilla existente.",
+    "importAtCap": "No se pudo añadir la plantilla importada: su empresa ha alcanzado el límite de plantillas.",
+    "import": "Importar plantilla",
+    "defaultName": "Plantilla importada",
+    "importedSuffix": "(importada)",
+    "importedNotice": "Plantilla importada. Revísela y guárdela para añadirla a la biblioteca de su empresa.",
+    "importRenamed": "Ya existe una plantilla con este nombre, así que esta se renombró a «{name}» para distinguirlas al elegir el tipo de reunión.",
+    "exportHeading": "Exportar y compartir",
+    "exportIntro": "Descargue esta plantilla como archivo o copie un enlace que muestra sus preguntas a quien lo abra. Ambos se pueden importar en la biblioteca de otra empresa. Ambos contienen lo que hay en esta página, incluidos los cambios sin guardar.",
+    "shareWarning": "Una plantilla solo contiene sus preguntas, nunca respuestas ni notas. Antes de compartirla, compruebe que su texto no mencione proyectos internos, personas ni otros datos confidenciales.",
+    "download": "Descargar archivo",
+    "copyLink": "Copiar enlace",
+    "linkCopied": "Enlace copiado.",
+    "copyByHand": "No se pudo copiar el enlace automáticamente. Cópielo desde aquí:",
+    "longLink": "Este enlace es largo y algunas aplicaciones podrían cortarlo. Si no se abre, comparta el archivo descargado.",
+    "errors": {
+      "json": "No se pudo leer el archivo: no es un JSON válido.",
+      "link": "El enlace de la plantilla no es válido o está incompleto.",
+      "shape": "Esto no es una plantilla de encrypted1on1.",
+      "newer": "Esta plantilla se exportó con una versión más reciente de encrypted1on1. Actualice esta instancia para importarla.",
+      "name": "El nombre de la plantilla está vacío, es demasiado largo o contiene caracteres no permitidos.",
+      "description": "La descripción de la plantilla es demasiado larga o contiene caracteres no permitidos.",
+      "definition": "Esta plantilla no se puede importar. {reason}",
+      "fileTooLarge": "El archivo es demasiado grande para ser una plantilla.",
+      "shareFailed": "No se pudo crear el enlace de la plantilla.",
+      "browser": "Para abrir este enlace se necesita un navegador más reciente. Pruebe con uno actualizado.",
+      "fileUnreadable": "No se pudo leer el archivo."
+    }
+  },
+  "templatePreview": {
+    "authorNote": "El nombre, la descripción y las preguntas de esta página los escribió quien compartió este enlace, no este sitio.",
+    "viewerError": "No se pudo comprobar su cuenta, así que aún no se puede añadir.",
+    "retry": "Reintentar",
+    "eyebrow": "Plantilla de reunión",
+    "invalidTitle": "Vista previa de la plantilla",
+    "intro": "Una plantilla de reunión para encrypted1on1: las preguntas que cada parte responde para una reunión 1:1. No contiene respuestas ni notas.",
+    "adminHint": "Añada esta plantilla a la biblioteca de su empresa. La revisará antes de guardarla.",
+    "install": "Añadir a la biblioteca de la empresa",
+    "memberHint": "Para usar esta plantilla en sus reuniones, pida al administrador de su empresa que la añada.",
+    "copyForAdmin": "Copiar enlace para el administrador",
+    "guestHint": "Creado para encrypted1on1: reuniones 1:1 privadas y cifradas de extremo a extremo. Para usar esta plantilla, inicie sesión como administrador de su empresa y vuelva a abrir este enlace.",
+    "logIn": "Iniciar sesión",
+    "questions": "Preguntas"
   }
 }

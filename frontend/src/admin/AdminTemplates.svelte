@@ -9,6 +9,13 @@
   import AdminGate from './AdminGate.svelte';
   import { fetchAdminTemplates } from '../api/adminTemplates';
   import { PATHS, adminTemplatePath } from '../routes';
+  import { navigate } from '../router.svelte';
+  import {
+    MAX_IMPORT_FILE_BYTES,
+    importProblemMessage,
+    importTemplateFile,
+    setPendingImport,
+  } from './templatePortability';
   import { MAX_TEMPLATES_PER_COMPANY } from './templateEditor';
   import {
     beginAction,
@@ -30,6 +37,44 @@
   /** An archive or restore in flight: every row's button waits for it. */
   let busy = $state(false);
   let list = $state<HTMLElement>();
+
+  let fileInput = $state<HTMLInputElement>();
+  let importError = $state<string | null>(null);
+
+  /**
+   * A template file picked to import (GitHub issue #163): checked here, then
+   * opened in the new-template form to review and save. Nothing is saved yet.
+   */
+  async function importFile(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    // Cleared, so picking the same file again (after fixing it) is a change.
+    input.value = '';
+    if (file === undefined) return;
+    importError = null;
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      importError = $_('templatePortability.errors.fileTooLarge');
+      return;
+    }
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      importError = $_('templatePortability.errors.fileUnreadable');
+      return;
+    }
+    const result = importTemplateFile(
+      text,
+      $_('templatePortability.defaultName'),
+    );
+    if (!result.ok) {
+      importError = importProblemMessage(result.problem, $_);
+      return;
+    }
+    // The admin left this page while the file was read.
+    if (readAbort.aborted) return;
+    setPendingImport(result.template);
+    navigate(PATHS.adminTemplateNew);
+  }
 
   const atCap = $derived(templates.length >= MAX_TEMPLATES_PER_COMPANY);
 
@@ -62,6 +107,7 @@
       if (!event.persisted) return;
       // Whatever failed before leaving is stale now.
       actionError = null;
+      importError = null;
       void loadTemplates();
     };
     window.addEventListener('pageshow', onPageShow);
@@ -82,6 +128,7 @@
   ): Promise<void> {
     busy = true;
     actionError = null;
+    importError = null;
     // Every button is disabled (and the pressed one blurred) meanwhile, and
     // the row's Archive/Restore button is swapped for the other one.
     const started = beginAction();
@@ -137,8 +184,26 @@
           <a class="btn btn-primary" href={PATHS.adminTemplateNew}
             >{$_('adminTemplates.new')}</a
           >
+          <button
+            type="button"
+            class="btn btn-secondary"
+            disabled={busy}
+            onclick={() => fileInput?.click()}
+            >{$_('templatePortability.import')}</button
+          >
+          <input
+            type="file"
+            accept=".json,application/json"
+            hidden
+            bind:this={fileInput}
+            aria-label={$_('templatePortability.import')}
+            onchange={(event) => importFile(event.currentTarget)}
+          />
         {/if}
       </div>
+      {#if importError}
+        <p class="banner-error" role="alert">{importError}</p>
+      {/if}
 
       {#if templates.length === 0}
         <p class="text-muted">{$_('adminTemplates.empty')}</p>
@@ -243,6 +308,13 @@
   .intro,
   .actions {
     margin-bottom: 16px;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
   }
 
   .template-list {

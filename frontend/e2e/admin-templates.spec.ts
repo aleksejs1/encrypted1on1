@@ -4,9 +4,12 @@ import { createActivationLink, uniqueEmail } from './helpers/provision.js';
 const PASSWORD = 'correct horse battery staple 123';
 
 // Every e2e account lands in the one e2e company, and templates can't be
-// deleted, so each run of this file adds templates there for good. `make
-// e2e-up` (and CI) start from an empty database; a stack reused for about 25
-// runs of this file reaches the 50-template cap.
+// deleted, so each run of this file adds templates there for good, and
+// template-portability.spec.ts adds four more. CI starts from an empty
+// database; a local stack keeps its database in the `e2e_var` volume across
+// `make e2e-down`/`e2e-up`, and reaches the 50-template cap after about 8
+// runs of both files (`docker compose -f docker-compose.e2e.yml down -v`
+// empties it).
 
 test.afterEach(async ({ browser }) => {
   await Promise.all(browser.contexts().map((context) => context.close()));

@@ -168,11 +168,11 @@ type JsonObject = Record<string, unknown>;
  * A JSON object (the backend decodes these as `\stdClass`, keeping `{}` apart
  * from `[]` and `{"0": …}` apart from a list, as here).
  */
-function isObject(value: unknown): value is JsonObject {
+export function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function has(object: JsonObject, key: string): boolean {
+export function has(object: JsonObject, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
