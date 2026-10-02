@@ -12,6 +12,7 @@
   import Report from './pages/Report.svelte';
   import AccountSettings from './pages/AccountSettings.svelte';
   import NotFound from './pages/NotFound.svelte';
+  import TemplatePreview from './pages/TemplatePreview.svelte';
   import AdminPanel from './admin/AdminPanel.svelte';
   import AdminReports from './admin/AdminReports.svelte';
   import AdminInvites from './admin/AdminInvites.svelte';
@@ -113,6 +114,7 @@
       routerState.path === PATHS.forgotPassword ||
       routerState.path === PATHS.signup ||
       routerState.path === PATHS.createCompany ||
+      routerState.path === PATHS.templatePreview ||
       !authState.authenticated ||
       !!anketaMatch ||
       !!adminTemplateMatch ||
@@ -138,6 +140,9 @@
     <CreateCompany />
   {:else if resetPasswordMatch}
     <ResetPassword token={resetPasswordMatch[1]} />
+  {:else if routerState.path === PATHS.templatePreview}
+    <!-- Public, and needs no unlock: a template holds no encrypted data. -->
+    <TemplatePreview />
   {:else if !authState.checked}
     <p>{$_('common.loading')}</p>
   {:else if !authState.authenticated}

@@ -75,6 +75,8 @@ export function displayText(
 }
 
 export type Side = 'employee' | 'manager';
+/** Both sides, in the order a template lists them. */
+export const SIDES: readonly Side[] = ['employee', 'manager'];
 
 /**
  * The question set an anketa is created against — bumped whenever the set changes in a

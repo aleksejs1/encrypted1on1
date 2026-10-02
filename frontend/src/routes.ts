@@ -17,6 +17,8 @@ export const PATHS = {
   adminTemplateNew: '/admin/templates/new',
   account: '/account',
   platformAdmin: '/platform-admin',
+  // Public: a shared template's preview, from its share link (GitHub issue #163).
+  templatePreview: '/templates/preview',
 } as const;
 
 export const MIGRATED_AUTHED_PATHS: string[] = [

@@ -56,5 +56,6 @@ describe('MIGRATED_AUTHED_PATHS', () => {
     expect(MIGRATED_AUTHED_PATHS).not.toContain(PATHS.forgotPassword);
     expect(MIGRATED_AUTHED_PATHS).not.toContain(PATHS.signup);
     expect(MIGRATED_AUTHED_PATHS).not.toContain(PATHS.createCompany);
+    expect(MIGRATED_AUTHED_PATHS).not.toContain(PATHS.templatePreview);
   });
 });

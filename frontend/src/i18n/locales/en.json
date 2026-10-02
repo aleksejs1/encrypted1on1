@@ -793,5 +793,50 @@
     "counter": "{percent}% of the maximum length",
     "footerLoss": "Lost if you reset a forgotten password.",
     "footerExport": "Export keeps a copy."
+  },
+  "templatePortability": {
+    "importNamesUnchecked": "Your company's templates couldn't be loaded, so the name wasn't checked against them. Make sure it doesn't match an existing template's.",
+    "importAtCap": "Could not add the imported template: your company has reached the template limit.",
+    "import": "Import template",
+    "defaultName": "Imported template",
+    "importedSuffix": "(Imported)",
+    "importedNotice": "Template imported. Review it, then save it to add it to your company's library.",
+    "importRenamed": "A template with this name already exists, so this one was renamed to “{name}” to tell them apart in meeting pickers.",
+    "exportHeading": "Export and share",
+    "exportIntro": "Download this template as a file, or copy a link that shows its questions to anyone who opens it. Either can be imported into another company's library. Both carry what's on this page, unsaved changes included.",
+    "shareWarning": "A template holds only its questions, never answers or notes. Before sharing it, check that its text names no internal projects, people or other confidential details.",
+    "download": "Download file",
+    "copyLink": "Copy share link",
+    "linkCopied": "Link copied.",
+    "copyByHand": "Couldn't copy the link automatically. Copy it from here:",
+    "longLink": "This link is long, and some apps may cut it short. If it doesn't open, share the downloaded file instead.",
+    "errors": {
+      "json": "Could not read the file: it isn't valid JSON.",
+      "link": "The share link is invalid or incomplete.",
+      "shape": "This isn't an encrypted1on1 template.",
+      "newer": "This template was exported by a newer version of encrypted1on1. Update this instance to import it.",
+      "name": "The template's name is empty, too long, or contains characters that aren't allowed.",
+      "description": "The template's description is too long or contains characters that aren't allowed.",
+      "definition": "This template can't be imported. {reason}",
+      "fileTooLarge": "The file is too large to be a template.",
+      "shareFailed": "Could not make the share link.",
+      "browser": "This share link needs a newer browser to open. Try it in an up-to-date one.",
+      "fileUnreadable": "Could not read the file."
+    }
+  },
+  "templatePreview": {
+    "authorNote": "The name, description and questions on this page were written by whoever shared this link, not by this site.",
+    "viewerError": "Could not check your account, so installing isn't available yet.",
+    "retry": "Try again",
+    "eyebrow": "Meeting template",
+    "invalidTitle": "Template preview",
+    "intro": "A meeting template for encrypted1on1: the questions each side answers for a 1:1. It holds no answers or notes.",
+    "adminHint": "Add this template to your company's library. You'll review it before it's saved.",
+    "install": "Install to company library",
+    "memberHint": "To use this template in your meetings, ask your company's administrator to install it.",
+    "copyForAdmin": "Copy link for admin",
+    "guestHint": "Built for encrypted1on1 — private, end-to-end encrypted 1:1 meetings. To use this template, log in as your company's administrator, then open this link again.",
+    "logIn": "Log in",
+    "questions": "Questions"
   }
 }

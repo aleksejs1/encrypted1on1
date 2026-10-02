@@ -107,6 +107,7 @@ What that means in practice:
 - The server, and on the Cloud deployment its operator, can read it too.
 - The template editor ([GitHub issue #143](https://github.com/aleksejs1/encrypted1on1/issues/143)) warns about this permanently, and asks admins not to put people's names, or anything that reveals why a particular meeting is happening, into a template.
 - Templates never appear in admin reports, notification emails or the platform-admin interface.
+- An admin can export a template to a file or a share link ([GitHub issue #163](https://github.com/aleksejs1/encrypted1on1/issues/163)) and so pass its questions to anyone. A share link carries the template in its URL fragment, which browsers never send to a server, so the instance serving the preview page learns nothing from it until someone installs the template, which saves it like any other.
 
 ## Threat model — what a full server compromise reveals
 

@@ -810,5 +810,50 @@
     "counter": "{percent} % de la longueur maximale",
     "footerLoss": "Perdues si vous réinitialisez un mot de passe oublié.",
     "footerExport": "L'export en garde une copie."
+  },
+  "templatePortability": {
+    "importNamesUnchecked": "Les modèles de votre entreprise n'ont pas pu être chargés : le nom n'a donc pas été comparé aux leurs. Vérifiez qu'il ne correspond pas à celui d'un modèle existant.",
+    "importAtCap": "Impossible d'ajouter le modèle importé : votre entreprise a atteint la limite de modèles.",
+    "import": "Importer un modèle",
+    "defaultName": "Modèle importé",
+    "importedSuffix": "(importé)",
+    "importedNotice": "Modèle importé. Vérifiez-le, puis enregistrez-le pour l'ajouter à la bibliothèque de votre entreprise.",
+    "importRenamed": "Un modèle portant ce nom existe déjà : celui-ci a donc été renommé « {name} » pour les distinguer lors du choix du type de réunion.",
+    "exportHeading": "Exporter et partager",
+    "exportIntro": "Téléchargez ce modèle sous forme de fichier, ou copiez un lien qui montre ses questions à quiconque l'ouvre. Les deux peuvent être importés dans la bibliothèque d'une autre entreprise. Les deux reprennent ce qui figure sur cette page, modifications non enregistrées comprises.",
+    "shareWarning": "Un modèle ne contient que ses questions, jamais de réponses ni de notes. Avant de le partager, vérifiez que son texte ne mentionne aucun projet interne, aucune personne ni aucune autre information confidentielle.",
+    "download": "Télécharger le fichier",
+    "copyLink": "Copier le lien",
+    "linkCopied": "Lien copié.",
+    "copyByHand": "Impossible de copier le lien automatiquement. Copiez-le ici :",
+    "longLink": "Ce lien est long et certaines applications risquent de le tronquer. S'il ne s'ouvre pas, partagez plutôt le fichier téléchargé.",
+    "errors": {
+      "json": "Impossible de lire le fichier : ce n'est pas du JSON valide.",
+      "link": "Le lien du modèle est invalide ou incomplet.",
+      "shape": "Ce n'est pas un modèle encrypted1on1.",
+      "newer": "Ce modèle a été exporté par une version plus récente d’encrypted1on1. Mettez à jour cette instance pour l’importer.",
+      "name": "Le nom du modèle est vide, trop long ou contient des caractères non autorisés.",
+      "description": "La description du modèle est trop longue ou contient des caractères non autorisés.",
+      "definition": "Ce modèle ne peut pas être importé. {reason}",
+      "fileTooLarge": "Le fichier est trop volumineux pour être un modèle.",
+      "shareFailed": "Impossible de créer le lien du modèle.",
+      "browser": "Ce lien nécessite un navigateur plus récent. Essayez de l'ouvrir dans un navigateur à jour.",
+      "fileUnreadable": "Impossible de lire le fichier."
+    }
+  },
+  "templatePreview": {
+    "authorNote": "Le nom, la description et les questions de cette page ont été écrits par la personne qui a partagé ce lien, pas par ce site.",
+    "viewerError": "Impossible de vérifier votre compte : l'ajout n'est donc pas encore disponible.",
+    "retry": "Réessayer",
+    "eyebrow": "Modèle de réunion",
+    "invalidTitle": "Aperçu du modèle",
+    "intro": "Un modèle de réunion pour encrypted1on1 : les questions auxquelles chaque partie répond pour un 1:1. Il ne contient ni réponses ni notes.",
+    "adminHint": "Ajoutez ce modèle à la bibliothèque de votre entreprise. Vous le vérifierez avant qu'il soit enregistré.",
+    "install": "Ajouter à la bibliothèque de l'entreprise",
+    "memberHint": "Pour utiliser ce modèle dans vos réunions, demandez à l'administrateur de votre entreprise de l'ajouter.",
+    "copyForAdmin": "Copier le lien pour l'administrateur",
+    "guestHint": "Conçu pour encrypted1on1 — des réunions 1:1 privées, chiffrées de bout en bout. Pour utiliser ce modèle, connectez-vous en tant qu'administrateur de votre entreprise, puis rouvrez ce lien.",
+    "logIn": "Se connecter",
+    "questions": "Questions"
   }
 }
