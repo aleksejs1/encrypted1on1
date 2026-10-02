@@ -113,7 +113,8 @@
   );
 </script>
 
-<div class="block" class:discussed={isDiscussed}>
+<!-- data-question-block: a stable hook for answersEdit.ts's saveShortcutPlace(). -->
+<div class="block" class:discussed={isDiscussed} data-question-block>
   <div class="question-header">
     {#if showDiscussedToggle}
       <button

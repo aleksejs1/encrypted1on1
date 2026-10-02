@@ -256,6 +256,8 @@
     "mySideHeading": "Mon côté ({role})",
     "badgePublished": "publiée",
     "editAnswers": "Modifier",
+    "editingAnswers": "Modification des réponses",
+    "unsavedChanges": "Modifications non enregistrées",
     "savingDraft": "Enregistrement…",
     "savedDraft": "Enregistré.",
     "saveError": "Impossible d'enregistrer le brouillon.",

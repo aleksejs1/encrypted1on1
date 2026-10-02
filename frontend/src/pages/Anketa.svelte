@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
@@ -53,7 +53,20 @@
     fetchTemplateVersion,
   } from '../api/templates';
   import { updateBlobWithRetry } from '../anketa/blobSync';
-  import { beginAction, refocus } from '../anketa/keepFocus';
+  import {
+    beginAction,
+    fallbackFocusOptions,
+    findRow,
+    ignoreHeldEnter,
+    refocus,
+    type ActionStart,
+  } from '../anketa/keepFocus';
+  import {
+    answersFingerprint,
+    isSaveShortcut,
+    saveShortcutPlace,
+    setAnswersUnloadWarning,
+  } from '../anketa/answersEdit';
   import type {
     AnketaDetail,
     AnketaLiveState,
@@ -126,6 +139,10 @@
    *   buttons are disabled while `editingMyAnswers`, and "Edit" is disabled
    *   while `archiving` — either order would otherwise strand an unsaved edit
    *   on an archived anketa (GitHub issue #130 review).
+   * - Unsaved changes (GitHub issue #166) aren't a separate state: they're
+   *   `answersEditUnsaved`, derived from myAnswers against the snapshot taken
+   *   when editing started. Shown in the sticky edit bar, and a beforeunload
+   *   warning is attached only while it's true.
    * - Also reset to "not editing" whenever `id` changes (load(), a new anketa entirely)
    *   — the router reuses this component instance across same-page navigation with no
    *   remount, so a left-open edit session must not leak into the next anketa.
@@ -157,7 +174,8 @@
     return byTarget;
   });
   let myBlobVersion = $state(0);
-  let answersBeforeEdit: Answers | null = null;
+  /** A plain snapshot of myAnswers from when editing started; what Cancel restores. */
+  let answersBeforeEdit = $state.raw<Answers | null>(null);
 
   /** Shared by every "is anything in this keyed record currently open/in-progress" derived below (anyEntryEditOpen, anyCommentThreadBusy, anyCheckpointAdding). */
   function anyTrue(record: Record<string, boolean>): boolean {
@@ -174,6 +192,28 @@
    */
   let fieldsWithOpenEntryEdit = $state<Record<string, boolean>>({});
   const anyEntryEditOpen = $derived(anyTrue(fieldsWithOpenEntryEdit));
+
+  /**
+   * Whether the answers edit has anything not saved yet (GitHub issue
+   * #166): a changed answer, or a list entry's inline edit still open with
+   * its text not yet applied (counted as soon as it's open, even unchanged:
+   * Save is disabled until it's applied or cancelled anyway, and a warning
+   * too many beats a lost entry). Not "Add an entry" text that was never
+   * added: it isn't an answer, and Save doesn't keep it. Also true while the
+   * save is in flight.
+   */
+  const answersFingerprintBeforeEdit = $derived(
+    answersBeforeEdit && answersFingerprint(answersBeforeEdit),
+  );
+  const answersEditUnsaved = $derived(
+    editingMyAnswers &&
+      (anyEntryEditOpen ||
+        answersFingerprint(myAnswers) !== answersFingerprintBeforeEdit),
+  );
+  $effect(() => {
+    setAnswersUnloadWarning(answersEditUnsaved);
+    return () => setAnswersUnloadWarning(false);
+  });
 
   let saveState = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let publishing = $state(false);
@@ -360,6 +400,7 @@
     // changing re-runs the $effect above without a remount) — an answers-edit session
     // left open on the previous anketa must not leak into the next one's otherwise-
     // fresh state below.
+    loadGeneration++;
     editingMyAnswers = false;
     savingAnswersEdit = false;
     answersBeforeEdit = null;
@@ -1122,17 +1163,156 @@
     }
   }
 
-  function startEditingAnswers(): void {
-    answersBeforeEdit = { ...myAnswers };
-    editingMyAnswers = true;
-    actionError = null;
+  /**
+   * Which controls started an answers-edit action (GitHub issue #166): the
+   * card's top (the header's Edit, then the sticky edit bar) or its bottom,
+   * pressed or used with Ctrl+S / ⌘S, or Ctrl+S / ⌘S elsewhere in my side:
+   * in answer field `fieldId` of question `block`, or outside any field
+   * (`side`, in `block` if any). Each action swaps out the button it was pressed on, so
+   * focus moves to the control that replaces it in the same place (#149,
+   * #151): Edit to Cancel, Save and Cancel to Edit, a failed Save back to
+   * Save. The top's targets may be far from where the user was (the bar
+   * follows them down the card, the header's Edit doesn't), so the page only
+   * scrolls there for a keyboard press (`focusOptions`). A save from a field
+   * goes to its question's heading, since the field is swapped out while
+   * the save is in flight (see refocusAfterFieldSave()). Once archived, no
+   * Edit is left, so my side's heading.
+   */
+  type AnswersEditTrigger =
+    | { from: 'top' | 'bottom'; focusOptions: FocusOptions }
+    | { from: 'field'; block: HTMLElement | null; fieldId: string }
+    | { from: 'side'; block: HTMLElement | null };
+
+  function clickedAt(
+    from: 'top' | 'bottom',
+    click: MouseEvent,
+  ): AnswersEditTrigger {
+    return { from, focusOptions: fallbackFocusOptions(click) };
   }
 
-  function cancelEditingAnswers(): void {
+  /**
+   * The button an action lands on. At the top, Edit is in the card's header
+   * and Save/Cancel in the sticky bar: `data-answers-edit` tells them apart.
+   */
+  function answersEditButton(
+    from: 'top' | 'bottom',
+    action: 'edit-answers' | 'save-answers' | 'cancel-answers',
+  ): string {
+    const region =
+      from === 'bottom'
+        ? 'bottom'
+        : action === 'edit-answers'
+          ? 'header'
+          : 'bar';
+    return `[data-answers-edit="${region}"] [data-action="${action}"]`;
+  }
+
+  /** `failed`: a save that left the edit open. */
+  function focusAfterAnswersEdit(
+    trigger: AnswersEditTrigger,
+    action: 'edit-answers' | 'save-answers' | 'cancel-answers',
+    {
+      startedOn,
+      failed = false,
+    }: { startedOn?: ActionStart; failed?: boolean } = {},
+  ): void {
+    if (archived) {
+      void refocus(pageMain, '[data-my-side-heading]', { startedOn });
+    } else if (trigger.from === 'field') {
+      void refocusAfterShortcutSave(
+        trigger.block,
+        failed ? trigger.fieldId : null,
+        startedOn,
+      );
+    } else if (trigger.from === 'side') {
+      void refocusAfterShortcutSave(trigger.block, null, startedOn);
+    } else {
+      void refocus(pageMain, answersEditButton(trigger.from, action), {
+        startedOn,
+        focusOptions: trigger.focusOptions,
+      });
+    }
+  }
+
+  /**
+   * After a Ctrl+S save started in my side outside its edit controls: the
+   * question's heading, or, if the save failed in answer field
+   * `failedFieldId`, back into it when it's a free-text answer's textarea,
+   * where Ctrl+S is usually pressed. Other fields don't say which of their
+   * controls had focus, so the heading.
+   */
+  async function refocusAfterShortcutSave(
+    block: HTMLElement | null,
+    failedFieldId: string | null,
+    startedOn?: ActionStart,
+  ): Promise<void> {
+    if (!block) {
+      await refocus(pageMain, '[data-my-side-heading]', { startedOn });
+      return;
+    }
+    // Once the field is back from its read-only form.
+    await tick();
+    const field =
+      failedFieldId === null
+        ? undefined
+        : findRow(block, 'data-field-id', failedFieldId);
+    if (field?.querySelector('textarea')) {
+      await refocus(field, 'textarea', { startedOn });
+    } else {
+      await refocus(block, 'h4', { startedOn });
+    }
+  }
+
+  function startEditingAnswers(trigger: AnswersEditTrigger): void {
+    // A plain copy, not the $state proxy, so nothing typed in the edit reaches it.
+    answersBeforeEdit = $state.snapshot(myAnswers);
+    editingMyAnswers = true;
+    actionError = null;
+    focusAfterAnswersEdit(trigger, 'cancel-answers');
+  }
+
+  function cancelEditingAnswers(trigger: AnswersEditTrigger): void {
     if (answersBeforeEdit) myAnswers = answersBeforeEdit;
     answersBeforeEdit = null;
     editingMyAnswers = false;
     actionError = null;
+    focusAfterAnswersEdit(trigger, 'edit-answers');
+  }
+
+  let mySideCard = $state<HTMLElement>();
+  /** Bumped by every load(), so an answers save can tell its response is from before it. */
+  let loadGeneration = 0;
+
+  /**
+   * Ctrl+S / ⌘S in my side (see saveShortcutPlace()) saves the edit instead
+   * of opening the browser's "Save page" dialog. A held shortcut's repeats
+   * do nothing anywhere on the page, edit or not, so one that outlasts the
+   * save doesn't open that dialog either.
+   */
+  function handleMySideKeydown(event: KeyboardEvent): void {
+    if (!isSaveShortcut(event)) return;
+    if (event.repeat) {
+      event.preventDefault();
+      return;
+    }
+    if (!editingMyAnswers) return;
+    const place = saveShortcutPlace(event.target, mySideCard);
+    if (!place) return;
+    event.preventDefault();
+    if (savingAnswersEdit || anyEntryEditOpen || place.at === 'unadded-entry') {
+      return;
+    }
+    let trigger: AnswersEditTrigger;
+    if (place.at === 'field') {
+      trigger = { from: 'field', block: place.block, fieldId: place.fieldId };
+    } else if (place.at === 'side') {
+      trigger = { from: 'side', block: place.block };
+    } else {
+      trigger = { from: place.at, focusOptions: {} };
+    }
+    handleSaveAnswersEdit(trigger).catch((error: unknown) => {
+      console.error(error);
+    });
   }
 
   /**
@@ -1179,20 +1359,36 @@
    * race, not a hypothetical), stop offering editing entirely — see the editingMyAnswers
    * docblock above for the full state list this maps onto.
    */
-  async function handleSaveAnswersEdit(): Promise<void> {
+  async function handleSaveAnswersEdit(
+    trigger: AnswersEditTrigger,
+  ): Promise<void> {
     if (!anketaKey) return;
+    const anketaId = id;
+    // load() resets the edit when another anketa opens, or this one again,
+    // and a new edit may have started since: the response is then stale.
+    // Counted per load, since the id alone misses A → B → A.
+    const generation = loadGeneration;
+    const isSuperseded = () => loadGeneration !== generation;
+    // What Cancel would restore, read now: an archive during the awaits clears it.
+    const publishedBeforeEdit = answersBeforeEdit;
+    const expectedVersion = myBlobVersion;
+    const started = beginAction();
     savingAnswersEdit = true;
     actionError = null;
     try {
       const blob = await encryptBlob(myAnswers, anketaKey);
+      // Not sent at all for an edit the page has already dropped.
+      if (isSuperseded()) return;
       const result = await apiPut<{ blobVersion: number }>(
-        `/api/anketas/${id}/answers`,
-        { blob, expectedVersion: myBlobVersion },
+        `/api/anketas/${anketaId}/answers`,
+        { blob, expectedVersion },
       );
+      if (isSuperseded()) return;
       myBlobVersion = result.blobVersion;
       answersBeforeEdit = null;
       editingMyAnswers = false;
     } catch (error) {
+      if (isSuperseded()) return;
       if (error instanceof ApiError && error.status === 409) {
         const conflict = error.body as {
           blobVersion?: number;
@@ -1205,14 +1401,22 @@
           // the other tab's real save with no warning. Exiting edit mode (instead of
           // retrying automatically) means the user has to explicitly re-open editing
           // on top of the now-current content, never blindly resubmit over it.
-          myBlobVersion = conflict.blobVersion;
+          let saved: Answers | null = null;
           if (anketaKey && typeof conflict.blob === 'string') {
-            const envelope = await decryptBlob<Answers>(
-              conflict.blob,
-              anketaKey,
-            );
-            myAnswers = envelope.data;
+            try {
+              saved = (await decryptBlob<Answers>(conflict.blob, anketaKey))
+                .data;
+            } catch (decryptError) {
+              console.error(decryptError);
+            }
           }
+          if (isSuperseded()) return;
+          // Without readable saved content, what was published when this
+          // edit started, never this tab's unsent edit shown as published.
+          // The version is taken either way, or the live-state poll would
+          // re-fetch it on every tick.
+          myAnswers = saved ?? publishedBeforeEdit ?? myAnswers;
+          myBlobVersion = conflict.blobVersion;
           exitAnswersEditSession();
         } else {
           enterArchivedState();
@@ -1225,8 +1429,16 @@
             : $_('anketa.errorSaveAnswers');
       }
     } finally {
-      savingAnswersEdit = false;
+      // A superseded save's flag was reset by load(), and may be a newer save's now.
+      if (!isSuperseded()) savingAnswersEdit = false;
     }
+    // Back to Edit once the session is over (saved, or ended by a 409),
+    // to Save if it failed and is still open.
+    focusAfterAnswersEdit(
+      trigger,
+      editingMyAnswers ? 'save-answers' : 'edit-answers',
+      { startedOn: started, failed: editingMyAnswers },
+    );
   }
 
   /**
@@ -1519,6 +1731,34 @@
   });
 </script>
 
+<!-- Save and Cancel of an answers edit, in the sticky bar and at the card's
+     bottom alike. -->
+{#snippet answersEditButtons(place: 'top' | 'bottom')}
+  <button
+    type="button"
+    class="btn {answersEditUnsaved ? 'btn-primary' : 'btn-secondary'}"
+    data-action="save-answers"
+    aria-keyshortcuts="Control+S Meta+S"
+    onclick={(click) => handleSaveAnswersEdit(clickedAt(place, click))}
+    disabled={savingAnswersEdit || anyEntryEditOpen}
+  >
+    {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
+  </button>
+  <button
+    type="button"
+    class="btn btn-ghost"
+    data-action="cancel-answers"
+    onclick={(click) => cancelEditingAnswers(clickedAt(place, click))}
+    disabled={savingAnswersEdit || anyEntryEditOpen}
+  >
+    {$_('anketa.cancel')}
+  </button>
+{/snippet}
+
+<!-- On the document rather than my side's <section>, which as a static
+     element mustn't take a key handler (a11y_no_static_element_interactions). -->
+<svelte:document onkeydown={handleMySideKeydown} />
+
 <!-- With the anketa loaded, the page is three blocks: the header, the notes
      panel and the rest. Narrow, they stack in that order; from 840px the notes
      become a sticky column on the right (GitHub issue #132 §6.1). -->
@@ -1588,8 +1828,14 @@
         <p class="text-muted">{$_('anketa.loadingQuestions')}</p>
       {:else}
         <!-- My side -->
-        <section class="card side-card">
-          <div class="heading-row">
+        <!-- ignoreHeldEnter: Edit, Save and Cancel each move focus to the
+             button replacing them, which a held Enter would press next. -->
+        <section
+          class="card side-card"
+          bind:this={mySideCard}
+          onkeydowncapture={ignoreHeldEnter}
+        >
+          <div class="heading-row" data-answers-edit="header">
             <h2 tabindex="-1" data-my-side-heading>
               {$_('anketa.mySideHeading', {
                 values: {
@@ -1602,7 +1848,43 @@
               })}
             </h2>
             <LockIcon encrypted />
+            {#if myPublished && !archived && !editingMyAnswers}
+              <!-- Also at the card's bottom: either way, no scrolling the
+                   whole card just to start an edit (GitHub issue #166). -->
+              <button
+                type="button"
+                class="btn btn-ghost heading-edit-btn"
+                data-action="edit-answers"
+                onclick={(click) =>
+                  startEditingAnswers(clickedAt('top', click))}
+                disabled={archiving}
+              >
+                {$_('anketa.editAnswers')}
+              </button>
+            {/if}
           </div>
+
+          {#if editingMyAnswers}
+            <!-- Sticks to the top of the viewport while the card scrolls
+                 past, so Save is never a scroll away and the open edit,
+                 which is only saved by Save, stays visible (GitHub issue
+                 #166). The bottom's Save/Cancel stay too. -->
+            <div class="answers-edit-bar" data-answers-edit="bar">
+              <p class="answers-edit-status">
+                <span>{$_('anketa.editingAnswers')}</span>
+                <!-- Not a live region: it would be announced on nearly
+                     every keystroke into an empty or restored field. -->
+                {#if answersEditUnsaved}
+                  <span class="text-muted answers-edit-unsaved"
+                    >{$_('anketa.unsavedChanges')}</span
+                  >
+                {/if}
+              </p>
+              <div class="answers-edit-buttons">
+                {@render answersEditButtons('top')}
+              </div>
+            </div>
+          {/if}
 
           {#if draftUnreadable && !myPublished && !archived}
             <p role="alert" class="banner-error">
@@ -1674,33 +1956,20 @@
               >{$_('anketa.badgePublished')}</span
             >
           {:else if editingMyAnswers}
-            <div class="answers-edit-actions">
-              <button
-                type="button"
-                class="btn btn-primary"
-                onclick={handleSaveAnswersEdit}
-                disabled={savingAnswersEdit || anyEntryEditOpen}
-              >
-                {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
-              </button>
-              <button
-                type="button"
-                class="btn btn-ghost"
-                onclick={cancelEditingAnswers}
-                disabled={savingAnswersEdit || anyEntryEditOpen}
-              >
-                {$_('anketa.cancel')}
-              </button>
+            <div class="answers-edit-actions" data-answers-edit="bottom">
+              {@render answersEditButtons('bottom')}
             </div>
           {:else}
-            <div class="answers-edit-actions">
+            <div class="answers-edit-actions" data-answers-edit="bottom">
               <span class="tag tag-accent side-publish-btn"
                 >{$_('anketa.badgePublished')}</span
               >
               <button
                 type="button"
                 class="btn btn-ghost"
-                onclick={startEditingAnswers}
+                data-action="edit-answers"
+                onclick={(click) =>
+                  startEditingAnswers(clickedAt('bottom', click))}
                 disabled={archiving}
               >
                 {$_('anketa.editAnswers')}
@@ -1907,5 +2176,58 @@
     align-items: center;
     gap: 10px;
     align-self: flex-start;
+  }
+
+  /* Keyboard focus scrolled to the top doesn't land under the sticky edit
+     bar: one row of it, or two once it wraps on a narrow screen. */
+  :global(html:has(.answers-edit-bar)) {
+    scroll-padding-top: 4rem;
+  }
+
+  @media (max-width: 30em) {
+    :global(html:has(.answers-edit-bar)) {
+      scroll-padding-top: 6.5rem;
+    }
+  }
+
+  .heading-edit-btn {
+    margin-left: auto;
+  }
+
+  /* The card has no overflow clipping, so this sticks within it. It spans
+     the card's padding so the answers scrolling under it don't show at its
+     sides, and the discussed blocks' opacity puts them in their own stacking
+     context, hence the z-index. */
+  .answers-edit-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin: 0 calc(-1 * var(--space-3));
+    padding: 8px var(--space-3);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .answers-edit-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .answers-edit-unsaved {
+    font-weight: 400;
+  }
+
+  .answers-edit-buttons {
+    display: flex;
+    gap: 10px;
   }
 </style>

@@ -98,6 +98,8 @@ export interface RefocusOptions {
    * focus always moves.
    */
   startedOn?: ActionStart;
+  /** Passed to `focus()`, e.g. `preventScroll` for a target far from where the user was. */
+  focusOptions?: FocusOptions;
 }
 
 /**
@@ -116,7 +118,7 @@ export interface RefocusOptions {
 export async function refocus(
   root: HTMLElement | undefined,
   selector: string,
-  { onRootGone, startedOn }: RefocusOptions = {},
+  { onRootGone, startedOn, focusOptions }: RefocusOptions = {},
 ): Promise<void> {
   await tick();
   if (startedOn && !(isCurrent(startedOn) && focusIsFree(root))) return;
@@ -124,7 +126,7 @@ export async function refocus(
     onRootGone?.();
     return;
   }
-  root.querySelector<HTMLElement>(selector)?.focus();
+  root.querySelector<HTMLElement>(selector)?.focus(focusOptions);
 }
 
 /**
