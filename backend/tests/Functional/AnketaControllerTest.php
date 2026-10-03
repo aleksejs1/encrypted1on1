@@ -10,6 +10,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Event\PostLoadEventArgs;
 use Doctrine\ORM\Events;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\Mime\Email;
 
 class AnketaControllerTest extends ApiTestCase
 {
@@ -1145,6 +1146,85 @@ class AnketaControllerTest extends ApiTestCase
         $expected = [$chainId, $oneOffId];
         sort($expected);
         self::assertSame($expected, $ids);
+    }
+
+    /**
+     * GitHub issue #200: moving a meeting to another day emails the counterpart, opted out
+     * of reminders or not, in their own language and naming the mover by display name.
+     */
+    public function testRescheduleEmailsTheCounterpartTheNewDate(): void
+    {
+        $employeeClient = static::createClient();
+        $employee = $this->activateUser($employeeClient, $this->uniqueEmail('anketa-reschedule-mail-emp'), displayName: 'Erin Employee');
+        $managerClient = $this->secondClient();
+        $manager = $this->activateUser($managerClient, $this->uniqueEmail('anketa-reschedule-mail-mgr'), locale: 'de');
+        $this->jsonRequest($managerClient, 'PUT', '/api/me/notification-preferences', ['meetingRemindersEnabled' => false]);
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['meetingDate' => '2091-03-05T00:00:00+00:00'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/meeting-date", [
+            'meetingDate' => '2091-03-07T00:00:00+00:00',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertEmailCount(1);
+        $message = self::getMailerMessage();
+        self::assertInstanceOf(Email::class, $message);
+        self::assertSame($manager['email'], $message->getTo()[0]->getAddress());
+        self::assertSame('Ihr 1:1 wurde verschoben', $message->getSubject());
+        self::assertSame(
+            "Erin Employee ({$employee['email']}) hat Ihr 1:1 vom 2091-03-05 auf den 2091-03-07 verschoben.\n\nhttp://localhost:5173/anketas/{$anketaId}",
+            $message->getTextBody(),
+        );
+    }
+
+    /** Whoever moves the meeting, the other participant is the one told. */
+    public function testRescheduleByTheManagerEmailsTheEmployee(): void
+    {
+        [$employeeClient, $employee, $managerClient, $manager] = $this->makePair('reschedule-by-manager');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['meetingDate' => '2091-03-05T00:00:00+00:00'])['json']['id'];
+
+        $result = $this->jsonRequest($managerClient, 'PUT', "/api/anketas/{$anketaId}/meeting-date", [
+            'meetingDate' => '2091-03-07T00:00:00+00:00',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        $recipients = array_map(static fn ($message) => $message instanceof Email ? $message->getTo()[0]->getAddress() : null, self::getMailerMessages());
+        self::assertSame([$employee['email']], $recipients);
+        $message = self::getMailerMessage();
+        self::assertInstanceOf(Email::class, $message);
+        self::assertSame("{$manager['email']} moved your 1:1 from 2091-03-05 to 2091-03-07.\n\nhttp://localhost:5173/anketas/{$anketaId}", $message->getTextBody());
+    }
+
+    /** The email shows dates only, so a new time on the same day has nothing to announce. */
+    public function testRescheduleWithinTheSameDaySendsNoEmail(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('reschedule-same-day');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['meetingDate' => '2091-03-05T00:00:00+00:00'])['json']['id'];
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/meeting-date", [
+            'meetingDate' => '2091-03-05T09:00:00+00:00',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertEmailCount(0);
+    }
+
+    /** A blocked counterpart can't open the meeting, so gets no email about it. */
+    public function testRescheduleDoesNotEmailABlockedCounterpart(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('reschedule-blocked');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['meetingDate' => '2091-03-05T00:00:00+00:00'])['json']['id'];
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        self::assertNotNull($managerEntity);
+        $managerEntity->setBlocked(true);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/meeting-date", [
+            'meetingDate' => '2091-03-07T00:00:00+00:00',
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertEmailCount(0);
     }
 
     public function testRescheduleRejectsOnceArchived(): void

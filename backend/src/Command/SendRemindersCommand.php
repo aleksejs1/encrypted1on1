@@ -163,19 +163,10 @@ class SendRemindersCommand extends Command
         $sent = true;
 
         foreach ([[$employee, $manager], [$manager, $employee]] as [$recipient, $counterpart]) {
-            $published = $anketa->isPublished($recipient);
             // `$sent = ... && $sent`, not the other way round: every email is still attempted.
-            if ($monday) {
-                $sent = $this->notifier->notifyMeetingMonday($anketa, $recipient, $counterpart) && $sent;
-                if (!$published) {
-                    $sent = $this->notifier->notifyNotFilledOutMonday($anketa, $recipient, $counterpart) && $sent;
-                }
-            } else {
-                $sent = $this->notifier->notifyMeetingTomorrow($anketa, $recipient, $counterpart) && $sent;
-                if (!$published) {
-                    $sent = $this->notifier->notifyNotFilledOut($anketa, $recipient, $counterpart) && $sent;
-                }
-            }
+            $sent = ($monday
+                ? $this->notifier->notifyMeetingMonday($anketa, $recipient, $counterpart)
+                : $this->notifier->notifyMeetingTomorrow($anketa, $recipient, $counterpart)) && $sent;
         }
 
         if (!$sent) {

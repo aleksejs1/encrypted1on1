@@ -223,6 +223,24 @@ class AnketaLifecycleService
     }
 
     /**
+     * Moves the meeting and, if that changed its day, emails the counterpart the new date
+     * (GitHub issue #200). The emails show a date only, so a move within the same day
+     * would send "moved from X to X". A blocked counterpart (a deleted account is one)
+     * can't open the meeting, and gets nothing.
+     */
+    public function reschedule(Anketa $anketa, User $actor, \DateTimeImmutable $meetingDate): void
+    {
+        $previousDate = $anketa->getMeetingDate();
+        $anketa->reschedule($meetingDate);
+        $this->entityManager->flush();
+
+        $counterpart = $anketa->isEmployee($actor) ? $anketa->getManager() : $anketa->getEmployee();
+        if ($previousDate->format('Y-m-d') !== $anketa->getMeetingDate()->format('Y-m-d') && !$counterpart->isBlocked()) {
+            $this->notifier->notifyMeetingRescheduled($anketa, $counterpart, $actor, $previousDate);
+        }
+    }
+
+    /**
      * The template the successor of $anketa gets when nobody picks a different one at
      * archive (GitHub issue #140): the per-template recurrence map,
      * Anketa::nextCycleTemplateKeyFor(), which is now only the default — the "Next
