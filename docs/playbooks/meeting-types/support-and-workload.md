@@ -90,11 +90,11 @@ Create hard digital and physical barriers to stop energy leaks:
 
 ## 4. In-Platform Field Mapping (`support_checkin`)
 
-When you create an anketa with the `support_checkin` template, `encrypted1on1` focuses specifically on energy and load shedding:
+When you create a 1:1 with the `support_checkin` template, `encrypted1on1` focuses specifically on energy and load shedding:
 
 | Template Field | Who Fills It | Best Practice |
 | :--- | :--- | :--- |
-| **Mood & Workload** | Employee | Continues tracking the longitudinal sparklines in the Anketa List. |
+| **Mood & Workload** | Employee | Continues tracking the longitudinal sparklines in the 1:1 list. |
 | **Energy Level** (`energyLevel`) | Employee | Radio (`low`, `manageable`, `good`) and narrative for main energy drivers (`energyDrivers`). |
 | **Workload Triage** (`workloadTriage`) | Employee | A structured list (`triageEntries`) to name tasks that should be paused, delegated, or cancelled. |
 | **Boundaries** (`boundaries`) | Employee | Document needed protections (`boundariesNotes`) like quiet hours, meeting-free days, or on-call pause. |

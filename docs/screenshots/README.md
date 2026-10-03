@@ -8,33 +8,33 @@ A visual tour of the app, in the order you'd actually encounter it. For what eac
 
 Your key is derived from your password right here, client-side — the subtitle and the note at the bottom say so directly, not just in the docs. See [encryption.md](../encryption.md) for the mechanism.
 
-## Your anketas
+## Your 1:1s
 
-![Anketa list, grouped by date](anketa_list.png)
+![1:1 list, grouped by date](anketa_list.png)
 
-The home screen: a by-date/by-person toggle, upcoming meeting countdown badges ("In 7 days"), and each anketa tagged with its status — archived, published by me, published by my counterpart.
+The home screen: a by-date/by-person toggle, upcoming meeting countdown badges ("In 7 days"), and each 1:1 tagged with its status — archived, published by me, published by my counterpart.
 
-## Filling out an anketa
+## Filling out a 1:1
 
-![An empty, unpublished anketa](anketa_employee_empty.png)
+![An empty, unpublished 1:1](anketa_employee_empty.png)
 
-A fresh anketa, employee side, nothing filled in yet — mood/workload as radio choices, feelings as toggle pills, the append-style entry lists for growth/achievements/discuss, and the private notes panel on the right. The counterpart's side is still locked ("Not published yet").
+A fresh 1:1, employee side, nothing filled in yet — mood/workload as radio choices, feelings as toggle pills, the append-style entry lists for growth/achievements/discuss, and the private notes panel on the right. The counterpart's side is still locked ("Not published yet").
 
-![A fully filled-in, published anketa](anketa_employee.png)
+![A fully filled-in, published 1:1](anketa_employee.png)
 
-The same anketa once both sides are published: real answers on both sides (in a streamlined read-only view displaying only chosen options and answered fields), meeting outcomes, and a goal with a progress checkpoint. To the right: the author's encrypted private notes panel, sticky and autosaved as you type. The lock icons next to each heading are a direct, in-UI reminder of what's encrypted and what isn't (see [encryption.md](../encryption.md#deliberate-plaintext-exceptions) for the goal exception, called out in the Goals section itself via its own "more info" toggle).
+The same 1:1 once both sides are published: real answers on both sides (in a streamlined read-only view displaying only chosen options and answered fields), meeting outcomes, and a goal with a progress checkpoint. To the right: the author's encrypted private notes panel, sticky and autosaved as you type. The lock icons next to each heading are a direct, in-UI reminder of what's encrypted and what isn't (see [encryption.md](../encryption.md#deliberate-plaintext-exceptions) for the goal exception, called out in the Goals section itself via its own "more info" toggle).
 
 ## Report
 
 ![A cross-period report](report.png)
 
-Every achievement and growth-log entry across a date range, plus goals with their full checkpoint history — assembled entirely client-side from anketas the browser already has the keys to. See [user-flow.md](../user-flow.md#reports).
+Every achievement and growth-log entry across a date range, plus goals with their full checkpoint history — assembled entirely client-side from 1:1s the browser already has the keys to. See [user-flow.md](../user-flow.md#reports).
 
 ## Dark mode
 
-![The same anketa in dark mode](dark_theme.png)
+![The same 1:1 in dark mode](dark_theme.png)
 
-Dark mode is a first-class theme, not an afterthought — same anketa as above, switched via the header toggle.
+Dark mode is a first-class theme, not an afterthought — same 1:1 as above, switched via the header toggle.
 
 ## Multiple languages
 
@@ -52,4 +52,4 @@ The interface ships with 6 languages out of the box: English (shown above), Russ
 
 ![Browser devtools showing the raw API response, with the ciphertext fields circled](encryption.png)
 
-The point made concrete: this is the *actual* network response for the anketa above, opened in the browser's own devtools. `mySealedKey`, `employeeBlob`, `managerBlob`, `outcomesBlob`, and `goalCheckpointsBlob` (circled) are exactly what they look like — opaque ciphertext, not something that decodes into the answers shown in the screenshots above. See [encryption.md](../encryption.md) for what's actually going on here, and its threat-model section for what this does and doesn't protect against.
+The point made concrete: this is the *actual* network response for the 1:1 above, opened in the browser's own devtools. `mySealedKey`, `employeeBlob`, `managerBlob`, `outcomesBlob`, and `goalCheckpointsBlob` (circled) are exactly what they look like — opaque ciphertext, not something that decodes into the answers shown in the screenshots above. See [encryption.md](../encryption.md) for what's actually going on here, and its threat-model section for what this does and doesn't protect against.
