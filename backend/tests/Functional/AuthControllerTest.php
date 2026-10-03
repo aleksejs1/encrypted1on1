@@ -6,11 +6,16 @@ use App\Entity\ActivationToken;
 use App\Entity\Company;
 use App\Entity\InviteRecord;
 use App\Entity\User;
+use App\Security\AuthSession;
 use App\Tests\Support\ApiTestCase;
+use Symfony\Component\Clock\MockClock;
+use Symfony\Component\Clock\Test\ClockSensitiveTrait;
 use Symfony\Component\Uid\Uuid;
 
 class AuthControllerTest extends ApiTestCase
 {
+    use ClockSensitiveTrait;
+
     public function testMeReturns401WhenNotAuthenticated(): void
     {
         $client = static::createClient();
@@ -276,6 +281,95 @@ class AuthControllerTest extends ApiTestCase
 
         $me = $this->jsonRequest($client, 'GET', '/api/me');
         self::assertSame(401, $me['status']);
+    }
+
+    public function testASessionIdleForLongerThanTheTimeoutIsRejected(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-idle'));
+
+        $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS + 1);
+
+        $me = $this->jsonRequest($client, 'GET', '/api/me');
+        self::assertSame(401, $me['status']);
+
+        // Logged out for good, not just refused once: the same cookie stays rejected
+        // even with the clock back inside the window.
+        $clock->sleep(-AuthSession::IDLE_TIMEOUT_SECONDS);
+        self::assertSame(401, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+    }
+
+    public function testAnIdleTabsFirstWriteGets401AndItsCsrfTokenStillLogsIn(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-idle-csrf');
+        $this->activateUser($client, $email);
+        // What a tab left open holds: the token it fetched while logged in. Sent by
+        // hand below, since jsonRequest() would fetch a fresh one each time.
+        $headers = ['HTTP_X_CSRF_TOKEN' => $this->csrfToken($client), 'CONTENT_TYPE' => 'application/json'];
+
+        $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS + 1);
+
+        // 401 "session ended", not 403 "invalid CSRF token": the client only treats
+        // the former as a reason to show the login screen.
+        $client->request('PUT', '/api/me/display-name', server: $headers, content: '{"displayName":"Idle"}');
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+
+        $client->request('POST', '/api/login', server: $headers, content: json_encode([
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+        ], \JSON_THROW_ON_ERROR));
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+    }
+
+    public function testASessionIdleForExactlyTheTimeoutIsStillValid(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-idle-edge'));
+
+        $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS);
+
+        self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+    }
+
+    public function testEveryRequestRestartsTheIdleTimeout(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-idle-sliding'));
+
+        // Three requests, each just inside the window of the one before: the session
+        // is far older than the timeout by the end, but was never idle that long.
+        for ($i = 0; $i < 3; ++$i) {
+            $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS - 60);
+            self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+        }
+    }
+
+    public function testLoggingInAgainAfterAnIdleLogoutStartsAFreshSession(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-idle-relogin');
+        $this->activateUser($client, $email);
+
+        $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS + 1);
+        self::assertSame(401, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+
+        $login = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+        ]);
+        self::assertSame(200, $login['status']);
+        self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
     }
 
     public function testLoginIsRateLimitedAfterTooManyAttempts(): void

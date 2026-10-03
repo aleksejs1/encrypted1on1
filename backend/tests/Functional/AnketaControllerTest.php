@@ -4,16 +4,21 @@ namespace App\Tests\Functional;
 
 use App\Entity\Anketa;
 use App\Entity\User;
+use App\Security\AuthSession;
 use App\Tests\Support\ApiTestCase;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Event\PostLoadEventArgs;
 use Doctrine\ORM\Events;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\Clock\MockClock;
+use Symfony\Component\Clock\Test\ClockSensitiveTrait;
 use Symfony\Component\Mime\Email;
 
 class AnketaControllerTest extends ApiTestCase
 {
+    use ClockSensitiveTrait;
+
     public function testCreateRequiresPeriodicityForANewPair(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('no-periodicity');
@@ -421,6 +426,23 @@ class AnketaControllerTest extends ApiTestCase
         // No blob/version in the body, so the client's conflict retry doesn't treat it
         // as a stale version and retry.
         self::assertArrayNotHasKey('discussedVersion', $result['json']);
+    }
+
+    public function testTheLiveStatePollAloneKeepsASessionAlive(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        [$employeeClient, , , $manager] = $this->makePair('live-state-keepalive');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        // Nothing but the poll for well over the idle timeout in total.
+        for ($i = 0; $i < 3; ++$i) {
+            $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS - 60);
+            $poll = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}/live-state");
+            self::assertSame(200, $poll['status']);
+        }
+
+        self::assertSame(200, $this->jsonRequest($employeeClient, 'GET', '/api/me')['status']);
     }
 
     public function testLiveStateReturnsCurrentScalarsAndVersions(): void

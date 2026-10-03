@@ -4,6 +4,7 @@ namespace App\Security;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -15,15 +16,27 @@ use Symfony\Component\HttpFoundation\Request;
 class AuthSession
 {
     private const SESSION_KEY = 'user_id';
+    private const LAST_ACTIVE_KEY = 'last_active_at';
 
-    public function __construct(private readonly EntityManagerInterface $entityManager)
-    {
+    /**
+     * A logged-in session unused for longer than this is logged out on its next
+     * request (GitHub issue #194) — 12 hours covers a working day. Enforced here
+     * rather than left to session.gc_maxlifetime, which is only a lower bound: PHP's
+     * session GC is probabilistic, so an idle session file can outlive it by a lot.
+     */
+    public const IDLE_TIMEOUT_SECONDS = 12 * 60 * 60;
+
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+        private readonly ClockInterface $clock,
+    ) {
     }
 
     public function logIn(Request $request, User $user): void
     {
         $session = $request->getSession();
         $session->set(self::SESSION_KEY, $user->getId());
+        $session->set(self::LAST_ACTIVE_KEY, $this->clock->now()->getTimestamp());
         // Regenerate the session id on privilege change to prevent session fixation.
         $session->migrate();
 
@@ -33,8 +46,25 @@ class AuthSession
 
     public function getCurrentUser(Request $request): ?User
     {
-        $id = $request->getSession()->get(self::SESSION_KEY);
+        $session = $request->getSession();
+        $id = $session->get(self::SESSION_KEY);
         if (null === $id) {
+            return null;
+        }
+
+        // A logged-in session with no timestamp at all counts as idle too, so a
+        // session can never skip the timeout by not having one.
+        $now = $this->clock->now()->getTimestamp();
+        $lastActiveAt = $session->get(self::LAST_ACTIVE_KEY);
+        if (!\is_int($lastActiveAt) || $now - $lastActiveAt > self::IDLE_TIMEOUT_SECONDS) {
+            // Only the login is dropped, not the whole session as in logOut(): that
+            // would also destroy the CSRF secret, and this runs (CompanyFilterListener)
+            // before the CSRF check — a tab coming back after a night would get a 403
+            // "invalid CSRF token" on its first Save instead of the 401 that sends it
+            // to the login screen, and its cached token would then fail the login too.
+            $session->remove(self::SESSION_KEY);
+            $session->remove(self::LAST_ACTIVE_KEY);
+
             return null;
         }
 
@@ -57,6 +87,11 @@ class AuthSession
 
             return null;
         }
+
+        // Every authenticated request counts as activity, the anketa page's 4s
+        // live-update poll included — a visible open page keeps its session alive
+        // (the poll pauses while the tab is hidden).
+        $session->set(self::LAST_ACTIVE_KEY, $now);
 
         return $user;
     }

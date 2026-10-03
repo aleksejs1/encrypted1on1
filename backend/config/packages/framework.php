@@ -24,10 +24,18 @@ return static function (ContainerConfigurator $container): void {
             // Symfony's own default — sends Secure only on HTTPS requests, so this
             // works over plain HTTP in dev without weakening the flag in prod.
             'cookie_secure' => 'auto',
+            // Session files live under var/, the directory every deployment keeps in a
+            // volume — PHP's default (the container's own tmp) is lost whenever the
+            // container is recreated, which signed everyone out on each deploy.
+            'handler_id' => 'session.handler.native_file',
+            'save_path' => '%kernel.project_dir%/var/sessions',
+            // 48 hours. Only clears old session files off the disk; the real idle
+            // timeout is AuthSession::IDLE_TIMEOUT_SECONDS, and this must stay above it.
+            'gc_maxlifetime' => 172800,
         ],
         'csrf_protection' => true,
         'trusted_proxies' => $trustedProxies,
-        'trusted_headers' => $trustedProxies !== ''
+        'trusted_headers' => '' !== $trustedProxies
             ? ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port']
             : [],
     ]);
