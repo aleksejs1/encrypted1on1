@@ -59,7 +59,7 @@ async function createAnketa(
   const input = creator.locator('#meeting-date');
   await input.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await input.blur();
-  await creator.getByRole('button', { name: 'Create anketa' }).click();
+  await creator.getByRole('button', { name: 'Create 1:1' }).click();
   await creator.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return creator.url();
 }
@@ -354,7 +354,7 @@ test('after a password reset the notes are unreadable, and new notes can be star
   await employee.locator('#reset-confirm').fill(newPassword);
   await employee
     .getByText(
-      'I understand my existing anketas will be unreadable until access is restored.',
+      'I understand my existing 1:1s will be unreadable until access is restored.',
     )
     .click();
   await employee.getByRole('button', { name: 'Reset password' }).click();

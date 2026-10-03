@@ -1,19 +1,19 @@
 email:
     anketa_created:
-        subject: 'Новая анкета 1-на-1'
-        body: "%creator% назначил(а) с вами встречу 1-на-1 на %date%.\n\nПожалуйста, заполните свою часть: %url%"
+        subject: 'Назначена новая встреча 1:1'
+        body: "%creator% назначил(а) с вами встречу 1:1 на %date%.\n\nПожалуйста, заполните свою часть: %url%"
     meeting_tomorrow:
-        subject: 'Ваша встреча 1-на-1 завтра'
-        body: "Ваша встреча 1-на-1 с %counterpart% состоится завтра (%date%).\n\n%url%"
+        subject: 'Ваша встреча 1:1 завтра'
+        body: "Ваша встреча 1:1 с %counterpart% состоится завтра (%date%).\n\n%url%"
     not_filled_out:
-        subject: 'Напоминание: заполните анкету к завтрашней встрече'
-        body: "Вы ещё не заполнили свою часть анкеты к завтрашней встрече 1-на-1 с %counterpart% (%date%).\n\n%url%"
+        subject: 'Напоминание: заполните свою часть к завтрашней встрече 1:1'
+        body: "Вы ещё не заполнили свою часть к завтрашней встрече 1:1 с %counterpart% (%date%).\n\n%url%"
     meeting_monday:
-        subject: 'Ваша встреча 1-на-1 в понедельник'
-        body: "Ваша встреча 1-на-1 с %counterpart% состоится в понедельник (%date%).\n\n%url%"
+        subject: 'Ваша встреча 1:1 в понедельник'
+        body: "Ваша встреча 1:1 с %counterpart% состоится в понедельник (%date%).\n\n%url%"
     not_filled_out_monday:
-        subject: 'Напоминание: заполните анкету к встрече в понедельник'
-        body: "Вы ещё не заполнили свою часть анкеты к встрече 1-на-1 с %counterpart% в понедельник (%date%).\n\n%url%"
+        subject: 'Напоминание: заполните свою часть к встрече 1:1 в понедельник'
+        body: "Вы ещё не заполнили свою часть к встрече 1:1 с %counterpart% в понедельник (%date%).\n\n%url%"
     invited:
         subject: 'Вас пригласили в encrypted1on1'
         body: "%inviter% пригласил(а) вас в encrypted1on1.\n\nАктивируйте аккаунт: %url%"
@@ -22,7 +22,7 @@ email:
         body: "Мы получили запрос на сброс пароля.\n\nВыберите новый пароль: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
     counterpart_key_changed:
         subject: 'У собеседника изменился ключ шифрования'
-        body: "Аккаунт %counterpart% прошёл через сброс пароля, из-за чего изменился его ключ шифрования.\n\nВозможно, анкеты, которые у вас с ним общие, нужно будет предоставить заново, прежде чем он сможет их прочитать — если это так, вы увидите баннер об этом в списке анкет."
+        body: "Аккаунт %counterpart% прошёл через сброс пароля, из-за чего изменился его ключ шифрования.\n\nВозможно, к встречам 1:1, которые у вас с ним общие, нужно будет заново предоставить доступ, прежде чем он сможет их прочитать — если это так, вы увидите баннер об этом в списке встреч 1:1."
     signup:
         subject: 'Подтвердите email для encrypted1on1'
         body: "Мы получили запрос на создание аккаунта encrypted1on1 с этим email.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
@@ -35,7 +35,7 @@ email:
 errors:
     not_authenticated: 'Вы не авторизованы.'
     missing_or_invalid_field: 'Отсутствует или некорректно поле «%field%».'
-    anketa_archived: 'Анкета в архиве.'
+    anketa_archived: 'Эта встреча 1:1 в архиве.'
     missing_blob_or_expected_version: 'Отсутствует «blob» или «expectedVersion».'
     already_published: 'Уже опубликовано.'
     not_published_yet: 'Ещё не опубликовано.'
@@ -106,9 +106,9 @@ errors:
     missed_skip_must_be_booleans: '«missed» и «skipNextMeeting» должны быть булевыми значениями.'
     next_meeting_date_must_be_string: '«nextMeetingDate» должно быть строкой.'
     next_meeting_date_must_be_valid_date: '«nextMeetingDate» должно быть корректной датой.'
-    no_periodicity_on_record: 'Для этой анкеты не задана периодичность — передайте «skipNextMeeting»: true.'
+    no_periodicity_on_record: 'Для этой встречи 1:1 не задана периодичность — передайте «skipNextMeeting»: true.'
     missing_sealed_keys: 'Отсутствует «mySealedKey» или «counterpartSealedKey».'
-    anketa_not_found: 'Анкета не найдена.'
+    anketa_not_found: 'Встреча 1:1 не найдена.'
     not_a_participant: 'Вы не являетесь участником.'
     missing_meeting_date: 'Отсутствует «meetingDate».'
     invalid_csrf_token: 'Недействительный CSRF-токен.'

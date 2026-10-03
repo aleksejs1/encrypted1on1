@@ -21,6 +21,7 @@ function flattenKeys(obj: unknown, prefix = ''): string[] {
 
 const locales: Record<string, unknown> = { en, ru, lv, es, de, fr };
 const englishKeys = flattenKeys(en).sort();
+const OLD_TERMS = /anket|анкет|cuestionario|fragebogen|questionnaire/i;
 
 describe('locale files', () => {
   for (const [code, messages] of Object.entries(locales)) {
@@ -33,6 +34,16 @@ describe('locale files', () => {
         return messageAt(messages, key) === '';
       });
       expect(empties).toEqual([]);
+    });
+
+    // GitHub issue #195: the product's object is a "1:1" in every locale;
+    // "anketa" survives only in keys, identifiers and routes. The other
+    // words are the questionnaire terms es/de/fr used before the rename.
+    it(`${code}.json never calls a 1:1 an "anketa" in its text`, () => {
+      const offenders = flattenKeys(messages).filter((key) =>
+        OLD_TERMS.test(String(messageAt(messages, key))),
+      );
+      expect(offenders).toEqual([]);
     });
   }
 });

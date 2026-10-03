@@ -578,7 +578,7 @@ class AnketaControllerTest extends ApiTestCase
         ]);
 
         self::assertSame(409, $result['status']);
-        self::assertSame('Anketa is archived.', $result['json']['error']);
+        self::assertSame('This 1:1 is archived.', $result['json']['error']);
     }
 
     public function testPublishRejectsOnceArchivedEvenIfNeverPublished(): void
@@ -595,7 +595,7 @@ class AnketaControllerTest extends ApiTestCase
         ]);
 
         self::assertSame(409, $result['status']);
-        self::assertSame('Anketa is archived.', $result['json']['error']);
+        self::assertSame('This 1:1 is archived.', $result['json']['error']);
     }
 
     public function testUpdateAnswersSucceedsAndIncrementsVersionWithoutTouchingPublishedAt(): void
@@ -690,7 +690,7 @@ class AnketaControllerTest extends ApiTestCase
         ]);
 
         self::assertSame(409, $result['status']);
-        self::assertSame('Anketa is archived.', $result['json']['error']);
+        self::assertSame('This 1:1 is archived.', $result['json']['error']);
     }
 
     public function testArchiveWithoutAutoRecreationCreatesNoNextAnketa(): void
@@ -751,7 +751,7 @@ class AnketaControllerTest extends ApiTestCase
 
         $again = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", $archiveBody);
         self::assertSame(409, $again['status']);
-        self::assertSame('Anketa is archived.', $again['json']['error']);
+        self::assertSame('This 1:1 is archived.', $again['json']['error']);
         self::assertSame($archivedAt, $again['json']['archivedAt']);
         self::assertFalse($again['json']['missed']);
 
@@ -812,7 +812,7 @@ class AnketaControllerTest extends ApiTestCase
 
         self::assertSame(1, $listener->racedLoads);
         self::assertSame(409, $result['status']);
-        self::assertSame('Anketa is archived.', $result['json']['error']);
+        self::assertSame('This 1:1 is archived.', $result['json']['error']);
         // Re-read after losing, so it reports the winner's state.
         self::assertNotNull($result['json']['archivedAt']);
         self::assertTrue($result['json']['missed']);
@@ -1172,7 +1172,7 @@ class AnketaControllerTest extends ApiTestCase
         ]);
 
         self::assertSame(409, $result['status']);
-        self::assertSame('Anketa is archived.', $result['json']['error']);
+        self::assertSame('This 1:1 is archived.', $result['json']['error']);
     }
 
     public function testPeriodicityIsInheritedForAContinuingPair(): void

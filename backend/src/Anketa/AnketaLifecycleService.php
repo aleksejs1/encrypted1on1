@@ -167,7 +167,7 @@ class AnketaLifecycleService
         // A programming error, not a fallback: AnketaController::archive() always
         // resolves one. Thrown before the transaction, for nextAnketaPeriodicity()'s reason.
         if (null !== $nextPeriodicityDays && null === $nextTemplateKey) {
-            throw new BadRequestHttpException('Next anketa requires a template key.');
+            throw new BadRequestHttpException('Next 1:1 requires a template key.');
         }
 
         // The callback returns false (never throws) when the anketa was already
@@ -290,10 +290,10 @@ class AnketaLifecycleService
         }
         $periodicityDays = $anketa->getPeriodicityDays();
         if (null === $periodicityDays) {
-            throw new BadRequestHttpException('Next anketa requires periodicity.');
+            throw new BadRequestHttpException('Next 1:1 requires periodicity.');
         }
         if (null === $mySealedKey || null === $counterpartSealedKey) {
-            throw new BadRequestHttpException('Next anketa requires sealed keys.');
+            throw new BadRequestHttpException('Next 1:1 requires sealed keys.');
         }
 
         return $periodicityDays;

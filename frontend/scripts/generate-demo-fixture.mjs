@@ -296,7 +296,7 @@ async function runLocale(browser, localeCode) {
       (res) =>
         res.request().method() === 'POST' && res.url().endsWith('/api/anketas'),
     ),
-    employee.getByRole('button', { name: 'Create anketa' }).click(),
+    employee.getByRole('button', { name: 'Create 1:1' }).click(),
   ]);
   const cycle1Id = (await createRes.json()).id;
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);

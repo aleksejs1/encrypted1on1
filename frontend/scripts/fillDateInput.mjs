@@ -15,7 +15,7 @@
  * own fresh `browser.newContext()` per account already guarantees.
  *
  * The explicit `blur()` is required, not redundant with whatever the caller
- * does next: the button that follows (e.g. "Create anketa"/"Add goal") is
+ * does next: the button that follows (e.g. "Create 1:1"/"Add goal") is
  * disabled until this field's value commits, so Playwright's own pre-click
  * actionability check never lets that click happen at all without it —
  * confirmed by hitting exactly this hang (a 30s timeout waiting for a
