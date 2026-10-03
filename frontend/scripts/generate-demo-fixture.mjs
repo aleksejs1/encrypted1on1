@@ -287,6 +287,9 @@ async function runLocale(browser, localeCode) {
     .getByPlaceholder('Type a name or email to search…')
     .fill(c.managerEmail);
   await employee.getByRole('button', { name: c.managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 5);
   await fillDateInput(employee.locator('#meeting-date'), meetingDate);

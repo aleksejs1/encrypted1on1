@@ -292,6 +292,9 @@ await employee
   .getByPlaceholder('Type a name or email to search…')
   .fill(MANAGER_EMAIL);
 await employee.getByRole('button', { name: MANAGER_EMAIL }).click();
+await employee
+  .locator('label.radio', { hasText: "No, I'm the employee" })
+  .click();
 // Created in the near future (so the *empty* screenshot below doesn't show
 // an unrelated "this meeting is overdue" banner) — backdated via a direct
 // SQL update further down, right before archiving, so the *archived*
@@ -315,6 +318,10 @@ await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
 console.log('Anketa created:', anketaId);
 
 // --- Empty state, before anyone fills anything in ---
+// Reloaded first: the tab that just created the 1:1 shows a "1:1 created."
+// notice, which isn't part of the page's steady state.
+await employee.reload();
+await employee.waitForLoadState('networkidle');
 await shot(employee, 'anketa_employee_empty.png');
 
 // --- Manager publishes first (mirrors the original set's README hero
