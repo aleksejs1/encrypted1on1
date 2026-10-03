@@ -181,8 +181,10 @@ class User
         bool $isAdmin = false,
         string $locale = 'en',
         string $displayName = '',
+        ?string $id = null,
     ) {
-        $this->id = Uuid::v7()->toRfc4122();
+        // Only app:reset-demo-data passes an id: the demo fixture's ciphertext names its authors by user id.
+        $this->id = $id ?? Uuid::v7()->toRfc4122();
         $this->email = $email;
         $this->authHash = $authHash;
         $this->publicKey = $publicKey;
@@ -298,6 +300,19 @@ class User
     public function getPublicKeyUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->publicKeyUpdatedAt;
+    }
+
+    /**
+     * Only for app:reset-demo-data: undoes what delete() did to a demo account's email,
+     * since a visitor can delete the shared demo account like any other. The row has to
+     * be reused rather than replaced, because the demo fixture's ciphertext names its
+     * authors by this row's id. The command restores everything else delete() changed
+     * that the demo needs (credentials, display name, the blocked flag).
+     */
+    public function restoreDemoAccount(string $email): void
+    {
+        $this->email = $email;
+        $this->deletedAt = null;
     }
 
     /**
