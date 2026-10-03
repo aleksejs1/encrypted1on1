@@ -15,9 +15,11 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class AnketaRepository extends ServiceEntityRepository
 {
-    /** An open anketa meeting on the `:start`–`:end` day, not yet reminded for that `:day`. See onDay(). */
+    /** An open anketa meeting on the `:start`–`:end` day. See onDay(). */
     private const string OPEN_ON_DAY = 'a.archivedAt IS NULL AND a.meetingDate >= :start AND a.meetingDate < :end';
+    /** ...not yet reminded for that `:day`. */
     private const string DUE_FOR_REMINDER = self::OPEN_ON_DAY.' AND (a.reminderMeetingDay IS NULL OR a.reminderMeetingDay <> :day)';
+    /** ...not yet followed up for that `:day` (GitHub issue #202). */
     private const string DUE_FOR_FOLLOW_UP = self::OPEN_ON_DAY.' AND (a.followUpMeetingDay IS NULL OR a.followUpMeetingDay <> :day)';
 
     public function __construct(ManagerRegistry $registry)

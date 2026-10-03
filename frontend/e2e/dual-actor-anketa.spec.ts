@@ -660,6 +660,27 @@ test("the follow-up email's links land on the archive form and the reschedule fi
   await employee.evaluate("window.location.hash = 'close'");
   await expect(employee.locator('#archive-heading')).toBeFocused();
   await expect(employee).toHaveURL(anketaUrl);
+
+  // Moved to a later day since the email: the "not closed" card is gone, and
+  // the reschedule link opens the "Change date" row instead.
+  const newDate = new Date();
+  newDate.setDate(newDate.getDate() + 5);
+  const newDd = String(newDate.getDate()).padStart(2, '0');
+  const newMm = String(newDate.getMonth() + 1).padStart(2, '0');
+  const cardDateField = employee.locator('.overdue-card #reschedule-date');
+  await cardDateField.fill(`${newDd}.${newMm}.${newDate.getFullYear()}`);
+  await cardDateField.blur();
+  await employee
+    .locator('.overdue-card')
+    .getByRole('button', { name: 'Reschedule' })
+    .click();
+  await expect(employee.locator('.overdue-card')).toHaveCount(0);
+  await expect(employee.locator('.reschedule-row')).toHaveCount(0);
+
+  await employee.evaluate("window.location.hash = 'reschedule'");
+  await expect(
+    employee.locator('.reschedule-row #reschedule-date'),
+  ).toBeFocused();
 });
 
 /**

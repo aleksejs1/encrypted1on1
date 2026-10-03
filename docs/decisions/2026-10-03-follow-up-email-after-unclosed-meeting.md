@@ -70,6 +70,10 @@ Accepted trade-offs:
   the form can move down after the scroll. Focus is on its heading either way.
 - A `#reschedule` link to a meeting closed since the email does nothing; the page shows it as
   archived.
+- A link followed in a tab already showing the meeting takes focus from whatever was being typed
+  there, and leaves two history entries for the page, so the first Back seems to do nothing.
+- A send that fails for one participant releases the claim, and a same-day rerun emails both
+  again, as for reminders.
 - Days are UTC days, as for reminders. For a user far west of UTC, a run early in the UTC day
   arrives late on the evening of the meeting day itself.
 - The email says nothing about whether the recipient published; it is about closing.
@@ -88,3 +92,9 @@ and up on the dev database; the MySQL one is hand-written (one nullable column, 
 as `reminderMeetingDay`'s) and was not run against MySQL. A Playwright test
 (`dual-actor-anketa.spec.ts`) opens both links on a past-date meeting in a real browser, by a
 page load and by a fragment change in the open tab.
+
+Six `code-review` rounds. They found the look-back's missing retry and then its repeated
+emails (above), the scroll racing a company template's questions, a fragment that re-fired on
+every reload, the header acting on `#reschedule` before the page knew the meeting was archived
+(now one handler in `Anketa.svelte`), and a blocked pair claimed without an email. The last
+round left only notes recorded above as trade-offs.
