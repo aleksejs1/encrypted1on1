@@ -828,8 +828,8 @@ test('archiving an anketa the counterpart already archived shows it as archived,
     .poll(() => heldPolls.length, { timeout: 8000 })
     .toBeGreaterThan(0);
 
-  // The counterpart cancels it as missed (through the API: the overdue card's
-  // button only appears on an overdue anketa), with no successor.
+  // The counterpart cancels it as missed (through the API: the "not closed"
+  // card's button only appears once the meeting date has passed), with no successor.
   const managerCsrf = (
     (await (await manager.request.get('/api/csrf-token')).json()) as {
       token: string;
@@ -1372,8 +1372,13 @@ test('archiving with a chosen next meeting type creates the successor with that 
 });
 
 /**
- * GitHub issue #140: "Cancel as missed" on the overdue card archives with
- * whatever the archive form currently shows, next meeting type included.
+ * GitHub issue #140: "Didn't happen" (cancel as missed) on the "not closed"
+ * card archives with whatever the archive form currently shows, next meeting
+ * type included.
+ *
+ * Also GitHub issue #201: a meeting past its date reads as a neutral "not
+ * closed" in the list and on its page, and the card's first action leads to
+ * the archive form.
  */
 test('cancel as missed creates the successor with the chosen next meeting type', async ({
   browser,
@@ -1387,7 +1392,22 @@ test('cancel as missed creates the successor with the chosen next meeting type',
   await activate(browser, managerToken);
 
   const anketaUrl = await createAnketa(employee, managerEmail, -3);
-  await expect(employee.locator('.overdue-card')).toBeVisible();
+  const card = employee.locator('.overdue-card');
+  await expect(card).toContainText(/^The 1:1 on \S+ isn't closed yet/);
+  await expect(employee.locator('p.meta .tag-neutral')).toHaveText(
+    'not closed',
+  );
+  await card
+    .getByRole('button', { name: 'Close and schedule the next one' })
+    .click();
+  const archiveHeading = employee.getByRole('heading', { name: 'Archive' });
+  await expect(archiveHeading).toBeFocused();
+  await expect(archiveHeading).toBeInViewport();
+
+  await employee.goto('/');
+  await expect(employee.locator('.tag-neutral')).toHaveText('not closed');
+  await employee.goto(anketaUrl);
+  await expect(card).toBeVisible();
 
   await employee
     .getByLabel('Next meeting type')
@@ -1395,7 +1415,7 @@ test('cancel as missed creates the successor with the chosen next meeting type',
   const archiveRequest = employee.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
-  await employee.getByRole('button', { name: 'Cancel as missed' }).click();
+  await employee.getByRole('button', { name: "Didn't happen" }).click();
   expect((await archiveRequest).postDataJSON()).toMatchObject({
     missed: true,
     nextTemplateKey: 'career_growth',

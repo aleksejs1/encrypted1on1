@@ -1461,7 +1461,7 @@
    * CreateAnketa.svelte) and sends the sealed keys along with the archive request.
    * The server never generates or even transiently holds an anketa key.
    *
-   * Called from both AnketaHeader (the overdue card's "cancel as missed" button,
+   * Called from both AnketaHeader (the "not closed" card's "Didn't happen" button,
    * always with `missedFlag: true`) and AnketaArchiveSection (the regular archive
    * button, always with `missedFlag: false`) via the same `onArchive` callback prop —
    * `skipNextMeeting`/`nextMeetingDate` stay page-level state (bound down into
@@ -1809,6 +1809,7 @@
         templateName={detail.customTemplateName}
         {archived}
         {missed}
+        oneOff={detail.oneOff}
         {archiving}
         answersEditOpen={editingMyAnswers}
         bind:actionError

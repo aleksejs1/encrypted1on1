@@ -3,6 +3,7 @@
   import { apiPut, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
   import DateInput from '../design/DateInput.svelte';
+  import { ARCHIVE_HEADING_ID } from './archiveHeading';
   import { isOverdue as computeIsOverdue } from './isOverdue';
   import { shortDisplayName } from '../userDisplay';
 
@@ -14,6 +15,7 @@
     templateName,
     archived,
     missed,
+    oneOff,
     archiving,
     answersEditOpen,
     actionError = $bindable<string | null>(),
@@ -28,6 +30,8 @@
     templateName: string | null;
     archived: boolean;
     missed: boolean;
+    /** A one-off has no next meeting to schedule, so the "close" action says only that. */
+    oneOff: boolean;
     archiving: boolean;
     /**
      * See AnketaArchiveSection's prop of the same name. The same hint is
@@ -46,6 +50,17 @@
   // is exactly why isOverdue.ts's own `isOverdue()` takes `archived: boolean`
   // rather than an `archivedAt` timestamp — only its nullness ever mattered.
   const isOverdue = $derived(computeIsOverdue({ archived, meetingDate }));
+
+  /**
+   * The "not closed" card's first action only leads to the archive form
+   * further down the page (GitHub issue #201): closing a meeting has options
+   * of its own, so it isn't duplicated here.
+   */
+  function goToArchiveSection(): void {
+    const heading = document.getElementById(ARCHIVE_HEADING_ID);
+    heading?.closest('section')?.scrollIntoView({ block: 'start' });
+    heading?.focus({ preventScroll: true });
+  }
 
   let rescheduleDate = $state('');
   let rescheduling = $state(false);
@@ -104,7 +119,8 @@
     >{/if}
   {#if missed}<span class="tag tag-neutral">{$_('anketa.badgeMissed')}</span
     >{/if}
-  {#if isOverdue}<span class="tag tag-outline">{$_('anketa.badgeOverdue')}</span
+  {#if isOverdue}<span class="tag tag-neutral"
+      >{$_('anketa.badgeNotClosed')}</span
     >{/if}
   {#if !archived && !isOverdue && !showReschedule}
     <button
@@ -144,7 +160,18 @@
 
 {#if isOverdue}
   <div class="card elev-sm overdue-card">
-    <strong>{$_('anketa.overdueHeading')}</strong>
+    <strong
+      >{$_('anketa.notClosedHeading', {
+        values: { date: formatDisplayDate(meetingDate) },
+      })}</strong
+    >
+    <button
+      type="button"
+      class="btn btn-secondary go-to-archive-btn"
+      onclick={goToArchiveSection}
+    >
+      {oneOff ? $_('anketa.closeOneOff') : $_('anketa.closeAndScheduleNext')}
+    </button>
     <div class="reschedule-row">
       <DateInput bind:value={rescheduleDate} disabled={rescheduling} />
       <button
@@ -156,7 +183,6 @@
         {rescheduling ? $_('anketa.rescheduling') : $_('anketa.reschedule')}
       </button>
     </div>
-    <p class="text-muted overdue-note">{$_('anketa.orIfDidNotHappen')}</p>
     <button
       type="button"
       class="btn btn-ghost cancel-missed-btn"
@@ -166,7 +192,7 @@
         ? 'cancel-missed-after-edit-hint'
         : undefined}
     >
-      {archiving ? $_('anketa.cancelling') : $_('anketa.cancelAsMissed')}
+      {archiving ? $_('anketa.cancelling') : $_('anketa.didNotHappen')}
     </button>
     {#if answersEditOpen}
       <p id="cancel-missed-after-edit-hint" class="text-muted overdue-note">
@@ -201,8 +227,11 @@
   }
 
   .overdue-card {
-    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
     gap: 10px;
+  }
+
+  .go-to-archive-btn {
+    align-self: flex-start;
   }
 
   .reschedule-row {

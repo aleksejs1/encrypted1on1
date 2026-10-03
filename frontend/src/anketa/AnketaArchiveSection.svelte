@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import DateInput from '../design/DateInput.svelte';
+  import { ARCHIVE_HEADING_ID } from './archiveHeading';
   import type { CompanyTemplate } from '../api/types';
   import { ANKETA_TEMPLATES, templatePickerKeys } from './questions';
   import {
@@ -57,7 +58,9 @@
 </script>
 
 <section class="card">
-  <h2>{$_('anketa.archiveHeading')}</h2>
+  <!-- tabindex="-1": focusable from script only, where the header's "not
+       closed" card sends focus (GitHub issue #201). -->
+  <h2 id={ARCHIVE_HEADING_ID} tabindex="-1">{$_('anketa.archiveHeading')}</h2>
   {#if oneOff}
     <p class="text-muted archive-no-next">
       {$_('anketa.archiveOneOff')}
