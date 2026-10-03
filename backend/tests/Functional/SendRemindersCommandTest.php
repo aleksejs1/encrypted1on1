@@ -304,6 +304,9 @@ class SendRemindersCommandTest extends ApiTestCase
         $this->runCommandAt('2091-09-07 06:00');
         self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($thursday->getEmployee()));
         $this->sent = [];
+        // Scheduled for a past day after that day's follow-up run: Monday's reaches back
+        // to Friday, no further.
+        $thursdayLate = $this->makeAnketa('2091-09-06', 'fu-thu-late');
         $friday = $this->makeAnketa('2091-09-07', 'fu-fri');
         $saturday = $this->makeAnketa('2091-09-08', 'fu-sat');
         $sunday = $this->makeAnketa('2091-09-09', 'fu-sun');
@@ -326,10 +329,12 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertStringEndsWith('https://example.com/anketas/'.$friday->getId().'#reschedule', $body);
 
         self::assertSame([], $this->subjectsFor($thursday->getEmployee()));
+        self::assertSame([], $this->subjectsFor($thursdayLate->getEmployee()));
         self::assertSame([], $this->subjectsFor($today->getEmployee()));
         self::assertSame([], $this->subjectsFor($closed->getEmployee()));
         self::assertNull($this->reload($closed)->getFollowUpMeetingDay());
         self::assertStringContainsString('follow-ups for 3.', $display);
+        self::assertStringNotContainsString('failed', $display);
     }
 
     /** Nobody gets a work email on the weekend, and a rerun or a later run sends nothing new. */
@@ -410,14 +415,21 @@ class SendRemindersCommandTest extends ApiTestCase
         static::createClient();
         $anketa = $this->makeAnketa('2091-10-23', 'fu-blocked');
         $anketa->getEmployee()->setBlocked(true);
+        // Created after it, so looked at after it: the skip must not end the batch.
+        $other = $this->makeAnketa('2091-10-23', 'fu-not-blocked');
+        // The day-before reminder has no such rule (left as it was).
+        $tomorrow = $this->makeAnketa('2091-10-25', 'fu-blocked-reminder');
+        $tomorrow->getEmployee()->setBlocked(true);
         $this->entityManager()->flush();
 
         [, $display] = $this->runCommandAt('2091-10-24 06:00');
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($other->getEmployee()));
+        self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($tomorrow->getManager()));
 
         self::assertSame([], $this->subjectsFor($anketa->getEmployee()));
         self::assertSame([], $this->subjectsFor($anketa->getManager()));
         self::assertNull($this->reload($anketa)->getFollowUpMeetingDay());
-        self::assertStringContainsString('follow-ups for 0.', $display);
+        self::assertStringContainsString('follow-ups for 1.', $display);
 
         $this->reload($anketa)->getEmployee()->setBlocked(false);
         $this->entityManager()->flush();
@@ -431,6 +443,11 @@ class SendRemindersCommandTest extends ApiTestCase
         static::createClient();
         $anketa = $this->makeAnketa('2091-10-18', 'fu-smtp-down');
         $this->entityManager()->flush();
+        // Reminded the day before: the follow-up is claimed, and released, on its own.
+        [, $display] = $this->runCommandAt('2091-10-17 06:00');
+        self::assertStringContainsString('Processed reminders for 1 anketa(s) and follow-ups for 0.', $display);
+        self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($anketa->getEmployee()));
+        $this->sent = [];
         $this->onSend = static function (): void {
             throw new TransportException('smtp down');
         };
@@ -446,7 +463,10 @@ class SendRemindersCommandTest extends ApiTestCase
 
         self::assertSame(1, $exitCode);
         self::assertStringContainsString('Follow-up for anketa '.$anketa->getId().' failed', $display);
+        self::assertStringContainsString('Processed reminders for 0 anketa(s) and follow-ups for 0. 1 failed and stay due', $display);
+        self::assertStringNotContainsString("couldn't be released", $display);
         self::assertNull($this->reload($anketa)->getFollowUpMeetingDay());
+        self::assertEquals($anketa->getMeetingDate(), $this->reload($anketa)->getReminderMeetingDay());
 
         // Only a rerun on the same day retries it.
         $this->onSend = null;
