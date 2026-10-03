@@ -607,15 +607,13 @@ class AnketaController
         #[MapRequestPayload] RescheduleAnketaRequest $payload,
         Request $request,
     ): JsonResponse {
-        [$anketa] = $this->findAccessible($id, $request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
 
         if ($anketa->isArchived()) {
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $anketa->reschedule(new \DateTimeImmutable($payload->meetingDate));
-
-        $this->entityManager->flush();
+        $this->lifecycleService->reschedule($anketa, $user, new \DateTimeImmutable($payload->meetingDate));
 
         return new JsonResponse(['meetingDate' => $anketa->getMeetingDate()->format(\DATE_ATOM)]);
     }

@@ -123,7 +123,7 @@
     "displayNameSaved": "Saved.",
     "notificationsTitle": "Email notifications",
     "meetingRemindersLabel": "Meeting reminder emails",
-    "meetingRemindersHint": "Reminders before a meeting and \"not filled out yet\" nudges. You'll still always get an email when a new 1:1 is scheduled with you.",
+    "meetingRemindersHint": "Reminders before a meeting. You'll still always get an email when a new 1:1 is scheduled with you or its date changes.",
     "dateFormatTitle": "Date format",
     "dateFormatHint": "How dates are displayed throughout the app, on this device.",
     "exportTitle": "Export your data",

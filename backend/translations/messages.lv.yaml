@@ -1,19 +1,18 @@
 email:
     anketa_created:
         subject: 'Ieplānota jauna 1:1 tikšanās'
-        body: "%creator% ir ieplānojis(-usi) ar jums 1:1 tikšanos %date%.\n\nLūdzu, aizpildiet savu daļu: %url%"
+        body: "%creator% ir ieplānojis(-usi) ar jums 1:1 tikšanos %date%.\n\nŠeit jūs abi sagatavojat tēmas un pierakstāt, par ko vienojaties. Jūsu atbildes ir pilnībā šifrētas: tās varat izlasīt tikai jūs abi — ne serveris, ne jūsu uzņēmuma administratori. Rakstiet tik maz, cik vēlaties.\n\n%url%"
+    meeting_rescheduled:
+        subject: 'Jūsu 1:1 tikšanās ir pārcelta'
+        body: "%actor% pārcēla jūsu 1:1 tikšanos no %old_date% uz %date%.\n\n%url%"
     meeting_tomorrow:
         subject: 'Jūsu 1:1 tikšanās ir rīt'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir rīt (%date%).\n\n%url%"
-    not_filled_out:
-        subject: 'Atgādinājums: aizpildiet savu daļu pirms rītdienas 1:1 tikšanās'
-        body: "Jūs vēl neesat aizpildījis(-usi) savu daļu rītdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Jūsu 1:1 tikšanās ar %counterpart% ir rīt (%date%).\n\nJūs vēl neesat publicējis(-usi) savu daļu.\n\n%url%"
     meeting_monday:
         subject: 'Jūsu 1:1 tikšanās ir pirmdien'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\n%url%"
-    not_filled_out_monday:
-        subject: 'Atgādinājums: aizpildiet savu daļu pirms pirmdienas 1:1 tikšanās'
-        body: "Jūs vēl neesat aizpildījis(-usi) savu daļu pirmdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\nJūs vēl neesat publicējis(-usi) savu daļu.\n\n%url%"
     invited:
         subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
         body: "%inviter% jūs uzaicināja pievienoties encrypted1on1.\n\nAktivizējiet savu kontu: %url%"

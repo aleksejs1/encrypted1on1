@@ -3,19 +3,18 @@
 email:
     anketa_created:
         subject: 'Neues 1:1 geplant'
-        body: "%creator% hat ein 1:1 mit Ihnen für den %date% geplant.\n\nBitte füllen Sie Ihren Teil aus: %url%"
+        body: "%creator% hat ein 1:1 mit Ihnen für den %date% geplant.\n\nHier bereiten Sie beide Ihre Themen vor und halten fest, was Sie vereinbaren. Ihre Antworten sind Ende-zu-Ende-verschlüsselt: Nur Sie beide können sie lesen – weder der Server noch die Administratoren Ihres Unternehmens. Schreiben Sie so wenig, wie Sie möchten.\n\n%url%"
+    meeting_rescheduled:
+        subject: 'Ihr 1:1 wurde verschoben'
+        body: "%actor% hat Ihr 1:1 vom %old_date% auf den %date% verschoben.\n\n%url%"
     meeting_tomorrow:
         subject: 'Ihr 1:1 ist morgen'
         body: "Ihr 1:1 mit %counterpart% ist morgen (%date%).\n\n%url%"
-    not_filled_out:
-        subject: 'Erinnerung: Ihren Teil für das morgige 1:1 ausfüllen'
-        body: "Sie haben Ihren Teil für das morgige 1:1 mit %counterpart% (%date%) noch nicht ausgefüllt.\n\n%url%"
+        body_not_published: "Ihr 1:1 mit %counterpart% ist morgen (%date%).\n\nSie haben Ihren Teil noch nicht veröffentlicht.\n\n%url%"
     meeting_monday:
         subject: 'Ihr 1:1 ist am Montag'
         body: "Ihr 1:1 mit %counterpart% ist am Montag (%date%).\n\n%url%"
-    not_filled_out_monday:
-        subject: 'Erinnerung: Ihren Teil für das 1:1 am Montag ausfüllen'
-        body: "Sie haben Ihren Teil für das 1:1 am Montag mit %counterpart% (%date%) noch nicht ausgefüllt.\n\n%url%"
+        body_not_published: "Ihr 1:1 mit %counterpart% ist am Montag (%date%).\n\nSie haben Ihren Teil noch nicht veröffentlicht.\n\n%url%"
     invited:
         subject: 'Sie wurden zu encrypted1on1 eingeladen'
         body: "%inviter% hat Sie zu encrypted1on1 eingeladen.\n\nAktivieren Sie Ihr Konto: %url%"

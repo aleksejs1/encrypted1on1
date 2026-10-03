@@ -152,11 +152,11 @@ class User
     private string $locale = 'en';
 
     /**
-     * Gates AnketaNotifier's meeting reminders only (notifyMeetingTomorrow()/
-     * notifyNotFilledOut() and their Monday variants, GitHub issue #167) — the
-     * "new anketa scheduled" email (notifyAnketaCreated()) stays mandatory regardless,
-     * per the account-settings plan. Defaults true so nobody's reminders silently stop
-     * without an explicit opt-out.
+     * Gates AnketaNotifier's meeting reminders only (notifyMeetingTomorrow() and its
+     * Monday variant, GitHub issue #167) — the "new anketa scheduled" and "meeting date
+     * changed" emails (notifyAnketaCreated(), notifyMeetingRescheduled()) stay mandatory,
+     * the first per the account-settings plan, the second per GitHub issue #200. Defaults
+     * true so nobody's reminders silently stop without an explicit opt-out.
      */
     #[ORM\Column(type: 'boolean')]
     private bool $meetingRemindersEnabled = true;

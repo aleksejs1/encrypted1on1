@@ -55,17 +55,15 @@ class SendRemindersCommandTest extends ApiTestCase
 
         $this->runCommandAt('2091-06-01 06:00');
 
-        self::assertSame([
-            'Your 1:1 is tomorrow',
-            "Reminder: fill out your part for tomorrow's 1:1",
-        ], $this->subjectsFor($saturday->getEmployee()));
+        self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($saturday->getEmployee()));
         self::assertNotNull($this->reminderSentAt($saturday));
 
-        self::assertSame([
-            'Your 1:1 is on Monday',
-            "Reminder: fill out your part for Monday's 1:1",
-        ], $this->subjectsFor($monday->getEmployee()));
-        self::assertSame(['Your 1:1 is on Monday'], $this->subjectsFor($monday->getManager()), 'a side that already published gets no fill-out nudge');
+        self::assertSame(['Your 1:1 is on Monday'], $this->subjectsFor($monday->getEmployee()));
+        self::assertSame(['Your 1:1 is on Monday'], $this->subjectsFor($monday->getManager()));
+        // GitHub issue #200: one email each; only the side that hasn't published gets the extra line.
+        self::assertSame([true], $this->nudgedFor($saturday->getEmployee()));
+        self::assertSame([true], $this->nudgedFor($monday->getEmployee()));
+        self::assertSame([false], $this->nudgedFor($monday->getManager()));
         self::assertEquals(new \DateTimeImmutable('2091-06-01 06:00', new \DateTimeZone('UTC')), $this->reminderSentAt($monday));
 
         self::assertSame([], $this->subjectsFor($sunday->getEmployee()), "a Sunday meeting keeps the day-before rule — Saturday's run reminds it");
@@ -80,7 +78,7 @@ class SendRemindersCommandTest extends ApiTestCase
         $remindedOnFriday = $this->makeAnketa('2091-06-11', 'sun-friday');
         $this->entityManager()->flush();
         $this->runCommandAt('2091-06-08 06:00');
-        self::assertCount(2, $this->subjectsFor($remindedOnFriday->getEmployee()));
+        self::assertCount(1, $this->subjectsFor($remindedOnFriday->getEmployee()));
 
         // Scheduled over the weekend, after Friday's run.
         $createdLater = $this->makeAnketa('2091-06-11', 'sun-later');
@@ -91,10 +89,7 @@ class SendRemindersCommandTest extends ApiTestCase
 
         self::assertSame([], $this->subjectsFor($remindedOnFriday->getEmployee()));
         self::assertSame([], $this->subjectsFor($remindedOnFriday->getManager()));
-        self::assertSame([
-            'Your 1:1 is tomorrow',
-            "Reminder: fill out your part for tomorrow's 1:1",
-        ], $this->subjectsFor($createdLater->getEmployee()));
+        self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($createdLater->getEmployee()));
         self::assertNotNull($this->reminderSentAt($createdLater));
     }
 
@@ -108,10 +103,7 @@ class SendRemindersCommandTest extends ApiTestCase
 
         $this->runCommandAt('2091-06-13 06:00');
 
-        self::assertSame([
-            'Your 1:1 is tomorrow',
-            "Reminder: fill out your part for tomorrow's 1:1",
-        ], $this->subjectsFor($thursday->getManager()));
+        self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($thursday->getManager()));
         self::assertSame([], $this->subjectsFor($friday->getEmployee()));
         self::assertSame([], $this->subjectsFor($monday->getEmployee()));
     }
@@ -142,10 +134,7 @@ class SendRemindersCommandTest extends ApiTestCase
 
         $this->runCommandAt('2091-07-03 06:00');
 
-        self::assertSame([
-            'Your 1:1 is tomorrow',
-            "Reminder: fill out your part for tomorrow's 1:1",
-        ], $this->subjectsFor($moved->getEmployee()));
+        self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($moved->getEmployee()));
     }
 
     /**
@@ -166,10 +155,7 @@ class SendRemindersCommandTest extends ApiTestCase
         $this->runCommandAt('2091-07-09 06:00');
 
         foreach ([$first, $second] as $anketa) {
-            self::assertSame([
-                'Your 1:1 is tomorrow',
-                "Reminder: fill out your part for tomorrow's 1:1",
-            ], $this->subjectsFor($anketa->getEmployee()));
+            self::assertSame(['Your 1:1 is tomorrow'], $this->subjectsFor($anketa->getEmployee()));
         }
     }
 
@@ -222,12 +208,12 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertSame(1, $exitCode);
         self::assertStringContainsString('translator exploded', $display);
         self::assertNull($this->reload($failing)->getReminderMeetingDay());
-        self::assertCount(2, $this->subjectsFor($other->getEmployee()));
+        self::assertCount(1, $this->subjectsFor($other->getEmployee()));
 
         $this->onSend = null;
         $this->sent = [];
         $this->runCommandAt('2091-07-18 06:00');
-        self::assertCount(2, $this->subjectsFor($failing->getEmployee()));
+        self::assertCount(1, $this->subjectsFor($failing->getEmployee()));
         self::assertSame([], $this->subjectsFor($other->getEmployee()));
     }
 
@@ -259,10 +245,10 @@ class SendRemindersCommandTest extends ApiTestCase
 
         $this->onSend = null;
         $this->runCommandAt('2091-08-01 06:00');
-        self::assertCount(2, $this->subjectsFor($anketa->getEmployee()));
+        self::assertCount(1, $this->subjectsFor($anketa->getEmployee()));
     }
 
-    /** An employee who publishes while the batch is sending gets no "not filled out" nudge. */
+    /** An employee who publishes while the batch is sending gets the reminder without the "not published" line. */
     public function testASidePublishedMidBatchGetsNoNudge(): void
     {
         static::createClient();
@@ -283,10 +269,10 @@ class SendRemindersCommandTest extends ApiTestCase
         $this->runCommandAt('2091-07-25 06:00');
 
         // The anketa sent first still nudges its employee; the other one's employee published
-        // before its turn and only gets the meeting reminder.
-        $employeeEmails = [\count($this->subjectsFor($first->getEmployee())), \count($this->subjectsFor($second->getEmployee()))];
-        sort($employeeEmails);
-        self::assertSame([1, 2], $employeeEmails);
+        // before its turn and gets the reminder without the "not published" line.
+        $nudged = [...$this->nudgedFor($first->getEmployee()), ...$this->nudgedFor($second->getEmployee())];
+        sort($nudged);
+        self::assertSame([false, true], $nudged);
     }
 
     /** The day of week is the UTC one, the same as meetingDate's UTC midnight. */
@@ -299,10 +285,7 @@ class SendRemindersCommandTest extends ApiTestCase
         // Saturday morning in Auckland, still Friday in UTC.
         $this->runCommandAt('2091-06-23 09:00', 'Pacific/Auckland');
 
-        self::assertSame([
-            'Your 1:1 is on Monday',
-            "Reminder: fill out your part for Monday's 1:1",
-        ], $this->subjectsFor($monday->getEmployee()));
+        self::assertSame(['Your 1:1 is on Monday'], $this->subjectsFor($monday->getEmployee()));
         self::assertEquals(new \DateTimeImmutable('2091-06-22 21:00', new \DateTimeZone('UTC')), $this->reminderSentAt($monday));
     }
 
@@ -372,6 +355,23 @@ class SendRemindersCommandTest extends ApiTestCase
     private function reminderSentAt(Anketa $anketa): ?\DateTimeImmutable
     {
         return $this->reload($anketa)->getReminderSentAt();
+    }
+
+    /**
+     * For each email to the recipient, whether it carries the "not published yet" line.
+     *
+     * @return list<bool>
+     */
+    private function nudgedFor(User $recipient): array
+    {
+        $nudged = [];
+        foreach ($this->sent as $email) {
+            if ($email->getTo()[0]->getAddress() === $recipient->getEmail()) {
+                $nudged[] = str_contains((string) $email->getTextBody(), "You haven't published your part yet.");
+            }
+        }
+
+        return $nudged;
     }
 
     /** @return list<string> */

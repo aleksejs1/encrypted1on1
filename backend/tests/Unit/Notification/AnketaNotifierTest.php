@@ -40,29 +40,6 @@ class AnketaNotifierTest extends TestCase
         $notifier->notifyMeetingTomorrow($anketa, $employee, $manager);
     }
 
-    public function testNotifyNotFilledOutSendsWhenRecipientWantsReminders(): void
-    {
-        $mailer = $this->createMock(MailerInterface::class);
-        $mailer->expects(self::once())->method('send');
-
-        $notifier = $this->makeNotifier($mailer);
-        [$anketa, $employee, $manager] = $this->makeAnketa();
-
-        $notifier->notifyNotFilledOut($anketa, $employee, $manager);
-    }
-
-    public function testNotifyNotFilledOutDoesNotSendWhenRecipientOptedOut(): void
-    {
-        $mailer = $this->createMock(MailerInterface::class);
-        $mailer->expects(self::never())->method('send');
-
-        $notifier = $this->makeNotifier($mailer);
-        [$anketa, $employee, $manager] = $this->makeAnketa();
-        $employee->setMeetingRemindersEnabled(false);
-
-        $notifier->notifyNotFilledOut($anketa, $employee, $manager);
-    }
-
     /**
      * GitHub issue #167: the reminder methods tell SendRemindersCommand whether the mail
      * transport failed, so it can leave the reminder due; an opted-out recipient is done.
@@ -80,9 +57,7 @@ class AnketaNotifierTest extends TestCase
         $previousLog = ini_set('error_log', (string) $log);
         try {
             self::assertFalse($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
-            self::assertFalse($notifier->notifyNotFilledOut($anketa, $employee, $manager));
             self::assertFalse($notifier->notifyMeetingMonday($anketa, $employee, $manager));
-            self::assertFalse($notifier->notifyNotFilledOutMonday($anketa, $employee, $manager));
         } finally {
             ini_set('error_log', false === $previousLog ? '' : $previousLog);
         }
@@ -102,52 +77,51 @@ class AnketaNotifierTest extends TestCase
     }
 
     /** @return iterable<string, array{0: \Closure(AnketaNotifier, Anketa, User, User): bool, 1: string}> */
-    public static function mondayReminders(): iterable
+    public static function reminders(): iterable
     {
-        yield 'meeting' => [
+        yield 'tomorrow' => [
+            static fn (AnketaNotifier $notifier, Anketa $anketa, User $recipient, User $counterpart) => $notifier->notifyMeetingTomorrow($anketa, $recipient, $counterpart),
+            'email.meeting_tomorrow',
+        ];
+        // GitHub issue #167: Friday's reminder for a Monday meeting says "Monday", not "tomorrow".
+        yield 'monday' => [
             static fn (AnketaNotifier $notifier, Anketa $anketa, User $recipient, User $counterpart) => $notifier->notifyMeetingMonday($anketa, $recipient, $counterpart),
             'email.meeting_monday',
-        ];
-        yield 'not filled out' => [
-            static fn (AnketaNotifier $notifier, Anketa $anketa, User $recipient, User $counterpart) => $notifier->notifyNotFilledOutMonday($anketa, $recipient, $counterpart),
-            'email.not_filled_out_monday',
         ];
     }
 
     /**
-     * GitHub issue #167: Friday's reminder for a Monday meeting says "Monday", not "tomorrow".
+     * GitHub issue #200: one reminder email per recipient. A side that hasn't published
+     * gets the same email with one more line, not a second email.
      *
      * @param \Closure(AnketaNotifier, Anketa, User, User): bool $notify
      */
-    #[DataProvider('mondayReminders')]
-    public function testMondayRemindersSendTheirOwnCopyToTheRecipient(\Closure $notify, string $key): void
+    #[DataProvider('reminders')]
+    public function testARemindersBodyDependsOnWhetherTheRecipientPublished(\Closure $notify, string $key): void
     {
         $sent = [];
-        $mailer = self::createStub(MailerInterface::class);
-        $mailer->method('send')->willReturnCallback(static function (Email $email) use (&$sent): void {
-            $sent[] = $email;
-        });
-        $translator = self::createStub(TranslatorInterface::class);
-        $translator->method('trans')->willReturnCallback(
-            static fn (string $id, array $parameters = []): string => $id.' '.implode(',', array_keys($parameters)),
-        );
-        $notifier = new AnketaNotifier($mailer, $translator, 'https://example.com', 'noreply@example.com');
+        $notifier = $this->makeKeyEchoingNotifier($sent);
         [$anketa, $employee, $manager] = $this->makeAnketa();
+        $anketa->publish($manager, 'published-blob');
 
         $notify($notifier, $anketa, $employee, $manager);
+        $notify($notifier, $anketa, $manager, $employee);
 
-        self::assertCount(1, $sent);
+        self::assertCount(2, $sent);
         self::assertSame('employee@example.com', $sent[0]->getTo()[0]->getAddress());
         self::assertSame("$key.subject %counterpart%,%date%,%url%", $sent[0]->getSubject());
-        self::assertSame("$key.body %counterpart%,%date%,%url%", $sent[0]->getTextBody());
+        self::assertSame("$key.body_not_published %counterpart%,%date%,%url%", $sent[0]->getTextBody());
+        self::assertSame('manager@example.com', $sent[1]->getTo()[0]->getAddress());
+        self::assertSame("$key.subject %counterpart%,%date%,%url%", $sent[1]->getSubject());
+        self::assertSame("$key.body %counterpart%,%date%,%url%", $sent[1]->getTextBody());
     }
 
     /**
      * @param \Closure(AnketaNotifier, Anketa, User, User): bool $notify
      * @param string                                             $key    unused here, shared provider
      */
-    #[DataProvider('mondayReminders')]
-    public function testMondayRemindersDoNotSendWhenRecipientOptedOut(\Closure $notify, string $key): void
+    #[DataProvider('reminders')]
+    public function testRemindersDoNotSendWhenRecipientOptedOut(\Closure $notify, string $key): void
     {
         $mailer = $this->createMock(MailerInterface::class);
         $mailer->expects(self::never())->method('send');
@@ -157,6 +131,58 @@ class AnketaNotifierTest extends TestCase
         $employee->setMeetingRemindersEnabled(false);
 
         $notify($notifier, $anketa, $employee, $manager);
+    }
+
+    /** GitHub issue #200: people are named by display name plus email, or by email alone if they never set one. */
+    public function testEmailsNameTheOtherPersonByDisplayNameFallingBackToEmail(): void
+    {
+        $sent = [];
+        $notifier = $this->makeParamEchoingNotifier($sent);
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+        $previousDate = new \DateTimeImmutable('2030-01-02');
+
+        $notifier->notifyAnketaCreated($anketa, $employee, $manager);
+        $notifier->notifyMeetingTomorrow($anketa, $employee, $manager);
+        $notifier->notifyMeetingRescheduled($anketa, $employee, $manager, $previousDate);
+        $manager->setDisplayName('Maria Manager');
+        $notifier->notifyAnketaCreated($anketa, $employee, $manager);
+        $notifier->notifyMeetingTomorrow($anketa, $employee, $manager);
+        $notifier->notifyMeetingRescheduled($anketa, $employee, $manager, $previousDate);
+
+        $names = array_map(static function (Email $email): mixed {
+            $params = json_decode((string) $email->getTextBody(), true);
+            self::assertIsArray($params);
+
+            return $params['%creator%'] ?? $params['%counterpart%'] ?? $params['%actor%'];
+        }, $sent);
+        self::assertSame([
+            'manager@example.com', 'manager@example.com', 'manager@example.com',
+            'Maria Manager (manager@example.com)', 'Maria Manager (manager@example.com)', 'Maria Manager (manager@example.com)',
+        ], $names);
+    }
+
+    /** GitHub issue #200: a date change is announced to the counterpart, with both dates. */
+    public function testNotifyMeetingRescheduledNamesBothDatesAndIgnoresTheOptOut(): void
+    {
+        $sent = [];
+        $notifier = $this->makeParamEchoingNotifier($sent);
+        $company = new Company('Test Co');
+        $employee = new User('employee@example.com', 'hash', 'pub', 'enc', $company);
+        $manager = new User('manager@example.com', 'hash', 'pub', 'enc', $company);
+        $anketa = new Anketa($employee, $manager, new \DateTimeImmutable('2030-01-09'), 'sealed-e', 'sealed-m', 30);
+        $employee->setMeetingRemindersEnabled(false);
+
+        $notifier->notifyMeetingRescheduled($anketa, $employee, $manager, new \DateTimeImmutable('2030-01-02'));
+
+        self::assertCount(1, $sent);
+        self::assertSame('employee@example.com', $sent[0]->getTo()[0]->getAddress());
+        self::assertSame([
+            '%actor%' => 'manager@example.com',
+            '%old_date%' => '2030-01-02',
+            '%date%' => '2030-01-09',
+            '%url%' => 'https://example.com/anketas/'.$anketa->getId(),
+        ], json_decode((string) $sent[0]->getTextBody(), true));
+        self::assertSame('email.meeting_rescheduled.subject', $sent[0]->getSubject());
     }
 
     public function testNotifyAnketaCreatedSendsRegardlessOfTheOptOut(): void
@@ -250,6 +276,47 @@ class AnketaNotifierTest extends TestCase
         self::assertSame($masked($sent[0]->getSubject(), $regular), $masked($sent[1]->getSubject(), $custom));
         self::assertSame($masked($sent[0]->getTextBody(), $regular), $masked($sent[1]->getTextBody(), $custom));
         self::assertStringNotContainsString('PIP', $masked($sent[1]->getTextBody(), $custom));
+    }
+
+    /**
+     * A notifier whose emails are the translation key plus the parameter names.
+     *
+     * @param list<Email> $sent filled as emails go out
+     */
+    private function makeKeyEchoingNotifier(array &$sent): AnketaNotifier
+    {
+        $translator = self::createStub(TranslatorInterface::class);
+        $translator->method('trans')->willReturnCallback(
+            static fn (string $id, array $parameters = []): string => $id.' '.implode(',', array_keys($parameters)),
+        );
+
+        return new AnketaNotifier($this->collectingMailer($sent), $translator, 'https://example.com', 'noreply@example.com');
+    }
+
+    /**
+     * A notifier whose email subject is the translation key and body the parameters as JSON.
+     *
+     * @param list<Email> $sent filled as emails go out
+     */
+    private function makeParamEchoingNotifier(array &$sent): AnketaNotifier
+    {
+        $translator = self::createStub(TranslatorInterface::class);
+        $translator->method('trans')->willReturnCallback(
+            static fn (string $id, array $parameters = []): string => str_ends_with($id, '.subject') ? $id : (string) json_encode($parameters),
+        );
+
+        return new AnketaNotifier($this->collectingMailer($sent), $translator, 'https://example.com', 'noreply@example.com');
+    }
+
+    /** @param list<Email> $sent */
+    private function collectingMailer(array &$sent): MailerInterface
+    {
+        $mailer = self::createStub(MailerInterface::class);
+        $mailer->method('send')->willReturnCallback(static function (Email $email) use (&$sent): void {
+            $sent[] = $email;
+        });
+
+        return $mailer;
     }
 
     private function makeNotifier(MailerInterface $mailer): AnketaNotifier
