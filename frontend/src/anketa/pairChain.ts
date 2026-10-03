@@ -55,3 +55,44 @@ export function pairChainState<T extends PairAnketaSummary>(
       previousAnketa?.periodicityDays ?? openAnketa?.periodicityDays ?? null,
   };
 }
+
+/** Where a pair's permanent link (GitHub issue #203) leads. */
+export type PairMeeting<T extends PairAnketaSummary> =
+  /** The pair's open chain meeting: the link opens it. */
+  | { kind: 'open'; anketa: T }
+  /** No open one: the last closed meeting, with an offer to schedule the next. */
+  | { kind: 'closed'; anketa: T }
+  /** No chain meeting with this person: an unknown user, or nothing shared yet. */
+  | { kind: 'none' };
+
+/**
+ * The meeting a pair's permanent link stands for: the open chain meeting,
+ * else the most recently closed one. One-offs are never it, the same as in
+ * pairChainState(), and so is my role: a pair has one chain whichever of the
+ * two leads it.
+ */
+export function pairMeeting<T extends PairAnketaSummary>(
+  anketas: T[],
+  counterpartId: string,
+): PairMeeting<T> {
+  const { openAnketa, previousAnketa } = pairChainState(anketas, counterpartId);
+  if (openAnketa) return { kind: 'open', anketa: openAnketa };
+  if (previousAnketa) return { kind: 'closed', anketa: previousAnketa };
+  return { kind: 'none' };
+}
+
+/**
+ * My counterpart in a pair's permanent link, which names both people so that
+ * either can use it: the id that isn't mine. Null for a link to a pair I'm
+ * not part of.
+ */
+export function pairCounterpartId(
+  userIds: readonly [string, string],
+  myUserId: string,
+): string | null {
+  const [a, b] = userIds;
+  if (a === b) return null;
+  if (a === myUserId) return b;
+  if (b === myUserId) return a;
+  return null;
+}

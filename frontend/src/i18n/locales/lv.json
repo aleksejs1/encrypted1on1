@@ -260,6 +260,8 @@
     "closeOneOff": "Slēgt tikšanos",
     "reschedule": "Pārcelt",
     "changeDate": "Mainīt datumu",
+    "calendarLink": "Saite kalendāram",
+    "calendarLinkHint": "Ielīmējiet šo pastāvīgo saiti savas regulārās 1:1 tikšanās aprakstā Google kalendārā vai Outlook. Tā vienmēr atver pašreizējo 1:1 tikšanos, jums abiem.",
     "cancel": "Atcelt",
     "rescheduling": "Pārceļ…",
     "didNotHappen": "Nenotika",
@@ -766,6 +768,15 @@
   "theme": {
     "switchToLight": "Pārslēgt uz gaišo tēmu",
     "switchToDark": "Pārslēgt uz tumšo tēmu"
+  },
+  "pairMeeting": {
+    "noneTitle": "Šai saitei nav 1:1 tikšanās",
+    "noneMessage": "Šī saite attiecas uz citu cilvēku 1:1 tikšanām, vai arī jums abiem vēl nav regulāru 1:1 tikšanos.",
+    "backToList": "Uz manām 1:1 tikšanām",
+    "closedTitle": "Nav atvērtas 1:1 tikšanās ar {name}",
+    "closedMessage": "Pēdējā, {date}, ir slēgta.",
+    "scheduleNext": "Ieplānot nākamo",
+    "openLast": "Atvērt pēdējo 1:1 tikšanos"
   },
   "notFound": {
     "title": "Lapa nav atrasta",

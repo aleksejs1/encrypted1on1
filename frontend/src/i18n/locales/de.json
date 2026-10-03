@@ -261,6 +261,8 @@
     "reschedule": "Verschieben",
     "rescheduling": "Wird verschoben…",
     "changeDate": "Datum ändern",
+    "calendarLink": "Kalender-Link",
+    "calendarLinkHint": "Fügen Sie diesen dauerhaften Link in die Beschreibung Ihres wiederkehrenden 1:1-Termins in Google Kalender oder Outlook ein. Er öffnet immer das aktuelle 1:1, für Sie beide.",
     "cancel": "Abbrechen",
     "didNotHappen": "Hat nicht stattgefunden",
     "cancelling": "Wird abgesagt…",
@@ -772,6 +774,15 @@
   "theme": {
     "switchToLight": "Zum hellen Design wechseln",
     "switchToDark": "Zum dunklen Design wechseln"
+  },
+  "pairMeeting": {
+    "noneTitle": "Kein 1:1 hinter diesem Link",
+    "noneMessage": "Dieser Link gehört zu einem 1:1 zwischen anderen Personen, oder Sie beide haben noch kein regelmäßiges 1:1.",
+    "backToList": "Zu meinen 1:1s",
+    "closedTitle": "Kein offenes 1:1 mit {name}",
+    "closedMessage": "Das letzte, vom {date}, ist abgeschlossen.",
+    "scheduleNext": "Das nächste planen",
+    "openLast": "Letztes 1:1 öffnen"
   },
   "notFound": {
     "title": "Seite nicht gefunden",

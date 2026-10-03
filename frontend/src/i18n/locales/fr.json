@@ -261,6 +261,8 @@
     "reschedule": "Replanifier",
     "rescheduling": "Replanification en cours…",
     "changeDate": "Changer la date",
+    "calendarLink": "Lien pour l'agenda",
+    "calendarLinkHint": "Collez ce lien permanent dans la description de votre événement 1:1 récurrent dans Google Agenda ou Outlook. Il ouvre toujours le 1:1 en cours, pour vous deux.",
     "cancel": "Annuler",
     "didNotHappen": "N'a pas eu lieu",
     "cancelling": "Annulation en cours…",
@@ -781,6 +783,15 @@
   "theme": {
     "switchToLight": "Passer au thème clair",
     "switchToDark": "Passer au thème sombre"
+  },
+  "pairMeeting": {
+    "noneTitle": "Aucun 1:1 derrière ce lien",
+    "noneMessage": "Ce lien correspond à un 1:1 entre d'autres personnes, ou vous n'avez pas encore de 1:1 régulier tous les deux.",
+    "backToList": "Voir mes 1:1",
+    "closedTitle": "Aucun 1:1 ouvert avec {name}",
+    "closedMessage": "Le dernier, du {date}, est clôturé.",
+    "scheduleNext": "Planifier le suivant",
+    "openLast": "Ouvrir le dernier 1:1"
   },
   "notFound": {
     "title": "Page introuvable",

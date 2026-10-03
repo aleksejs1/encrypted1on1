@@ -135,3 +135,25 @@ export function takeCreateAnother(): CreateSettings | null {
     ? taken.settings
     : null;
 }
+
+/**
+ * The colleague to preselect on the form, set by a pair's permanent link when
+ * its last meeting is closed (GitHub issue #203). In memory and tied to the
+ * login generation, like `pending` above.
+ */
+let pendingCounterpart: { counterpartId: string; generation: number } | null =
+  null;
+
+/** "Schedule the next one" was clicked for `counterpartId`: hands them to the form. */
+export function startCreateWith(counterpartId: string): void {
+  pendingCounterpart = { counterpartId, generation: getGeneration() };
+}
+
+/** The colleague handed over by startCreateWith(), once: taking them clears them. */
+export function takeCreateWith(): string | null {
+  const taken = pendingCounterpart;
+  pendingCounterpart = null;
+  return taken !== null && taken.generation === getGeneration()
+    ? taken.counterpartId
+    : null;
+}

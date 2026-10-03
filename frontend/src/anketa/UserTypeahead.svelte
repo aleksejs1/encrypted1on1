@@ -35,6 +35,13 @@
         }),
   );
 
+  // A value set from outside (a colleague preselected by the page) shows
+  // that person, as picking them from the list would.
+  $effect(() => {
+    const selected = users.find((u) => u.id === value);
+    if (selected) query = nameWithEmail(selected.displayName, selected.email);
+  });
+
   function selectUser(user: UserOption): void {
     value = user.id;
     query = nameWithEmail(user.displayName, user.email);

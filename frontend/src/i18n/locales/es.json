@@ -260,6 +260,8 @@
     "closeOneOff": "Cerrar la reunión",
     "reschedule": "Reprogramar",
     "changeDate": "Cambiar fecha",
+    "calendarLink": "Enlace para el calendario",
+    "calendarLinkHint": "Pegue este enlace permanente en la descripción de su evento 1:1 periódico en Google Calendar u Outlook. Siempre abre la reunión 1:1 actual, para ambos.",
     "cancel": "Cancelar",
     "rescheduling": "Reprogramando…",
     "didNotHappen": "No se celebró",
@@ -768,6 +770,15 @@
   "theme": {
     "switchToLight": "Cambiar a tema claro",
     "switchToDark": "Cambiar a tema oscuro"
+  },
+  "pairMeeting": {
+    "noneTitle": "No hay ninguna reunión 1:1 en este enlace",
+    "noneMessage": "Este enlace corresponde a reuniones 1:1 entre otras personas, o ustedes dos aún no tienen reuniones 1:1 periódicas.",
+    "backToList": "Ir a mis reuniones 1:1",
+    "closedTitle": "No hay ninguna reunión 1:1 abierta con {name}",
+    "closedMessage": "La última, del {date}, está cerrada.",
+    "scheduleNext": "Programar la siguiente",
+    "openLast": "Abrir la última reunión 1:1"
   },
   "notFound": {
     "title": "Página no encontrada",

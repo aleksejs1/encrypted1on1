@@ -3,6 +3,7 @@
   import AnketaList from './pages/AnketaList.svelte';
   import CreateAnketa from './pages/CreateAnketa.svelte';
   import AnketaPage from './pages/Anketa.svelte';
+  import PairMeeting from './pages/PairMeeting.svelte';
   import Login from './pages/Login.svelte';
   import UnlockTab from './pages/UnlockTab.svelte';
   import ForgotPassword from './pages/ForgotPassword.svelte';
@@ -36,6 +37,7 @@
     ACTIVATION_PATTERN,
     RESET_PASSWORD_PATTERN,
     ANKETA_PATTERN,
+    PAIR_PATTERN,
     ADMIN_TEMPLATE_PATTERN,
     isKnownPath,
   } from './routes';
@@ -77,6 +79,7 @@
 
   const activationMatch = $derived(routerState.path.match(ACTIVATION_PATTERN));
   const anketaMatch = $derived(routerState.path.match(ANKETA_PATTERN));
+  const pairMatch = $derived(routerState.path.match(PAIR_PATTERN));
   // Covers /admin/templates/new too; the routing chain checks that literal first.
   const adminTemplateMatch = $derived(
     routerState.path.match(ADMIN_TEMPLATE_PATTERN),
@@ -117,6 +120,7 @@
       routerState.path === PATHS.templatePreview ||
       !authState.authenticated ||
       !!anketaMatch ||
+      !!pairMatch ||
       !!adminTemplateMatch ||
       MIGRATED_AUTHED_PATHS.includes(routerState.path) ||
       (authState.authenticated && !knownPath),
@@ -155,6 +159,11 @@
     <CreateAnketa />
   {:else if anketaMatch}
     <AnketaPage id={anketaMatch[1]} />
+  {:else if pairMatch}
+    <!-- Keyed: each pair's link looks up its own meeting. -->
+    {#key pairMatch[0]}
+      <PairMeeting userIds={[pairMatch[1], pairMatch[2]]} />
+    {/key}
   {:else if routerState.path === PATHS.report}
     <Report />
   {:else if routerState.path === PATHS.account}

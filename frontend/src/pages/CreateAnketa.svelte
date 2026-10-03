@@ -36,6 +36,7 @@
     rememberLastRole,
     setJustCreated,
     takeCreateAnother,
+    takeCreateWith,
   } from '../anketa/createDefaults';
   import type { Side } from '../anketa/questions';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
@@ -54,6 +55,9 @@
   // meeting's page (GitHub issue #198): role, template and periodicity start
   // as they were there.
   const another = takeCreateAnother();
+  // Set when a pair's permanent link sent the user here to schedule the
+  // pair's next meeting (GitHub issue #203).
+  const presetCounterpartId = takeCreateWith();
 
   let counterpartId = $state('');
   // The role this user last chose: on the form "Create another" came from,
@@ -141,6 +145,14 @@
         priorAnketas = allAnketas;
         isAdmin = identity.isAdmin;
         companyTemplates = templates;
+        // Only someone still in the company's list can be preselected.
+        if (
+          presetCounterpartId !== null &&
+          counterpartId === '' &&
+          users.some((u) => u.id === presetCounterpartId)
+        ) {
+          setCounterpart(presetCounterpartId);
+        }
         // A company template kept by "Create another" that isn't in the
         // picker (archived since, or the list couldn't be loaded) can't stay
         // chosen unseen.

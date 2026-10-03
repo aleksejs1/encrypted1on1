@@ -84,6 +84,8 @@ The day before a scheduled meeting, both participants get one reminder email eac
 
 If a meeting's day passes and nobody closes it, both participants get one follow-up email on the next business day (Monday, for a Friday or weekend meeting): "Did your 1:1 happen?", with a link to close it and schedule the next one, and a link to move it to another date. It is sent once; a meeting moved after it gets another one only after its new date. See [the decision record](decisions/2026-10-03-follow-up-email-after-unclosed-meeting.md).
 
+**Calendar link** on a 1:1's page copies a permanent link to your 1:1s with that person, meant for the description of your recurring calendar event. It always opens the pair's current open 1:1, so it keeps working cycle after cycle; with none open, it offers to schedule the next one. The same link works for both of you. See [the decision record](decisions/2026-10-03-pair-calendar-link.md).
+
 ## Reports
 
 Either side can generate a report across a date range — every achievement and growth-log entry from that period, and every goal touched in it with its full checkpoint history, decrypted and assembled entirely in the browser from 1:1s already accessible to you. The server never sees this aggregation; it just serves the same encrypted 1:1s it always would, fetched in one batch rather than one request per 1:1.
