@@ -382,6 +382,7 @@
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
+  let header: AnketaHeader | undefined = $state();
 
   // Cancels load()'s own detail fetch on unmount — see GitHub issue #95. Not
   // extended to pollLiveState's fetches below: those are already bounded by
@@ -616,7 +617,7 @@
       }
 
       loaded = true;
-      followCloseLink();
+      followEmailLink();
       // Not on an archived anketa: the server refuses draft saves there. (A
       // same-instance switch to another anketa id mid-load is unreachable today
       // — see docs/decisions/2026-09-10-comment-thread-reuse-state-deferred.md.)
@@ -651,21 +652,27 @@
       questions === null
         ? { status: 'failed' }
         : { status: 'ready', questions };
-    followCloseLink();
+    followEmailLink();
   }
 
   /**
-   * The follow-up email's "close" link (GitHub issue #202) goes straight to the
-   * archive form. Not before everything above the form is there, a company
-   * template's questions included, or the form would be pushed back down.
-   * Also called on hashchange: the link may open in a tab already showing this
-   * meeting.
+   * The follow-up email's two links (GitHub issue #202) land on the archive
+   * form or on the date field that moves the meeting. Not before this anketa
+   * is loaded with everything above the form in place, a company template's
+   * questions included, or the form would be pushed back down. Also called on
+   * hashchange: the link may open in a tab already showing this meeting.
    */
-  function followCloseLink(): void {
-    if (window.location.hash !== FOLLOW_UP_HASH.close) return;
-    if (!loaded || customQuestions.status === 'loading') return;
+  function followEmailLink(): void {
+    const hash = window.location.hash;
+    if (hash !== FOLLOW_UP_HASH.close && hash !== FOLLOW_UP_HASH.reschedule) {
+      return;
+    }
+    if (!loaded || detail?.id !== id || customQuestions.status === 'loading') {
+      return;
+    }
     clearFollowUpHash();
-    void tick().then(goToArchiveSection);
+    if (hash === FOLLOW_UP_HASH.reschedule) header?.focusRescheduleDate();
+    else void tick().then(goToArchiveSection);
   }
 
   /**
@@ -1789,7 +1796,7 @@
 <!-- On the document rather than my side's <section>, which as a static
      element mustn't take a key handler (a11y_no_static_element_interactions). -->
 <svelte:document onkeydown={handleMySideKeydown} />
-<svelte:window onhashchange={followCloseLink} />
+<svelte:window onhashchange={followEmailLink} />
 
 <!-- With the anketa loaded, the page is three blocks: the header, the notes
      panel and the rest. Narrow, they stack in that order; from 840px the notes
@@ -1821,6 +1828,7 @@
         </p>
       {/if}
       <AnketaHeader
+        bind:this={header}
         {id}
         counterpartName={detail.counterpartName}
         counterpartEmail={detail.counterpartEmail}

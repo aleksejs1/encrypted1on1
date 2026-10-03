@@ -69,12 +69,13 @@ class AnketaNotifier
      * Asks whether a meeting that is past its day and still open happened (GitHub issue
      * #202), with one link to close it and one to move it; the fragments are read by
      * frontend/src/anketa/followUpLinks.ts. A one-off has no next meeting to schedule, so
-     * its copy says only "close". Gated and reported like the reminders: see sendReminder().
+     * its copy says only "close". Reported like the reminders: see sendReminder().
      */
     public function notifyMeetingFollowUp(Anketa $anketa, User $recipient, User $counterpart): bool
     {
-        // A blocked account can't log in, so it has no use for links to the meeting.
-        if (!$recipient->wantsMeetingReminders() || $recipient->isBlocked()) {
+        // A blocked account (a deleted one included) can't log in, so it has no use for the
+        // links, and its counterpart can't schedule a next meeting with it.
+        if (!$recipient->wantsMeetingReminders() || $recipient->isBlocked() || $counterpart->isBlocked()) {
             return true;
         }
         $url = $this->anketaUrl($anketa);

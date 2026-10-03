@@ -17,8 +17,9 @@ back.
   meetings whose day has passed and that are still open, and sends "Did your 1:1 happen?"
   (`email.meeting_follow_up`, all 6 locales, `AnketaNotifier::notifyMeetingFollowUp()`). It is
   gated by `User::wantsMeetingReminders()`, and the account page's hint for that toggle now says
-  so. A blocked account gets none, since it can't log in to use the links (the day-before
-  reminder has no such check; left as it was).
+  so. A pair with a blocked (or deleted) account gets none: that account can't log in to use
+  the links, and its counterpart can't schedule a next meeting with it (the day-before reminder
+  has no such check; left as it was).
 - **Weekend meetings are followed up on Monday**, with Friday's. A weekend run sends no
   follow-ups: the point of the business-day rule is no work email on a weekend. This differs from
   the reminder, which a weekend meeting does get the day before, because that one is needed
@@ -48,10 +49,11 @@ back.
   fragment never reaches the server and survives the login or unlock screen, which render at the
   same URL. `#close` scrolls to the archive form once the page has loaded (`goToArchiveSection()`,
   shared with the "not closed" card); `#reschedule` focuses the date field, opening the "Change
-  date" row for a meeting that is no longer past its day. The scroll waits for a company
-  template's questions, which load separately. The fragment is dropped once followed
-  (`clearFollowUpHash()`), so a reload doesn't scroll or take focus again, and both are also
-  followed on `hashchange`, for a link opened in a tab already showing the meeting.
+  date" row for a meeting that is no longer past its day. One handler in `Anketa.svelte`
+  follows both, once the page has loaded, a company template's questions included (they load
+  separately). The fragment is dropped once followed (`clearFollowUpHash()`), so a reload
+  doesn't scroll or take focus again, and it is also followed on `hashchange`, for a link opened
+  in a tab already showing the meeting.
   `frontend/src/anketa/followUpLinks.ts` holds the fragments, and a test reads them back from the
   PHP source.
 - **A one-off gets its own body** (`body_one_off`): closing it schedules nothing, so "close it and

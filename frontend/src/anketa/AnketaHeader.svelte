@@ -1,15 +1,11 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { tick } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { apiPut, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
   import DateInput from '../design/DateInput.svelte';
   import { goToArchiveSection } from './archiveHeading';
-  import {
-    clearFollowUpHash,
-    FOLLOW_UP_HASH,
-    RESCHEDULE_DATE_ID,
-  } from './followUpLinks';
+  import { RESCHEDULE_DATE_ID } from './followUpLinks';
   import { isOverdue as computeIsOverdue } from './isOverdue';
   import { shortDisplayName } from '../userDisplay';
 
@@ -61,13 +57,13 @@
   let rescheduling = $state(false);
   let showReschedule = $state(false);
 
-  // The follow-up email's "move it to another date" link (GitHub issue #202)
-  // lands on the date field: the "not closed" card's, or, for a meeting moved
-  // to a later day since the email, the one behind "Change date". Also on
-  // hashchange: the link may open in a tab already showing this meeting.
-  function followRescheduleLink(): void {
-    if (window.location.hash !== FOLLOW_UP_HASH.reschedule) return;
-    clearFollowUpHash();
+  /**
+   * Where the follow-up email's "move it to another date" link lands (GitHub
+   * issue #202), called by the page once it has loaded: the "not closed"
+   * card's date field, or, for a meeting moved to a later day since the
+   * email, the one behind "Change date".
+   */
+  export function focusRescheduleDate(): void {
     // Closed since the email: there is no date left to move.
     if (archived) return;
     // The "not closed" card has its own date field, always shown.
@@ -76,7 +72,6 @@
       document.getElementById(RESCHEDULE_DATE_ID)?.focus(),
     );
   }
-  onMount(followRescheduleLink);
 
   async function handleReschedule(): Promise<void> {
     if (!rescheduleDate) return;
@@ -111,8 +106,6 @@
     }
   }
 </script>
-
-<svelte:window onhashchange={followRescheduleLink} />
 
 <h1>
   {$_('anketa.titleWithCounterpart', {

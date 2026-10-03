@@ -186,7 +186,7 @@ class AnketaNotifierTest extends TestCase
         $notifier->notifyMeetingFollowUp($anketa, $employee, $manager);
     }
 
-    public function testNotifyMeetingFollowUpDoesNotSendToABlockedRecipient(): void
+    public function testNotifyMeetingFollowUpDoesNotSendWhenEitherParticipantIsBlocked(): void
     {
         $mailer = $this->createMock(MailerInterface::class);
         $mailer->expects(self::never())->method('send');
@@ -195,6 +195,7 @@ class AnketaNotifierTest extends TestCase
         $employee->setBlocked(true);
 
         self::assertTrue($notifier->notifyMeetingFollowUp($anketa, $employee, $manager));
+        self::assertTrue($notifier->notifyMeetingFollowUp($anketa, $manager, $employee));
     }
 
     /** GitHub issue #200: people are named by display name plus email, or by email alone if they never set one. */
