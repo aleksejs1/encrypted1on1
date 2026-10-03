@@ -322,6 +322,7 @@
     "archiving": "Wird archiviert…",
     "errorLoad": "Dieses 1:1 konnte nicht geladen werden.",
     "errorStaleKey": "Dieses 1:1 kann mit Ihrem aktuellen Schlüssel nicht entschlüsselt werden — das kann nach einem Passwort-Reset passieren.",
+    "allFieldsOptional": "Alle Felder sind optional. Ein paar Gesprächsthemen genügen.",
     "draftUnreadable": "Ihr unveröffentlichter Entwurf konnte nicht geöffnet werden — er ist mit einem Schlüssel verschlüsselt, den Sie nicht mehr haben, vermutlich von vor einem Passwort-Reset. Alles, was Sie jetzt eingeben, ersetzt ihn.",
     "errorNotLoggedIn": "Nicht angemeldet.",
     "errorNotReadyToArchive": "Noch nicht bereit zum Archivieren.",

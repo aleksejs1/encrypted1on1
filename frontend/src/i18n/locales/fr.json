@@ -322,6 +322,7 @@
     "archiving": "Archivage en cours…",
     "errorLoad": "Impossible de charger ce 1:1.",
     "errorStaleKey": "Ce 1:1 ne peut pas être déchiffré avec votre clé actuelle — cela peut arriver après une réinitialisation de mot de passe.",
+    "allFieldsOptional": "Tous les champs sont facultatifs. Quelques sujets à aborder suffisent.",
     "draftUnreadable": "Votre brouillon non publié n'a pas pu être ouvert — il est chiffré avec une clé que vous n'avez plus, probablement d'avant une réinitialisation de mot de passe. Tout ce que vous saisirez maintenant le remplacera.",
     "errorNotLoggedIn": "Non connecté.",
     "errorNotReadyToArchive": "Pas encore prêt à être archivé.",

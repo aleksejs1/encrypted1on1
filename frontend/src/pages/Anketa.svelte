@@ -1914,6 +1914,14 @@
             </div>
           {/if}
 
+          {#if !myPublished && !archived}
+            <!-- Nothing requires an answer, but a page of empty blocks reads as
+                 a mandatory essay (GitHub issue #199). -->
+            <p class="text-muted optional-hint">
+              {$_('anketa.allFieldsOptional')}
+            </p>
+          {/if}
+
           {#if draftUnreadable && !myPublished && !archived}
             <p role="alert" class="banner-error">
               {$_('anketa.draftUnreadable')}
@@ -2197,6 +2205,11 @@
   .blocks {
     display: flex;
     flex-direction: column;
+  }
+
+  .optional-hint {
+    font-size: 13px;
+    margin: 0;
   }
 
   .save-state {
