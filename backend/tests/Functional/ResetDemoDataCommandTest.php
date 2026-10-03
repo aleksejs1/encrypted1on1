@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Account\AccountDeleter;
 use App\Command\ResetDemoDataCommand;
 use App\Entity\Anketa;
 use App\Entity\AnketaPrivateNote;
@@ -9,6 +10,7 @@ use App\Entity\Goal;
 use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * The fixture (backend/fixtures/demo-seed.json) is committed, real seed
@@ -119,6 +121,93 @@ class ResetDemoDataCommandTest extends ApiTestCase
         $employeeAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
         self::assertNotNull($employeeAfter);
         self::assertSame('Alex Morgan', $employeeAfter->getDisplayName());
+    }
+
+    /**
+     * The fixture's ciphertext names its authors by user id, so the accounts must
+     * carry exactly those ids for the page to show a name rather than a raw id.
+     */
+    public function testAccountsGetTheIdsTheFixtureWasGeneratedWith(): void
+    {
+        static::createClient();
+        $this->runResetDemoDataCommand();
+
+        foreach ($this->loadFixture()['locales'] as $localeCode => $data) {
+            foreach (['employee', 'manager'] as $role) {
+                $user = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => $data[$role]['email']]);
+                self::assertNotNull($user);
+                self::assertSame($data[$role]['id'], $user->getId(), "{$role} for locale \"{$localeCode}\"");
+            }
+        }
+    }
+
+    public function testAnAccountCreatedUnderAnotherIdIsReplaced(): void
+    {
+        static::createClient();
+        $fixture = $this->loadFixture()['locales']['en'];
+        // What a database looks like after a run of this command from before it set
+        // the ids: the demo emails taken, with history, under ids of their own.
+        $this->runResetDemoDataCommand();
+        $connection = $this->entityManager()->getConnection();
+        $oldEmployeeId = Uuid::v7()->toRfc4122();
+        $oldManagerId = Uuid::v7()->toRfc4122();
+        $connection->executeStatement('DELETE FROM goals WHERE author_id = ?', [$fixture['employee']['id']]);
+        $connection->executeStatement('DELETE FROM anketas WHERE employee_id = ?', [$fixture['employee']['id']]);
+        $connection->executeStatement('UPDATE users SET id = ? WHERE id = ?', [$oldEmployeeId, $fixture['employee']['id']]);
+        $connection->executeStatement('UPDATE users SET id = ? WHERE id = ?', [$oldManagerId, $fixture['manager']['id']]);
+        $this->entityManager()->clear();
+        $oldEmployee = $this->entityManager()->getRepository(User::class)->find($oldEmployeeId);
+        $oldManager = $this->entityManager()->getRepository(User::class)->find($oldManagerId);
+        self::assertNotNull($oldEmployee);
+        self::assertNotNull($oldManager);
+        $this->entityManager()->persist(new Anketa($oldEmployee, $oldManager, new \DateTimeImmutable(), 'sk-e', 'sk-m', 14));
+        $this->entityManager()->flush();
+        $this->entityManager()->clear();
+
+        $this->runResetDemoDataCommand();
+        $this->runResetDemoDataCommand();
+        $this->entityManager()->clear();
+
+        $employees = $this->entityManager()->getRepository(User::class)->findBy(['email' => $fixture['employee']['email']]);
+        self::assertCount(1, $employees);
+        self::assertSame($fixture['employee']['id'], $employees[0]->getId());
+        $manager = $this->entityManager()->getRepository(User::class)->find($fixture['manager']['id']);
+        self::assertNotNull($manager);
+        self::assertSame($fixture['manager']['email'], $manager->getEmail());
+        self::assertCount(3, $this->anketasForPair($employees[0], $manager));
+
+        $old = $this->entityManager()->getRepository(User::class)->find($oldEmployeeId);
+        self::assertNotNull($old, 'deleted like any account: anonymized in place, not removed');
+        self::assertNotNull($old->getDeletedAt());
+        self::assertCount(0, $this->entityManager()->getRepository(Anketa::class)->findBy(['employee' => $old]), 'its seeded history must not stay behind');
+    }
+
+    public function testAnAccountAVisitorDeletedIsRestoredUnderTheSameId(): void
+    {
+        static::createClient();
+        $this->runResetDemoDataCommand();
+        $fixture = $this->loadFixture()['locales']['en'];
+
+        $employee = $this->entityManager()->getRepository(User::class)->find($fixture['employee']['id']);
+        self::assertNotNull($employee);
+        $accountDeleter = self::getContainer()->get(AccountDeleter::class);
+        \assert($accountDeleter instanceof AccountDeleter);
+        $accountDeleter->delete($employee);
+        $this->entityManager()->flush();
+        $this->entityManager()->clear();
+
+        $this->runResetDemoDataCommand();
+        $this->entityManager()->clear();
+
+        $restored = $this->entityManager()->getRepository(User::class)->find($fixture['employee']['id']);
+        self::assertNotNull($restored);
+        self::assertSame($fixture['employee']['email'], $restored->getEmail());
+        self::assertNull($restored->getDeletedAt());
+        self::assertFalse($restored->isBlocked());
+        self::assertSame('Alex Morgan', $restored->getDisplayName());
+        $manager = $this->entityManager()->getRepository(User::class)->find($fixture['manager']['id']);
+        self::assertNotNull($manager);
+        self::assertCount(3, $this->anketasForPair($restored, $manager));
     }
 
     public function testRunningTwiceIsIdempotent(): void
@@ -233,18 +322,20 @@ class ResetDemoDataCommandTest extends ApiTestCase
 
     private function runResetDemoDataCommand(): void
     {
-        $command = new ResetDemoDataCommand($this->entityManager(), $this->singleCompanyProvider());
+        $accountDeleter = self::getContainer()->get(AccountDeleter::class);
+        \assert($accountDeleter instanceof AccountDeleter);
+        $command = new ResetDemoDataCommand($this->entityManager(), $this->singleCompanyProvider(), $accountDeleter);
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([]);
         self::assertSame(0, $exitCode, $tester->getDisplay());
     }
 
-    /** @return array{locales: array<string, array{employee: array{email: string}, manager: array{email: string}}>} */
+    /** @return array{locales: array<string, array{employee: array{id: string, email: string}, manager: array{id: string, email: string}}>} */
     private function loadFixture(): array
     {
         $fixturePath = \dirname(__DIR__, 2).'/fixtures/demo-seed.json';
 
-        /** @var array{locales: array<string, array{employee: array{email: string}, manager: array{email: string}}>} $fixture */
+        /** @var array{locales: array<string, array{employee: array{id: string, email: string}, manager: array{id: string, email: string}}>} $fixture */
         $fixture = json_decode((string) file_get_contents($fixturePath), true, flags: \JSON_THROW_ON_ERROR);
 
         return $fixture;

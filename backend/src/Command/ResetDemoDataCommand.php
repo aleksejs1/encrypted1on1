@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Account\AccountDeleter;
 use App\Company\SingleCompanyProvider;
 use App\Entity\Anketa;
 use App\Entity\AnketaPrivateNote;
@@ -52,6 +53,7 @@ class ResetDemoDataCommand extends Command
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly SingleCompanyProvider $singleCompanyProvider,
+        private readonly AccountDeleter $accountDeleter,
     ) {
         parent::__construct();
     }
@@ -66,13 +68,15 @@ class ResetDemoDataCommand extends Command
 
             return Command::FAILURE;
         }
-        /** @var array{generatedAt: string, password: string, locales: array<string, array{employee: array{email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, manager: array{email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, goalUuid: string, goalTitle: string, goalDescription: ?string, goalTargetDateOffsetMonths: int, periodicityDays: int, cycles: array<int, array{archived: bool, missed: bool, employeeSealedKey: string, managerSealedKey: string, employeeBlob: ?string, managerBlob: ?string, commentsBlob: ?string, commentsVersion: int, outcomesBlob: ?string, outcomesVersion: int, goalCheckpointsBlob: ?string, goalCheckpointsVersion: int}>}>} $fixture */
+        /** @var array{generatedAt: string, password: string, locales: array<string, array{employee: array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, manager: array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, goalUuid: string, goalTitle: string, goalDescription: ?string, goalTargetDateOffsetMonths: int, periodicityDays: int, cycles: array<int, array{archived: bool, missed: bool, employeeSealedKey: string, managerSealedKey: string, employeeBlob: ?string, managerBlob: ?string, commentsBlob: ?string, commentsVersion: int, outcomesBlob: ?string, outcomesVersion: int, goalCheckpointsBlob: ?string, goalCheckpointsVersion: int}>}>} $fixture */
         $fixture = json_decode((string) file_get_contents($fixturePath), true, flags: \JSON_THROW_ON_ERROR);
 
         $now = new \DateTimeImmutable();
         $summary = [];
 
         foreach ($fixture['locales'] as $locale => $data) {
+            $this->retireAccountsWithAnotherId($data['employee'], $data['manager']);
+
             $employee = $this->findOrCreateUser($data['employee']);
             $manager = $this->findOrCreateUser($data['manager']);
 
@@ -129,11 +133,55 @@ class ResetDemoDataCommand extends Command
     }
 
     /**
-     * @param array{email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string} $data
+     * The fixture's comments, outcomes and goal checkpoints name their authors by user id,
+     * inside the ciphertext, so a demo account must have the id the fixture was generated
+     * with: otherwise the page shows that raw id instead of a name, and a visitor's own
+     * seeded items aren't treated as theirs. An account created under another id (before
+     * this command set it, or by someone registering the demo email first) is deleted like
+     * any other account, which anonymizes it in place and frees its email, and
+     * findOrCreateUser() then recreates it.
+     *
+     * @param array{id: string, email: string} $employeeData
+     * @param array{id: string, email: string} $managerData
+     */
+    private function retireAccountsWithAnotherId(array $employeeData, array $managerData): void
+    {
+        $users = $this->entityManager->getRepository(User::class);
+        $employee = $users->findOneBy(['email' => $employeeData['email']]);
+        $manager = $users->findOneBy(['email' => $managerData['email']]);
+
+        $retired = [];
+        if (null !== $employee && $employee->getId() !== $employeeData['id']) {
+            $retired[] = $employee;
+        }
+        if (null !== $manager && $manager->getId() !== $managerData['id']) {
+            $retired[] = $manager;
+        }
+        if ([] === $retired) {
+            return;
+        }
+
+        // The pair's seeded history goes with them, rather than staying behind on an
+        // anonymized account where the next runs would no longer find it.
+        if (null !== $employee && null !== $manager) {
+            $this->deleteExistingAnketasForPair($employee, $manager);
+        }
+        foreach ($retired as $user) {
+            $this->accountDeleter->delete($user);
+        }
+        // Before the recreated account is inserted under the same email.
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @param array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string} $data
      */
     private function findOrCreateUser(array $data): User
     {
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']]);
+        // By id, not by email: a visitor can delete the demo account like any other, which
+        // scrubs the email but keeps the row, and its id, in place. Any other account
+        // holding this email is already gone (retireAccountsWithAnotherId()).
+        $user = $this->entityManager->getRepository(User::class)->find($data['id']);
         if (null === $user) {
             $user = new User(
                 email: $data['email'],
@@ -142,6 +190,7 @@ class ResetDemoDataCommand extends Command
                 encryptedPrivateKey: $data['encryptedPrivateKey'],
                 company: $this->singleCompanyProvider->get(),
                 displayName: $data['name'],
+                id: $data['id'],
             );
             $user->setDemo(true);
             $this->entityManager->persist($user);
@@ -149,6 +198,7 @@ class ResetDemoDataCommand extends Command
             return $user;
         }
 
+        $user->restoreDemoAccount($data['email']);
         $user->resetDemoCredentials($data['authHash'], $data['publicKey'], $data['encryptedPrivateKey']);
         $user->setDemo(true);
         // A visitor may have edited the display name via Account Settings — restored
