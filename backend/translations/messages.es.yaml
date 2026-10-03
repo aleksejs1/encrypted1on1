@@ -1,18 +1,18 @@
 email:
     anketa_created:
-        subject: 'Nuevo cuestionario 1:1 programado'
+        subject: 'Nueva reunión 1:1 programada'
         body: "%creator% ha programado una reunión 1:1 contigo para el %date%.\n\nPor favor, completa tu parte: %url%"
     meeting_tomorrow:
         subject: 'Tu reunión 1:1 es mañana'
         body: "Tu reunión 1:1 con %counterpart% es mañana (%date%).\n\n%url%"
     not_filled_out:
-        subject: 'Recordatorio: completa el cuestionario antes de la reunión de mañana'
+        subject: 'Recordatorio: completa tu parte antes de la reunión 1:1 de mañana'
         body: "Todavía no has completado tu parte para la reunión 1:1 de mañana con %counterpart% (%date%).\n\n%url%"
     meeting_monday:
         subject: 'Tu reunión 1:1 es el lunes'
         body: "Tu reunión 1:1 con %counterpart% es el lunes (%date%).\n\n%url%"
     not_filled_out_monday:
-        subject: 'Recordatorio: completa el cuestionario antes de la reunión del lunes'
+        subject: 'Recordatorio: completa tu parte antes de la reunión 1:1 del lunes'
         body: "Todavía no has completado tu parte para la reunión 1:1 del lunes con %counterpart% (%date%).\n\n%url%"
     invited:
         subject: 'Te han invitado a encrypted1on1'
@@ -22,7 +22,7 @@ email:
         body: "Hemos recibido una solicitud para restablecer tu contraseña.\n\nElige una nueva contraseña: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
     counterpart_key_changed:
         subject: 'La clave de cifrado de un interlocutor ha cambiado'
-        body: "La cuenta de %counterpart% pasó por un restablecimiento de contraseña, lo que reemplazó su clave de cifrado.\n\nEs posible que los cuestionarios que compartes con esa persona deban compartirse de nuevo antes de que pueda leerlos — si es así, verás un aviso al respecto en tu lista de cuestionarios."
+        body: "La cuenta de %counterpart% pasó por un restablecimiento de contraseña, lo que reemplazó su clave de cifrado.\n\nEs posible que las reuniones 1:1 que compartes con esa persona deban compartirse de nuevo antes de que pueda leerlas — si es así, verás un aviso al respecto en tu lista de reuniones 1:1."
     signup:
         subject: 'Confirma tu email para encrypted1on1'
         body: "Hemos recibido una solicitud para crear una cuenta de encrypted1on1 con esta dirección de correo.\n\nActiva tu cuenta: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
@@ -35,10 +35,10 @@ email:
 errors:
     not_authenticated: 'No autenticado.'
     missing_or_invalid_field: 'Falta o no es válido el campo "%field%".'
-    anketa_archived: 'El cuestionario está archivado.'
+    anketa_archived: 'Esta reunión 1:1 está archivada.'
     missing_blob_or_expected_version: 'Falta "blob" o "expectedVersion".'
-    already_published: 'Ya publicado.'
-    not_published_yet: 'Aún no publicado.'
+    already_published: 'Tu parte ya está publicada.'
+    not_published_yet: 'Tu parte aún no está publicada.'
     missing_blob: 'Falta "blob".'
     description_must_be_string: '"description" debe ser una cadena de texto.'
     target_date_must_be_valid_date: '"targetDate" debe ser una fecha válida.'
@@ -106,9 +106,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" y "skipNextMeeting" deben ser valores booleanos.'
     next_meeting_date_must_be_string: '"nextMeetingDate" debe ser una cadena de texto.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" debe ser una fecha válida.'
-    no_periodicity_on_record: 'Este cuestionario no tiene periodicidad registrada — envía "skipNextMeeting": true.'
+    no_periodicity_on_record: 'Esta reunión 1:1 no tiene periodicidad registrada — envía "skipNextMeeting": true.'
     missing_sealed_keys: 'Falta "mySealedKey" o "counterpartSealedKey".'
-    anketa_not_found: 'Cuestionario no encontrado.'
+    anketa_not_found: 'Reunión 1:1 no encontrada.'
     not_a_participant: 'No eres participante.'
     missing_meeting_date: 'Falta "meetingDate".'
     invalid_csrf_token: 'Token CSRF no válido.'

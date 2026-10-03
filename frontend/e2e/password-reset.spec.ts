@@ -66,11 +66,11 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
-  // DateInput only parses on blur (commitText()) — the "Create anketa"
+  // DateInput only parses on blur (commitText()) — the "Create 1:1"
   // button starts out disabled, and a disabled button can't take focus to
   // blur this field for us, so it must be done explicitly first.
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
@@ -125,7 +125,7 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   await employee.locator('#reset-confirm').fill(NEW_PASSWORD);
   await employee
     .getByText(
-      'I understand my existing anketas will be unreadable until access is restored.',
+      'I understand my existing 1:1s will be unreadable until access is restored.',
     )
     .click();
   await employee.getByRole('button', { name: 'Reset password' }).click();

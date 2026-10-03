@@ -5,19 +5,19 @@
 # should eventually get too, once a real test suite exists — Phase 7).
 email:
     anketa_created:
-        subject: 'New 1:1 anketa scheduled'
+        subject: 'New 1:1 scheduled'
         body: "%creator% has scheduled a 1:1 with you for %date%.\n\nPlease fill out your part: %url%"
     meeting_tomorrow:
         subject: 'Your 1:1 is tomorrow'
         body: "Your 1:1 with %counterpart% is tomorrow (%date%).\n\n%url%"
     not_filled_out:
-        subject: "Reminder: fill out tomorrow's anketa"
+        subject: "Reminder: fill out your part for tomorrow's 1:1"
         body: "You haven't filled out your part yet for tomorrow's 1:1 with %counterpart% (%date%).\n\n%url%"
     meeting_monday:
         subject: 'Your 1:1 is on Monday'
         body: "Your 1:1 with %counterpart% is on Monday (%date%).\n\n%url%"
     not_filled_out_monday:
-        subject: "Reminder: fill out Monday's anketa"
+        subject: "Reminder: fill out your part for Monday's 1:1"
         body: "You haven't filled out your part yet for Monday's 1:1 with %counterpart% (%date%).\n\n%url%"
     invited:
         subject: "You've been invited to encrypted1on1"
@@ -27,7 +27,7 @@ email:
         body: "We received a request to reset your password.\n\nChoose a new password: %url%\n\nIf you didn't request this, you can ignore this email."
     counterpart_key_changed:
         subject: "A counterpart's encryption key changed"
-        body: "%counterpart%'s account went through a password reset, which replaced their encryption key.\n\nAny anketas you share with them may need to be shared again before they can read them — you'll see a banner for this on your anketas list if so."
+        body: "%counterpart%'s account went through a password reset, which replaced their encryption key.\n\nAny 1:1s you share with them may need to be shared again before they can read them — you'll see a banner for this on your 1:1 meetings list if so."
     signup:
         subject: 'Confirm your email for encrypted1on1'
         body: "We received a request to create an encrypted1on1 account with this email address.\n\nActivate your account: %url%\n\nIf you didn't request this, you can ignore this email."
@@ -42,7 +42,7 @@ email:
 errors:
     not_authenticated: 'Not authenticated.'
     missing_or_invalid_field: 'Missing or invalid "%field%".'
-    anketa_archived: 'Anketa is archived.'
+    anketa_archived: 'This 1:1 is archived.'
     missing_blob_or_expected_version: 'Missing "blob" or "expectedVersion".'
     already_published: 'Already published.'
     not_published_yet: 'Not published yet.'
@@ -113,9 +113,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" and "skipNextMeeting" must be booleans.'
     next_meeting_date_must_be_string: '"nextMeetingDate" must be a string.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" must be a valid date.'
-    no_periodicity_on_record: 'This anketa has no periodicity on record — pass "skipNextMeeting": true.'
+    no_periodicity_on_record: 'This 1:1 has no periodicity on record — pass "skipNextMeeting": true.'
     missing_sealed_keys: 'Missing "mySealedKey" or "counterpartSealedKey".'
-    anketa_not_found: 'Anketa not found.'
+    anketa_not_found: '1:1 not found.'
     not_a_participant: 'Not a participant.'
     missing_meeting_date: 'Missing "meetingDate".'
     invalid_csrf_token: 'Invalid CSRF token.'

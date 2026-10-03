@@ -57,13 +57,13 @@ class SendRemindersCommandTest extends ApiTestCase
 
         self::assertSame([
             'Your 1:1 is tomorrow',
-            "Reminder: fill out tomorrow's anketa",
+            "Reminder: fill out your part for tomorrow's 1:1",
         ], $this->subjectsFor($saturday->getEmployee()));
         self::assertNotNull($this->reminderSentAt($saturday));
 
         self::assertSame([
             'Your 1:1 is on Monday',
-            "Reminder: fill out Monday's anketa",
+            "Reminder: fill out your part for Monday's 1:1",
         ], $this->subjectsFor($monday->getEmployee()));
         self::assertSame(['Your 1:1 is on Monday'], $this->subjectsFor($monday->getManager()), 'a side that already published gets no fill-out nudge');
         self::assertEquals(new \DateTimeImmutable('2091-06-01 06:00', new \DateTimeZone('UTC')), $this->reminderSentAt($monday));
@@ -93,7 +93,7 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertSame([], $this->subjectsFor($remindedOnFriday->getManager()));
         self::assertSame([
             'Your 1:1 is tomorrow',
-            "Reminder: fill out tomorrow's anketa",
+            "Reminder: fill out your part for tomorrow's 1:1",
         ], $this->subjectsFor($createdLater->getEmployee()));
         self::assertNotNull($this->reminderSentAt($createdLater));
     }
@@ -110,7 +110,7 @@ class SendRemindersCommandTest extends ApiTestCase
 
         self::assertSame([
             'Your 1:1 is tomorrow',
-            "Reminder: fill out tomorrow's anketa",
+            "Reminder: fill out your part for tomorrow's 1:1",
         ], $this->subjectsFor($thursday->getManager()));
         self::assertSame([], $this->subjectsFor($friday->getEmployee()));
         self::assertSame([], $this->subjectsFor($monday->getEmployee()));
@@ -144,7 +144,7 @@ class SendRemindersCommandTest extends ApiTestCase
 
         self::assertSame([
             'Your 1:1 is tomorrow',
-            "Reminder: fill out tomorrow's anketa",
+            "Reminder: fill out your part for tomorrow's 1:1",
         ], $this->subjectsFor($moved->getEmployee()));
     }
 
@@ -168,7 +168,7 @@ class SendRemindersCommandTest extends ApiTestCase
         foreach ([$first, $second] as $anketa) {
             self::assertSame([
                 'Your 1:1 is tomorrow',
-                "Reminder: fill out tomorrow's anketa",
+                "Reminder: fill out your part for tomorrow's 1:1",
             ], $this->subjectsFor($anketa->getEmployee()));
         }
     }
@@ -301,7 +301,7 @@ class SendRemindersCommandTest extends ApiTestCase
 
         self::assertSame([
             'Your 1:1 is on Monday',
-            "Reminder: fill out Monday's anketa",
+            "Reminder: fill out your part for Monday's 1:1",
         ], $this->subjectsFor($monday->getEmployee()));
         self::assertEquals(new \DateTimeImmutable('2091-06-22 21:00', new \DateTimeZone('UTC')), $this->reminderSentAt($monday));
     }

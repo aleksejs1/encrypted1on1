@@ -140,11 +140,11 @@ test('employee and manager complete an anketa across two independent sessions', 
   const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
-  // DateInput only parses on blur (commitText()) — the "Create anketa"
+  // DateInput only parses on blur (commitText()) — the "Create 1:1"
   // button starts out disabled, and a disabled button can't take focus to
   // blur this field for us, so it must be done explicitly first.
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
@@ -343,7 +343,7 @@ test('achievements list entry can be edited in place, and the edit survives publ
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
@@ -481,7 +481,7 @@ test('participant can change the meeting date on an upcoming (non-overdue) anket
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
 
   // Upcoming meeting: the overdue-only reschedule card is absent, and the
@@ -571,7 +571,7 @@ test('published answer edits and new comments appear on an already-open tab with
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
@@ -656,7 +656,7 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
@@ -861,7 +861,7 @@ test('counterpart archiving an anketa the other side never published on disables
   const meetingDateInput = employee.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create anketa' }).click();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
@@ -936,7 +936,7 @@ async function createAnketa(
   const meetingDateInput = creator.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
-  await creator.getByRole('button', { name: 'Create anketa' }).click();
+  await creator.getByRole('button', { name: 'Create 1:1' }).click();
   await creator.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return creator.url();
 }
@@ -1151,7 +1151,7 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
   await expect(
-    employee.getByText('This pair already has an open anketa'),
+    employee.getByText('This pair already has an open 1:1'),
   ).toBeVisible();
   const oneOffUrl = await createAnketa(
     employee,
@@ -1167,7 +1167,7 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
 
   // The archive form explains there's no next meeting, and offers neither
   // the "skip" checkbox nor a next-meeting date.
-  await expect(employee.getByText('This is a one-off anketa')).toBeVisible();
+  await expect(employee.getByText('This is a one-off 1:1')).toBeVisible();
   await expect(
     employee.getByRole('checkbox', { name: "Don't create the next meeting" }),
   ).toHaveCount(0);
@@ -2460,7 +2460,7 @@ test("an anketa whose questions can't be loaded still archives", async ({
   const anketaUrl = await createAnketa(employee, adminEmail, 3, templateName);
 
   await expect(
-    employee.getByText("This anketa's questions couldn't be loaded."),
+    employee.getByText("This 1:1's questions couldn't be loaded."),
   ).toBeVisible();
   await expect(employee.locator('.side-card')).toHaveCount(0);
 
@@ -2483,7 +2483,7 @@ test("an anketa whose questions can't be loaded still archives", async ({
   failVersions = true;
   await employee.reload();
   await expect(
-    employee.getByText("This anketa's questions couldn't be loaded."),
+    employee.getByText("This 1:1's questions couldn't be loaded."),
   ).toBeVisible();
   await employee.getByRole('button', { name: 'Archive' }).click();
   await expectArchived(employee);

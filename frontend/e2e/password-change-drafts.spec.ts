@@ -63,7 +63,7 @@ async function createAnketaWith(page: Page, counterpartEmail: string) {
   const input = page.locator('#meeting-date');
   await input.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await input.blur();
-  await page.getByRole('button', { name: 'Create anketa' }).click();
+  await page.getByRole('button', { name: 'Create 1:1' }).click();
   await page.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return page.url();
 }

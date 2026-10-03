@@ -18,6 +18,7 @@ class AnketaAlreadyArchivedException extends ConflictHttpException
     {
         // Same wording as errors.anketa_archived's English; this class has no
         // translator, so only the controller's own 409 is localized.
-        parent::__construct('Anketa is archived.');
+        // TranslationConsistencyTest keeps the two in sync.
+        parent::__construct('This 1:1 is archived.');
     }
 }

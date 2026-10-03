@@ -452,7 +452,7 @@ class AnketaLifecycleServiceTest extends TestCase
         $service = $this->createService(entityManager: $entityManager);
 
         $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessageMatches('/Next anketa requires a template key\./');
+        $this->expectExceptionMessageMatches('/Next 1:1 requires a template key\./');
 
         $service->archive(
             anketa: $anketa,
@@ -780,7 +780,7 @@ class AnketaLifecycleServiceTest extends TestCase
         $service = $this->createService();
 
         $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessageMatches('/Next anketa requires sealed keys\./');
+        $this->expectExceptionMessageMatches('/Next 1:1 requires sealed keys\./');
 
         $service->archive(
             anketa: $anketa,
@@ -849,7 +849,7 @@ class AnketaLifecycleServiceTest extends TestCase
         $service = $this->createService(entityManager: $entityManager);
 
         $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessageMatches('/Next anketa requires periodicity\./');
+        $this->expectExceptionMessageMatches('/Next 1:1 requires periodicity\./');
 
         $service->archive(
             anketa: $anketa,

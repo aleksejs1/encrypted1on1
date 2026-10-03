@@ -2,19 +2,19 @@
 # messages.en.yaml exactly.
 email:
     anketa_created:
-        subject: 'Neue 1:1-Anketa geplant'
+        subject: 'Neues 1:1 geplant'
         body: "%creator% hat ein 1:1 mit Ihnen für den %date% geplant.\n\nBitte füllen Sie Ihren Teil aus: %url%"
     meeting_tomorrow:
         subject: 'Ihr 1:1 ist morgen'
         body: "Ihr 1:1 mit %counterpart% ist morgen (%date%).\n\n%url%"
     not_filled_out:
-        subject: 'Erinnerung: Anketa für morgen ausfüllen'
+        subject: 'Erinnerung: Ihren Teil für das morgige 1:1 ausfüllen'
         body: "Sie haben Ihren Teil für das morgige 1:1 mit %counterpart% (%date%) noch nicht ausgefüllt.\n\n%url%"
     meeting_monday:
         subject: 'Ihr 1:1 ist am Montag'
         body: "Ihr 1:1 mit %counterpart% ist am Montag (%date%).\n\n%url%"
     not_filled_out_monday:
-        subject: 'Erinnerung: Anketa für Montag ausfüllen'
+        subject: 'Erinnerung: Ihren Teil für das 1:1 am Montag ausfüllen'
         body: "Sie haben Ihren Teil für das 1:1 am Montag mit %counterpart% (%date%) noch nicht ausgefüllt.\n\n%url%"
     invited:
         subject: 'Sie wurden zu encrypted1on1 eingeladen'
@@ -24,7 +24,7 @@ email:
         body: "Wir haben eine Anfrage erhalten, Ihr Passwort zurückzusetzen.\n\nWählen Sie ein neues Passwort: %url%\n\nWenn Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren."
     counterpart_key_changed:
         subject: 'Der Verschlüsselungsschlüssel eines Gegenübers hat sich geändert'
-        body: "Das Konto von %counterpart% hat ein Passwort-Reset durchlaufen, wodurch sich dessen Verschlüsselungsschlüssel geändert hat.\n\nAnketas, die Sie mit dieser Person teilen, müssen möglicherweise erneut geteilt werden, damit sie diese lesen kann — falls zutreffend, sehen Sie dazu einen Hinweis in Ihrer Anketa-Liste."
+        body: "Das Konto von %counterpart% hat ein Passwort-Reset durchlaufen, wodurch sich dessen Verschlüsselungsschlüssel geändert hat.\n\n1:1s, die Sie mit dieser Person teilen, müssen möglicherweise erneut geteilt werden, damit sie diese lesen kann — falls zutreffend, sehen Sie dazu einen Hinweis in Ihrer Liste der 1:1-Meetings."
     signup:
         subject: 'Bestätigen Sie Ihre E-Mail für encrypted1on1'
         body: "Wir haben eine Anfrage erhalten, mit dieser E-Mail-Adresse ein encrypted1on1-Konto zu erstellen.\n\nAktivieren Sie Ihr Konto: %url%\n\nWenn Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren."
@@ -39,7 +39,7 @@ email:
 errors:
     not_authenticated: 'Nicht authentifiziert.'
     missing_or_invalid_field: 'Fehlendes oder ungültiges Feld "%field%".'
-    anketa_archived: 'Anketa ist archiviert.'
+    anketa_archived: 'Dieses 1:1 ist archiviert.'
     missing_blob_or_expected_version: 'Fehlendes "blob" oder "expectedVersion".'
     already_published: 'Bereits veröffentlicht.'
     not_published_yet: 'Noch nicht veröffentlicht.'
@@ -110,9 +110,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" und "skipNextMeeting" müssen boolesche Werte sein.'
     next_meeting_date_must_be_string: '"nextMeetingDate" muss eine Zeichenkette sein.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" muss ein gültiges Datum sein.'
-    no_periodicity_on_record: 'Für diese Anketa ist keine Periodizität hinterlegt — übergeben Sie "skipNextMeeting": true.'
+    no_periodicity_on_record: 'Für dieses 1:1 ist keine Periodizität hinterlegt — übergeben Sie "skipNextMeeting": true.'
     missing_sealed_keys: 'Fehlendes "mySealedKey" oder "counterpartSealedKey".'
-    anketa_not_found: 'Anketa nicht gefunden.'
+    anketa_not_found: '1:1 nicht gefunden.'
     not_a_participant: 'Kein Teilnehmer.'
     missing_meeting_date: 'Fehlendes "meetingDate".'
     invalid_csrf_token: 'Ungültiges CSRF-Token.'

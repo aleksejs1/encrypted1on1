@@ -1,18 +1,18 @@
 email:
     anketa_created:
-        subject: 'Ieplānota jauna 1:1 anketa'
+        subject: 'Ieplānota jauna 1:1 tikšanās'
         body: "%creator% ir ieplānojis(-usi) ar jums 1:1 tikšanos %date%.\n\nLūdzu, aizpildiet savu daļu: %url%"
     meeting_tomorrow:
         subject: 'Jūsu 1:1 tikšanās ir rīt'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir rīt (%date%).\n\n%url%"
     not_filled_out:
-        subject: 'Atgādinājums: aizpildiet anketu pirms rītdienas tikšanās'
+        subject: 'Atgādinājums: aizpildiet savu daļu pirms rītdienas 1:1 tikšanās'
         body: "Jūs vēl neesat aizpildījis(-usi) savu daļu rītdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
     meeting_monday:
         subject: 'Jūsu 1:1 tikšanās ir pirmdien'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\n%url%"
     not_filled_out_monday:
-        subject: 'Atgādinājums: aizpildiet anketu pirms pirmdienas tikšanās'
+        subject: 'Atgādinājums: aizpildiet savu daļu pirms pirmdienas 1:1 tikšanās'
         body: "Jūs vēl neesat aizpildījis(-usi) savu daļu pirmdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
     invited:
         subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
@@ -22,7 +22,7 @@ email:
         body: "Mēs saņēmām pieprasījumu atiestatīt jūsu paroli.\n\nIzvēlieties jaunu paroli: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
     counterpart_key_changed:
         subject: 'Sarunu biedra šifrēšanas atslēga ir mainījusies'
-        body: "%counterpart% konts ir veicis paroles atiestatīšanu, kas nomainīja viņa šifrēšanas atslēgu.\n\nIespējams, ka anketas, kas jums ir kopīgas ar viņu, būs jāpiešķir vēlreiz, pirms viņš tās varēs izlasīt — ja tas tā ir, jūs redzēsiet par to baneri savā anketu sarakstā."
+        body: "%counterpart% konts ir veicis paroles atiestatīšanu, kas nomainīja viņa šifrēšanas atslēgu.\n\nIespējams, ka 1:1 tikšanās, kas jums ir kopīgas ar viņu, būs jāpiešķir vēlreiz, pirms viņš tās varēs izlasīt — ja tas tā ir, jūs redzēsiet par to baneri savā 1:1 tikšanos sarakstā."
     signup:
         subject: 'Apstipriniet savu e-pastu encrypted1on1'
         body: "Mēs saņēmām pieprasījumu izveidot encrypted1on1 kontu ar šo e-pasta adresi.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
@@ -35,7 +35,7 @@ email:
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
-    anketa_archived: 'Anketa ir arhivēta.'
+    anketa_archived: 'Šī 1:1 tikšanās ir arhivēta.'
     missing_blob_or_expected_version: 'Trūkst "blob" vai "expectedVersion".'
     already_published: 'Jau publicēts.'
     not_published_yet: 'Vēl nav publicēts.'
@@ -106,9 +106,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" un "skipNextMeeting" jābūt būla vērtībām.'
     next_meeting_date_must_be_string: '"nextMeetingDate" jābūt virknei.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" jābūt derīgam datumam.'
-    no_periodicity_on_record: 'Šai anketai nav reģistrēta periodiskuma — norādiet "skipNextMeeting": true.'
+    no_periodicity_on_record: 'Šai 1:1 tikšanās reizei nav reģistrēta periodiskuma — norādiet "skipNextMeeting": true.'
     missing_sealed_keys: 'Trūkst "mySealedKey" vai "counterpartSealedKey".'
-    anketa_not_found: 'Anketa nav atrasta.'
+    anketa_not_found: '1:1 tikšanās nav atrasta.'
     not_a_participant: 'Jūs neesat dalībnieks.'
     missing_meeting_date: 'Trūkst "meetingDate".'
     invalid_csrf_token: 'Nederīgs CSRF marķieris.'
