@@ -22,9 +22,9 @@ final class ReminderRunResult
 
     public ?\Throwable $firstError = null;
 
-    public function countProcessed(bool $followUp): void
+    public function countProcessed(ReminderPass $pass): void
     {
-        if ($followUp) {
+        if (ReminderPass::FollowUp === $pass) {
             ++$this->followUps;
         } else {
             ++$this->count;

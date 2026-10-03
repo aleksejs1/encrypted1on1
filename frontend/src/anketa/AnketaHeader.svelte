@@ -5,7 +5,11 @@
   import { formatDisplayDate } from '../datePreference.svelte';
   import DateInput from '../design/DateInput.svelte';
   import { goToArchiveSection } from './archiveHeading';
-  import { FOLLOW_UP_HASH, RESCHEDULE_DATE_ID } from './followUpLinks';
+  import {
+    clearFollowUpHash,
+    FOLLOW_UP_HASH,
+    RESCHEDULE_DATE_ID,
+  } from './followUpLinks';
   import { isOverdue as computeIsOverdue } from './isOverdue';
   import { shortDisplayName } from '../userDisplay';
 
@@ -59,14 +63,17 @@
 
   // The follow-up email's "move it to another date" link (GitHub issue #202)
   // lands on the date field: the "not closed" card's, or, for a meeting moved
-  // to a later day since the email, the one behind "Change date".
-  onMount(() => {
+  // to a later day since the email, the one behind "Change date". Also on
+  // hashchange: the link may open in a tab already showing this meeting.
+  function followRescheduleLink(): void {
     if (window.location.hash !== FOLLOW_UP_HASH.reschedule) return;
+    clearFollowUpHash();
     showReschedule = true;
     void tick().then(() =>
       document.getElementById(RESCHEDULE_DATE_ID)?.focus(),
     );
-  });
+  }
+  onMount(followRescheduleLink);
 
   async function handleReschedule(): Promise<void> {
     if (!rescheduleDate) return;
@@ -101,6 +108,8 @@
     }
   }
 </script>
+
+<svelte:window onhashchange={followRescheduleLink} />
 
 <h1>
   {$_('anketa.titleWithCounterpart', {

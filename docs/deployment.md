@@ -301,7 +301,7 @@ CRON_TZ=UTC
 0 7 * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app php bin/console app:send-reminders >> reminders.log 2>&1
 ```
 
-If a run reports failed 1:1s (exit code 1; an SMTP outage counts), rerun it the same day: the next day's run looks at the next day's meetings, so only a same-day rerun retries them (for a Monday meeting failed on Friday, Sunday's run also would, with "tomorrow" wording). A failed follow-up is also retried by the next weekday runs, each of which looks three days back; a follow-up no run sent within those days is never sent. 1:1s reported as "couldn't be released" are not retried by any run; remind those participants by hand.
+If a run reports failed 1:1s (exit code 1; an SMTP outage counts), rerun it the same day: the next day's run looks at the next day's meetings, so only a same-day rerun retries them (for a Monday meeting failed on Friday, Sunday's run also would, with "tomorrow" wording). A failed follow-up is also retried by the next weekday runs, each of which looks five days back; a follow-up no run sent within those days is never sent. 1:1s reported as "couldn't be released" are not retried by any run; remind those participants by hand.
 
 ### Token cleanup
 

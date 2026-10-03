@@ -299,6 +299,11 @@ class SendRemindersCommandTest extends ApiTestCase
     {
         static::createClient();
         $thursday = $this->makeAnketa('2091-09-06', 'fu-thu');
+        $this->entityManager()->flush();
+        // Friday's run follows up Thursday's meeting; Monday's must not send it again.
+        $this->runCommandAt('2091-09-07 06:00');
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($thursday->getEmployee()));
+        $this->sent = [];
         $friday = $this->makeAnketa('2091-09-07', 'fu-fri');
         $saturday = $this->makeAnketa('2091-09-08', 'fu-sat');
         $sunday = $this->makeAnketa('2091-09-09', 'fu-sun');
@@ -320,7 +325,7 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertStringContainsString('https://example.com/anketas/'.$friday->getId()."#close\n", $body);
         self::assertStringEndsWith('https://example.com/anketas/'.$friday->getId().'#reschedule', $body);
 
-        self::assertSame([], $this->subjectsFor($thursday->getEmployee()), "Friday's run was the one to follow up Thursday");
+        self::assertSame([], $this->subjectsFor($thursday->getEmployee()));
         self::assertSame([], $this->subjectsFor($today->getEmployee()));
         self::assertSame([], $this->subjectsFor($closed->getEmployee()));
         self::assertNull($this->reload($closed)->getFollowUpMeetingDay());
@@ -346,13 +351,13 @@ class SendRemindersCommandTest extends ApiTestCase
     }
 
     /**
-     * A midweek run follows up yesterday's meeting, and one from two days ago that no run
-     * followed up (a skipped or failed run), but nothing older than the three-day window.
+     * A midweek run follows up yesterday's meeting, and an earlier one that no run followed
+     * up (a skipped or failed run), but nothing older than the five-day window.
      */
     public function testAWeekdayRunFollowsUpYesterdayAndCatchesUpOnAMissedRun(): void
     {
         static::createClient();
-        $old = $this->makeAnketa('2091-09-22', 'fu-old');
+        $old = $this->makeAnketa('2091-09-21', 'fu-old');
         $tuesday = $this->makeAnketa('2091-09-25', 'fu-tue');
         $wednesday = $this->makeAnketa('2091-09-26', 'fu-wed');
         $this->entityManager()->flush();
@@ -407,7 +412,7 @@ class SendRemindersCommandTest extends ApiTestCase
     public function testAMailTransportFailureLeavesTheFollowUpDue(): void
     {
         static::createClient();
-        $anketa = $this->makeAnketa('2091-10-16', 'fu-smtp-down');
+        $anketa = $this->makeAnketa('2091-10-18', 'fu-smtp-down');
         $this->entityManager()->flush();
         $this->onSend = static function (): void {
             throw new TransportException('smtp down');
@@ -416,7 +421,7 @@ class SendRemindersCommandTest extends ApiTestCase
         $log = tempnam(sys_get_temp_dir(), 'reminders-log');
         $previousLog = ini_set('error_log', (string) $log);
         try {
-            [$exitCode, $display] = $this->runCommandAt('2091-10-17 06:00', expectSuccess: false);
+            [$exitCode, $display] = $this->runCommandAt('2091-10-19 06:00', expectSuccess: false);
         } finally {
             ini_set('error_log', false === $previousLog ? '' : $previousLog);
         }
@@ -426,9 +431,12 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertStringContainsString('Follow-up for anketa '.$anketa->getId().' failed', $display);
         self::assertNull($this->reload($anketa)->getFollowUpMeetingDay());
 
-        // The next weekday's run still reaches it.
+        // A Thursday meeting whose Friday run failed: the weekend runs send no follow-ups,
+        // and Monday's still reaches back to it.
         $this->onSend = null;
-        $this->runCommandAt('2091-10-18 06:00');
+        $this->runCommandAt('2091-10-20 06:00');
+        self::assertSame([], $this->subjectsFor($anketa->getEmployee()));
+        $this->runCommandAt('2091-10-22 06:00');
         self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getEmployee()));
     }
 

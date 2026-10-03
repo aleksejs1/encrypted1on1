@@ -130,14 +130,7 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function findDueForReminder(\DateTimeImmutable $dayStart): array
     {
-        /** @var list<string> $ids */
-        $ids = $this->onDay($this->createQueryBuilder('a')
-            ->select('a.id')
-            ->where(self::DUE_FOR_REMINDER)
-            ->getQuery(), $dayStart)
-            ->getSingleColumnResult();
-
-        return $ids;
+        return $this->idsDueOn(self::DUE_FOR_REMINDER, $dayStart);
     }
 
     /**
@@ -178,13 +171,7 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function releaseReminder(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
     {
-        $this->getEntityManager()->createQuery(
-            'UPDATE '.Anketa::class.' a SET a.reminderMeetingDay = :previousDay WHERE a.id = :id AND a.reminderMeetingDay = :day'
-        )
-            ->setParameter('previousDay', $previousDay, Types::DATE_IMMUTABLE)
-            ->setParameter('id', $id)
-            ->setParameter('day', $dayStart, Types::DATE_IMMUTABLE)
-            ->execute();
+        $this->restoreClaimedDay('reminderMeetingDay', $id, $dayStart, $previousDay);
     }
 
     /**
@@ -197,14 +184,7 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function findDueForFollowUp(\DateTimeImmutable $dayStart): array
     {
-        /** @var list<string> $ids */
-        $ids = $this->onDay($this->createQueryBuilder('a')
-            ->select('a.id')
-            ->where(self::DUE_FOR_FOLLOW_UP)
-            ->getQuery(), $dayStart)
-            ->getSingleColumnResult();
-
-        return $ids;
+        return $this->idsDueOn(self::DUE_FOR_FOLLOW_UP, $dayStart);
     }
 
     /**
@@ -230,8 +210,35 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function releaseFollowUp(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
     {
+        $this->restoreClaimedDay('followUpMeetingDay', $id, $dayStart, $previousDay);
+    }
+
+    /**
+     * @param self::DUE_FOR_* $due
+     *
+     * @return list<string>
+     */
+    private function idsDueOn(string $due, \DateTimeImmutable $dayStart): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->onDay($this->createQueryBuilder('a')
+            ->select('a.id')
+            ->where($due)
+            ->getQuery(), $dayStart)
+            ->getSingleColumnResult();
+
+        return $ids;
+    }
+
+    /**
+     * Puts `$previousDay` back into a claim column, only while it still holds `$dayStart`.
+     *
+     * @param 'reminderMeetingDay'|'followUpMeetingDay' $column
+     */
+    private function restoreClaimedDay(string $column, string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
+    {
         $this->getEntityManager()->createQuery(
-            'UPDATE '.Anketa::class.' a SET a.followUpMeetingDay = :previousDay WHERE a.id = :id AND a.followUpMeetingDay = :day'
+            'UPDATE '.Anketa::class." a SET a.$column = :previousDay WHERE a.id = :id AND a.$column = :day"
         )
             ->setParameter('previousDay', $previousDay, Types::DATE_IMMUTABLE)
             ->setParameter('id', $id)

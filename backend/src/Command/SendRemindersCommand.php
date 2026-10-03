@@ -36,9 +36,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Follow-up (GitHub issue #202): a meeting still open after its day gets one "did your
  * 1:1 happen?" email per participant on the next business day, so Friday's, Saturday's
  * and Sunday's meetings are followed up on Monday and a weekend run sends none. Every
- * weekday run looks at the last three days, which is exactly Monday's window; on the
- * other weekdays the two extra days only pick up a follow-up an earlier run failed to
- * send or never ran for. Claimed per meeting day like the reminder
+ * weekday run looks at the last five days: Monday needs three of them, and the rest
+ * only pick up a follow-up an earlier run failed to send or never ran for, so every
+ * meeting gets at least two weekday runs. Days are UTC days, as for reminders. Claimed per meeting day like the reminder
  * (Anketa::$followUpMeetingDay), so a meeting moved after its follow-up gets another
  * one after its new day.
  */
@@ -47,8 +47,8 @@ class SendRemindersCommand extends Command
 {
     private const int FRIDAY = 5;
 
-    /** Monday's run reaches back to Friday; see the class docblock. */
-    private const int FOLLOW_UP_DAYS_BACK = 3;
+    /** Monday's run reaches back to Friday, and two more days as a retry; see the class docblock. */
+    private const int FOLLOW_UP_DAYS_BACK = 5;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -131,10 +131,10 @@ class SendRemindersCommand extends Command
                 }
                 $previousDay = $followUp ? $anketa->getFollowUpMeetingDay() : $anketa->getReminderMeetingDay();
                 // Claimed one at a time, right before sending: see the repository methods.
-                $claimed = $this->claim($id, $dayStart, $followUp, $now);
+                $claimed = $this->claim($id, $dayStart, $pass, $now);
                 if ($claimed) {
                     $this->sendEmails($anketa, $pass);
-                    $result->countProcessed($followUp);
+                    $result->countProcessed($pass);
                 }
             } catch (\Throwable $e) {
                 // One anketa's failure, a mail transport failure included (see
@@ -143,22 +143,22 @@ class SendRemindersCommand extends Command
                 // for a follow-up, the next weekday runs) retries it.
                 $io->error(sprintf('%s for anketa %s failed: %s', $followUp ? 'Follow-up' : 'Reminder', $id, $e->getMessage()));
                 $result->firstError ??= $e;
-                $result->countFailed(!$claimed || $this->release($id, $dayStart, $previousDay, $followUp, $io));
+                $result->countFailed(!$claimed || $this->release($id, $dayStart, $previousDay, $pass, $io));
             }
         }
     }
 
-    private function claim(string $id, \DateTimeImmutable $dayStart, bool $followUp, \DateTimeImmutable $now): bool
+    private function claim(string $id, \DateTimeImmutable $dayStart, ReminderPass $pass, \DateTimeImmutable $now): bool
     {
-        return $followUp
+        return ReminderPass::FollowUp === $pass
             ? $this->anketaRepository->claimFollowUp($id, $dayStart)
             : $this->anketaRepository->claimReminder($id, $dayStart, $now);
     }
 
-    private function release(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay, bool $followUp, SymfonyStyle $io): bool
+    private function release(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay, ReminderPass $pass, SymfonyStyle $io): bool
     {
         try {
-            if ($followUp) {
+            if (ReminderPass::FollowUp === $pass) {
                 $this->anketaRepository->releaseFollowUp($id, $dayStart, $previousDay);
             } else {
                 $this->anketaRepository->releaseReminder($id, $dayStart, $previousDay);

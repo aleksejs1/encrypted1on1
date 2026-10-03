@@ -645,12 +645,21 @@ test("the follow-up email's links land on the archive form and the reschedule fi
   await employee.goto(`${anketaUrl}#close`);
   await expect(employee.locator('#archive-heading')).toBeFocused();
   await expect(employee.locator('#archive-heading')).toBeInViewport();
+  // The fragment is dropped once followed, so a reload doesn't scroll again.
+  await expect(employee).toHaveURL(anketaUrl);
 
   await employee.goto('/');
   await employee.goto(`${anketaUrl}#reschedule`);
   await expect(
     employee.locator('.overdue-card #reschedule-date'),
   ).toBeFocused();
+  await expect(employee).toHaveURL(anketaUrl);
+
+  // The link opened in a tab already showing the meeting: only the fragment
+  // changes, with no page load.
+  await employee.evaluate("window.location.hash = 'close'");
+  await expect(employee.locator('#archive-heading')).toBeFocused();
+  await expect(employee).toHaveURL(anketaUrl);
 });
 
 /**

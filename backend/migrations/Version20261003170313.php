@@ -11,7 +11,7 @@ use Doctrine\Migrations\AbstractMigration;
  * Adds anketas.followUpMeetingDay (GitHub issue #202, see Anketa::$followUpMeetingDay):
  * the meeting day the "did your 1:1 happen?" follow-up email was for. Not backfilled: a
  * meeting already past its day and still open when this ships gets its follow-up from
- * the first weekday run, if its day is within that run's three-day window, and none
+ * the first weekday run, if its day is within that run's five-day window, and none
  * otherwise.
  *
  * Generated via `doctrine:migrations:diff` and trimmed (the diff also re-emitted
