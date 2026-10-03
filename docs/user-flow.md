@@ -18,7 +18,7 @@ Either way, activation works the same: the link is single-use and expires after 
 Email and password, same as anywhere. Behind that simple form: the password gets run through the same derivation again (never sent as-is), and the resulting key is checked against the server's copy in constant time. The UI shows an explicit "unlocking your data" state during this, since the derivation step is deliberately slow (see *why* in encryption.md) and can take a perceptible moment.
 
 Once logged in, the session lives in two places with two different lifetimes:
-- A regular httpOnly session cookie (server-side, like any web app) keeps you *authenticated*.
+- A regular httpOnly session cookie (server-side, like any web app) keeps you *authenticated*. It ends when the browser closes, or after 12 hours without any request to the server. A meeting page you have in front of you checks for updates every few seconds, so it stays signed in; in a background tab it doesn't.
 - The unwrapped encryption key lives only in that browser tab's memory/`sessionStorage` — it survives a page refresh, but closing the tab clears it. This is a deliberate trade-off explained on the login screen itself, not a hidden limitation: convenience (no re-typing on every refresh) without persisting key material anywhere durable. Opening the app in a *new* tab is still authenticated (the session cookie is shared across tabs), but that tab has no key of its own yet — `App.svelte` detects this (`authState.unlockStatus`, checked via `checkUnlocked()` in `auth.svelte.ts`) and shows `UnlockTab.svelte`, a lightweight password-only re-entry screen, instead of rendering pages that would otherwise silently fail to decrypt anything.
 
 ## Account settings
