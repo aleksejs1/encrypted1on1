@@ -404,6 +404,27 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getManager()));
     }
 
+    /** A pair with a blocked account is skipped without a claim: unblocked, a rerun still sends. */
+    public function testAFollowUpSkipsAPairWithABlockedParticipant(): void
+    {
+        static::createClient();
+        $anketa = $this->makeAnketa('2091-10-23', 'fu-blocked');
+        $anketa->getEmployee()->setBlocked(true);
+        $this->entityManager()->flush();
+
+        [, $display] = $this->runCommandAt('2091-10-24 06:00');
+
+        self::assertSame([], $this->subjectsFor($anketa->getEmployee()));
+        self::assertSame([], $this->subjectsFor($anketa->getManager()));
+        self::assertNull($this->reload($anketa)->getFollowUpMeetingDay());
+        self::assertStringContainsString('follow-ups for 0.', $display);
+
+        $this->reload($anketa)->getEmployee()->setBlocked(false);
+        $this->entityManager()->flush();
+        $this->runCommandAt('2091-10-24 06:00');
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getManager()));
+    }
+
     /** As for reminders: an SMTP outage fails the run and leaves the follow-up due. */
     public function testAMailTransportFailureLeavesTheFollowUpDue(): void
     {

@@ -123,8 +123,7 @@ class SendRemindersCommand extends Command
             $claimed = false;
             $previousDay = null;
             try {
-                $this->entityManager->clear();
-                $anketa = $this->anketaRepository->findWithParticipants($id);
+                $anketa = $this->loadFresh($id, $pass);
                 if (null === $anketa) {
                     continue;
                 }
@@ -145,6 +144,23 @@ class SendRemindersCommand extends Command
                 $result->countFailed(!$claimed || $this->release($id, $dayStart, $previousDay, $pass, $io));
             }
         }
+    }
+
+    /**
+     * The anketa as it is now, or null if it's gone or this pass skips it: a pair with a
+     * blocked account (a deleted one included) gets no follow-up, and isn't claimed. That
+     * account can't log in to use the links, and its counterpart can't schedule a next
+     * meeting with it (AnketaLifecycleService::shouldCreateNext()).
+     */
+    private function loadFresh(string $id, ReminderPass $pass): ?Anketa
+    {
+        $this->entityManager->clear();
+        $anketa = $this->anketaRepository->findWithParticipants($id);
+        if (null === $anketa || ReminderPass::FollowUp !== $pass) {
+            return $anketa;
+        }
+
+        return $anketa->getEmployee()->isBlocked() || $anketa->getManager()->isBlocked() ? null : $anketa;
     }
 
     private function claim(string $id, \DateTimeImmutable $dayStart, ReminderPass $pass, \DateTimeImmutable $now): bool
