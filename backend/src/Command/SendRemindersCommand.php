@@ -35,20 +35,17 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * Follow-up (GitHub issue #202): a meeting still open after its day gets one "did your
  * 1:1 happen?" email per participant on the next business day, so Friday's, Saturday's
- * and Sunday's meetings are followed up on Monday and a weekend run sends none. Every
- * weekday run looks at the last five days: Monday needs three of them, and the rest
- * only pick up a follow-up an earlier run failed to send or never ran for, so every
- * meeting gets at least two weekday runs. Days are UTC days, as for reminders. Claimed per meeting day like the reminder
- * (Anketa::$followUpMeetingDay), so a meeting moved after its follow-up gets another
- * one after its new day.
+ * and Sunday's meetings are followed up on Monday and a weekend run sends none. Like a
+ * reminder, a follow-up that failed is retried only by a rerun on the same day. Days are
+ * UTC days. Claimed per meeting day like the reminder (Anketa::$followUpMeetingDay), so a
+ * meeting moved after its follow-up gets another one after its new day.
  */
 #[AsCommand(name: 'app:send-reminders', description: "Send day-before meeting reminders for tomorrow's anketas (and Monday's, on a Friday), and follow-ups for meetings left open")]
 class SendRemindersCommand extends Command
 {
     private const int FRIDAY = 5;
 
-    /** Monday's run reaches back to Friday, and two more days as a retry; see the class docblock. */
-    private const int FOLLOW_UP_DAYS_BACK = 5;
+    private const int MONDAY = 1;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -77,7 +74,9 @@ class SendRemindersCommand extends Command
             $this->processMeetingsOn($today->modify('+3 days'), ReminderPass::Monday, $now, $io, $result);
         }
         if ($weekday <= self::FRIDAY) {
-            for ($daysBack = 1; $daysBack <= self::FOLLOW_UP_DAYS_BACK; ++$daysBack) {
+            // The previous business day; on a Monday, the weekend too.
+            $followUpDaysBack = self::MONDAY === $weekday ? 3 : 1;
+            for ($daysBack = 1; $daysBack <= $followUpDaysBack; ++$daysBack) {
                 $this->processMeetingsOn($today->modify("-$daysBack days"), ReminderPass::FollowUp, $now, $io, $result);
             }
         }
@@ -139,8 +138,8 @@ class SendRemindersCommand extends Command
             } catch (\Throwable $e) {
                 // One anketa's failure, a mail transport failure included (see
                 // sendEmails()), mustn't stop the rest of the batch, or the later passes.
-                // Released so a same-day rerun (or, for a Monday meeting, Sunday's fallback;
-                // for a follow-up, the next weekday runs) retries it.
+                // Released so a same-day rerun (or, for a Monday meeting's reminder, Sunday's
+                // fallback) retries it.
                 $io->error(sprintf('%s for anketa %s failed: %s', $followUp ? 'Follow-up' : 'Reminder', $id, $e->getMessage()));
                 $result->firstError ??= $e;
                 $result->countFailed(!$claimed || $this->release($id, $dayStart, $previousDay, $pass, $io));

@@ -68,6 +68,8 @@
   function followRescheduleLink(): void {
     if (window.location.hash !== FOLLOW_UP_HASH.reschedule) return;
     clearFollowUpHash();
+    // Closed since the email: there is no date left to move.
+    if (archived) return;
     showReschedule = true;
     void tick().then(() =>
       document.getElementById(RESCHEDULE_DATE_ID)?.focus(),

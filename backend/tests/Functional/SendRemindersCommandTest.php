@@ -350,23 +350,19 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($friday->getManager()));
     }
 
-    /**
-     * A midweek run follows up yesterday's meeting, and an earlier one that no run followed
-     * up (a skipped or failed run), but nothing older than the five-day window.
-     */
-    public function testAWeekdayRunFollowsUpYesterdayAndCatchesUpOnAMissedRun(): void
+    /** A midweek run follows up yesterday's meeting only: an older one had its day. */
+    public function testAWeekdayRunFollowsUpOnlyYesterdaysMeeting(): void
     {
         static::createClient();
-        $old = $this->makeAnketa('2091-09-21', 'fu-old');
         $tuesday = $this->makeAnketa('2091-09-25', 'fu-tue');
         $wednesday = $this->makeAnketa('2091-09-26', 'fu-wed');
         $this->entityManager()->flush();
 
         $this->runCommandAt('2091-09-27 06:00');
 
-        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($tuesday->getEmployee()));
         self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($wednesday->getEmployee()));
-        self::assertSame([], $this->subjectsFor($old->getEmployee()));
+        self::assertSame([], $this->subjectsFor($tuesday->getEmployee()));
+        self::assertNull($this->reload($tuesday)->getFollowUpMeetingDay());
     }
 
     /** A meeting moved to a later day isn't followed up for its old day, only after its new one. */
@@ -431,12 +427,9 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertStringContainsString('Follow-up for anketa '.$anketa->getId().' failed', $display);
         self::assertNull($this->reload($anketa)->getFollowUpMeetingDay());
 
-        // A Thursday meeting whose Friday run failed: the weekend runs send no follow-ups,
-        // and Monday's still reaches back to it.
+        // Only a rerun on the same day retries it.
         $this->onSend = null;
-        $this->runCommandAt('2091-10-20 06:00');
-        self::assertSame([], $this->subjectsFor($anketa->getEmployee()));
-        $this->runCommandAt('2091-10-22 06:00');
+        $this->runCommandAt('2091-10-19 06:00');
         self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getEmployee()));
     }
 
