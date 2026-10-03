@@ -64,7 +64,6 @@ class AuthSession
             // to the login screen, and its cached token would then fail the login too.
             $session->remove(self::SESSION_KEY);
             $session->remove(self::LAST_ACTIVE_KEY);
-            $this->disableCompanyFilter();
 
             return null;
         }
@@ -100,11 +99,7 @@ class AuthSession
     public function logOut(Request $request): void
     {
         $request->getSession()->invalidate();
-        $this->disableCompanyFilter();
-    }
 
-    private function disableCompanyFilter(): void
-    {
         if ($this->entityManager->getFilters()->isEnabled(\App\Doctrine\CompanyFilter::NAME)) {
             $this->entityManager->getFilters()->disable(\App\Doctrine\CompanyFilter::NAME);
         }

@@ -97,11 +97,7 @@ class AuthSessionTest extends TestCase
 
     public function testALoggedInSessionWithoutAnActivityTimestampIsLoggedOut(): void
     {
-        $filters = self::createStub(FilterCollection::class);
-        $filters->method('isEnabled')->willReturn(false);
-
         $em = $this->createMock(EntityManagerInterface::class);
-        $em->method('getFilters')->willReturn($filters);
         // Rejected before the user is even looked up.
         $em->expects(self::never())->method('find');
 
@@ -118,6 +114,26 @@ class AuthSessionTest extends TestCase
         self::assertFalse($session->has('user_id'));
         // Only the login goes: the rest of the session holds the CSRF secret.
         self::assertSame('kept', $session->get('unrelated'));
+    }
+
+    public function testAnIdleSessionLosesItsLoginAndItsTimestampButNothingElse(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::never())->method('find');
+        // The tenant filter is left as it is: CompanyFilterListener resets it per request.
+        $em->expects(self::never())->method('getFilters');
+
+        $clock = new MockClock('2026-10-03 12:00:00');
+        $session = new Session(new MockArraySessionStorage());
+        $session->set('user_id', 'user-1');
+        $session->set('last_active_at', $clock->now()->getTimestamp() - AuthSession::IDLE_TIMEOUT_SECONDS - 1);
+        $session->set('unrelated', 'kept');
+
+        $request = new Request();
+        $request->setSession($session);
+
+        self::assertNull(new AuthSession($em, $clock)->getCurrentUser($request));
+        self::assertSame(['unrelated' => 'kept'], $session->all());
     }
 
     public function testAnAnonymousSessionIsLeftAlone(): void
