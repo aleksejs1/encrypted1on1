@@ -66,6 +66,27 @@ class AnketaNotifier
     }
 
     /**
+     * Asks whether a meeting that is past its day and still open happened (GitHub issue
+     * #202), with one link to close it and one to move it; the fragments are read by
+     * frontend/src/anketa/followUpLinks.ts. A one-off has no next meeting to schedule, so
+     * its copy says only "close". Gated and reported like the reminders: see sendReminder().
+     */
+    public function notifyMeetingFollowUp(Anketa $anketa, User $recipient, User $counterpart): bool
+    {
+        if (!$recipient->wantsMeetingReminders()) {
+            return true;
+        }
+        $url = $this->anketaUrl($anketa);
+
+        return $this->send($recipient, 'email.meeting_follow_up', [
+            '%counterpart%' => $this->nameOf($counterpart),
+            '%date%' => $this->formatDate($anketa->getMeetingDate()),
+            '%close_url%' => $url.'#close',
+            '%reschedule_url%' => $url.'#reschedule',
+        ], $anketa->isOneOff() ? 'body_one_off' : 'body');
+    }
+
+    /**
      * One email per recipient (GitHub issue #200): a recipient whose side isn't published
      * gets the same reminder with one more line (`body_not_published`), not a second email.
      *

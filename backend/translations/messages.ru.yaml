@@ -13,6 +13,10 @@ email:
         subject: 'Ваша встреча 1:1 в понедельник'
         body: "Ваша встреча 1:1 с %counterpart% состоится в понедельник (%date%).\n\n%url%"
         body_not_published: "Ваша встреча 1:1 с %counterpart% состоится в понедельник (%date%).\n\nВы ещё не опубликовали свою часть.\n\n%url%"
+    meeting_follow_up:
+        subject: "Ваша встреча 1:1 состоялась?"
+        body: "Ваша встреча 1:1 с %counterpart% %date% состоялась? Она ещё не закрыта.\n\nЗакрыть и назначить следующую:\n%close_url%\n\nИли перенести на другую дату:\n%reschedule_url%"
+        body_one_off: "Ваша встреча 1:1 с %counterpart% %date% состоялась? Она ещё не закрыта.\n\nЗакрыть встречу:\n%close_url%\n\nИли перенести на другую дату:\n%reschedule_url%"
     invited:
         subject: 'Вас пригласили в encrypted1on1'
         body: "%inviter% пригласил(а) вас в encrypted1on1.\n\nАктивируйте аккаунт: %url%"

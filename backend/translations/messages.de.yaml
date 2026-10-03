@@ -15,6 +15,10 @@ email:
         subject: 'Ihr 1:1 ist am Montag'
         body: "Ihr 1:1 mit %counterpart% ist am Montag (%date%).\n\n%url%"
         body_not_published: "Ihr 1:1 mit %counterpart% ist am Montag (%date%).\n\nSie haben Ihren Teil noch nicht veröffentlicht.\n\n%url%"
+    meeting_follow_up:
+        subject: "Hat Ihr 1:1 stattgefunden?"
+        body: "Hat Ihr 1:1 mit %counterpart% am %date% stattgefunden? Es ist noch nicht abgeschlossen.\n\nAbschließen und das nächste planen:\n%close_url%\n\nOder auf ein anderes Datum verschieben:\n%reschedule_url%"
+        body_one_off: "Hat Ihr 1:1 mit %counterpart% am %date% stattgefunden? Es ist noch nicht abgeschlossen.\n\n1:1 abschließen:\n%close_url%\n\nOder auf ein anderes Datum verschieben:\n%reschedule_url%"
     invited:
         subject: 'Sie wurden zu encrypted1on1 eingeladen'
         body: "%inviter% hat Sie zu encrypted1on1 eingeladen.\n\nAktivieren Sie Ihr Konto: %url%"

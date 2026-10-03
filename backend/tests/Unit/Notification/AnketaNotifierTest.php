@@ -58,6 +58,7 @@ class AnketaNotifierTest extends TestCase
         try {
             self::assertFalse($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
             self::assertFalse($notifier->notifyMeetingMonday($anketa, $employee, $manager));
+            self::assertFalse($notifier->notifyMeetingFollowUp($anketa, $employee, $manager));
         } finally {
             ini_set('error_log', false === $previousLog ? '' : $previousLog);
         }
@@ -66,6 +67,7 @@ class AnketaNotifierTest extends TestCase
 
         $employee->setMeetingRemindersEnabled(false);
         self::assertTrue($notifier->notifyMeetingTomorrow($anketa, $employee, $manager));
+        self::assertTrue($notifier->notifyMeetingFollowUp($anketa, $employee, $manager));
     }
 
     public function testRemindersReportASuccessfulSend(): void
@@ -131,6 +133,57 @@ class AnketaNotifierTest extends TestCase
         $employee->setMeetingRemindersEnabled(false);
 
         $notify($notifier, $anketa, $employee, $manager);
+    }
+
+    /**
+     * GitHub issue #202: the follow-up links to the close and reschedule sections; a
+     * one-off, which has no next meeting to schedule, gets its own body.
+     */
+    public function testNotifyMeetingFollowUpLinksToBothSections(): void
+    {
+        $sent = [];
+        $notifier = $this->makeParamEchoingNotifier($sent);
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+        $manager->setDisplayName('Maria Manager');
+
+        self::assertTrue($notifier->notifyMeetingFollowUp($anketa, $employee, $manager));
+
+        self::assertCount(1, $sent);
+        self::assertSame('employee@example.com', $sent[0]->getTo()[0]->getAddress());
+        self::assertSame('email.meeting_follow_up.subject', $sent[0]->getSubject());
+        $url = 'https://example.com/anketas/'.$anketa->getId();
+        self::assertSame([
+            '%counterpart%' => 'Maria Manager (manager@example.com)',
+            '%date%' => $anketa->getMeetingDate()->format('Y-m-d'),
+            '%close_url%' => $url.'#close',
+            '%reschedule_url%' => $url.'#reschedule',
+        ], json_decode((string) $sent[0]->getTextBody(), true));
+    }
+
+    public function testNotifyMeetingFollowUpUsesItsOwnBodyForAOneOff(): void
+    {
+        $sent = [];
+        $notifier = $this->makeKeyEchoingNotifier($sent);
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+        $oneOff = new Anketa($employee, $manager, new \DateTimeImmutable('-1 day'), 'sealed-e', 'sealed-m', 30, oneOff: true);
+
+        $notifier->notifyMeetingFollowUp($anketa, $employee, $manager);
+        $notifier->notifyMeetingFollowUp($oneOff, $employee, $manager);
+
+        self::assertCount(2, $sent);
+        self::assertStringStartsWith('email.meeting_follow_up.body ', (string) $sent[0]->getTextBody());
+        self::assertStringStartsWith('email.meeting_follow_up.body_one_off ', (string) $sent[1]->getTextBody());
+    }
+
+    public function testNotifyMeetingFollowUpDoesNotSendWhenRecipientOptedOut(): void
+    {
+        $mailer = $this->createMock(MailerInterface::class);
+        $mailer->expects(self::never())->method('send');
+        $notifier = $this->makeNotifier($mailer);
+        [$anketa, $employee, $manager] = $this->makeAnketa();
+        $employee->setMeetingRemindersEnabled(false);
+
+        $notifier->notifyMeetingFollowUp($anketa, $employee, $manager);
     }
 
     /** GitHub issue #200: people are named by display name plus email, or by email alone if they never set one. */

@@ -28,6 +28,8 @@ class SendRemindersCommandTest extends ApiTestCase
 
     private const COMPANY_TABLES = ['anketas', 'users'];
 
+    private const FOLLOW_UP_SUBJECT = 'Did your 1:1 happen?';
+
     /** @var list<Email> */
     private array $sent = [];
 
@@ -289,6 +291,147 @@ class SendRemindersCommandTest extends ApiTestCase
         self::assertEquals(new \DateTimeImmutable('2091-06-22 21:00', new \DateTimeZone('UTC')), $this->reminderSentAt($monday));
     }
 
+    /**
+     * GitHub issue #202: a meeting still open after its day gets one follow-up on the next
+     * business day, so Monday's run covers Friday and the weekend.
+     */
+    public function testAMondayRunFollowsUpFridaysAndTheWeekendsOpenMeetings(): void
+    {
+        static::createClient();
+        $thursday = $this->makeAnketa('2091-09-06', 'fu-thu');
+        $friday = $this->makeAnketa('2091-09-07', 'fu-fri');
+        $saturday = $this->makeAnketa('2091-09-08', 'fu-sat');
+        $sunday = $this->makeAnketa('2091-09-09', 'fu-sun');
+        $today = $this->makeAnketa('2091-09-10', 'fu-today');
+        $closed = $this->makeAnketa('2091-09-07', 'fu-closed');
+        $closed->archive();
+        $this->entityManager()->flush();
+
+        [, $display] = $this->runCommandAt('2091-09-10 06:00');
+
+        foreach ([$friday, $saturday, $sunday] as $anketa) {
+            self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getEmployee()));
+            self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getManager()));
+            self::assertEquals($anketa->getMeetingDate(), $this->reload($anketa)->getFollowUpMeetingDay());
+        }
+        $body = $this->bodiesFor($friday->getEmployee())[0];
+        self::assertStringContainsString('2091-09-07', $body);
+        self::assertStringContainsString($friday->getManager()->getEmail(), $body);
+        self::assertStringContainsString('https://example.com/anketas/'.$friday->getId()."#close\n", $body);
+        self::assertStringEndsWith('https://example.com/anketas/'.$friday->getId().'#reschedule', $body);
+
+        self::assertSame([], $this->subjectsFor($thursday->getEmployee()), "Friday's run was the one to follow up Thursday");
+        self::assertSame([], $this->subjectsFor($today->getEmployee()));
+        self::assertSame([], $this->subjectsFor($closed->getEmployee()));
+        self::assertNull($this->reload($closed)->getFollowUpMeetingDay());
+        self::assertStringContainsString('follow-ups for 3.', $display);
+    }
+
+    /** Nobody gets a work email on the weekend, and a rerun or a later run sends nothing new. */
+    public function testAFollowUpWaitsForMondayAndIsSentOnce(): void
+    {
+        static::createClient();
+        $friday = $this->makeAnketa('2091-09-14', 'fu-once');
+        $this->entityManager()->flush();
+
+        $this->runCommandAt('2091-09-15 06:00');
+        $this->runCommandAt('2091-09-16 06:00');
+        self::assertSame([], $this->subjectsFor($friday->getEmployee()));
+
+        $this->runCommandAt('2091-09-17 06:00');
+        $this->runCommandAt('2091-09-17 06:00');
+        $this->runCommandAt('2091-09-18 06:00');
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($friday->getEmployee()));
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($friday->getManager()));
+    }
+
+    /**
+     * A midweek run follows up yesterday's meeting, and one from two days ago that no run
+     * followed up (a skipped or failed run), but nothing older than the three-day window.
+     */
+    public function testAWeekdayRunFollowsUpYesterdayAndCatchesUpOnAMissedRun(): void
+    {
+        static::createClient();
+        $old = $this->makeAnketa('2091-09-22', 'fu-old');
+        $tuesday = $this->makeAnketa('2091-09-25', 'fu-tue');
+        $wednesday = $this->makeAnketa('2091-09-26', 'fu-wed');
+        $this->entityManager()->flush();
+
+        $this->runCommandAt('2091-09-27 06:00');
+
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($tuesday->getEmployee()));
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($wednesday->getEmployee()));
+        self::assertSame([], $this->subjectsFor($old->getEmployee()));
+    }
+
+    /** A meeting moved to a later day isn't followed up for its old day, only after its new one. */
+    public function testARescheduledMeetingIsFollowedUpForItsNewDate(): void
+    {
+        static::createClient();
+        $movedBefore = $this->makeAnketa('2091-10-02', 'fu-moved-before');
+        $movedAfter = $this->makeAnketa('2091-10-02', 'fu-moved-after');
+        $this->entityManager()->flush();
+        $this->reload($movedBefore)->reschedule(new \DateTimeImmutable('2091-10-08', new \DateTimeZone('UTC')));
+        $this->entityManager()->flush();
+
+        $this->runCommandAt('2091-10-03 06:00');
+        self::assertSame([], $this->subjectsFor($movedBefore->getEmployee()));
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($movedAfter->getEmployee()));
+
+        // Moved after its follow-up went out: due again once the new day has passed.
+        $this->reload($movedAfter)->reschedule(new \DateTimeImmutable('2091-10-04', new \DateTimeZone('UTC')));
+        $this->entityManager()->flush();
+        $this->sent = [];
+        $this->runCommandAt('2091-10-04 06:00');
+        self::assertSame([], $this->subjectsFor($movedAfter->getEmployee()));
+
+        $this->runCommandAt('2091-10-05 06:00');
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($movedAfter->getEmployee()));
+        self::assertStringContainsString('2091-10-04', $this->bodiesFor($movedAfter->getEmployee())[0]);
+    }
+
+    public function testAFollowUpSkipsAnOptedOutRecipient(): void
+    {
+        static::createClient();
+        $anketa = $this->makeAnketa('2091-10-09', 'fu-opt-out');
+        $anketa->getEmployee()->setMeetingRemindersEnabled(false);
+        $this->entityManager()->flush();
+
+        $this->runCommandAt('2091-10-10 06:00');
+
+        self::assertSame([], $this->subjectsFor($anketa->getEmployee()));
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getManager()));
+    }
+
+    /** As for reminders: an SMTP outage fails the run and leaves the follow-up due. */
+    public function testAMailTransportFailureLeavesTheFollowUpDue(): void
+    {
+        static::createClient();
+        $anketa = $this->makeAnketa('2091-10-16', 'fu-smtp-down');
+        $this->entityManager()->flush();
+        $this->onSend = static function (): void {
+            throw new TransportException('smtp down');
+        };
+
+        $log = tempnam(sys_get_temp_dir(), 'reminders-log');
+        $previousLog = ini_set('error_log', (string) $log);
+        try {
+            [$exitCode, $display] = $this->runCommandAt('2091-10-17 06:00', expectSuccess: false);
+        } finally {
+            ini_set('error_log', false === $previousLog ? '' : $previousLog);
+        }
+        unlink((string) $log);
+
+        self::assertSame(1, $exitCode);
+        self::assertStringContainsString('Follow-up for anketa '.$anketa->getId().' failed', $display);
+        self::assertNull($this->reload($anketa)->getFollowUpMeetingDay());
+
+        // The next weekday's run still reaches it.
+        $this->onSend = null;
+        $this->runCommandAt('2091-10-18 06:00');
+        self::assertSame([self::FOLLOW_UP_SUBJECT], $this->subjectsFor($anketa->getEmployee()));
+    }
+
     private function makeAnketa(string $meetingDate, string $label): Anketa
     {
         $this->companyId ??= $this->makeCompany('Reminders Co')->getId();
@@ -372,6 +515,19 @@ class SendRemindersCommandTest extends ApiTestCase
         }
 
         return $nudged;
+    }
+
+    /** @return list<string> */
+    private function bodiesFor(User $recipient): array
+    {
+        $bodies = [];
+        foreach ($this->sent as $email) {
+            if ($email->getTo()[0]->getAddress() === $recipient->getEmail()) {
+                $bodies[] = (string) $email->getTextBody();
+            }
+        }
+
+        return $bodies;
     }
 
     /** @return list<string> */

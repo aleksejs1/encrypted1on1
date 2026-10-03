@@ -18,7 +18,8 @@ use Symfony\Component\Uid\Uuid;
 // a composite index lets either branch of the OR use it for both the filter and the sort.
 #[ORM\Index(columns: ['employee_id', 'manager_id', 'meetingDate'], name: 'idx_anketas_employee_manager_meeting_date')]
 // Covers AnketaRepository::findDueForReminder()'s daily `WHERE archivedAt IS NULL
-// AND meetingDate >= :start AND meetingDate < :end` (plus a reminderMeetingDay check on the few rows left).
+// AND meetingDate >= :start AND meetingDate < :end` (plus a reminderMeetingDay check on the few rows left),
+// and findDueForFollowUp()'s, the same shape.
 #[ORM\Index(columns: ['archivedAt', 'meetingDate'], name: 'idx_anketas_archived_meeting_date')]
 class Anketa
 {
@@ -227,6 +228,15 @@ class Anketa
      */
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $reminderMeetingDay = null;
+
+    /**
+     * The meeting day (UTC) the "did your 1:1 happen?" follow-up email was for (GitHub
+     * issue #202), the same scheme as reminderMeetingDay: a follow-up is due while this
+     * differs from the meeting's current day, so a meeting moved after its follow-up is
+     * due again for its new day. Stamped by AnketaRepository::claimFollowUp().
+     */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $followUpMeetingDay = null;
 
     /** Set true only via the "cancel as missed" overdue action (Phase 6d) — skips the normal publish/discuss expectation but still auto-recreates the next anketa. */
     #[ORM\Column(type: 'boolean')]
@@ -687,6 +697,11 @@ class Anketa
         return $this->reminderMeetingDay;
     }
 
+    public function getFollowUpMeetingDay(): ?\DateTimeImmutable
+    {
+        return $this->followUpMeetingDay;
+    }
+
     /**
      * Used only by bin/console app:reset-demo-data to set a freshly
      * constructed demo anketa's content to its seeded state in one shot
@@ -722,6 +737,7 @@ class Anketa
         $this->missed = $missed;
         $this->reminderSentAt = null;
         $this->reminderMeetingDay = null;
+        $this->followUpMeetingDay = null;
         $this->commentsBlob = $commentsBlob;
         $this->commentsVersion = $commentsVersion;
         $this->outcomesBlob = $outcomesBlob;

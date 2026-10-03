@@ -18,7 +18,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * docs/deployment.md's "Meeting reminders") — not a
  * Symfony Scheduler/Messenger worker, which would need a new long-running
  * process this docker-compose setup has nowhere to put (see the Phase 6e plan).
- * Idempotent via Anketa::reminderMeetingDay: each anketa is claimed for its meeting day
+ * Idempotent via Anketa::reminderMeetingDay (and followUpMeetingDay): each anketa is claimed for its meeting day
  * before its emails go out, so a rerun, or an overlapping run, sends nothing twice —
  * except an anketa whose send failed and was released, which the next claim re-sends
  * in full, possibly to a participant whose email did go out.
@@ -32,11 +32,23 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * and a meeting's day is its stored date's calendar day (the picked day at midnight; the
  * web UI sends UTC midnight). A meeting moved to another day is due again
  * for its new day; see Anketa::$reminderMeetingDay.
+ *
+ * Follow-up (GitHub issue #202): a meeting still open after its day gets one "did your
+ * 1:1 happen?" email per participant on the next business day, so Friday's, Saturday's
+ * and Sunday's meetings are followed up on Monday and a weekend run sends none. Every
+ * weekday run looks at the last three days, which is exactly Monday's window; on the
+ * other weekdays the two extra days only pick up a follow-up an earlier run failed to
+ * send or never ran for. Claimed per meeting day like the reminder
+ * (Anketa::$followUpMeetingDay), so a meeting moved after its follow-up gets another
+ * one after its new day.
  */
-#[AsCommand(name: 'app:send-reminders', description: "Send day-before meeting reminders for tomorrow's anketas (and Monday's, on a Friday)")]
+#[AsCommand(name: 'app:send-reminders', description: "Send day-before meeting reminders for tomorrow's anketas (and Monday's, on a Friday), and follow-ups for meetings left open")]
 class SendRemindersCommand extends Command
 {
     private const int FRIDAY = 5;
+
+    /** Monday's run reaches back to Friday; see the class docblock. */
+    private const int FOLLOW_UP_DAYS_BACK = 3;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -59,22 +71,18 @@ class SendRemindersCommand extends Command
         $today = $now->setTime(0, 0);
 
         $result = new ReminderRunResult();
-        $this->remindMeetingsOn($today->modify('+1 day'), false, $now, $io, $result);
-        if (self::FRIDAY === (int) $today->format('N')) {
-            $this->remindMeetingsOn($today->modify('+3 days'), true, $now, $io, $result);
+        $weekday = (int) $today->format('N');
+        $this->processMeetingsOn($today->modify('+1 day'), ReminderPass::Tomorrow, $now, $io, $result);
+        if (self::FRIDAY === $weekday) {
+            $this->processMeetingsOn($today->modify('+3 days'), ReminderPass::Monday, $now, $io, $result);
+        }
+        if ($weekday <= self::FRIDAY) {
+            for ($daysBack = 1; $daysBack <= self::FOLLOW_UP_DAYS_BACK; ++$daysBack) {
+                $this->processMeetingsOn($today->modify("-$daysBack days"), ReminderPass::FollowUp, $now, $io, $result);
+            }
         }
 
-        // "Processed", not "sent": a participant who opted out gets no email.
-        $message = sprintf('Processed reminders for %d anketa(s).', $result->count);
-        if ($result->failedDays > 0) {
-            $message .= sprintf(' Selecting %d day(s) of meetings failed, so none of them were looked at; rerun today.', $result->failedDays);
-        }
-        if ($result->failed > 0) {
-            $message .= sprintf(' %d failed and stay due; rerun today to retry them.', $result->failed);
-        }
-        if ($result->stuck > 0) {
-            $message .= sprintf(' %d failed and couldn\'t be released, so no rerun retries them; see the errors above.', $result->stuck);
-        }
+        $message = $result->summary();
         if (null !== $result->firstError) {
             $io->error($message);
 
@@ -94,13 +102,16 @@ class SendRemindersCommand extends Command
      * pass's copies of an anketa moved to Monday since.
      *
      * Failures are recorded in `$result` rather than thrown, so one anketa (or one day's
-     * select) can't stop the rest of the batch, or a Friday's Monday pass; execute() throws
+     * select) can't stop the rest of the batch, or the passes after it; execute() throws
      * once at the end.
      */
-    private function remindMeetingsOn(\DateTimeImmutable $dayStart, bool $monday, \DateTimeImmutable $now, SymfonyStyle $io, ReminderRunResult $result): void
+    private function processMeetingsOn(\DateTimeImmutable $dayStart, ReminderPass $pass, \DateTimeImmutable $now, SymfonyStyle $io, ReminderRunResult $result): void
     {
+        $followUp = ReminderPass::FollowUp === $pass;
         try {
-            $ids = $this->anketaRepository->findDueForReminder($dayStart);
+            $ids = $followUp
+                ? $this->anketaRepository->findDueForFollowUp($dayStart)
+                : $this->anketaRepository->findDueForReminder($dayStart);
         } catch (\Throwable $e) {
             $io->error(sprintf('Selecting the meetings on %s failed: %s', $dayStart->format('Y-m-d'), $e->getMessage()));
             ++$result->failedDays;
@@ -118,34 +129,40 @@ class SendRemindersCommand extends Command
                 if (null === $anketa) {
                     continue;
                 }
-                $previousDay = $anketa->getReminderMeetingDay();
-                // Claimed one at a time, right before sending: see the repository method.
-                if (!$this->anketaRepository->claimReminder($id, $dayStart, $now)) {
-                    continue;
+                $previousDay = $followUp ? $anketa->getFollowUpMeetingDay() : $anketa->getReminderMeetingDay();
+                // Claimed one at a time, right before sending: see the repository methods.
+                $claimed = $this->claim($id, $dayStart, $followUp, $now);
+                if ($claimed) {
+                    $this->sendEmails($anketa, $pass);
+                    $result->countProcessed($followUp);
                 }
-                $claimed = true;
-                $this->sendReminders($anketa, $monday);
-                ++$result->count;
             } catch (\Throwable $e) {
                 // One anketa's failure, a mail transport failure included (see
-                // sendReminders()), mustn't stop the rest of the batch, or the Monday pass.
-                // Released so a same-day rerun (or, for a Monday meeting, Sunday's fallback)
-                // retries it.
-                $io->error(sprintf('Reminder for anketa %s failed: %s', $id, $e->getMessage()));
+                // sendEmails()), mustn't stop the rest of the batch, or the later passes.
+                // Released so a same-day rerun (or, for a Monday meeting, Sunday's fallback;
+                // for a follow-up, the next weekday runs) retries it.
+                $io->error(sprintf('%s for anketa %s failed: %s', $followUp ? 'Follow-up' : 'Reminder', $id, $e->getMessage()));
                 $result->firstError ??= $e;
-                if (!$claimed || $this->release($id, $dayStart, $previousDay, $io)) {
-                    ++$result->failed;
-                } else {
-                    ++$result->stuck;
-                }
+                $result->countFailed(!$claimed || $this->release($id, $dayStart, $previousDay, $followUp, $io));
             }
         }
     }
 
-    private function release(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay, SymfonyStyle $io): bool
+    private function claim(string $id, \DateTimeImmutable $dayStart, bool $followUp, \DateTimeImmutable $now): bool
+    {
+        return $followUp
+            ? $this->anketaRepository->claimFollowUp($id, $dayStart)
+            : $this->anketaRepository->claimReminder($id, $dayStart, $now);
+    }
+
+    private function release(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay, bool $followUp, SymfonyStyle $io): bool
     {
         try {
-            $this->anketaRepository->releaseReminder($id, $dayStart, $previousDay);
+            if ($followUp) {
+                $this->anketaRepository->releaseFollowUp($id, $dayStart, $previousDay);
+            } else {
+                $this->anketaRepository->releaseReminder($id, $dayStart, $previousDay);
+            }
 
             return true;
         } catch (\Throwable $releaseError) {
@@ -156,7 +173,7 @@ class SendRemindersCommand extends Command
     }
 
     /** @throws \RuntimeException if the mail transport failed for any of the emails */
-    private function sendReminders(Anketa $anketa, bool $monday): void
+    private function sendEmails(Anketa $anketa, ReminderPass $pass): void
     {
         $employee = $anketa->getEmployee();
         $manager = $anketa->getManager();
@@ -164,14 +181,16 @@ class SendRemindersCommand extends Command
 
         foreach ([[$employee, $manager], [$manager, $employee]] as [$recipient, $counterpart]) {
             // `$sent = ... && $sent`, not the other way round: every email is still attempted.
-            $sent = ($monday
-                ? $this->notifier->notifyMeetingMonday($anketa, $recipient, $counterpart)
-                : $this->notifier->notifyMeetingTomorrow($anketa, $recipient, $counterpart)) && $sent;
+            $sent = match ($pass) {
+                ReminderPass::Tomorrow => $this->notifier->notifyMeetingTomorrow($anketa, $recipient, $counterpart),
+                ReminderPass::Monday => $this->notifier->notifyMeetingMonday($anketa, $recipient, $counterpart),
+                ReminderPass::FollowUp => $this->notifier->notifyMeetingFollowUp($anketa, $recipient, $counterpart),
+            } && $sent;
         }
 
         if (!$sent) {
             // AnketaNotifier logs and swallows transport failures; an SMTP outage must still
-            // leave the reminder due for a rerun rather than claimed and lost.
+            // leave the email due for a rerun rather than claimed and lost.
             throw new \RuntimeException('The mail transport failed for at least one email (see the error log).');
         }
     }

@@ -16,8 +16,9 @@ use Doctrine\Persistence\ManagerRegistry;
 class AnketaRepository extends ServiceEntityRepository
 {
     /** An open anketa meeting on the `:start`–`:end` day, not yet reminded for that `:day`. See onDay(). */
-    private const string DUE_FOR_REMINDER = 'a.archivedAt IS NULL AND a.meetingDate >= :start AND a.meetingDate < :end'
-        .' AND (a.reminderMeetingDay IS NULL OR a.reminderMeetingDay <> :day)';
+    private const string OPEN_ON_DAY = 'a.archivedAt IS NULL AND a.meetingDate >= :start AND a.meetingDate < :end';
+    private const string DUE_FOR_REMINDER = self::OPEN_ON_DAY.' AND (a.reminderMeetingDay IS NULL OR a.reminderMeetingDay <> :day)';
+    private const string DUE_FOR_FOLLOW_UP = self::OPEN_ON_DAY.' AND (a.followUpMeetingDay IS NULL OR a.followUpMeetingDay <> :day)';
 
     public function __construct(ManagerRegistry $registry)
     {
@@ -187,7 +188,59 @@ class AnketaRepository extends ServiceEntityRepository
     }
 
     /**
-     * Binds DUE_FOR_REMINDER's parameters for the UTC day starting at `$dayStart`.
+     * Ids of still-open anketas that met on the day starting at `$dayStart` and haven't had
+     * their follow-up email for that day (GitHub issue #202). The follow-up counterpart of
+     * findDueForReminder(), with the same reasons for returning ids only and for being
+     * cross-tenant.
+     *
+     * @return list<string>
+     */
+    public function findDueForFollowUp(\DateTimeImmutable $dayStart): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->onDay($this->createQueryBuilder('a')
+            ->select('a.id')
+            ->where(self::DUE_FOR_FOLLOW_UP)
+            ->getQuery(), $dayStart)
+            ->getSingleColumnResult();
+
+        return $ids;
+    }
+
+    /**
+     * claimReminder() for the follow-up email: stamps the anketa as followed up for the
+     * day starting at `$dayStart` only if it is still open, still on that day and not yet
+     * followed up for it, and reports whether this call did it. A meeting archived or
+     * moved since the select is skipped. Cross-tenant by design, like claimReminder().
+     */
+    public function claimFollowUp(string $id, \DateTimeImmutable $dayStart): bool
+    {
+        $affected = $this->onDay($this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.followUpMeetingDay = :day WHERE a.id = :id AND '.self::DUE_FOR_FOLLOW_UP
+        ), $dayStart)
+            ->setParameter('id', $id)
+            ->execute();
+
+        return 1 === $affected;
+    }
+
+    /**
+     * Undoes claimFollowUp() when sending failed after the claim, restoring the day the
+     * anketa was followed up for before it, like releaseReminder().
+     */
+    public function releaseFollowUp(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
+    {
+        $this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.followUpMeetingDay = :previousDay WHERE a.id = :id AND a.followUpMeetingDay = :day'
+        )
+            ->setParameter('previousDay', $previousDay, Types::DATE_IMMUTABLE)
+            ->setParameter('id', $id)
+            ->setParameter('day', $dayStart, Types::DATE_IMMUTABLE)
+            ->execute();
+    }
+
+    /**
+     * Binds OPEN_ON_DAY's and the two DUE_FOR_* conditions' parameters for the UTC day starting at `$dayStart`.
      *
      * @template TKey
      * @template TResult

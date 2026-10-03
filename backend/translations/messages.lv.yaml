@@ -13,6 +13,10 @@ email:
         subject: 'Jūsu 1:1 tikšanās ir pirmdien'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\n%url%"
         body_not_published: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\nJūs vēl neesat publicējis(-usi) savu daļu.\n\n%url%"
+    meeting_follow_up:
+        subject: "Vai jūsu 1:1 tikšanās notika?"
+        body: "Vai jūsu 1:1 tikšanās ar %counterpart% %date% notika? Tā vēl nav slēgta.\n\nSlēgt un ieplānot nākamo:\n%close_url%\n\nVai pārcelt uz citu datumu:\n%reschedule_url%"
+        body_one_off: "Vai jūsu 1:1 tikšanās ar %counterpart% %date% notika? Tā vēl nav slēgta.\n\nSlēgt tikšanos:\n%close_url%\n\nVai pārcelt uz citu datumu:\n%reschedule_url%"
     invited:
         subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
         body: "%inviter% jūs uzaicināja pievienoties encrypted1on1.\n\nAktivizējiet savu kontu: %url%"

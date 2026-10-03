@@ -6,6 +6,8 @@
   import AnswerBlock from '../anketa/AnswerBlock.svelte';
   import LockIcon from '../anketa/LockIcon.svelte';
   import AnketaHeader from '../anketa/AnketaHeader.svelte';
+  import { goToArchiveSection } from '../anketa/archiveHeading';
+  import { FOLLOW_UP_HASH } from '../anketa/followUpLinks';
   import {
     clearJustCreated,
     isJustCreated,
@@ -380,6 +382,7 @@
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
+  let followUpLinkFollowed = false;
 
   // Cancels load()'s own detail fetch on unmount — see GitHub issue #95. Not
   // extended to pollLiveState's fetches below: those are already bounded by
@@ -614,6 +617,16 @@
       }
 
       loaded = true;
+      // Opened from the follow-up email's "close" link (GitHub issue #202):
+      // straight to the archive form, once, now that everything above it has
+      // its final height.
+      if (
+        !followUpLinkFollowed &&
+        window.location.hash === FOLLOW_UP_HASH.close
+      ) {
+        followUpLinkFollowed = true;
+        void tick().then(goToArchiveSection);
+      }
       // Not on an archived anketa: the server refuses draft saves there. (A
       // same-instance switch to another anketa id mid-load is unreachable today
       // — see docs/decisions/2026-09-10-comment-thread-reuse-state-deferred.md.)
