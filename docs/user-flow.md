@@ -44,9 +44,11 @@ If any of your 1:1s were sealed under a counterpart's now-outdated encryption ke
 
 Either the manager or the employee can start one:
 1. Pick the counterpart by typing their email (a live-filtered list of existing accounts) — people you've already had 1:1s with show up first, so you're not scrolling the full company list every time.
-2. Pick which role you're filling in this 1:1 — employee or manager. (The app doesn't enforce that the two participants pick complementary roles; it trusts them to coordinate this themselves, the same way it trusts them not to share their own password with each other.)
+2. Say whether you're leading this 1:1 as the manager or taking part as the employee. The form preselects the role you had in your last 1:1 with this person, or else the role you last chose on this device; with neither, nothing is preselected and the 1:1 can't be created until you pick. (The app doesn't enforce that the two participants pick complementary roles; it trusts them to coordinate this themselves, the same way it trusts them not to share their own password with each other.)
 3. Set a meeting date.
 4. The first time a given pair meets, they also set how often they'll repeat this (weekly / every two weeks / monthly). Every 1:1 after the first for that same pair inherits the periodicity automatically — the form explains this rather than just silently hiding the field.
+
+Right after creating a 1:1, its page offers "Create another 1:1 with the same settings": the form reopens with the role, meeting type and periodicity kept, and the counterpart and date empty — for a manager setting up 1:1s with a whole team.
 
 Creating the 1:1 is also the moment its encryption key is generated and handed to both participants (sealed to each one's public key, as described in encryption.md) — from this point on, both sides can decrypt everything in it, and no one else can.
 

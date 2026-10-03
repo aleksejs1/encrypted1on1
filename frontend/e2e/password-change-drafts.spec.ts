@@ -54,6 +54,9 @@ async function createAnketaWith(page: Page, counterpartEmail: string) {
     .getByPlaceholder('Type a name or email to search…')
     .fill(counterpartEmail);
   await page.getByRole('button', { name: counterpartEmail }).click();
+  await page
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
   // DateInput is a DD.MM.YYYY text field that only parses on blur — see

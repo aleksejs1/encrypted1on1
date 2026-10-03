@@ -152,9 +152,49 @@ test('employee and manager complete an anketa across two independent sessions', 
   // button starts out disabled, and a disabled button can't take focus to
   // blur this field for us, so it must be done explicitly first.
   await meetingDateInput.blur();
-  await employee.getByRole('button', { name: 'Create 1:1' }).click();
+  // No role is preselected for a new pair on a device that never chose one
+  // (GitHub issue #198), and the form can't be submitted without one.
+  const employeeRole = employee.getByRole('radio', {
+    name: "No, I'm the employee",
+  });
+  const createButton = employee.getByRole('button', { name: 'Create 1:1' });
+  await expect(employeeRole).not.toBeChecked();
+  await expect(
+    employee.getByRole('radio', { name: "Yes, I'm the manager" }),
+  ).not.toBeChecked();
+  await expect(createButton).toBeDisabled();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
+  await createButton.click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
+
+  // "Create another" reopens the form with the role kept, and colleague and
+  // date empty again.
+  await employee
+    .getByRole('button', {
+      name: 'Create another 1:1 with the same settings',
+    })
+    .click();
+  await employee.waitForURL('/anketas/new');
+  await expect(employeeRole).toBeChecked();
+  await expect(counterpartInput).toHaveValue('');
+  await expect(meetingDateInput).toHaveValue('');
+  await expect(createButton).toBeDisabled();
+
+  // The manager's form, in a separate browser that never chose a role, takes
+  // the opposite role from the pair's history.
+  await manager.goto('/anketas/new');
+  const managerOwnRole = manager.getByRole('radio', {
+    name: "Yes, I'm the manager",
+  });
+  await expect(managerOwnRole).not.toBeChecked();
+  await manager
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(employeeEmail);
+  await manager.getByRole('button', { name: employeeEmail }).click();
+  await expect(managerOwnRole).toBeChecked();
 
   // The first-step card is for an empty list only.
   await employee.goto('/');
@@ -349,6 +389,9 @@ test('achievements list entry can be edited in place, and the edit survives publ
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -487,6 +530,9 @@ test('participant can change the meeting date on an upcoming (non-overdue) anket
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -577,6 +623,9 @@ test('published answer edits and new comments appear on an already-open tab with
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -662,6 +711,9 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -867,6 +919,9 @@ test('counterpart archiving an anketa the other side never published on disables
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -932,6 +987,9 @@ async function createAnketa(
     .getByPlaceholder('Type a name or email to search…')
     .fill(counterpartEmail);
   await creator.getByRole('button', { name: counterpartEmail }).click();
+  await creator
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
 
   if (templateLabel) {
     // Clicks the wrapping <label>, the way a real user picks it: the native
@@ -1164,6 +1222,9 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
   await expect(
     employee.getByText('This pair already has an open 1:1'),
   ).toBeVisible();

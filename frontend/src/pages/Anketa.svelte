@@ -6,6 +6,11 @@
   import AnswerBlock from '../anketa/AnswerBlock.svelte';
   import LockIcon from '../anketa/LockIcon.svelte';
   import AnketaHeader from '../anketa/AnketaHeader.svelte';
+  import {
+    clearJustCreated,
+    isJustCreated,
+    startCreateAnother,
+  } from '../anketa/createDefaults';
   import AnketaOutcomes from '../anketa/AnketaOutcomes.svelte';
   import AnketaGoals from '../anketa/AnketaGoals.svelte';
   import AnketaArchiveSection from '../anketa/AnketaArchiveSection.svelte';
@@ -81,6 +86,7 @@
   } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity.svelte';
+  import { navigate } from '../router.svelte';
   import { deriveDraftKey } from '../crypto/keypair';
   import { loadMasterKey } from '../crypto/session';
   import { shortDisplayName } from '../userDisplay';
@@ -384,6 +390,13 @@
   const readAbort = abortOnDestroy();
   // No more discussed saves once the page is gone (one in flight finishes).
   onDestroy(() => discussedSync?.stop());
+  // The "1:1 created." offer is for the visit right after creating it only:
+  // dropped when this page moves to another 1:1 (the instance is reused
+  // across ids) or is left.
+  $effect(() => {
+    void id;
+    return clearJustCreated;
+  });
 
   $effect(() => {
     void id;
@@ -1773,6 +1786,21 @@
     <p class="text-muted">{$_('anketa.loading')}</p>
   {:else}
     <div class="anketa-top">
+      {#if isJustCreated(id)}
+        <!-- A button, not a link: a plain link reloads the page, and the
+             settings are handed to the form in memory (GitHub issue #198). -->
+        <p class="banner-success created-notice">
+          <span>{$_('anketa.createdNotice')}</span>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick={() => {
+              startCreateAnother(id);
+              navigate('/anketas/new');
+            }}>{$_('anketa.createAnother')}</button
+          >
+        </p>
+      {/if}
       <AnketaHeader
         {id}
         counterpartName={detail.counterpartName}
@@ -2102,6 +2130,15 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+
+  .created-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin: 0;
   }
 
   /* Below the breakpoint these keep main's own column and gap, so the page

@@ -52,6 +52,9 @@ async function createAnketa(
     .getByPlaceholder('Type a name or email to search…')
     .fill(counterpartEmail);
   await creator.getByRole('button', { name: counterpartEmail }).click();
+  await creator
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
   const dd = String(meetingDate.getDate()).padStart(2, '0');
