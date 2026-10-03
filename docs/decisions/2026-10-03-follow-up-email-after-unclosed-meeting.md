@@ -17,7 +17,8 @@ back.
   meetings whose day has passed and that are still open, and sends "Did your 1:1 happen?"
   (`email.meeting_follow_up`, all 6 locales, `AnketaNotifier::notifyMeetingFollowUp()`). It is
   gated by `User::wantsMeetingReminders()`, and the account page's hint for that toggle now says
-  so.
+  so. A blocked account gets none, since it can't log in to use the links (the day-before
+  reminder has no such check; left as it was).
 - **Weekend meetings are followed up on Monday**, with Friday's. A weekend run sends no
   follow-ups: the point of the business-day rule is no work email on a weekend. This differs from
   the reminder, which a weekend meeting does get the day before, because that one is needed

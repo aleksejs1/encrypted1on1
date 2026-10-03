@@ -70,7 +70,8 @@
     clearFollowUpHash();
     // Closed since the email: there is no date left to move.
     if (archived) return;
-    showReschedule = true;
+    // The "not closed" card has its own date field, always shown.
+    showReschedule = !isOverdue;
     void tick().then(() =>
       document.getElementById(RESCHEDULE_DATE_ID)?.focus(),
     );

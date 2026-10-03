@@ -73,7 +73,8 @@ class AnketaNotifier
      */
     public function notifyMeetingFollowUp(Anketa $anketa, User $recipient, User $counterpart): bool
     {
-        if (!$recipient->wantsMeetingReminders()) {
+        // A blocked account can't log in, so it has no use for links to the meeting.
+        if (!$recipient->wantsMeetingReminders() || $recipient->isBlocked()) {
             return true;
         }
         $url = $this->anketaUrl($anketa);
