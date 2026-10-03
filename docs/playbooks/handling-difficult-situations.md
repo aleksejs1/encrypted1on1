@@ -39,7 +39,7 @@ What is one thing that has been more exhausting than usual this sprint?"
 *(Then stay completely silent for 7 seconds. Let them process and fill the void).*
 
 ### In-App Execution in encrypted1on1
-- Do not force them to type in the anketa if they are tense.
+- Do not force them to type in the 1:1 if they are tense.
 - Use your **Private Notes** to document observations and hypothesis.
 - If they reveal a blocker, log a shared commitment under **Meeting Outcomes** where *you* take action to unblock them.
 
@@ -106,7 +106,7 @@ Whatever you need right now is completely okay."
 
 ### Crucial Follow-Through:
 - If they want to continue, focus **only on listening and support**, not problem-solving.
-- Switch the anketa to the `support_checkin` template if workload or burnout is the trigger.
+- Switch the 1:1 to the `support_checkin` template if workload or burnout is the trigger.
 - **Never record the call.** Use encrypted Private Notes only for support actions you promised.
 
 ---

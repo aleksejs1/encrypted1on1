@@ -58,7 +58,7 @@ The most common mistake employees make is sitting down 5 minutes before the meet
 ```
 
 ### Step 1: Use the Continuous Logging Fields
-Whenever something happens during your sprint, open your open anketa in `encrypted1on1` and add an entry:
+Whenever something happens during your sprint, open your open 1:1 in `encrypted1on1` and add an entry:
 - **Growth (What did you learn, discover, take away?)**: Solved a tricky bug? Read an insightful architecture doc? Figured out a new debugging tool? Click *"Add entry"*. By the time performance review season arrives, you will have a complete portfolio of growth that you don't have to reconstruct from memory.
 - **Achievements**: Finished a complex refactoring? Shipped a feature ahead of deadline? Helped a junior engineer onboard? Add it here. Don't wait for your manager to guess what you accomplished.
 - **What else to discuss**: Anytime a question pops into your head during the week (*"Should we migrate to TypeScript 5?"*, *"How does our team fit into the new company roadmap?"*), add it to your discuss list.
@@ -127,7 +127,7 @@ Instead, practice the **Feedback Receiver Protocol**:
 ## 5. Post-Meeting: Continuity and Career Building
 
 ### 1. Agree on Outcomes
-Before leaving the call, ensure your shared agreements are captured in the **Outcomes** section of the anketa:
+Before leaving the call, ensure your shared agreements are captured in the **Outcomes** section of the 1:1:
 - If your manager agreed to resolve a blocker, make sure it is in their outcomes.
 - If you committed to delivering something, add it to yours.
 - During the next two weeks, you can check off items as you complete them.

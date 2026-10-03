@@ -41,27 +41,27 @@ Login (`AuthController::login()`) is a single constant-time comparison: the brow
 
 ## Identity keys
 
-On account activation, the browser generates a fresh X25519 keypair (`crypto_box_keypair`) for that user. The private key is immediately wrapped — encrypted with the master key, using XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`, an authenticated cipher: decrypting with the wrong key throws rather than silently returning garbage) — and only the wrapped form, plus the public key, is sent to the server. This pair is what lets two people who've never directly exchanged anything establish a shared secret for a specific anketa (below).
+On account activation, the browser generates a fresh X25519 keypair (`crypto_box_keypair`) for that user. The private key is immediately wrapped — encrypted with the master key, using XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`, an authenticated cipher: decrypting with the wrong key throws rather than silently returning garbage) — and only the wrapped form, plus the public key, is sent to the server. This pair is what lets two people who've never directly exchanged anything establish a shared secret for a specific 1:1 (below).
 
 A page refresh doesn't require re-entering the password: the master key lives in `sessionStorage` (tab-scoped — gone when the tab closes, present across a refresh) for the rest of that session, and the private key is cheaply re-unwrapped from it plus the server's `encryptedPrivateKey` on demand.
 
-The only other time a fresh keypair gets generated is a forgotten-password reset — the old master key that could unwrap the old private key is gone along with the forgotten password, so there's nothing to re-wrap; see [user-flow.md](user-flow.md#getting-an-account) for what that means for existing anketas. Changing a *remembered* password (Account Settings) is the opposite case: the same private key is re-wrapped under a new master key, no fresh keypair involved.
+The only other time a fresh keypair gets generated is a forgotten-password reset — the old master key that could unwrap the old private key is gone along with the forgotten password, so there's nothing to re-wrap; see [user-flow.md](user-flow.md#getting-an-account) for what that means for existing 1:1s. Changing a *remembered* password (Account Settings) is the opposite case: the same private key is re-wrapped under a new master key, no fresh keypair involved.
 
 ## Draft key
 
-Your unpublished answers to an anketa (a draft, autosaved as you type) are encrypted with a key only you have. The anketa key below can't be used, because the counterpart holds that too. This **draft key** is derived from your X25519 private key with libsodium's BLAKE2b-based `crypto_kdf_derive_from_key`, under its own context label. The server stores only the resulting ciphertext and can't tell a draft from a published side's ciphertext; only the `publishedAt` timestamp tells them apart.
+Your unpublished answers to a 1:1 (a draft, autosaved as you type) are encrypted with a key only you have. The meeting key below can't be used, because the counterpart holds that too. This **draft key** is derived from your X25519 private key with libsodium's BLAKE2b-based `crypto_kdf_derive_from_key`, under its own context label. The server stores only the resulting ciphertext and can't tell a draft from a published side's ciphertext; only the `publishedAt` timestamp tells them apart.
 
 It's derived from the private key, not from the password (the master key), so a password change leaves it untouched: the same private key is re-wrapped and the same draft key comes out. A forgotten-password reset is different: it generates a fresh keypair, and a draft saved before the reset can't be opened any more. The page shows an empty draft with a notice, and the data export flags that draft as unreadable. Drafts saved before this scheme existed were encrypted with the master key directly. They still open through a fallback, and they are re-saved under the draft key when they're opened, or at the latest just before the next password change ([GitHub issue #129](https://github.com/aleksejs1/encrypted1on1/issues/129), see [the decision record](decisions/2026-09-24-drafts-survive-password-change.md)).
 
-## Per-anketa keys
+## Per-meeting keys
 
-Each anketa (a single 1:1 meeting cycle between one manager and one employee) gets its own symmetric key, generated fresh in the browser of whoever creates it:
+Each 1:1 (a single meeting cycle between one manager and one employee; the code and API call it an `Anketa`, as in `/api/anketas`) gets its own symmetric key, the **meeting key**, generated fresh in the browser of whoever creates it:
 
-1. A random 32-byte XChaCha20-Poly1305 key is generated for the anketa.
+1. A random 32-byte XChaCha20-Poly1305 key is generated for the 1:1.
 2. It's **sealed** — `crypto_box_seal`, libsodium's anonymous public-key encryption — to each participant's X25519 public key, once per side. "Anonymous" means no sender keypair is needed or used; anyone can seal a message to a public key, but only the holder of the matching private key can open it. This is what lets the creator hand the same key to a counterpart they may never interact with directly, through the server, without the server ever holding the unsealed key.
-3. Both sealed copies (`employeeSealedKey`, `managerSealedKey`) go to the server. Each participant unseals *their own* copy locally with their own private key when they load the anketa.
+3. Both sealed copies (`employeeSealedKey`, `managerSealedKey`) go to the server. Each participant unseals *their own* copy locally with their own private key when they load the 1:1.
 
-Everything the two participants share about that anketa — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints, which questions were marked as discussed during the meeting — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
+Everything the two participants share about that 1:1 — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints, which questions were marked as discussed during the meeting — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
 
 ### Envelope format
 
@@ -76,14 +76,14 @@ One random nonce per encryption; it isn't secret and travels alongside the ciphe
 
 ## Private notes
 
-Each participant can keep private notes on an anketa, readable only by their author: not by the counterpart, the server or an admin ([GitHub issue #132](https://github.com/aleksejs1/encrypted1on1/issues/132)).
+Each participant can keep private notes on a 1:1, readable only by their author: not by the counterpart, the server or an admin ([GitHub issue #132](https://github.com/aleksejs1/encrypted1on1/issues/132)).
 
-- **Notes key.** A random 32-byte key per anketa per author, the same primitive as the anketa key.
+- **Notes key.** A random 32-byte key per 1:1 per author, the same primitive as the meeting key.
 - **Key wrapping.** The notes key is wrapped in an *authenticated* box from the author's keypair to itself: `nonce ‖ crypto_box_easy(notesKey, nonce, ownPublicKey, ownPrivateKey)`. Only the holder of the private key can make a box that opens. So a server that swaps in a key of its own is caught: the box fails to open, and the notes show as unreadable instead of being written under the server's key. That's why this isn't `crypto_box_seal`: anyone can seal to a public key, and with no second reader a swapped key would go unnoticed.
-- **Notes blob.** The text is encrypted with the notes key in the usual [envelope](#envelope-format), with `e1o1:private-notes:v1:<anketa id>:<author id>` as XChaCha20-Poly1305 associated data. The server can't move a notes row onto another anketa or another user: it fails to decrypt there.
-- **Storage.** A separate table, served only by its own endpoints, which only ever return the requester's own row. No shared payload (the anketa detail, the bulk list, the live-update poll) carries notes, so the counterpart can't even tell whether notes exist.
+- **Notes blob.** The text is encrypted with the notes key in the usual [envelope](#envelope-format), with `e1o1:private-notes:v1:<anketa id>:<author id>` as XChaCha20-Poly1305 associated data. The server can't move a notes row onto another 1:1 or another user: it fails to decrypt there.
+- **Storage.** A separate table, served only by its own endpoints, which only ever return the requester's own row. No shared payload (the 1:1 detail, the bulk list, the live-update poll) carries notes, so the counterpart can't even tell whether notes exist.
 - **Tab-local backup.** Text not yet saved is kept in `sessionStorage`, encrypted with a key derived from the private key (`crypto_kdf_derive_from_key`, its own context label, like the [draft key](#draft-key)). It's gone when the tab closes.
-- **Password change and reset.** An in-app password change re-wraps the same private key, so notes and backups still open. A forgotten-password reset generates a new keypair, and notes written before it can't be opened any more: nobody else holds their key, so unlike an anketa, a counterpart can't re-share it. The panel says so and offers to start new notes, and the data export flags them as `unreadable`. The panel footer, the reset page and this section warn about it.
+- **Password change and reset.** An in-app password change re-wraps the same private key, so notes and backups still open. A forgotten-password reset generates a new keypair, and notes written before it can't be opened any more: nobody else holds their key, so unlike a 1:1, a counterpart can't re-share it. The panel says so and offers to start new notes, and the data export flags them as `unreadable`. The panel footer, the reset page and this section warn about it.
 
 ## Deliberate plaintext exceptions
 
@@ -91,19 +91,19 @@ Two things are stored unencrypted on the server on purpose. Both were explicitly
 
 ### Goals
 
-A goal's **title, description, status, and target date** are stored unencrypted on the server, in a real database table with real columns — not inside an encrypted blob. This is a narrow, explicit, product-level exception, made so goals can be listed, filtered, and carried forward from one anketa cycle to the next by the server itself, rather than requiring the client to fetch and decrypt every historical anketa just to know which goals are still open.
+A goal's **title, description, status, and target date** are stored unencrypted on the server, in a real database table with real columns — not inside an encrypted blob. This is a narrow, explicit, product-level exception, made so goals can be listed, filtered, and carried forward from one 1:1 cycle to the next by the server itself, rather than requiring the client to fetch and decrypt every historical 1:1 just to know which goals are still open.
 
 A goal's **progress checkpoints** — the actual updates on how it's going — stay fully encrypted like everything else.
 
 ### Company templates
 
-A company admin can build a library of custom anketa templates. A template's **name, description and questions** (question titles, field labels, option labels), and every earlier version of them, are stored unencrypted. This is company configuration, written once by an admin and shown the same way to everyone who uses it: the same kind of data as the built-in question wording, which is public in this repository's source code. It never contains anything a participant said. **Answers to a template's questions are end-to-end encrypted like any other answer.**
+A company admin can build a library of custom 1:1 templates. A template's **name, description and questions** (question titles, field labels, option labels), and every earlier version of them, are stored unencrypted. This is company configuration, written once by an admin and shown the same way to everyone who uses it: the same kind of data as the built-in question wording, which is public in this repository's source code. It never contains anything a participant said. **Answers to a template's questions are end-to-end encrypted like any other answer.**
 
 Encrypting the library would need a company-wide key sealed to every member and handed over, revoked and recovered as people join, leave and reset passwords: a large, security-critical key-distribution system out of proportion for question wording. Encrypting it with the admin's own key would leave nobody else able to use the template. Maintainer decision D1 in [GitHub issue #133](https://github.com/aleksejs1/encrypted1on1/issues/133), 2026-09-24.
 
 What that means in practice:
 - Every member of the company, employees included, can read the whole library: the list of active templates is served to every member, for the meeting-type pickers.
-- Each anketa on a company template stores, unencrypted, which version of which template it uses ([GitHub issue #144](https://github.com/aleksejs1/encrypted1on1/issues/144), maintainer decision D4). So the server can see which company template, by name, each pair's meetings use.
+- Each 1:1 on a company template stores, unencrypted, which version of which template it uses ([GitHub issue #144](https://github.com/aleksejs1/encrypted1on1/issues/144), maintainer decision D4). So the server can see which company template, by name, each pair's meetings use.
 - The server, and on the Cloud deployment its operator, can read it too.
 - The template editor ([GitHub issue #143](https://github.com/aleksejs1/encrypted1on1/issues/143)) warns about this permanently, and asks admins not to put people's names, or anything that reveals why a particular meeting is happening, into a template.
 - Templates never appear in admin reports, notification emails or the platform-admin interface.
@@ -115,18 +115,18 @@ Assume the worst case: an attacker has read access to the entire database, every
 
 **Visible:**
 - Email addresses, who is paired with whom (employee/manager relationships), meeting dates, periodicity, archived/missed/overdue status.
-- Each anketa's meeting type (which built-in template it uses, e.g. regular check-in or career conversation), and whether it was a one-off created next to the pair's regular anketa. These are classifiers, not answers. Note that one of them, the support & workload check-in, does hint at why a pair met. It is never shown in any admin report or notification email, but whoever can read the database can see it.
+- Each 1:1's meeting type (which built-in template it uses, e.g. regular check-in or career conversation), and whether it was a one-off created next to the pair's regular 1:1. These are classifiers, not answers. Note that one of them, the support & workload check-in, does hint at why a pair met. It is never shown in any admin report or notification email, but whoever can read the database can see it.
 - Goal titles, descriptions, statuses, and target dates (the first exception above).
 - The company's template library: every template's name, description and questions, in every version (the second exception above). A template name is arbitrary admin text, so it can say more than a built-in meeting type does: a template named "PIP follow-up" would tell anyone who can read the database why each pair using it meets.
-- Which company template, and which version of it, each anketa uses (GitHub issue #144, decision D4). This reveals more than the built-in meeting type does: those are four public values, while a template name is whatever an admin wrote. A generic, legitimate template like "PIP follow-up" tells anyone who can read the database, per pair, exactly why they meet. The alternative, an encrypted copy of the questions in each anketa, was rejected: the server couldn't check it, so a modified client could put any questions on the other participant's page, and its size would identify the template anyway. Never shown in any admin report or notification email.
-- When each anketa's meeting reminder was last sent, and which meeting day it was for (`reminderMeetingDay`, [GitHub issue #167](https://github.com/aleksejs1/encrypted1on1/issues/167)). For a meeting moved after its reminder went out, that day is its earlier date, so the database shows that the meeting was rescheduled and from when; a later reminder for the new date overwrites it.
-- That an anketa exists, was published, has N comments — metadata, not content.
-- When the "discussed" checkboxes on an anketa were changed. The list is padded to a fixed size (`DISCUSSED_PADDING_BYTES` in `frontend/src/anketa/discussed.ts`) before it's encrypted, since the question IDs differ in length and the built-in ones are public: its size reveals neither which questions are ticked nor how many, unless a very long custom template's list outgrows one padding step, which reveals a rough count.
-- That a user has private notes on an anketa, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
+- Which company template, and which version of it, each 1:1 uses (GitHub issue #144, decision D4). This reveals more than the built-in meeting type does: those are four public values, while a template name is whatever an admin wrote. A generic, legitimate template like "PIP follow-up" tells anyone who can read the database, per pair, exactly why they meet. The alternative, an encrypted copy of the questions in each 1:1, was rejected: the server couldn't check it, so a modified client could put any questions on the other participant's page, and its size would identify the template anyway. Never shown in any admin report or notification email.
+- When each 1:1's meeting reminder was last sent, and which meeting day it was for (`reminderMeetingDay`, [GitHub issue #167](https://github.com/aleksejs1/encrypted1on1/issues/167)). For a meeting moved after its reminder went out, that day is its earlier date, so the database shows that the meeting was rescheduled and from when; a later reminder for the new date overwrites it.
+- That a 1:1 exists, was published, has N comments — metadata, not content.
+- When the "discussed" checkboxes on a 1:1 were changed. The list is padded to a fixed size (`DISCUSSED_PADDING_BYTES` in `frontend/src/anketa/discussed.ts`) before it's encrypted, since the question IDs differ in length and the built-in ones are public: its size reveals neither which questions are ticked nor how many, unless a very long custom template's list outgrows one padding step, which reveals a rough count.
+- That a user has private notes on a 1:1, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
 - Which admin invited whom, account creation dates, blocked/admin flags.
 
 **Not visible, under any circumstance short of a stolen password:**
-- Anketa question answers, from either side, published or draft.
+- 1:1 question answers, from either side, published or draft.
 - Comment text.
 - Outcome items' text.
 - Private notes' text. Inside the app, neither the counterpart nor a company admin can learn whether they exist; someone who can read the database sees what's listed under *Visible*.
@@ -137,4 +137,4 @@ Assume the worst case: an attacker has read access to the entire database, every
 
 **A caveat worth stating plainly:** an attacker who compromises the server *and* can intercept or tamper with a specific user's live session (not just read the database at rest) could, in principle, serve that one user malicious client-side code and capture their password as they type it — no purely server-side encryption scheme can defend against a compromised or dishonest client, and this app doesn't claim to. The guarantee is about what a passive database/backup compromise reveals, not about defending against an actively malicious server operator serving different code to a targeted user. A strict Content-Security-Policy plus Subresource Integrity on the built JS/CSS (see [architecture.md](architecture.md)) narrows this a little — a compromised build pipeline or tampered static assets get caught by the browser refusing to execute them — but neither defends against a live server actively colluding to serve a specific victim different, self-consistent, matching-hash content; that's the same fundamental limit stated above, not something CSP/SRI can close.
 
-**A second real, non-cryptographic caveat:** an admin can *block* or *unblock* accounts and *promote/revoke* admin status (`AdminController`), and can generate account-activation links — none of that requires or grants access to anketa content, since none of it involves any key material. It's an authorization boundary, not a cryptographic one, and is enforced entirely server-side.
+**A second real, non-cryptographic caveat:** an admin can *block* or *unblock* accounts and *promote/revoke* admin status (`AdminController`), and can generate account-activation links — none of that requires or grants access to 1:1 content, since none of it involves any key material. It's an authorization boundary, not a cryptographic one, and is enforced entirely server-side.
