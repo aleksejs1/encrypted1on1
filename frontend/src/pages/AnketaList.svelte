@@ -125,8 +125,8 @@
     const badges: BadgeMeta[] = [];
     if (overdue)
       badges.push({
-        cls: 'tag-outline',
-        label: $_('anketaList.badgeOverdue'),
+        cls: 'tag-neutral',
+        label: $_('anketaList.badgeNotClosed'),
       });
     if (anketa.archivedAt)
       badges.push({

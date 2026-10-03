@@ -296,7 +296,7 @@ await employee
   .locator('label.radio', { hasText: "No, I'm the employee" })
   .click();
 // Created in the near future (so the *empty* screenshot below doesn't show
-// an unrelated "this meeting is overdue" banner) — backdated via a direct
+// an unrelated "isn't closed yet" card) — backdated via a direct
 // SQL update further down, right before archiving, so the *archived*
 // screenshots show a sensible past meeting date and fall inside
 // Report.svelte's backward-looking default date range
