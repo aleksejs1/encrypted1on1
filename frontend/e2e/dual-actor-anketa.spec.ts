@@ -205,9 +205,16 @@ test('employee and manager complete an anketa across two independent sessions', 
   // Employee publishes their side with a unique marker.
   const employeeMarker = `E2E-MARKER-EMPLOYEE-${Date.now()}`;
   const employeeMySide = employee.locator('.side-card').first();
+  // An unpublished draft says nothing is required (GitHub issue #199); the
+  // line goes once the side is published.
+  const optionalHint = employee.getByText(
+    'All fields are optional. A couple of topics to talk about is enough.',
+  );
+  await expect(employeeMySide.locator(optionalHint)).toBeVisible();
   await employeeMySide.locator('textarea').first().fill(employeeMarker);
   await employeeMySide.getByRole('button', { name: 'Publish' }).click();
   await expect(employeeMySide.getByText('Published')).toBeVisible();
+  await expect(optionalHint).toHaveCount(0);
 
   // Manager — a completely separate session — opens the same anketa and must
   // see the employee's marker decrypt correctly on the counterpart side. A
@@ -944,6 +951,10 @@ test('counterpart archiving an anketa the other side never published on disables
   await expect(
     employeeMySide.getByRole('button', { name: 'Publish' }),
   ).toBeVisible();
+  const optionalHint = employee.getByText('All fields are optional.', {
+    exact: false,
+  });
+  await expect(optionalHint).toBeVisible();
 
   // Manager — a separate session — archives the anketa (skipping next-cycle
   // creation, same as the other archive-mid-edit test above).
@@ -965,6 +976,8 @@ test('counterpart archiving an anketa the other side never published on disables
   await expect(
     employeeMySide.getByText('archived', { exact: false }),
   ).toBeVisible();
+  // Read-only now, so nothing is left to call optional.
+  await expect(optionalHint).toHaveCount(0);
 });
 
 /**

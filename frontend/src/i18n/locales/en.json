@@ -322,6 +322,7 @@
     "archiving": "Archiving…",
     "errorLoad": "Could not load this 1:1.",
     "errorStaleKey": "This 1:1 can't be decrypted with your current key — this can happen after a password reset.",
+    "allFieldsOptional": "All fields are optional. A couple of topics to talk about is enough.",
     "draftUnreadable": "Your unpublished draft couldn't be opened — it was encrypted with a key you no longer have, most likely before a password reset. Anything you type now will replace it.",
     "errorNotLoggedIn": "Not logged in.",
     "errorNotReadyToArchive": "Not ready to archive yet.",

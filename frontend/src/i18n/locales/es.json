@@ -322,6 +322,7 @@
     "archiving": "Archivando…",
     "errorLoad": "No se pudo cargar esta reunión 1:1.",
     "errorStaleKey": "Esta reunión 1:1 no se puede descifrar con tu clave actual — esto puede ocurrir tras un restablecimiento de contraseña.",
+    "allFieldsOptional": "Todos los campos son opcionales. Basta con un par de temas de los que hablar.",
     "draftUnreadable": "No se pudo abrir tu borrador sin publicar: está cifrado con una clave que ya no tienes, probablemente de antes de restablecer la contraseña. Lo que escribas ahora lo reemplazará.",
     "errorNotLoggedIn": "No has iniciado sesión.",
     "errorNotReadyToArchive": "Todavía no está lista para archivar.",

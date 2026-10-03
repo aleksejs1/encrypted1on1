@@ -322,6 +322,7 @@
     "archiving": "Arhivē…",
     "errorLoad": "Neizdevās ielādēt šo 1:1 tikšanos.",
     "errorStaleKey": "Šo 1:1 tikšanos nevar atšifrēt ar jūsu pašreizējo atslēgu — tas var notikt pēc paroles atiestatīšanas.",
+    "allFieldsOptional": "Neviens lauks nav obligāts. Pietiek ar pāris tēmām sarunai.",
     "draftUnreadable": "Jūsu nepublicēto melnrakstu neizdevās atvērt — tas ir šifrēts ar atslēgu, kuras jums vairs nav (visticamāk, pirms paroles atiestatīšanas). Viss, ko tagad ievadīsiet, to aizstās.",
     "errorNotLoggedIn": "Neesat pieslēdzies.",
     "errorNotReadyToArchive": "Vēl nav gatavs arhivēšanai.",
