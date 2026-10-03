@@ -13,6 +13,10 @@ email:
         subject: 'Tu reunión 1:1 es el lunes'
         body: "Tu reunión 1:1 con %counterpart% es el lunes (%date%).\n\n%url%"
         body_not_published: "Tu reunión 1:1 con %counterpart% es el lunes (%date%).\n\nTodavía no has publicado tu parte.\n\n%url%"
+    meeting_follow_up:
+        subject: "¿Se celebró tu reunión 1:1?"
+        body: "¿Se celebró tu reunión 1:1 con %counterpart% del %date%? Aún no está cerrada.\n\nCerrar y programar la siguiente:\n%close_url%\n\nO cambiarla a otra fecha:\n%reschedule_url%"
+        body_one_off: "¿Se celebró tu reunión 1:1 con %counterpart% del %date%? Aún no está cerrada.\n\nCerrar la reunión:\n%close_url%\n\nO cambiarla a otra fecha:\n%reschedule_url%"
     invited:
         subject: 'Te han invitado a encrypted1on1'
         body: "%inviter% te ha invitado a encrypted1on1.\n\nActiva tu cuenta: %url%"

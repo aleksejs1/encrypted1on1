@@ -189,6 +189,58 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertFalse($this->isDue($anketa, $monday), 'moved back to the day already reminded');
     }
 
+    /** GitHub issue #202: the follow-up is claimed for its meeting day like the reminder. */
+    public function testClaimFollowUpSucceedsOncePerMeetingDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-once');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+
+        self::assertTrue($this->isDueForFollowUp($anketa, $monday));
+        self::assertTrue($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+        self::assertFalse($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+        self::assertFalse($this->isDueForFollowUp($anketa, $monday));
+        // Its own column: the reminder for that day is still due.
+        self::assertTrue($this->isDue($anketa, $monday));
+    }
+
+    public function testReleaseFollowUpRestoresThePreviousDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-release');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        $wednesday = new \DateTimeImmutable('2091-08-08T00:00:00Z');
+        self::assertTrue($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+        $anketa->reschedule($wednesday);
+        $this->entityManager()->flush();
+        self::assertTrue($this->isDueForFollowUp($anketa, $wednesday), 'moved to another day');
+        self::assertTrue($anketaRepo->claimFollowUp($anketa->getId(), $wednesday));
+
+        $anketaRepo->releaseFollowUp($anketa->getId(), $wednesday, $monday);
+
+        self::assertTrue($this->isDueForFollowUp($anketa, $wednesday));
+        $anketa->reschedule($monday);
+        $this->entityManager()->flush();
+        self::assertFalse($this->isDueForFollowUp($anketa, $monday), 'moved back to the day already followed up');
+    }
+
+    public function testClaimFollowUpMissesAMeetingMovedToAnotherDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-moved');
+        $anketa->reschedule(new \DateTimeImmutable('2091-08-08T00:00:00Z'));
+        $this->entityManager()->flush();
+
+        self::assertFalse($anketaRepo->claimFollowUp($anketa->getId(), new \DateTimeImmutable('2091-08-06T00:00:00Z')));
+    }
+
+    public function testClaimFollowUpRefusesAnArchivedAnketa(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-archived');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        self::assertTrue($anketaRepo->markArchivedIfOpen($anketa, new \DateTimeImmutable(), false));
+
+        self::assertFalse($this->isDueForFollowUp($anketa, $monday));
+        self::assertFalse($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+    }
+
     /** @return array{0: AnketaRepository, 1: Anketa} */
     private function reminderAnketa(string $label): array
     {
@@ -205,6 +257,11 @@ class AnketaRepositoryTest extends ApiTestCase
     private function isDue(Anketa $anketa, \DateTimeImmutable $dayStart): bool
     {
         return \in_array($anketa->getId(), $this->entityManager()->getRepository(Anketa::class)->findDueForReminder($dayStart), true);
+    }
+
+    private function isDueForFollowUp(Anketa $anketa, \DateTimeImmutable $dayStart): bool
+    {
+        return \in_array($anketa->getId(), $this->entityManager()->getRepository(Anketa::class)->findDueForFollowUp($dayStart), true);
     }
 
     /**

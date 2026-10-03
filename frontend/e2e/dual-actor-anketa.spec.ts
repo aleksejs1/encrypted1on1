@@ -604,6 +604,86 @@ test('participant can change the meeting date on an upcoming (non-overdue) anket
 });
 
 /**
+ * GitHub issue #202: the follow-up email for a meeting nobody closed carries
+ * two links to its page, told apart by their URL fragment. Each lands on its
+ * own part of the page: the archive form's heading, and the "not closed"
+ * card's date field.
+ */
+test("the follow-up email's links land on the archive form and the reschedule field", async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-follow-up');
+  const managerEmail = uniqueEmail('manager-follow-up');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  await activate(browser, createActivationLink(managerEmail));
+
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+  await employee
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() - 2);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = employee.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+  await employee.getByRole('button', { name: 'Create 1:1' }).click();
+  await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  const anketaUrl = employee.url();
+  await expect(employee.locator('.overdue-card')).toBeVisible();
+  // Without a fragment nothing takes focus.
+  await expect(employee.locator('#archive-heading')).not.toBeFocused();
+
+  // A real page load, as from an email client; the fragment alone would only
+  // be a same-document navigation.
+  await employee.goto('/');
+  await employee.goto(`${anketaUrl}#close`);
+  await expect(employee.locator('#archive-heading')).toBeFocused();
+  await expect(employee.locator('#archive-heading')).toBeInViewport();
+  // The fragment is dropped once followed, so a reload doesn't scroll again.
+  await expect(employee).toHaveURL(anketaUrl);
+
+  await employee.goto('/');
+  await employee.goto(`${anketaUrl}#reschedule`);
+  await expect(
+    employee.locator('.overdue-card #reschedule-date'),
+  ).toBeFocused();
+  await expect(employee).toHaveURL(anketaUrl);
+
+  // The link opened in a tab already showing the meeting: only the fragment
+  // changes, with no page load.
+  await employee.evaluate("window.location.hash = 'close'");
+  await expect(employee.locator('#archive-heading')).toBeFocused();
+  await expect(employee).toHaveURL(anketaUrl);
+
+  // Moved to a later day since the email: the "not closed" card is gone, and
+  // the reschedule link opens the "Change date" row instead.
+  const newDate = new Date();
+  newDate.setDate(newDate.getDate() + 5);
+  const newDd = String(newDate.getDate()).padStart(2, '0');
+  const newMm = String(newDate.getMonth() + 1).padStart(2, '0');
+  const cardDateField = employee.locator('.overdue-card #reschedule-date');
+  await cardDateField.fill(`${newDd}.${newMm}.${newDate.getFullYear()}`);
+  await cardDateField.blur();
+  await employee
+    .locator('.overdue-card')
+    .getByRole('button', { name: 'Reschedule' })
+    .click();
+  await expect(employee.locator('.overdue-card')).toHaveCount(0);
+  await expect(employee.locator('.reschedule-row')).toHaveCount(0);
+
+  await employee.evaluate("window.location.hash = 'reschedule'");
+  await expect(
+    employee.locator('.reschedule-row #reschedule-date'),
+  ).toBeFocused();
+});
+
+/**
  * Coverage for the anketa page's live-update mechanism (see
  * private/live-updates-proposal.md, not tracked in git) — a poll of
  * GET /api/anketas/{id}/live-state that refreshes whichever sections changed

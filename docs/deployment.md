@@ -294,14 +294,14 @@ Both scripts are also exercised end-to-end in CI (the `backup-restore` job, `scr
 
 ### Meeting reminders
 
-`app:send-reminders` emails both participants the day before each meeting, and on a Friday also about Monday's meetings (see [the decision record](decisions/2026-09-29-business-day-reminders.md)). Run it once a day, **every day including weekends**: Saturday's run reminds Sunday meetings, and Sunday's run is the fallback for a Monday meeting scheduled after Friday's run. Days are UTC days, so run it in UTC (`CRON_TZ=UTC`, or a host whose clock is UTC; otherwise a "Friday" run can land on a local Saturday) at an hour that is working time for most of your users:
+`app:send-reminders` emails both participants the day before each meeting, and on a Friday also about Monday's meetings (see [the decision record](decisions/2026-09-29-business-day-reminders.md)), and once more after a meeting nobody closed: on the next business day, so on Monday for Friday's and the weekend's (see [its decision record](decisions/2026-10-03-follow-up-email-after-unclosed-meeting.md)). Run it once a day, **every day including weekends**: Saturday's run reminds Sunday meetings, and Sunday's run is the fallback for a Monday meeting scheduled after Friday's run. Days are UTC days, so run it in UTC (`CRON_TZ=UTC`, or a host whose clock is UTC; otherwise a "Friday" run can land on a local Saturday) at an hour that is working time for most of your users:
 
 ```
 CRON_TZ=UTC
 0 7 * * * cd /path/to/encrypted1on1 && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app php bin/console app:send-reminders >> reminders.log 2>&1
 ```
 
-If a run reports failed 1:1s (exit code 1; an SMTP outage counts), rerun it the same day: the next day's run looks at the next day's meetings, so only a same-day rerun retries them (for a Monday meeting failed on Friday, Sunday's run also would, with "tomorrow" wording). 1:1s reported as "couldn't be released" are not retried by any run; remind those participants by hand.
+If a run reports failed 1:1s (exit code 1; an SMTP outage counts), rerun it the same day: the next day's run looks at the next day's meetings, so only a same-day rerun retries them (for a Monday meeting failed on Friday, Sunday's run also would, with "tomorrow" wording). The same goes for a follow-up: only a rerun on the same day sends it. 1:1s reported as "couldn't be released" are not retried by any run; remind those participants by hand.
 
 ### Token cleanup
 

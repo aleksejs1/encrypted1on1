@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { apiPut, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
   import DateInput from '../design/DateInput.svelte';
-  import { ARCHIVE_HEADING_ID } from './archiveHeading';
+  import { goToArchiveSection } from './archiveHeading';
+  import { RESCHEDULE_DATE_ID } from './followUpLinks';
   import { isOverdue as computeIsOverdue } from './isOverdue';
   import { shortDisplayName } from '../userDisplay';
 
@@ -51,20 +53,25 @@
   // rather than an `archivedAt` timestamp — only its nullness ever mattered.
   const isOverdue = $derived(computeIsOverdue({ archived, meetingDate }));
 
-  /**
-   * The "not closed" card's first action only leads to the archive form
-   * further down the page (GitHub issue #201): closing a meeting has options
-   * of its own, so it isn't duplicated here.
-   */
-  function goToArchiveSection(): void {
-    const heading = document.getElementById(ARCHIVE_HEADING_ID);
-    heading?.closest('section')?.scrollIntoView({ block: 'start' });
-    heading?.focus({ preventScroll: true });
-  }
-
   let rescheduleDate = $state('');
   let rescheduling = $state(false);
   let showReschedule = $state(false);
+
+  /**
+   * Where the follow-up email's "move it to another date" link lands (GitHub
+   * issue #202), called by the page once it has loaded: the "not closed"
+   * card's date field, or, for a meeting moved to a later day since the
+   * email, the one behind "Change date".
+   */
+  export function focusRescheduleDate(): void {
+    // Closed since the email: there is no date left to move.
+    if (archived) return;
+    // The "not closed" card has its own date field, always shown.
+    showReschedule = !isOverdue;
+    void tick().then(() =>
+      document.getElementById(RESCHEDULE_DATE_ID)?.focus(),
+    );
+  }
 
   async function handleReschedule(): Promise<void> {
     if (!rescheduleDate) return;
@@ -135,7 +142,11 @@
 
 {#if !archived && !isOverdue && showReschedule}
   <div class="reschedule-row">
-    <DateInput bind:value={rescheduleDate} disabled={rescheduling} />
+    <DateInput
+      id={RESCHEDULE_DATE_ID}
+      bind:value={rescheduleDate}
+      disabled={rescheduling}
+    />
     <button
       type="button"
       class="btn btn-secondary"
@@ -165,6 +176,9 @@
         values: { date: formatDisplayDate(meetingDate) },
       })}</strong
     >
+    <!-- Only leads to the archive form further down the page (GitHub issue
+         #201): closing a meeting has options of its own, so it isn't
+         duplicated here. -->
     <button
       type="button"
       class="btn btn-secondary go-to-archive-btn"
@@ -173,7 +187,11 @@
       {oneOff ? $_('anketa.closeOneOff') : $_('anketa.closeAndScheduleNext')}
     </button>
     <div class="reschedule-row">
-      <DateInput bind:value={rescheduleDate} disabled={rescheduling} />
+      <DateInput
+        id={RESCHEDULE_DATE_ID}
+        bind:value={rescheduleDate}
+        disabled={rescheduling}
+      />
       <button
         type="button"
         class="btn btn-secondary"
