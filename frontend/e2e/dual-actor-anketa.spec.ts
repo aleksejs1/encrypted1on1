@@ -124,7 +124,15 @@ test('employee and manager complete an anketa across two independent sessions', 
   // apiGetAllPages() (frontend/src/api/client.ts) — the typeahead has to find
   // the manager regardless of how many other accounts already exist in this
   // dev DB, not just whichever ones happen to land on page 1.
-  await employee.goto('/anketas/new');
+  //
+  // A new account's empty list explains the first step (GitHub issue #197),
+  // and its button is the way into the create form.
+  const firstStep = employee.getByRole('link', {
+    name: 'Start your first 1:1',
+  });
+  await expect(employee.getByText('Jot down topics')).toBeVisible();
+  await firstStep.click();
+  await employee.waitForURL('/anketas/new');
   const counterpartInput = employee.getByPlaceholder(
     'Type a name or email to search…',
   );
@@ -147,6 +155,12 @@ test('employee and manager complete an anketa across two independent sessions', 
   await employee.getByRole('button', { name: 'Create 1:1' }).click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
+
+  // The first-step card is for an empty list only.
+  await employee.goto('/');
+  await expect(employee.locator('.anketa-row')).toHaveCount(1);
+  await expect(firstStep).toHaveCount(0);
+  await employee.goto(anketaUrl);
 
   // Employee publishes their side with a unique marker.
   const employeeMarker = `E2E-MARKER-EMPLOYEE-${Date.now()}`;

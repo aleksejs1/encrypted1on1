@@ -381,9 +381,18 @@
     {/if}
     {#if list.length === 0}
       <div class="card elev-sm empty-state">
-        <p class="text-muted">{$_('anketaList.empty')}</p>
+        <ol class="first-steps">
+          {#each [1, 2, 3] as step (step)}
+            <li>
+              <strong>{$_(`anketaList.emptyStep${step}Title`)}</strong>
+              <span class="text-muted"
+                >{$_(`anketaList.emptyStep${step}Text`)}</span
+              >
+            </li>
+          {/each}
+        </ol>
         <a href="/anketas/new" class="btn btn-primary"
-          >{$_('anketaList.newAnketa')}</a
+          >{$_('anketaList.emptyCta')}</a
         >
       </div>
     {:else}
@@ -629,7 +638,29 @@
 
   .empty-state {
     align-items: center;
-    text-align: center;
-    padding: 48px 24px;
+    gap: var(--space-3);
+    padding: 32px 24px;
+  }
+
+  .first-steps {
+    margin: 0;
+    padding-left: 1.4em;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 46ch;
+  }
+
+  .first-steps li::marker {
+    font-weight: 700;
+  }
+
+  .first-steps strong,
+  .first-steps span {
+    display: block;
+  }
+
+  .first-steps span {
+    font-size: 14px;
   }
 </style>
