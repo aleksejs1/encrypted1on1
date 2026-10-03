@@ -4,6 +4,10 @@
   import { apiPut, ApiError } from '../api/client';
   import { formatDisplayDate } from '../datePreference.svelte';
   import DateInput from '../design/DateInput.svelte';
+  import CopyableLink from '../admin/CopyableLink.svelte';
+  import { copyToClipboard } from '../admin/templatePortability';
+  import { loggedInUserId } from '../crypto/identity.svelte';
+  import { pairPath } from '../routes';
   import { goToArchiveSection } from './archiveHeading';
   import { RESCHEDULE_DATE_ID } from './followUpLinks';
   import { isOverdue as computeIsOverdue } from './isOverdue';
@@ -11,6 +15,8 @@
 
   let {
     id,
+    counterpartId,
+    counterpartDeleted,
     counterpartName,
     counterpartEmail,
     meetingDate,
@@ -25,6 +31,9 @@
     onRescheduled,
   }: {
     id: string;
+    counterpartId: string;
+    /** A deleted colleague gets no calendar link: there's no next meeting it could lead to. */
+    counterpartDeleted: boolean;
     counterpartName: string;
     counterpartEmail: string;
     meetingDate: string;
@@ -52,6 +61,40 @@
   // is exactly why isOverdue.ts's own `isOverdue()` takes `archived: boolean`
   // rather than an `archivedAt` timestamp — only its nullness ever mattered.
   const isOverdue = $derived(computeIsOverdue({ archived, meetingDate }));
+
+  // The pair's permanent link (GitHub issue #203), for a recurring calendar
+  // event: it leads to whichever meeting of the pair is open at the time, and
+  // is the same link for both people.
+  const calendarLink = $derived.by(() => {
+    const myUserId = loggedInUserId();
+    return myUserId === null
+      ? null
+      : window.location.origin + pairPath(myUserId, counterpartId);
+  });
+  // The link the last click copied (or couldn't), so a result never shows
+  // for another colleague's meeting once this page moves on to it.
+  let calendarLinkCopy = $state<{ link: string; copied: boolean } | null>(null);
+  const calendarLinkStatus = $derived(
+    calendarLinkCopy === null || calendarLinkCopy.link !== calendarLink
+      ? 'none'
+      : calendarLinkCopy.copied
+        ? 'copied'
+        : 'failed',
+  );
+
+  async function copyCalendarLink(): Promise<void> {
+    const link = calendarLink;
+    if (link === null) return;
+    let copied = false;
+    try {
+      await copyToClipboard(Promise.resolve(link));
+      copied = true;
+    } catch {
+      // No clipboard access (an http:// instance, a denied permission): the
+      // link is shown to copy by hand instead.
+    }
+    calendarLinkCopy = { link, copied };
+  }
 
   let rescheduleDate = $state('');
   let rescheduling = $state(false);
@@ -138,7 +181,23 @@
       {$_('anketa.changeDate')}
     </button>
   {/if}
+  {#if !counterpartDeleted && calendarLink !== null}
+    <button
+      type="button"
+      class="btn btn-ghost change-date-btn"
+      onclick={copyCalendarLink}
+    >
+      {$_('anketa.calendarLink')}
+    </button>
+  {/if}
 </p>
+
+<div class="calendar-link" class:shown={calendarLinkStatus !== 'none'}>
+  <CopyableLink status={calendarLinkStatus} link={calendarLink ?? ''} />
+  {#if calendarLinkStatus !== 'none'}
+    <p class="text-muted">{$_('anketa.calendarLinkHint')}</p>
+  {/if}
+</div>
 
 {#if !archived && !isOverdue && showReschedule}
   <div class="reschedule-row">
@@ -242,6 +301,23 @@
   .change-date-btn {
     padding: 4px 0;
     font-size: 12px;
+  }
+
+  /* Always rendered, for CopyableLink's live region; takes space only once
+     there's a result to show. */
+  .calendar-link:not(.shown) {
+    display: contents;
+  }
+
+  .calendar-link.shown {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .calendar-link :global(p) {
+    margin: 0;
   }
 
   .overdue-card {

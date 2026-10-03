@@ -8,7 +8,9 @@ import {
   rememberLastRole,
   setJustCreated,
   startCreateAnother,
+  startCreateWith,
   takeCreateAnother,
+  takeCreateWith,
   type CreateSettings,
 } from './createDefaults';
 import { invalidateIdentity } from '../crypto/identity.svelte';
@@ -172,5 +174,20 @@ describe('create another', () => {
     startCreateAnother('a1');
     invalidateIdentity();
     expect(takeCreateAnother()).toBeNull();
+  });
+});
+
+describe('create with a colleague', () => {
+  it('hands the colleague to the form once', () => {
+    expect(takeCreateWith()).toBeNull();
+    startCreateWith('bob');
+    expect(takeCreateWith()).toBe('bob');
+    expect(takeCreateWith()).toBeNull();
+  });
+
+  it('is dropped once the tab has logged out since', () => {
+    startCreateWith('bob');
+    invalidateIdentity();
+    expect(takeCreateWith()).toBeNull();
   });
 });

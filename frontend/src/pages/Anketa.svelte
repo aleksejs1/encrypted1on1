@@ -1830,6 +1830,8 @@
       <AnketaHeader
         bind:this={header}
         {id}
+        counterpartId={detail.counterpartId}
+        counterpartDeleted={detail.counterpartDeleted}
         counterpartName={detail.counterpartName}
         counterpartEmail={detail.counterpartEmail}
         meetingDate={detail.meetingDate}

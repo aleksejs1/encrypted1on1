@@ -2787,3 +2787,90 @@ test('discussed question checkboxes live-sync across sessions and freeze on arch
     ),
   ).toHaveCount(0, { timeout: 8000 });
 });
+
+/**
+ * GitHub issue #203: the pair's permanent link, copied from a meeting's page
+ * for a calendar event, opens the pair's open meeting for either of them, follows the chain to
+ * the next cycle once that one is archived, and with nothing open offers to
+ * schedule the next one with the colleague already chosen.
+ */
+test("a pair's calendar link follows the chain across cycles", async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-calendar-link');
+  const managerEmail = uniqueEmail('manager-calendar-link');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const firstUrl = await createAnketa(employee, managerEmail, 3);
+
+  await employee
+    .context()
+    .grantPermissions(['clipboard-read', 'clipboard-write']);
+  await employee.getByRole('button', { name: 'Calendar link' }).click();
+  await expect(
+    employee.getByText('Link copied.', { exact: true }).last(),
+  ).toBeVisible();
+  await expect(
+    employee.getByText('Paste this permanent link', { exact: false }),
+  ).toBeVisible();
+  const link = await employee.evaluate<string>(
+    'navigator.clipboard.readText()',
+  );
+  expect(link).toMatch(
+    /^http:\/\/localhost:5174\/pair\/[0-9a-f-]+\/[0-9a-f-]+$/,
+  );
+
+  // The open meeting, for both of them: the link names the pair.
+  await employee.goto(link);
+  await employee.waitForURL(firstUrl);
+  await manager.goto(link);
+  await manager.waitForURL(firstUrl);
+
+  // Archived with a next meeting: the same link now opens the successor.
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
+    0,
+  );
+  await employee.goto(link);
+  await employee.waitForURL(
+    (url) =>
+      /\/anketas\/[0-9a-f-]+$/.test(url.pathname) && url.href !== firstUrl,
+  );
+  const secondUrl = employee.url();
+  await expect(employee.getByRole('button', { name: 'Archive' })).toBeVisible();
+
+  // The chain ends: the link shows the last meeting and offers the next one.
+  await employee
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
+    0,
+  );
+  await employee.goto(link);
+  await expect(
+    employee.getByRole('heading', { name: /^No open 1:1 with / }),
+  ).toBeVisible();
+  await expect(
+    employee.getByRole('link', { name: 'Open the last 1:1' }),
+  ).toHaveAttribute('href', new URL(secondUrl).pathname);
+  await employee.getByRole('button', { name: 'Schedule the next one' }).click();
+  await employee.waitForURL('/anketas/new');
+  await expect(
+    employee.getByPlaceholder('Type a name or email to search…'),
+  ).toHaveValue(
+    new RegExp(managerEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  );
+
+  // A link to a pair the manager isn't part of.
+  await manager.goto(
+    '/pair/00000000-0000-7000-8000-000000000001/00000000-0000-7000-8000-000000000002',
+  );
+  await expect(
+    manager.getByRole('heading', { name: 'No 1:1 behind this link' }),
+  ).toBeVisible();
+});

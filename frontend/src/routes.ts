@@ -41,6 +41,20 @@ export const ANKETA_PATTERN = /^\/anketas\/([^/]+)$/;
 // first, like /anketas/new above (GitHub issue #143).
 export const ADMIN_TEMPLATE_PATTERN = /^\/admin\/templates\/([^/]+)$/;
 
+// A pair's permanent link, for a calendar event (GitHub issue #203):
+// pages/PairMeeting.svelte sends it on to the pair's current meeting. It
+// names both people, so the same link works for either of them.
+export const PAIR_PATTERN = /^\/pair\/([^/]+)\/([^/]+)$/;
+
+/**
+ * The path PAIR_PATTERN matches, the same one whichever of the two builds it
+ * (the ids are sorted). User ids are UUIDs, so nothing needs encoding.
+ */
+export function pairPath(userIdA: string, userIdB: string): string {
+  const [first, second] = [userIdA, userIdB].sort();
+  return `/pair/${first}/${second}`;
+}
+
 /**
  * One template's editor page, the path ADMIN_TEMPLATE_PATTERN matches. Ids
  * are UUIDs, so nothing needs encoding (and nothing decodes the match).
@@ -62,6 +76,7 @@ export function isKnownPath(path: string): boolean {
     ACTIVATION_PATTERN.test(path) ||
     RESET_PASSWORD_PATTERN.test(path) ||
     ANKETA_PATTERN.test(path) ||
+    PAIR_PATTERN.test(path) ||
     ADMIN_TEMPLATE_PATTERN.test(path)
   );
 }

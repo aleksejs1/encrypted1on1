@@ -261,6 +261,8 @@
     "reschedule": "Reschedule",
     "rescheduling": "Rescheduling…",
     "changeDate": "Change date",
+    "calendarLink": "Calendar link",
+    "calendarLinkHint": "Paste this permanent link into the description of your recurring 1:1 event in Google Calendar or Outlook. It always opens the current 1:1, for both of you.",
     "cancel": "Cancel",
     "didNotHappen": "Didn't happen",
     "cancelling": "Cancelling…",
@@ -764,6 +766,15 @@
   "theme": {
     "switchToLight": "Switch to light theme",
     "switchToDark": "Switch to dark theme"
+  },
+  "pairMeeting": {
+    "noneTitle": "No 1:1 behind this link",
+    "noneMessage": "This link belongs to a 1:1 between other people, or the two of you have no regular 1:1 yet.",
+    "backToList": "Go to my 1:1s",
+    "closedTitle": "No open 1:1 with {name}",
+    "closedMessage": "The last one, on {date}, is closed.",
+    "scheduleNext": "Schedule the next one",
+    "openLast": "Open the last 1:1"
   },
   "notFound": {
     "title": "Page not found",
