@@ -7,7 +7,7 @@
   import { deriveKeysFromPassword } from '../crypto/password';
   import { unpackWrappedPrivateKey, unwrapPrivateKey } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
-  import { storeMasterKey } from '../crypto/session';
+  import { storeLoginMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { DEMO_MODE_ENABLED, DEMO_PASSWORD, demoEmailFor } from '../demo';
 
@@ -31,6 +31,7 @@
 
   let email = $state('');
   let password = $state('');
+  let rememberMe = $state(false);
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
@@ -41,6 +42,7 @@
   async function performLogin(
     loginEmail: string,
     loginPassword: string,
+    remember: boolean,
   ): Promise<void> {
     submitting = true;
     error = null;
@@ -54,7 +56,12 @@
       const response = await apiPost<{
         publicKey: string;
         encryptedPrivateKey: string;
-      }>('/api/login', { email: loginEmail, authKey: await toBase64(authKey) });
+        rememberedSecondsLeft: number | null;
+      }>('/api/login', {
+        email: loginEmail,
+        authKey: await toBase64(authKey),
+        rememberMe: remember,
+      });
 
       // Unwrapping is also a correctness check: a wrong master-key throws (see keypair.ts).
       const wrapped = await unpackWrappedPrivateKey(
@@ -62,7 +69,17 @@
       );
       await unwrapPrivateKey(wrapped, masterKey);
 
-      await storeMasterKey(masterKey);
+      // The server's answer decides, not the checkbox: it never remembers the
+      // demo account.
+      await storeLoginMasterKey(
+        masterKey,
+        typeof response.rememberedSecondsLeft === 'number'
+          ? {
+              secondsLeft: response.rememberedSecondsLeft,
+              owner: response.publicKey,
+            }
+          : null,
+      );
       markAuthenticated();
     } catch (err) {
       error = err instanceof ApiError ? err.message : $_('login.genericError');
@@ -74,7 +91,7 @@
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
     if (!canSubmit) return;
-    await performLogin(email, password);
+    await performLogin(email, password, rememberMe);
   }
 
   async function handleDemoLogin(): Promise<void> {
@@ -83,7 +100,7 @@
     // the language switcher, or the usual browser-detected default) — see
     // demo.ts's own docblock for which locales have their own demo pair
     // and what happens for the ones that don't yet.
-    await performLogin(demoEmailFor(get(locale) ?? 'en'), DEMO_PASSWORD);
+    await performLogin(demoEmailFor(get(locale) ?? 'en'), DEMO_PASSWORD, false);
   }
 </script>
 
@@ -116,6 +133,21 @@
           required
         />
       </div>
+
+      <label class="radio remember">
+        <input
+          type="checkbox"
+          class="native-checkbox"
+          bind:checked={rememberMe}
+          aria-describedby={rememberMe ? 'login-remember-note' : undefined}
+        />
+        {$_('login.rememberMe')}
+      </label>
+      {#if rememberMe}
+        <p id="login-remember-note" class="text-muted remember-note">
+          {$_('login.rememberNote')}
+        </p>
+      {/if}
 
       {#if error}
         <div role="alert" class="banner-error">{error}</div>
@@ -203,6 +235,23 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .remember {
+    font-size: 13px;
+  }
+
+  .native-checkbox {
+    position: static;
+    opacity: 1;
+    width: auto;
+    height: auto;
+    pointer-events: auto;
+  }
+
+  .remember-note {
+    font-size: 12px;
+    margin: -6px 0 0;
   }
 
   .session-note {

@@ -16,6 +16,7 @@ import {
   invalidateIdentity,
   WrongPasswordError,
 } from './crypto/identity.svelte';
+import { forgetRememberedMasterKey } from './crypto/rememberedKey';
 import { clearMasterKey } from './crypto/session';
 
 vi.mock('./api/client', async (importOriginal) => {
@@ -41,6 +42,10 @@ vi.mock('./crypto/identity.svelte', async (importOriginal) => {
 
 vi.mock('./crypto/session', () => ({
   clearMasterKey: vi.fn(),
+}));
+
+vi.mock('./crypto/rememberedKey', () => ({
+  forgetRememberedMasterKey: vi.fn(() => Promise.resolve()),
 }));
 
 const me: MeResponse = {
@@ -196,12 +201,13 @@ describe('checkUnlocked', () => {
     expect(invalidateIdentity).not.toHaveBeenCalled();
   });
 
-  it('clears the master key on a genuinely wrong password', async () => {
+  it('locks on a genuinely wrong password, leaving the key cleanup to ensureUnlocked()', async () => {
     vi.mocked(ensureUnlocked).mockRejectedValue(new WrongPasswordError());
 
     await expect(checkUnlocked(me)).resolves.toBe('wrong-password');
     expect(authState.unlockStatus).toBe('locked');
-    expect(clearMasterKey).toHaveBeenCalledOnce();
+    expect(clearMasterKey).not.toHaveBeenCalled();
+    expect(forgetRememberedMasterKey).not.toHaveBeenCalled();
   });
 
   it('leaves the master key alone on a transient failure', async () => {
@@ -224,6 +230,12 @@ describe('markSessionExpired', () => {
     expect(clearMasterKey).toHaveBeenCalledOnce();
     expect(authState.authenticated).toBe(false);
     expect(authState.unlockStatus).toBe('unknown');
+  });
+
+  it("keeps the browser's remembered key: a stale tab's 401 must not delete another tab's fresh login", () => {
+    markSessionExpired();
+
+    expect(forgetRememberedMasterKey).not.toHaveBeenCalled();
   });
 });
 
@@ -250,6 +262,8 @@ describe('logOut', () => {
 
     expect(apiPost).toHaveBeenCalledWith('/api/logout', {});
     expect(resetCsrfToken).toHaveBeenCalledOnce();
+    expect(clearMasterKey).toHaveBeenCalledOnce();
+    expect(forgetRememberedMasterKey).toHaveBeenCalledOnce();
     expectAuthState({
       checked: false,
       authenticated: false,
@@ -266,5 +280,21 @@ describe('logOut', () => {
 
     expect(authState.authenticated).toBe(false);
     expect(authState.unlockStatus).toBe('unknown');
+    expect(forgetRememberedMasterKey).toHaveBeenCalledOnce();
+  });
+
+  it("forgets the browser's remembered key before the logout request is answered", async () => {
+    let answer: () => void = () => {};
+    vi.mocked(apiPost).mockReturnValue(
+      new Promise<undefined>((resolve) => {
+        answer = () => resolve(undefined);
+      }),
+    );
+
+    const loggingOut = logOut();
+
+    expect(forgetRememberedMasterKey).toHaveBeenCalledOnce();
+    answer();
+    await loggingOut;
   });
 });

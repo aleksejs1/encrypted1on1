@@ -29,9 +29,10 @@ return static function (ContainerConfigurator $container): void {
             // container is recreated, which signed everyone out on each deploy.
             'handler_id' => 'session.handler.native_file',
             'save_path' => '%kernel.project_dir%/var/sessions',
-            // 48 hours. Only clears old session files off the disk; the real idle
-            // timeout is AuthSession::IDLE_TIMEOUT_SECONDS, and this must stay above it.
-            'gc_maxlifetime' => 172800,
+            // 31 days. Only clears old session files off the disk; the real limits are
+            // AuthSession::IDLE_TIMEOUT_SECONDS and, for a "Remember this browser" login,
+            // AuthSession::REMEMBER_SECONDS (30 days) — this must stay above both.
+            'gc_maxlifetime' => 2678400,
         ],
         'csrf_protection' => true,
         'trusted_proxies' => $trustedProxies,

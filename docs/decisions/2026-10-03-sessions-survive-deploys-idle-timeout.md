@@ -38,7 +38,8 @@ product-adoption work ([#213](https://github.com/aleksejs1/encrypted1on1/issues/
   lacking the value. In practice only sessions created before this change lack it, and those are
   lost with the old container anyway.
 - **`session.gc_maxlifetime` is 48 hours** and only clears old files off the disk. It must stay
-  above the idle timeout.
+  above the idle timeout. (31 days since
+  [#205](2026-10-04-remember-this-browser.md), to cover a remembered login.)
 - **`cookie_lifetime` stays `0`**: the cookie still ends when the browser closes. Longer, opt-in
   sessions are [#205](https://github.com/aleksejs1/encrypted1on1/issues/205), which is meant to
   reuse the same check with another threshold.

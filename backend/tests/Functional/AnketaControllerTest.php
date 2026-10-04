@@ -1509,6 +1509,11 @@ class AnketaControllerTest extends ApiTestCase
         $afterReset = $this->jsonRequest($employeeClient, 'GET', '/api/anketas');
         self::assertTrue(self::findById($afterReset['json'], $anketaId)['counterpartKeyOutdated']);
 
+        // The reset ended the manager's session from before it (GitHub issue #205); the
+        // real flow logs them in again, with the new auth key.
+        self::assertSame(401, $this->jsonRequest($managerClient, 'GET', '/api/anketas')['status']);
+        $this->jsonRequest($managerClient, 'POST', '/api/login', ['email' => $manager['email'], 'authKey' => str_repeat('x', 44)]);
+
         // From the manager's own side, nothing looks outdated — it's their own key that changed, not their counterpart's.
         $managerView = $this->jsonRequest($managerClient, 'GET', '/api/anketas');
         self::assertFalse(self::findById($managerView['json'], $anketaId)['counterpartKeyOutdated']);

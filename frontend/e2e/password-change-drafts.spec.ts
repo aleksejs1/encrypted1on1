@@ -198,10 +198,14 @@ test('a tab left open through a password change keeps saving readable drafts', a
     browser,
     'pwchange-stale',
   );
-  // Unlocked with the old password and already on the anketa before the
-  // change, so it never re-derives anything afterwards.
-  const staleTab = await logIn(browser, employeeEmail, OLD_PASSWORD);
+  // A second tab of the same browser, unlocked with the old password and
+  // already on the anketa before the change, so it never re-derives anything
+  // afterwards. The same session: a password change ends every other one
+  // (GitHub issue #205).
+  const staleTab = await employee.context().newPage();
   await staleTab.goto(anketaUrl);
+  await staleTab.locator('#unlock-password').fill(OLD_PASSWORD);
+  await staleTab.getByRole('button', { name: 'Unlock' }).click();
   await expect(
     staleTab.locator('.side-card').first().locator('textarea').first(),
   ).toBeVisible();

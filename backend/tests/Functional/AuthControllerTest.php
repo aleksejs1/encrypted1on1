@@ -372,6 +372,120 @@ class AuthControllerTest extends ApiTestCase
         self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
     }
 
+    public function testLoginWithoutRememberMeIsNotRemembered(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-not-remembered');
+        $this->activateUser($client, $email);
+        $this->jsonRequest($client, 'POST', '/api/logout');
+
+        $login = $this->jsonRequest($client, 'POST', '/api/login', ['email' => $email, 'authKey' => str_repeat('a', 44)]);
+
+        self::assertSame(200, $login['status']);
+        self::assertNull($login['json']['rememberedSecondsLeft']);
+    }
+
+    public function testARememberedLoginLastsThirtyDaysWhateverTheActivity(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-remembered');
+        $this->activateUser($client, $email);
+        $this->jsonRequest($client, 'POST', '/api/logout');
+
+        $login = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+            'rememberMe' => true,
+        ]);
+        self::assertSame(200, $login['status']);
+        self::assertSame(AuthSession::REMEMBER_SECONDS, $login['json']['rememberedSecondsLeft']);
+
+        // Far past the 12-hour idle timeout, with no request in between.
+        $clock->sleep(AuthSession::REMEMBER_SECONDS - 60);
+        self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+
+        // The request just made didn't extend it.
+        $clock->sleep(61);
+        self::assertSame(401, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+    }
+
+    public function testRememberMeMustBeABoolean(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-remember-type');
+        $this->activateUser($client, $email);
+        $this->jsonRequest($client, 'POST', '/api/logout');
+
+        $login = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+            'rememberMe' => 'yes',
+        ]);
+
+        self::assertSame(400, $login['status']);
+    }
+
+    public function testTheDemoAccountIsNeverRemembered(): void
+    {
+        $clock = self::mockTime();
+        \assert($clock instanceof MockClock);
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-remember-demo');
+        $user = $this->activateUser($client, $email);
+        $entity = $this->entityManager()->find(User::class, $user['id']);
+        \assert($entity instanceof User);
+        $entity->setDemo(true);
+        $this->entityManager()->flush();
+        $this->jsonRequest($client, 'POST', '/api/logout');
+
+        $login = $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+            'rememberMe' => true,
+        ]);
+
+        self::assertSame(200, $login['status']);
+        self::assertNull($login['json']['rememberedSecondsLeft']);
+        $clock->sleep(AuthSession::IDLE_TIMEOUT_SECONDS + 1);
+        self::assertSame(401, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+    }
+
+    public function testChangingThePasswordEndsEveryOtherSessionButNotThisOne(): void
+    {
+        $client = static::createClient();
+        $email = $this->uniqueEmail('auth-password-other-session');
+        $this->activateUser($client, $email);
+        $this->jsonRequest($client, 'POST', '/api/logout');
+
+        // The "lost device": a remembered login whose cookie is set aside.
+        $this->jsonRequest($client, 'POST', '/api/login', [
+            'email' => $email,
+            'authKey' => str_repeat('a', 44),
+            'rememberMe' => true,
+        ]);
+        $lostDeviceCookies = $client->getCookieJar()->all();
+        $client->getCookieJar()->clear();
+
+        // A second, separate session changes the password.
+        self::assertSame(401, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+        $this->jsonRequest($client, 'POST', '/api/login', ['email' => $email, 'authKey' => str_repeat('a', 44)]);
+        $changed = $this->jsonRequest($client, 'PUT', '/api/me/password', [
+            'currentAuthKey' => str_repeat('a', 44),
+            'newAuthKey' => str_repeat('x', 44),
+            'newEncryptedPrivateKey' => str_repeat('y', 44),
+        ]);
+        self::assertSame(200, $changed['status']);
+        self::assertSame(200, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+
+        $client->getCookieJar()->clear();
+        foreach ($lostDeviceCookies as $cookie) {
+            $client->getCookieJar()->set($cookie);
+        }
+        self::assertSame(401, $this->jsonRequest($client, 'GET', '/api/me')['status']);
+    }
+
     public function testLoginIsRateLimitedAfterTooManyAttempts(): void
     {
         $client = static::createClient();

@@ -84,11 +84,16 @@ class AuthController
             return new JsonResponse(['error' => $this->translator->trans('errors.company_suspended')], 403);
         }
 
-        $this->authSession->logIn($request, $user);
+        // Never for the demo account: its password is public and it's shared, so a
+        // browser has nothing to gain from keeping its key.
+        $this->authSession->logIn($request, $user, $payload->rememberMe && !$user->isDemo());
 
         return new JsonResponse([
             'publicKey' => $user->getPublicKey(),
             'encryptedPrivateKey' => $user->getEncryptedPrivateKey(),
+            // Whether the browser may keep the master key, and for how long — the client
+            // stores it only on this answer, not on its own checkbox.
+            'rememberedSecondsLeft' => $this->authSession->rememberedSecondsLeft($request),
         ]);
     }
 
@@ -240,6 +245,8 @@ class AuthController
 
         $user->changePassword($payload->newAuthKey, $payload->newEncryptedPrivateKey);
         $this->entityManager->flush();
+        // Every other session of this user ends on its next request; this one stays.
+        $this->authSession->refreshCredentialStamp($request, $user);
 
         return new JsonResponse(['ok' => true]);
     }

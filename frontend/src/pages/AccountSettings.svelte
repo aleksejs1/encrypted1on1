@@ -13,6 +13,7 @@
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey, loadMasterKey } from '../crypto/session';
+  import { replaceRememberedMasterKey } from '../crypto/rememberedKey';
   import {
     ensureUnlocked,
     updateCachedDisplayName,
@@ -194,6 +195,12 @@
       });
 
       await storeMasterKey(newMasterKey);
+      // Only if this browser remembers a key (GitHub issue #205): the old one
+      // no longer unwraps anything.
+      void replaceRememberedMasterKey(
+        newMasterKey,
+        await toBase64(identity.publicKey),
+      );
       currentPassword = '';
       newPassword = '';
       confirmPassword = '';
