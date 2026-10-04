@@ -2874,3 +2874,37 @@ test("a pair's calendar link follows the chain across cycles", async ({
     manager.getByRole('heading', { name: 'No 1:1 behind this link' }),
   ).toBeVisible();
 });
+
+/**
+ * GitHub issue #204: a meeting left open for longer than its period gets a
+ * banner in the list, and its link opens the archive form with a next date
+ * back on the pair's cadence instead of in the past.
+ */
+test('a meeting open for longer than its period gets a list banner leading to the archive form', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-long-open');
+  const managerEmail = uniqueEmail('manager-long-open');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  await activate(browser, createActivationLink(managerEmail));
+
+  // 20 days back, with the form's default weekly period: three periods on is
+  // tomorrow, the first cadence date that isn't in the past.
+  const anketaUrl = await createAnketa(employee, managerEmail, -20);
+  await employee.goto('/');
+  const banner = employee.locator('.long-open');
+  await expect(banner).toContainText(managerEmail);
+  await expect(banner).toContainText("isn't closed yet");
+  await banner
+    .getByRole('link', { name: 'Close and schedule the next one' })
+    .click();
+  await expect(employee.locator('#archive-heading')).toBeFocused();
+  await expect(employee).toHaveURL(anketaUrl);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dd = String(tomorrow.getDate()).padStart(2, '0');
+  const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  await expect(employee.locator('#next-meeting-date')).toHaveValue(
+    `${dd}.${mm}.${tomorrow.getFullYear()}`,
+  );
+});

@@ -193,6 +193,7 @@
     "badgeArchived": "archiviert",
     "badgeMissed": "verpasst",
     "badgeNotClosed": "nicht abgeschlossen",
+    "longOpenText": "{name}: Das 1:1 vom {date} ist noch nicht abgeschlossen.",
     "badgePublishedByMe": "von mir veröffentlicht",
     "badgePublishedByCounterpart": "vom Gegenüber veröffentlicht",
     "errorLoad": "1:1s konnten nicht geladen werden.",

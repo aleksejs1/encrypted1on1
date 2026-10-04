@@ -38,7 +38,7 @@ A toggle switches between two views:
 - **By date** — a flat, chronological list across every counterpart.
 - **By person** — grouped by counterpart, each group showing that pair's full archived history plus two small trend sparklines (mood, workload) built from your own past answers with them, so a shift over many meetings is visible at a glance instead of buried inside individual 1:1s. Both are computed entirely in the browser from 1:1s you can already see — nothing new happens on the server for this.
 
-If any of your 1:1s were sealed under a counterpart's now-outdated encryption key (see "forgetting your password" above), a banner appears at the top with a one-click "re-share access" action. A 1:1 whose meeting date has passed but which isn't archived yet gets a neutral "not closed" badge here, regardless of which view you're in. A still-open 1:1 using a meeting type other than the regular check-in (e.g. "Career growth") shows that type next to its date, in both views.
+If any of your 1:1s were sealed under a counterpart's now-outdated encryption key (see "forgetting your password" above), a banner appears at the top with a one-click "re-share access" action. A 1:1 whose meeting date has passed but which isn't archived yet gets a neutral "not closed" badge here, regardless of which view you're in. One left open for longer than its period (say, over a vacation) also gets a line above the list with a "Close and schedule the next one" link: it opens the meeting's archive form, where the suggested next date is the nearest one on the pair's cadence that isn't in the past. A still-open 1:1 using a meeting type other than the regular check-in (e.g. "Career growth") shows that type next to its date, in both views.
 
 ## Starting a new 1:1
 

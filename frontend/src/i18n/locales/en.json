@@ -193,6 +193,7 @@
     "badgeArchived": "archived",
     "badgeMissed": "missed",
     "badgeNotClosed": "not closed",
+    "longOpenText": "{name}: the 1:1 on {date} isn't closed yet.",
     "badgePublishedByMe": "published by me",
     "badgePublishedByCounterpart": "published by counterpart",
     "errorLoad": "Could not load 1:1s.",

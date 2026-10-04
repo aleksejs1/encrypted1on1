@@ -193,6 +193,7 @@
     "badgeArchived": "arhivēta",
     "badgeMissed": "izlaista",
     "badgeNotClosed": "nav slēgta",
+    "longOpenText": "{name}: 1:1 tikšanās {date} vēl nav slēgta.",
     "badgePublishedByMe": "publicēju es",
     "badgePublishedByCounterpart": "publicēja sarunu biedrs",
     "errorLoad": "Neizdevās ielādēt 1:1 tikšanās.",

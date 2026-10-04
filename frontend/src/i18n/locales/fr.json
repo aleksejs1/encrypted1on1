@@ -193,6 +193,7 @@
     "badgeArchived": "archivé",
     "badgeMissed": "manqué",
     "badgeNotClosed": "non clôturé",
+    "longOpenText": "{name} : le 1:1 du {date} n'est pas encore clôturé.",
     "badgePublishedByMe": "publié par moi",
     "badgePublishedByCounterpart": "publié par l'interlocuteur",
     "errorLoad": "Impossible de charger les 1:1.",
