@@ -80,6 +80,13 @@ class ResetDemoDataCommandTest extends ApiTestCase
                     // The current cycle is deliberately left unfilled — see
                     // ResetDemoDataCommand's own docblock.
                     self::assertNull($anketa->getEmployeeBlob());
+                    // What it does have: the topic the pair didn't get to last
+                    // time, carried forward (GitHub issue #206).
+                    self::assertNotNull($anketa->getTopicsBlob(), "carried topic for locale \"{$localeCode}\"");
+                }
+                if ($anketa->isArchived()) {
+                    self::assertNotNull($anketa->getTopicsBlob());
+                    self::assertGreaterThan(0, $anketa->getTopicsVersion());
                 }
             }
             self::assertSame(2, $archivedCount);

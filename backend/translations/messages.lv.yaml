@@ -95,6 +95,7 @@ errors:
     outcomes_conflict: 'Tikšanās rezultāti ir mainījušies kopš pēdējās nolasīšanas.'
     goal_checkpoints_conflict: 'Mērķu kontrolpunkti ir mainījušies kopš pēdējās nolasīšanas.'
     discussed_conflict: 'Apspriestie jautājumi ir mainījušies kopš pēdējās nolasīšanas.'
+    topics_conflict: 'Tēmas ir mainījušās kopš pēdējās nolasīšanas.'
     private_notes_conflict: 'Jūsu privātās piezīmes ir mainījušās kopš pēdējās nolasīšanas.'
     private_notes_too_large: 'Privātās piezīmes ir pārāk garas, lai tās saglabātu.'
     private_notes_key_invalid: '"encryptedNotesKey" nav derīga šifrēta atslēga.'

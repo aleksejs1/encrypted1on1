@@ -1,4 +1,5 @@
 import { ApiError } from '../api/client';
+import { versionConflictBody } from './blobSync';
 import { applyDiscussedIntents, type DiscussedBlobData } from './discussed';
 
 /** Queued clicks: question ID → its intended state (see discussed.ts's setDiscussed()). */
@@ -169,7 +170,11 @@ export class DiscussedSync {
         return true;
       } catch (error) {
         if (this.stopped) return false;
-        const latest = conflictBody(error);
+        const latest = versionConflictBody(
+          error,
+          'discussedBlob',
+          'discussedVersion',
+        );
         if (latest !== null && conflicts < MAX_CONFLICTS) {
           this.confirmed = await this.options.decrypt(latest.blob);
           this.confirmedVersion = latest.version;
@@ -195,17 +200,4 @@ export class DiscussedSync {
   private notify(): void {
     this.options.onChange(this.view());
   }
-}
-
-/** A stale-version 409's body (the server's current list), or null for any other failure. */
-function conflictBody(
-  error: unknown,
-): { blob: string | null; version: number } | null {
-  if (!(error instanceof ApiError) || error.status !== 409) return null;
-  const body = error.body as {
-    discussedBlob?: string | null;
-    discussedVersion?: unknown;
-  } | null;
-  if (typeof body?.discussedVersion !== 'number') return null;
-  return { blob: body.discussedBlob ?? null, version: body.discussedVersion };
 }

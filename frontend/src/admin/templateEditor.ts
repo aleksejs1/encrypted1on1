@@ -8,6 +8,7 @@
 import {
   EMPLOYEE_BUILTIN_QUESTION_IDS,
   MANAGER_BUILTIN_QUESTION_IDS,
+  RETIRED_BUILTIN_QUESTION_IDS,
   type EmployeeBuiltinQuestionId,
   type FieldType,
   type ManagerBuiltinQuestionId,
@@ -60,17 +61,16 @@ export function newOptionValue(): string {
 
 /**
  * A new template starts as the Regular check-in (#133 §6): every built-in
- * question of both sides, all removable. Most admins adjust the standard form
+ * question a new Regular 1:1 has, on both sides, all removable. Most admins adjust the standard form
  * rather than start from nothing.
  */
 export function regularPrefill(): TemplateDefinition {
   return {
     schemaVersion: 1,
-    employee: EMPLOYEE_BUILTIN_QUESTION_IDS.map((questionId) => ({
-      kind: 'builtin',
-      questionId,
-    })),
-    manager: MANAGER_BUILTIN_QUESTION_IDS.map((questionId) => ({
+    employee: currentRegular(EMPLOYEE_BUILTIN_QUESTION_IDS).map(
+      (questionId) => ({ kind: 'builtin', questionId }),
+    ),
+    manager: currentRegular(MANAGER_BUILTIN_QUESTION_IDS).map((questionId) => ({
       kind: 'builtin',
       questionId,
     })),
@@ -92,6 +92,15 @@ export function availableBuiltins(
       ? EMPLOYEE_BUILTIN_QUESTION_IDS
       : MANAGER_BUILTIN_QUESTION_IDS;
   return allowed.filter((id) => !used.has(id));
+}
+
+/**
+ * `ids` without the "What else to discuss" questions, which a new Regular
+ * 1:1 no longer has (GitHub issue #206). Only the prefill leaves them out:
+ * an admin can still add one, or put back one they removed.
+ */
+function currentRegular<T extends BuiltinQuestionId>(ids: readonly T[]): T[] {
+  return ids.filter((id) => !RETIRED_BUILTIN_QUESTION_IDS.includes(id));
 }
 
 /** A new, empty free-text question. */

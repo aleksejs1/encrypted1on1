@@ -15,6 +15,7 @@
     startCreateAnother,
   } from '../anketa/createDefaults';
   import AnketaOutcomes from '../anketa/AnketaOutcomes.svelte';
+  import AnketaTopics from '../anketa/AnketaTopics.svelte';
   import AnketaGoals from '../anketa/AnketaGoals.svelte';
   import AnketaArchiveSection from '../anketa/AnketaArchiveSection.svelte';
   import PrivateNotes, {
@@ -32,7 +33,16 @@
     saveDraftBackup,
   } from '../anketa/draftBackup';
   import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
-  import { carryForwardOutcomes, type OutcomeItem } from '../anketa/outcomes';
+  import {
+    carryForwardOutcomeItems,
+    type OutcomeItem,
+  } from '../anketa/outcomes';
+  import {
+    carryForwardTopicItems,
+    decryptTopics,
+    type TopicItem,
+  } from '../anketa/topics';
+  import { TopicsSync } from '../anketa/topicsSync';
   import { pruneStaleBusyEntries } from '../anketa/commentThreadsBusy';
   import {
     decryptDiscussed,
@@ -60,7 +70,7 @@
     fetchCompanyTemplates,
     fetchTemplateVersion,
   } from '../api/templates';
-  import { updateBlobWithRetry } from '../anketa/blobSync';
+  import { updateBlobWithRetry, versionConflictBody } from '../anketa/blobSync';
   import {
     beginAction,
     fallbackFocusOptions,
@@ -285,6 +295,16 @@
   );
 
   /**
+   * The shared "Topics to discuss" list (GitHub issue #206): one TopicsSync
+   * per loaded anketa, like discussedSync below, created once its key and
+   * list are known. Null until then, which hides the card. `allTopics`
+   * mirrors its list.
+   */
+  // $state.raw: a class instance, replaced whole, never mutated through the proxy.
+  let topicsSync = $state.raw<TopicsSync | null>(null);
+  let allTopics = $state<TopicItem[]>([]);
+
+  /**
    * Live updates (poll a cheap endpoint, refresh whichever sections changed
    * without a manual reload) — see private/live-updates-proposal.md (not
    * tracked in git) for the full design. The `applied*` variables below are
@@ -393,7 +413,10 @@
   // even if applied.
   const readAbort = abortOnDestroy();
   // No more discussed saves once the page is gone (one in flight finishes).
-  onDestroy(() => discussedSync?.stop());
+  onDestroy(() => {
+    discussedSync?.stop();
+    topicsSync?.stop();
+  });
   // The "1:1 created." offer is for the visit right after creating it only:
   // dropped when this page moves to another 1:1 (the instance is reused
   // across ids) or is left.
@@ -434,6 +457,9 @@
       discussedSync = null;
       discussedQuestions = [];
       discussedError = null;
+      topicsSync?.stop();
+      topicsSync = null;
+      allTopics = [];
     });
     // Set when the stored draft should be re-saved as soon as the page is
     // loaded, without waiting for an edit — see below.
@@ -525,6 +551,34 @@
           key,
         );
         allOutcomes = envelope.data;
+      }
+
+      // Bound to this anketa's id and key, like the discussed sync below.
+      const topicsAnketaId = anketa.id;
+      const topics: TopicsSync = new TopicsSync({
+        items: await decryptTopics(anketa.topicsBlob, key),
+        version: anketa.topicsVersion,
+        save: async (items, expectedVersion) => {
+          const blob = await encryptBlob(items, key);
+          const result = await apiPut<{ topicsVersion: number }>(
+            `/api/anketas/${topicsAnketaId}/topics`,
+            { blob, expectedVersion },
+          );
+          return result.topicsVersion;
+        },
+        decrypt: (blob) => decryptTopics(blob, key),
+        onChange: (items) => {
+          if (topicsSync === topics) allTopics = items;
+        },
+        onArchived: () => {
+          if (topicsSync === topics) enterArchivedState();
+        },
+      });
+      if (id === loadId) {
+        topicsSync?.stop();
+        topicsSync = topics;
+        allTopics = topics.items();
+        if (anketa.archivedAt !== null) topics.stop();
       }
 
       goals = anketa.goals;
@@ -953,6 +1007,8 @@
       live[counterpartKeys.blobVersion] !== appliedCounterpartBlobVersion;
     const commentsChanged = live.commentsVersion !== appliedCommentsVersion;
     const outcomesChanged = live.outcomesVersion !== appliedOutcomesVersion;
+    const topicsChanged =
+      topicsSync !== null && live.topicsVersion > topicsSync.version;
     // `>`: a live-state read that left before this tab's own save landed can
     // be older than the version that save already confirmed.
     const discussedChanged =
@@ -969,6 +1025,7 @@
       !counterpartBlobChanged &&
       !commentsChanged &&
       !outcomesChanged &&
+      !topicsChanged &&
       !checkpointsChanged &&
       !discussedChanged
     ) {
@@ -1013,6 +1070,11 @@
       !anyCommentThreadBusy;
     const willApplyCheckpoints =
       checkpointsChanged && !anyCheckpointAdding && !anyCommentThreadBusy;
+    // The same for the topics: an open edit form there is no reason to wait,
+    // since it keeps its text while the list around it changes.
+    const pollTopicsSync = topicsSync;
+    const willApplyTopics =
+      topicsChanged && pollTopicsSync !== null && !pollTopicsSync.busy;
     const willApplyMyBlob = myBlobChanged && !wasEditingMyAnswers;
     // DiscussedSync.applyRemote() re-checks busy and the version itself, after
     // the awaits below, so the snapshot here only saves a pointless fetch.
@@ -1026,6 +1088,7 @@
       willApplyMyBlob ||
       willApplyComments ||
       willApplyOutcomes ||
+      willApplyTopics ||
       willApplyCheckpoints ||
       willApplyDiscussed;
     if (!needsFullDetail) return;
@@ -1096,6 +1159,11 @@
           new Set(decrypted.map((o) => o.id)),
         );
       }
+    }
+
+    if (willApplyTopics && pollTopicsSync === topicsSync) {
+      const decrypted = await decryptTopics(fresh.topicsBlob, anketaKey);
+      pollTopicsSync?.applyRemote(decrypted, fresh.topicsVersion);
     }
 
     if (willApplyCheckpoints) {
@@ -1394,6 +1462,7 @@
     archived = true;
     exitAnswersEditSession();
     discussedSync?.stop();
+    topicsSync?.stop();
   }
 
   /**
@@ -1511,18 +1580,23 @@
    * forces that regardless of the request — so it's sent as an explicit skip,
    * with no next key to generate; the form hides the "skip" checkbox for it.
    */
-  async function handleArchive(missedFlag: boolean): Promise<void> {
+  async function handleArchive(
+    missedFlag: boolean,
+    topicsRetries = 0,
+  ): Promise<void> {
     if (!detail) return;
     archiving = true;
     actionError = null;
+    const archiveId = id;
     try {
       // Save the last "discussed" ticks first: archiving freezes them. If
       // that fails, its banner explains why; Archive again goes ahead. The
       // wait can be long enough for the page to open another anketa.
-      const archiveId = id;
       const saved = (await discussedSync?.settled()) ?? true;
+      // And any topic save: the carry-forward below reads the list it leaves.
+      const topicsSaved = (await topicsSync?.settled()) ?? true;
       if (id !== archiveId) return;
-      if (!saved) {
+      if (!saved || !topicsSaved) {
         // Archived meanwhile (the save got the archived 409), or the save
         // failed, whose own banner says why: either way this click didn't
         // archive, so say so.
@@ -1552,16 +1626,21 @@
         // after a save — self-initiated or, since this page now polls for
         // live updates, the counterpart's too) — archiving straight from a
         // stale snapshot would silently drop any outcome added/edited after
-        // this page first loaded. Re-encrypting the current list under the
-        // same (old) anketaKey first, then handing that fresh ciphertext to
-        // carryForwardOutcomes, is simpler than giving that function a
-        // separate already-decrypted-input code path for one caller.
-        const currentOutcomesBlob = await encryptBlob(allOutcomes, anketaKey);
-        const outcomesBlobNext = await carryForwardOutcomes(
-          currentOutcomesBlob,
-          anketaKey,
+        // this page first loaded.
+        const outcomesBlobNext = await carryForwardOutcomeItems(
+          allOutcomes,
           nextKey,
         );
+        // The topics not yet discussed (GitHub issue #206), with the
+        // version of the list they're taken from: if the counterpart has
+        // changed it since (the list here can be a poll interval behind),
+        // the server refuses the archive with the current list, and the
+        // catch below archives again with that. This tab's own topic saves
+        // are already in (settled() above).
+        const topicsBlobNext = topicsSync
+          ? await carryForwardTopicItems(topicsSync.items(), nextKey)
+          : undefined;
+        const topicsVersion = topicsSync?.version;
 
         body = {
           ...body,
@@ -1573,6 +1652,8 @@
           mySealedKey: mySealedKeyNext,
           counterpartSealedKey: counterpartSealedKeyNext,
           ...(outcomesBlobNext ? { outcomesBlob: outcomesBlobNext } : {}),
+          ...(topicsBlobNext ? { topicsBlob: topicsBlobNext } : {}),
+          ...(topicsVersion === undefined ? {} : { topicsVersion }),
         };
       }
 
@@ -1580,6 +1661,31 @@
       missed = missedFlag;
       enterArchivedState();
     } catch (error) {
+      // The page has opened another anketa meanwhile: nothing here is its.
+      if (id !== archiveId) return;
+      const newerTopics = versionConflictBody(
+        error,
+        'topicsBlob',
+        'topicsVersion',
+      );
+      if (newerTopics && anketaKey && topicsSync && topicsRetries < 3) {
+        // The topics changed after the carry-forward was built: take the
+        // list the refusal carries and archive again. Still not archived, so
+        // this click's choices stand.
+        const sync = topicsSync;
+        try {
+          const items = await decryptTopics(newerTopics.blob, anketaKey);
+          if (sync !== topicsSync) return;
+          sync.applyRemote(items, newerTopics.version);
+        } catch (decryptError) {
+          console.error(decryptError);
+          actionError = $_('anketa.errorArchive');
+          return;
+        }
+        // Handles its own errors, like this call.
+        await handleArchive(missedFlag, topicsRetries + 1);
+        return;
+      }
       const alreadyArchived =
         error instanceof ApiError && error.status === 409
           ? (error.body as {
@@ -1654,8 +1760,9 @@
   }
 
   /**
-   * Shared reapply-on-conflict update for the anketa's three optimistic-
-   * concurrency blobs (comments, outcomes, goal checkpoints — see blobSync.ts):
+   * Shared reapply-on-conflict update for the anketa's optimistic-
+   * concurrency list blobs (comments, outcomes, goal checkpoints — see
+   * blobSync.ts):
    * refetch, apply the caller's mutation, save, and on a 409 retry once
    * against whatever the conflict response carries under the same field names.
    *
@@ -1669,6 +1776,10 @@
    * wide gate, see anyCommentThreadBusy), that catch-up never runs, so every
    * subsequent tick keeps re-fetching the full anketa for nothing, for as
    * long as anything anywhere stays busy.
+   *
+   * Bound to the anketa and key it started with: if the page has opened
+   * another anketa by the time a request returns, nothing is sent to or
+   * applied on that one, and the caller gets undefined.
    */
   async function updateField<T>(
     blobKey: 'commentsBlob' | 'outcomesBlob' | 'goalCheckpointsBlob',
@@ -1677,11 +1788,13 @@
     endpoint: string,
     apply: (current: T) => T,
   ): Promise<{ items: T; version: number } | undefined> {
-    if (!anketaKey) return undefined;
-    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
+    const key = anketaKey;
+    const anketaId = id;
+    if (!key) return undefined;
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${anketaId}`);
     let savedVersion = fresh[versionKey];
     const items = await updateBlobWithRetry<T>(
-      anketaKey,
+      key,
       { blob: fresh[blobKey], version: fresh[versionKey] },
       apply,
       async (blob, expectedVersion) => {
@@ -1693,21 +1806,17 @@
         // response-shape change) leaves the pre-save version in place
         // instead of silently writing undefined/NaN into it.
         const result = await apiPut<Partial<Record<typeof versionKey, number>>>(
-          `/api/anketas/${id}/${endpoint}`,
+          `/api/anketas/${anketaId}/${endpoint}`,
           { blob, expectedVersion },
         );
         savedVersion = result[versionKey] ?? savedVersion;
       },
       (error) => {
-        if (!(error instanceof ApiError) || error.status !== 409)
-          return undefined;
-        const conflict = error.body as Record<string, string | number | null>;
-        return {
-          blob: conflict[blobKey] as string | null,
-          version: conflict[versionKey] as number,
-        };
+        // Not the "archived" 409, which carries no version to retry against.
+        return versionConflictBody(error, blobKey, versionKey) ?? undefined;
       },
     );
+    if (id !== anketaId) return undefined;
     return { items, version: savedVersion };
   }
 
@@ -1879,6 +1988,24 @@
     {/key}
 
     <div class="anketa-main">
+      <!-- Above both sides: the first thing seen on opening the meeting.
+           Keyed by id, like the notes panel: a topic typed but not added
+           mustn't follow the page to another meeting. -->
+      {#key id}
+        {#if topicsSync}
+          {@const sync = topicsSync}
+          <AnketaTopics
+            items={allTopics}
+            {myUserId}
+            {authorNames}
+            {archived}
+            locked={archiving}
+            oneOff={detail.oneOff}
+            updateTopics={(apply) => sync.update(apply)}
+          />
+        {/if}
+      {/key}
+
       {#if customQuestions.status === 'failed'}
         <section class="card">
           <p role="alert" class="banner-error">

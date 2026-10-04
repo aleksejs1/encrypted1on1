@@ -37,7 +37,7 @@ class Anketa
      * that's a real product decision this is the simplest thing that lets
      * the one global form change over time without breaking old anketas.
      */
-    public const int CURRENT_FORM_VERSION = 2;
+    public const int CURRENT_FORM_VERSION = 3;
 
     /**
      * Which built-in question-set template this anketa uses (e.g. a different
@@ -288,6 +288,18 @@ class Anketa
 
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $discussedVersion = 0;
+
+    /**
+     * The shared "Topics to discuss" list (GitHub issue #206), encrypted under anketaKey:
+     * either participant adds topics at any time, before or after publishing. Written
+     * only by AnketaRepository::saveTopicsIfVersion(), like discussedBlob, apart from
+     * seedTopics() at creation. DB-level default for the same reason as discussedVersion's.
+     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $topicsBlob = null;
+
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $topicsVersion = 0;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -682,6 +694,22 @@ class Anketa
         return $this->discussedVersion;
     }
 
+    public function getTopicsBlob(): ?string
+    {
+        return $this->topicsBlob;
+    }
+
+    /** Seeds the topics carried forward from the previous meeting at creation, like seedOutcomes(): topicsVersion stays 0. */
+    public function seedTopics(string $blob): void
+    {
+        $this->topicsBlob = $blob;
+    }
+
+    public function getTopicsVersion(): int
+    {
+        return $this->topicsVersion;
+    }
+
     public function isArchived(): bool
     {
         return null !== $this->archivedAt;
@@ -708,7 +736,7 @@ class Anketa
      * (each reset deletes and recreates every demo anketa from scratch —
      * see the command's own docblock for why). Bypasses the normal one-way
      * publish()/saveComments()/saveOutcomes()/saveGoalCheckpoints()
-     * version-guarded mutators and archive()'s "now" timestamp entirely on
+     * version-guarded mutators (and the repository's conditional topics save) and archive()'s "now" timestamp entirely on
      * purpose — those exist to protect real concurrent edits and record a
      * genuine archive moment, neither of which applies to a scheduled
      * reset replaying fixed, already-encrypted bytes. Blob/publishedAt
@@ -726,6 +754,8 @@ class Anketa
         int $outcomesVersion,
         ?string $goalCheckpointsBlob,
         int $goalCheckpointsVersion,
+        ?string $topicsBlob,
+        int $topicsVersion,
         bool $archived,
         bool $missed,
     ): void {
@@ -744,5 +774,7 @@ class Anketa
         $this->outcomesVersion = $outcomesVersion;
         $this->goalCheckpointsBlob = $goalCheckpointsBlob;
         $this->goalCheckpointsVersion = $goalCheckpointsVersion;
+        $this->topicsBlob = $topicsBlob;
+        $this->topicsVersion = $topicsVersion;
     }
 }

@@ -243,6 +243,7 @@ class AnketaPresenterTest extends TestCase
             periodicityDays: 14,
         );
         $anketa->seedOutcomes('outcomes-blob');
+        $anketa->seedTopics('topics-blob');
 
         $goal = new Goal(
             goalUuid: 'uuid-456',
@@ -263,6 +264,8 @@ class AnketaPresenterTest extends TestCase
         self::assertSame(0, $detail['employeeBlobVersion']);
         self::assertSame('outcomes-blob', $detail['outcomesBlob']);
         self::assertSame(0, $detail['outcomesVersion']);
+        self::assertSame('topics-blob', $detail['topicsBlob']);
+        self::assertSame(0, $detail['topicsVersion']);
         self::assertCount(1, $detail['goals']);
         self::assertSame('uuid-456', $detail['goals'][0]['goalUuid']);
     }
@@ -289,7 +292,9 @@ class AnketaPresenterTest extends TestCase
         self::assertSame(0, $liveState['goalCheckpointsVersion']);
         self::assertSame(0, $liveState['discussedVersion']);
         self::assertArrayNotHasKey('commentsBlob', $liveState);
+        self::assertSame(0, $liveState['topicsVersion']);
         self::assertArrayNotHasKey('discussedBlob', $liveState);
+        self::assertArrayNotHasKey('topicsBlob', $liveState);
         self::assertArrayNotHasKey('mySealedKey', $liveState);
         // Immutable once created, so it has nothing to poll for — explicitly stripped
         // back out in serializeLiveState() even though summarize() (which this spreads)

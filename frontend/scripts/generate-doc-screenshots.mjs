@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEMO_LOCALES as ALL_DEMO_LOCALES } from './demo-fixture-content.mjs';
 import { fillDateInput } from './fillDateInput.mjs';
+import { addTopic, outcomeForm } from './topicsCard.mjs';
 import { ARGON2ID_REDIRECT_TIMEOUT } from './playwrightTimeouts.mjs';
 
 /**
@@ -354,9 +355,9 @@ await addListEntry(
   0,
   "First-time mentor for a new hire's on-call rotation — smooth ramp-up, no incidents.",
 );
-await addListEntry(
-  mgrSide,
-  1,
+await addTopic(
+  manager,
+  anketaId,
   'Ready to talk through what leading a cross-team project would actually look like for Priya next quarter.',
 );
 await publish(manager, anketaId, mgrSide);
@@ -427,9 +428,9 @@ await addListEntry(
   1,
   'Mentored the new hire through their first on-call rotation without a single escalation.',
 );
-await addListEntry(
-  empSide,
-  2,
+await addTopic(
+  employee,
+  anketaId,
   'Interested in leading a cross-team project next quarter — want to talk about what that path looks like.',
 );
 await publish(employee, anketaId, empSide);
@@ -454,7 +455,9 @@ await Promise.all([
       res.request().method() === 'PUT' &&
       res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
   ),
-  employee.getByRole('button', { name: 'Add', exact: true }).click(),
+  outcomeForm(employee)
+    .getByRole('button', { name: 'Add', exact: true })
+    .click(),
 ]);
 
 await manager.reload();
@@ -470,7 +473,9 @@ await Promise.all([
       res.request().method() === 'PUT' &&
       res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
   ),
-  manager.getByRole('button', { name: 'Add', exact: true }).click(),
+  outcomeForm(manager)
+    .getByRole('button', { name: 'Add', exact: true })
+    .click(),
 ]);
 
 // --- Goal + one checkpoint, added by the employee (goal author) ---

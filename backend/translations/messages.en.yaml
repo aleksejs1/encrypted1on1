@@ -102,6 +102,7 @@ errors:
     outcomes_conflict: 'Outcomes changed since you last read them.'
     goal_checkpoints_conflict: 'Goal checkpoints changed since you last read them.'
     discussed_conflict: 'Discussed questions changed since you last read them.'
+    topics_conflict: 'Topics changed since you last read them.'
     private_notes_conflict: 'Your private notes changed since you last read them.'
     private_notes_too_large: 'Private notes are too long to save.'
     private_notes_key_invalid: '"encryptedNotesKey" is not a valid encrypted key.'

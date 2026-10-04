@@ -90,7 +90,15 @@ export const SIDES: readonly Side[] = ['employee', 'manager'];
  * but until that's a discussed product decision this is the simplest way to let the one
  * global form change over time without breaking anketas created under an older one.
  */
-export const CURRENT_ANKETA_FORM_VERSION = 2;
+export const CURRENT_ANKETA_FORM_VERSION = 3;
+
+/**
+ * From this form version on, the built-in templates no longer have their
+ * "What else to discuss" blocks (`discuss`, `managerDiscuss`): the shared
+ * topics list (GitHub issue #206, topics.ts) replaces them. Anketas created
+ * before it keep the blocks and whatever was answered in them.
+ */
+const TOPICS_LIST_FORM_VERSION = 3;
 
 /**
  * The shape of a `list`-type field's answer — dated entries with stable
@@ -795,7 +803,7 @@ export type AnketaTemplateKey = TemplateKey | 'custom';
 
 interface AnketaTemplate {
   employeeQuestions(formVersion: number): Question[];
-  /** The manager side has never varied by version — see `getQuestionsForSide()`. */
+  /** Not a function of the version: the one version-dependent change to it is made in `getQuestionsForSide()`. */
   managerQuestions: Question[];
   /** `CreateAnketa.svelte`'s picker label/description i18n keys. */
   labelKey: string;
@@ -855,17 +863,41 @@ function templateFor(templateKey: TemplateKey): AnketaTemplate {
     : TEMPLATES.regular;
 }
 
-/** The question set for one side of an anketa at a given form version and template. */
+/**
+ * The question set for one side of an anketa at a given form version and
+ * template. The "What else to discuss" blocks are dropped here, for every
+ * built-in template at once, from `TOPICS_LIST_FORM_VERSION` on. A company
+ * template that lists them keeps them at any version: its questions come
+ * from `questionsFromDefinition()`, not from here.
+ */
 export function getQuestionsForSide(
   side: Side,
   formVersion: number,
   templateKey: TemplateKey,
 ): Question[] {
   const template = templateFor(templateKey);
-  return side === 'employee'
-    ? template.employeeQuestions(formVersion)
-    : template.managerQuestions;
+  const questions =
+    side === 'employee'
+      ? template.employeeQuestions(formVersion)
+      : template.managerQuestions;
+  return formVersion >= TOPICS_LIST_FORM_VERSION
+    ? questions.filter(
+        (question) => !RETIRED_BUILTIN_QUESTION_IDS.includes(question.id),
+      )
+    : questions;
 }
+
+/**
+ * The built-in questions a new company template no longer starts with
+ * (GitHub issue #206): the shared topics list does their job in every
+ * meeting. They stay in the allowlists above and in the editor's "add"
+ * menu, so a template that has one stays valid, keeps showing it, can be
+ * imported, and an admin can still choose to add one.
+ */
+export const RETIRED_BUILTIN_QUESTION_IDS: readonly string[] = [
+  discussQuestion.id,
+  managerDiscussQuestion.id,
+];
 
 /** `CreateAnketa.svelte`'s picker label/description i18n keys for `templateKey`. */
 export function templatePickerKeys(

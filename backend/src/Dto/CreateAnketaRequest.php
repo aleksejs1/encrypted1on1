@@ -31,6 +31,9 @@ readonly class CreateAnketaRequest
         #[Assert\Type('string')]
         public ?string $outcomesBlob = null,
 
+        #[Assert\Type('string')]
+        public ?string $topicsBlob = null,
+
         public string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
 
         // The company template (GitHub issue #144), with templateKey 'custom' and only

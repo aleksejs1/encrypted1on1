@@ -106,6 +106,7 @@ class AnketaLifecycleServiceTest extends TestCase
             managerSealedKey: 'new-mgr',
             periodicityDays: 14,
             outcomesBlob: 'initial-outcomes',
+            topicsBlob: 'initial-topics',
             carryFrom: $previousAnketa,
         );
 
@@ -114,6 +115,8 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertSame('carried-uuid', $persistedObjects[1]->getGoalUuid());
         self::assertSame('Carry me', $persistedObjects[1]->getTitle());
         self::assertSame('initial-outcomes', $anketa->getOutcomesBlob());
+        self::assertSame('initial-topics', $anketa->getTopicsBlob());
+        self::assertSame(0, $anketa->getTopicsVersion());
         self::assertSame('regular', $anketa->getTemplateKey());
     }
 
@@ -644,12 +647,14 @@ class AnketaLifecycleServiceTest extends TestCase
             managerSealedKey: 'new-mgr',
             periodicityDays: 14,
             outcomesBlob: 'client-carried-outcomes',
+            topicsBlob: 'client-carried-topics',
             carryFrom: $previousAnketa,
             oneOff: true,
         );
 
         self::assertTrue($anketa->isOneOff());
         self::assertNull($anketa->getOutcomesBlob());
+        self::assertNull($anketa->getTopicsBlob());
     }
 
     public function testCreateWithCarryForwardPassesOneOffThrough(): void

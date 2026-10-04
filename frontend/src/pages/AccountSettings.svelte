@@ -46,6 +46,7 @@
   } from '../anketa/notesExport';
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
+  import { decryptTopics } from '../anketa/topics';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
   import { decryptDiscussed } from '../anketa/discussed';
 
@@ -256,6 +257,7 @@
     goals: Goal[];
     goalCheckpointsBlob: string | null;
     discussedBlob: string | null;
+    topicsBlob: string | null;
     templateKey: AnketaTemplateKey;
     formVersion: number;
     customTemplateVersionId: string | null;
@@ -350,6 +352,7 @@
               )
             ).data
           : [];
+        const topics = await decryptTopics(detail.topicsBlob, anketaKey);
         const discussed = await decryptDiscussed(
           detail.discussedBlob,
           anketaKey,
@@ -368,6 +371,7 @@
           myAnswers,
           myDraftUnreadable,
           counterpartAnswers,
+          topics,
           comments,
           outcomes,
           goals: detail.goals,

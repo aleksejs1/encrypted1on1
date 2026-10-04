@@ -68,7 +68,7 @@ class ResetDemoDataCommand extends Command
 
             return Command::FAILURE;
         }
-        /** @var array{generatedAt: string, password: string, locales: array<string, array{employee: array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, manager: array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, goalUuid: string, goalTitle: string, goalDescription: ?string, goalTargetDateOffsetMonths: int, periodicityDays: int, cycles: array<int, array{archived: bool, missed: bool, employeeSealedKey: string, managerSealedKey: string, employeeBlob: ?string, managerBlob: ?string, commentsBlob: ?string, commentsVersion: int, outcomesBlob: ?string, outcomesVersion: int, goalCheckpointsBlob: ?string, goalCheckpointsVersion: int}>}>} $fixture */
+        /** @var array{generatedAt: string, password: string, locales: array<string, array{employee: array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, manager: array{id: string, email: string, name: string, authHash: string, publicKey: string, encryptedPrivateKey: string}, goalUuid: string, goalTitle: string, goalDescription: ?string, goalTargetDateOffsetMonths: int, periodicityDays: int, cycles: array<int, array{archived: bool, missed: bool, employeeSealedKey: string, managerSealedKey: string, employeeBlob: ?string, managerBlob: ?string, commentsBlob: ?string, commentsVersion: int, outcomesBlob: ?string, outcomesVersion: int, goalCheckpointsBlob: ?string, goalCheckpointsVersion: int, topicsBlob: ?string, topicsVersion: int}>}>} $fixture */
         $fixture = json_decode((string) file_get_contents($fixturePath), true, flags: \JSON_THROW_ON_ERROR);
 
         $now = new \DateTimeImmutable();
@@ -107,6 +107,8 @@ class ResetDemoDataCommand extends Command
                     outcomesVersion: $cycle['outcomesVersion'],
                     goalCheckpointsBlob: $cycle['goalCheckpointsBlob'],
                     goalCheckpointsVersion: $cycle['goalCheckpointsVersion'],
+                    topicsBlob: $cycle['topicsBlob'],
+                    topicsVersion: $cycle['topicsVersion'],
                     archived: $cycle['archived'],
                     missed: $cycle['missed'],
                 );

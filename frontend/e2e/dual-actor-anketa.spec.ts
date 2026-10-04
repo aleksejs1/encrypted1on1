@@ -6,7 +6,11 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
-import { createActivationLink, uniqueEmail } from './helpers/provision.js';
+import {
+  createActivationLink,
+  setFormVersion,
+  uniqueEmail,
+} from './helpers/provision.js';
 
 const PASSWORD = 'correct horse battery staple 123';
 
@@ -1779,9 +1783,9 @@ test('the read-only view keeps real sub-prompt labels above an answer', async ({
   await expect(employeeMySide.getByText('archived')).toBeVisible();
   await expect(employeeMySide.locator('textarea')).toHaveCount(0);
   await expect(employeeMySide.locator('.field')).toHaveCount(0);
-  // The support template's employee side has six question blocks.
-  await expect(employeeMySide.locator('.block')).toHaveCount(6);
-  await expect(employeeMySide.locator('.block-empty')).toHaveCount(6);
+  // The support template's employee side has five question blocks.
+  await expect(employeeMySide.locator('.block')).toHaveCount(5);
+  await expect(employeeMySide.locator('.block-empty')).toHaveCount(5);
 });
 
 /**
@@ -2786,6 +2790,238 @@ test('discussed question checkboxes live-sync across sessions and freeze on arch
       { name: /discussed/i },
     ),
   ).toHaveCount(0, { timeout: 8000 });
+});
+
+/** The shared "Topics to discuss" card (GitHub issue #206), above both sides. */
+function topicsCard(page: Page): Locator {
+  return page.locator('section.card', {
+    has: page.getByRole('heading', { name: 'Topics to discuss' }),
+  });
+}
+
+/** The topic row showing exactly `text`. */
+function topicRow(page: Page, text: string): Locator {
+  return topicsCard(page).locator('.topic', {
+    has: page.getByText(text, { exact: true }),
+  });
+}
+
+async function addTopic(page: Page, text: string): Promise<void> {
+  await topicsCard(page).getByPlaceholder('Add a topic…').fill(text);
+  await topicsCard(page).getByRole('button', { name: 'Add' }).click();
+  await expect(topicRow(page, text)).toBeVisible();
+}
+
+/**
+ * GitHub issue #206: the shared topics list. Unlike answers, a topic is
+ * visible to the other side at once, with neither side published; either
+ * side ticks it off; and only the topics not ticked off move to the pair's
+ * next meeting, re-encrypted under that meeting's key.
+ */
+test('topics to discuss are shared before publishing, live-sync, and carry forward when not discussed', async ({
+  browser,
+}) => {
+  // About a dozen waits on the 4s live-update poll: well over half the
+  // default 60s on a fast machine.
+  test.setTimeout(150_000);
+  const employeeEmail = uniqueEmail('employee-topics');
+  const managerEmail = uniqueEmail('manager-topics');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+  // The manager keeps this tab open throughout: everything below reaches it
+  // by the live-update poll alone.
+  await manager.goto(anketaUrl);
+  await expect(topicsCard(manager).getByText('No topics yet.')).toBeVisible();
+  // The card comes before both sides' answers.
+  await expect(manager.locator('.anketa-main > *').first()).toContainText(
+    'Topics to discuss',
+  );
+
+  const budget = `E2E-TOPIC-BUDGET-${Date.now()}`;
+  const rotation = `E2E-TOPIC-ROTATION-${Date.now()}`;
+  const hiring = `E2E-TOPIC-HIRING-${Date.now()}`;
+
+  // Nobody has published anything, and the manager sees the topic anyway.
+  await addTopic(employee, budget);
+  await expect(topicRow(manager, budget)).toBeVisible({ timeout: 8000 });
+  await expect(manager.getByText('Not published yet.')).toBeVisible();
+
+  // And the other way round. The employee's own topic is still there.
+  await addTopic(manager, rotation);
+  await addTopic(manager, hiring);
+  await expect(topicRow(employee, rotation)).toBeVisible({ timeout: 8000 });
+  await expect(topicRow(employee, hiring)).toBeVisible();
+  await expect(topicsCard(employee).locator('.topic')).toHaveCount(3);
+
+  // Only the author edits or deletes a topic.
+  await expect(
+    topicRow(manager, budget).getByRole('button', { name: 'Edit' }),
+  ).toHaveCount(0);
+  await expect(
+    topicRow(manager, budget).getByRole('button', { name: 'Delete' }),
+  ).toHaveCount(0);
+  await expect(
+    topicRow(employee, budget).getByRole('button', { name: 'Edit' }),
+  ).toBeVisible();
+
+  // The author edits theirs in place; the counterpart gets the new text.
+  const budgetEdited = `${budget}-EDITED`;
+  await topicRow(employee, budget)
+    .getByRole('button', { name: 'Edit' })
+    .click();
+  const editInput = topicsCard(employee).locator('.topic-edit-input');
+  await expect(editInput).toBeFocused();
+  await editInput.fill(budgetEdited);
+  await editInput.press('Enter');
+  await expect(topicRow(employee, budgetEdited)).toBeVisible();
+  await expect(topicRow(manager, budgetEdited)).toBeVisible({ timeout: 8000 });
+  await expect(topicRow(manager, budget)).toHaveCount(0);
+
+  // Either side ticks any topic off, their own or not.
+  await topicRow(manager, budgetEdited).getByRole('checkbox').check();
+  await expect(topicRow(manager, budgetEdited)).toHaveClass(/discussed/);
+  await expect(
+    topicRow(employee, budgetEdited).getByRole('checkbox'),
+  ).toBeChecked({ timeout: 8000 });
+  await expect(topicRow(employee, budgetEdited)).toHaveClass(/discussed/);
+
+  // Both tick different topics at the same moment: the second save hits the
+  // version conflict and is reapplied to the first one's list, so neither
+  // tick is lost.
+  await addTopic(employee, `${budget}-SECOND`);
+  await expect(topicRow(manager, `${budget}-SECOND`)).toBeVisible({
+    timeout: 8000,
+  });
+  await Promise.all([
+    topicRow(employee, `${budget}-SECOND`).getByRole('checkbox').check(),
+    topicRow(manager, hiring).getByRole('checkbox').check(),
+  ]);
+  for (const page of [employee, manager]) {
+    await expect(
+      topicRow(page, `${budget}-SECOND`).getByRole('checkbox'),
+    ).toBeChecked({ timeout: 8000 });
+    await expect(topicRow(page, hiring).getByRole('checkbox')).toBeChecked({
+      timeout: 8000,
+    });
+  }
+  // Unticking works too.
+  await topicRow(employee, hiring).getByRole('checkbox').uncheck();
+  await expect(topicRow(manager, hiring).getByRole('checkbox')).not.toBeChecked(
+    { timeout: 8000 },
+  );
+
+  // The author deletes a topic, after confirming.
+  await topicRow(manager, hiring)
+    .getByRole('button', { name: 'Delete' })
+    .click();
+  await topicRow(manager, hiring)
+    .getByRole('button', { name: 'Confirm delete' })
+    .click();
+  await expect(topicRow(manager, hiring)).toHaveCount(0);
+  await expect(topicRow(employee, hiring)).toHaveCount(0, { timeout: 8000 });
+
+  // A reload shows the same list: it was saved, not only shown.
+  await employee.reload();
+  await expect(topicsCard(employee).locator('.topic')).toHaveCount(3);
+  await expect(
+    topicRow(employee, budgetEdited).getByRole('checkbox'),
+  ).toBeChecked();
+  await expect(
+    topicRow(employee, rotation).getByRole('checkbox'),
+  ).not.toBeChecked();
+
+  // The manager adds one more topic that the employee's tab never hears of
+  // (its live updates are cut off), and the employee archives. The archive
+  // is refused once, since the carried-forward topics were built from an
+  // older list, and goes through with the current one: the late topic isn't
+  // left behind.
+  await employee.route('**/live-state', (route) => route.abort());
+  const late = `E2E-TOPIC-LATE-${Date.now()}`;
+  await addTopic(manager, late);
+  const refusedArchive = employee.waitForResponse(
+    (response) =>
+      response.url().endsWith('/archive') && response.status() === 409,
+  );
+  await employee.getByRole('button', { name: 'Archive' }).click();
+  await refusedArchive;
+  await expectArchived(employee);
+  await employee.unroute('**/live-state');
+  await expect(topicRow(employee, late)).toBeVisible();
+  await expect(
+    topicsCard(employee).getByPlaceholder('Add a topic…'),
+  ).toHaveCount(0);
+  await expect(topicsCard(employee).getByRole('button')).toHaveCount(0);
+  await expect(
+    topicRow(employee, rotation).getByRole('checkbox'),
+  ).toBeDisabled();
+  await expect(
+    topicsCard(manager).getByPlaceholder('Add a topic…'),
+  ).toHaveCount(0, { timeout: 8000 });
+  await expect(topicsCard(manager).locator('.topic')).toHaveCount(4);
+
+  // The next meeting starts with the two topics not ticked off, for both:
+  // the archiving browser re-encrypted them under the new meeting's key.
+  const successorUrl = await openSuccessor(employee, anketaUrl);
+  await expect(topicsCard(employee).locator('.topic')).toHaveCount(2);
+  await expect(topicRow(employee, late)).toBeVisible();
+  await expect(
+    topicRow(employee, rotation).getByRole('checkbox'),
+  ).not.toBeChecked();
+  await manager.goto(successorUrl);
+  await expect(topicsCard(manager).locator('.topic')).toHaveCount(2);
+  // Still the manager's own topic there, so still theirs to edit.
+  await expect(
+    topicRow(manager, rotation).getByRole('button', { name: 'Edit' }),
+  ).toBeVisible();
+  // And the carried list takes changes like any other.
+  await topicRow(employee, rotation).getByRole('checkbox').check();
+  await expect(topicRow(manager, rotation).getByRole('checkbox')).toBeChecked({
+    timeout: 8000,
+  });
+});
+
+/**
+ * GitHub issue #206: new meetings no longer have the "What else to discuss"
+ * blocks, which the topics list replaces. A meeting created before that keeps
+ * the block and what was answered in it.
+ */
+test('a meeting from before the topics list keeps its "What else to discuss" block and answers', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-oldform');
+  const managerEmail = uniqueEmail('manager-oldform');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+  const discussTitle = 'What else to discuss';
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+  const employeeMySide = employee.locator('.side-card').first();
+  await expect(questionBlock(employeeMySide, 'Mood')).toBeVisible();
+  await expect(questionBlock(employeeMySide, discussTitle)).toHaveCount(0);
+
+  setFormVersion(anketaUrl.split('/').pop()!, 2);
+  await employee.reload();
+
+  const discussBlock = questionBlock(employeeMySide, discussTitle);
+  await expect(discussBlock).toBeVisible();
+  const entry = `E2E-OLD-DISCUSS-${Date.now()}`;
+  await discussBlock.getByPlaceholder('Add an entry…').fill(entry);
+  await discussBlock.getByRole('button', { name: 'Add' }).click();
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  // The counterpart reads it, and has their own block of the old form too.
+  await manager.goto(anketaUrl);
+  await expect(
+    questionBlock(manager.locator('.side-card').nth(1), discussTitle),
+  ).toContainText(entry);
+  await expect(
+    questionBlock(manager.locator('.side-card').first(), discussTitle),
+  ).toBeVisible();
+  // The topics list is there for an old meeting as well.
+  await expect(topicsCard(manager)).toBeVisible();
 });
 
 /**
