@@ -428,6 +428,223 @@ class AnketaControllerTest extends ApiTestCase
         self::assertArrayNotHasKey('discussedVersion', $result['json']);
     }
 
+    public function testSaveTopicsSucceedsAndIncrementsVersion(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('topics-ok');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $fresh = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertNull($fresh['topicsBlob']);
+        self::assertSame(0, $fresh['topicsVersion']);
+
+        // Neither side has published: the list is shared from the start.
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'topics-blob-v1',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(1, $result['json']['topicsVersion']);
+
+        $detail = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertSame('topics-blob-v1', $detail['topicsBlob']);
+        self::assertSame(1, $detail['topicsVersion']);
+        self::assertSame(0, $detail['discussedVersion'], 'the discussed ticks have their own version');
+        self::assertSame(0, $detail['outcomesVersion']);
+
+        $liveState = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}/live-state")['json'];
+        self::assertSame(1, $liveState['topicsVersion']);
+        self::assertArrayNotHasKey('topicsBlob', $liveState);
+
+        $second = $this->jsonRequest($managerClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'topics-blob-v2',
+            'expectedVersion' => 1,
+        ]);
+        self::assertSame(200, $second['status']);
+        self::assertSame(2, $second['json']['topicsVersion']);
+    }
+
+    public function testSaveTopicsConflictReturns409WithTheCurrentList(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('topics-conflict');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $first = $this->jsonRequest($managerClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'manager-topics',
+            'expectedVersion' => 0,
+        ]);
+        self::assertSame(200, $first['status']);
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'employee-topics',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('manager-topics', $result['json']['topicsBlob']);
+        self::assertSame(1, $result['json']['topicsVersion']);
+        self::assertArrayHasKey('error', $result['json']);
+
+        $detail = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertSame('manager-topics', $detail['topicsBlob'], 'the refused save must not overwrite the list');
+    }
+
+    public function testSaveTopicsArchivedReturns409(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('topics-archived');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => true,
+        ]);
+
+        $result = $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'employee-topics',
+            'expectedVersion' => 0,
+        ]);
+
+        self::assertSame(409, $result['status']);
+        // No blob/version in the body, so the client doesn't retry it as a stale version.
+        self::assertArrayNotHasKey('topicsVersion', $result['json']);
+        self::assertNull($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['topicsBlob']);
+    }
+
+    public function testSaveTopicsRejectsAMalformedPayloadAndAnOutsider(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('topics-invalid');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        self::assertSame(400, $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'topics',
+        ])['status']);
+        self::assertSame(400, $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'expectedVersion' => 0,
+        ])['status']);
+
+        $stranger = $this->secondClient();
+        $this->activateUser($stranger, $this->uniqueEmail('anketa-topics-stranger'));
+        $outsider = $this->jsonRequest($stranger, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'not-mine',
+            'expectedVersion' => 0,
+        ]);
+        self::assertSame(403, $outsider['status']);
+        self::assertNull($this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['topicsBlob']);
+    }
+
+    /**
+     * GitHub issue #206: the client re-encrypts the topics not yet discussed under the
+     * next meeting's key and sends them along with the archive (or create) request.
+     */
+    public function testArchiveSeedsTheSuccessorWithTheCarriedTopics(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('topics-carry');
+        $firstId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $archive = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$firstId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+            'topicsBlob' => 'carried-topics',
+        ]);
+        self::assertSame(200, $archive['status']);
+
+        $openIds = $this->openAnketaIds($employeeClient);
+        self::assertCount(1, $openIds);
+        $next = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$openIds[0]}")['json'];
+        self::assertSame('carried-topics', $next['topicsBlob']);
+        self::assertSame(0, $next['topicsVersion'], 'seeded at creation, like outcomes: the first save expects version 0');
+        self::assertNull($next['outcomesBlob']);
+
+        $archived = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$firstId}")['json'];
+        self::assertNull($archived['topicsBlob'], 'the archived meeting keeps its own list, untouched');
+    }
+
+    /**
+     * The carry-forward is built in the browser from the list at some version. A topic
+     * saved after that would be left behind, so the archive names the version and is
+     * refused, with the anketa still open, if the list has moved on.
+     */
+    public function testArchiveIsRefusedWhenTheTopicsChangedSinceTheCarryForwardWasBuilt(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('topics-stale-carry');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $archiveBody = [
+            'missed' => false,
+            'skipNextMeeting' => false,
+            'mySealedKey' => str_repeat('n', 44),
+            'counterpartSealedKey' => str_repeat('o', 44),
+            'topicsBlob' => 'carried-from-version-0',
+            'topicsVersion' => 0,
+        ];
+
+        // The counterpart adds a topic after the archiving client read version 0.
+        $added = $this->jsonRequest($managerClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'manager-topics',
+            'expectedVersion' => 0,
+        ]);
+        self::assertSame(200, $added['status']);
+
+        $refused = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", $archiveBody);
+        self::assertSame(409, $refused['status']);
+        self::assertSame('manager-topics', $refused['json']['topicsBlob']);
+        self::assertSame(1, $refused['json']['topicsVersion']);
+        self::assertArrayNotHasKey('archivedAt', $refused['json']);
+
+        $detail = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json'];
+        self::assertNull($detail['archivedAt'], 'a refused archive leaves the anketa open');
+        self::assertCount(1, $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json'], 'and creates no successor');
+
+        // Rebuilt from version 1, it goes through.
+        $archived = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            ...$archiveBody,
+            'topicsBlob' => 'carried-from-version-1',
+            'topicsVersion' => 1,
+        ]);
+        self::assertSame(200, $archived['status']);
+        $openIds = $this->openAnketaIds($employeeClient);
+        self::assertCount(1, $openIds);
+        self::assertSame('carried-from-version-1', $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$openIds[0]}")['json']['topicsBlob']);
+
+        // Archived now: the same request again is the ordinary "already archived" 409.
+        $again = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", $archiveBody);
+        self::assertSame(409, $again['status']);
+        self::assertArrayHasKey('archivedAt', $again['json']);
+        self::assertArrayNotHasKey('topicsVersion', $again['json']);
+    }
+
+    public function testArchiveWithoutASuccessorIgnoresTheTopicsVersion(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('topics-version-skip');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $this->jsonRequest($employeeClient, 'PUT', "/api/anketas/{$anketaId}/topics", [
+            'blob' => 'topics',
+            'expectedVersion' => 0,
+        ]);
+
+        // Nothing is carried forward, so a stale version is no reason to refuse.
+        $archived = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$anketaId}/archive", [
+            'missed' => false,
+            'skipNextMeeting' => true,
+            'topicsVersion' => 0,
+        ]);
+
+        self::assertSame(200, $archived['status']);
+    }
+
+    public function testCreateSeedsTheCarriedTopics(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('topics-create');
+
+        $created = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['topicsBlob' => 'carried-topics']);
+        self::assertSame(201, $created['status']);
+
+        $detail = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$created['json']['id']}")['json'];
+        self::assertSame('carried-topics', $detail['topicsBlob']);
+        self::assertSame(0, $detail['topicsVersion']);
+    }
+
     public function testTheLiveStatePollAloneKeepsASessionAlive(): void
     {
         $clock = self::mockTime();
@@ -467,6 +684,7 @@ class AnketaControllerTest extends ApiTestCase
         self::assertSame(1, $result['json']['outcomesVersion']);
         self::assertSame(0, $result['json']['goalCheckpointsVersion']);
         self::assertSame(0, $result['json']['discussedVersion']);
+        self::assertSame(0, $result['json']['topicsVersion']);
         self::assertSame(0, $result['json']['employeeBlobVersion']);
         self::assertSame(0, $result['json']['managerBlobVersion']);
         self::assertNull($result['json']['myPublishedAt']);
@@ -1337,6 +1555,7 @@ class AnketaControllerTest extends ApiTestCase
         $second = $this->createAnketaAsEmployee($employeeClient, $manager['id'], [
             'templateKey' => 'career_growth',
             'outcomesBlob' => 'client-carried-outcomes',
+            'topicsBlob' => 'client-carried-topics',
             'periodicityDays' => 7,
         ]);
         self::assertSame(201, $second['status']);
@@ -1346,6 +1565,7 @@ class AnketaControllerTest extends ApiTestCase
         self::assertTrue($secondDetail['oneOff']);
         self::assertSame([], $secondDetail['goals'], 'the already-open anketa got the carry-forward; this one must not duplicate it');
         self::assertNull($secondDetail['outcomesBlob'], 'a client-carried outcomesBlob must be dropped for the same reason');
+        self::assertNull($secondDetail['topicsBlob'], 'and so must a client-carried topicsBlob');
         self::assertSame(30, $secondDetail['periodicityDays'], 'periodicity is inherited, a sent one ignored');
 
         // Archived with the form's defaults (skipNextMeeting unchecked, keys sent) — the

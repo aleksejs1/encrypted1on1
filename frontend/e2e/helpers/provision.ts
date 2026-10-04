@@ -130,3 +130,17 @@ export function expireAsInvite(email: string, inviterEmail: string): void {
       ` WHERE t.email = ${sqlString(email)}`,
   );
 }
+
+/**
+ * GitHub issue #206: makes an existing meeting one created at an older form
+ * version, the way every meeting from before a form change is stored. Done in
+ * SQL because the server stamps the current version on everything it creates.
+ */
+export function setFormVersion(anketaId: string, formVersion: number): void {
+  if (!/^[0-9a-f-]{36}$/.test(anketaId) || !Number.isInteger(formVersion)) {
+    throw new Error('setFormVersion: unexpected anketa id or form version');
+  }
+  runSql(
+    `UPDATE anketas SET formVersion = ${formVersion} WHERE id = ${sqlString(anketaId)}`,
+  );
+}

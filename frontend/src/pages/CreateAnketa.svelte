@@ -19,6 +19,7 @@
   import { ensureUnlocked } from '../crypto/identity.svelte';
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
+  import { carryForwardTopics } from '../anketa/topics';
   import { sortByRecentCounterparts } from '../anketa/recentCounterparts';
   import { ANKETA_TEMPLATES, templatePickerKeys } from '../anketa/questions';
   import {
@@ -44,7 +45,7 @@
 
   type AnketaDetailForCarry = Pick<
     AnketaDetail,
-    'mySealedKey' | 'outcomesBlob'
+    'mySealedKey' | 'outcomesBlob' | 'topicsBlob'
   >;
 
   let users = $state<UserSummary[]>([]);
@@ -202,6 +203,8 @@
       // items from the pair's most recent archived anketa have to be decrypted and re-encrypted
       // here, client-side, before the new anketa exists.
       let outcomesBlob: string | undefined;
+      // The same for the topics not yet discussed (GitHub issue #206).
+      let topicsBlob: string | undefined;
       if (previousAnketa && !pairHasOpenAnketa) {
         try {
           const previousDetail = await apiGet<AnketaDetailForCarry>(
@@ -214,6 +217,11 @@
           );
           outcomesBlob = await carryForwardOutcomes(
             previousDetail.outcomesBlob,
+            previousKey,
+            anketaKey,
+          );
+          topicsBlob = await carryForwardTopics(
+            previousDetail.topicsBlob,
             previousKey,
             anketaKey,
           );
@@ -244,6 +252,7 @@
         // inheritedPeriodicityDays; the server ignores it otherwise anyway.
         ...(inheritedPeriodicityDays !== null ? {} : { periodicityDays }),
         ...(outcomesBlob ? { outcomesBlob } : {}),
+        ...(topicsBlob ? { topicsBlob } : {}),
         // Unlike periodicity, template choice is never inherited-only — the picker is
         // shown (and sent) on every creation, continuing pair or not, since a manager
         // may deliberately want an ad-hoc template mid-cadence.

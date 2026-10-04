@@ -21,6 +21,8 @@ function feelingsOptionValues(side: 'employee' | 'manager', version: number) {
   return field?.options?.map((o) => o.value);
 }
 
+const DISCUSS_IDS = ['discuss', 'managerDiscuss'];
+
 function questionIds(side: 'employee' | 'manager', templateKey: TemplateKey) {
   return getQuestionsForSide(
     side,
@@ -123,7 +125,7 @@ describe('getQuestionsForSide', () => {
   });
 
   // Only 'regular' has a 'feelings'-style field whose options vary by version.
-  it('does not vary any non-regular template by formVersion', () => {
+  it('varies a non-regular template by formVersion only in its discuss blocks', () => {
     for (const templateKey of ANKETA_TEMPLATES.filter((k) => k !== 'regular')) {
       for (const side of ['employee', 'manager'] as const) {
         const latest = getQuestionsForSide(
@@ -133,11 +135,40 @@ describe('getQuestionsForSide', () => {
         );
         for (let v = 1; v < CURRENT_ANKETA_FORM_VERSION; v++) {
           expect(
-            getQuestionsForSide(side, v, templateKey),
+            getQuestionsForSide(side, v, templateKey).filter(
+              (q) => !DISCUSS_IDS.includes(q.id),
+            ),
             `${templateKey}/${side}/v${v}`,
           ).toEqual(latest);
         }
       }
+    }
+  });
+
+  // GitHub issue #206: the shared topics list replaces these blocks, but only
+  // for anketas created from form version 3 on. An older anketa must keep
+  // them, or its published answers there would no longer be shown.
+  it('keeps the discuss blocks of every template before form version 3, and drops them from it on', () => {
+    const withDiscuss: Record<TemplateKey, string[]> = {
+      regular: ['discuss', 'managerDiscuss'],
+      onboarding: ['discuss'],
+      career_growth: ['discuss', 'managerDiscuss'],
+      support_checkin: ['discuss', 'managerDiscuss'],
+    };
+    for (const templateKey of ANKETA_TEMPLATES) {
+      const discussIdsAt = (version: number) =>
+        (['employee', 'manager'] as const).flatMap((side) =>
+          getQuestionsForSide(side, version, templateKey)
+            .map((q) => q.id)
+            .filter((id) => DISCUSS_IDS.includes(id)),
+        );
+
+      expect(discussIdsAt(1), templateKey).toEqual(withDiscuss[templateKey]);
+      expect(discussIdsAt(2), templateKey).toEqual(withDiscuss[templateKey]);
+      expect(discussIdsAt(3), templateKey).toEqual([]);
+      expect(discussIdsAt(CURRENT_ANKETA_FORM_VERSION), templateKey).toEqual(
+        [],
+      );
     }
   });
 
@@ -331,11 +362,10 @@ describe('getQuestionsForSide', () => {
         'workStyle',
         'freshEyesAudit',
         'achievements',
-        'discuss',
       ]);
     });
 
-    it('keeps mood/achievements/discuss identical to the regular template', () => {
+    it('keeps mood/achievements identical to the regular template', () => {
       const regular = getQuestionsForSide(
         'employee',
         CURRENT_ANKETA_FORM_VERSION,
@@ -347,7 +377,7 @@ describe('getQuestionsForSide', () => {
         'onboarding',
       );
 
-      for (const id of ['mood', 'achievements', 'discuss']) {
+      for (const id of ['mood', 'achievements']) {
         expect(onboarding.find((q) => q.id === id)).toEqual(
           regular.find((q) => q.id === id),
         );
@@ -443,22 +473,20 @@ describe('getQuestionsForSide', () => {
         'energyRetrospective',
         'trajectory',
         'developmentPlan',
-        'discuss',
       ]);
     });
 
-    it('keeps feedback/managerDiscuss and adds sponsorshipOffer on the manager side', () => {
+    it('keeps feedback and adds sponsorshipOffer on the manager side', () => {
       expect(questionIds('manager', 'career_growth')).toEqual([
         'feedback',
         'sponsorshipOffer',
-        'managerDiscuss',
       ]);
     });
 
-    it('keeps mood/discuss and feedback/managerDiscuss identical to the regular template', () => {
+    it('keeps mood and feedback identical to the regular template', () => {
       for (const [side, ids] of [
-        ['employee', ['mood', 'discuss']],
-        ['manager', ['feedback', 'managerDiscuss']],
+        ['employee', ['mood']],
+        ['manager', ['feedback']],
       ] as const) {
         const regular = getQuestionsForSide(
           side,
@@ -537,31 +565,27 @@ describe('getQuestionsForSide', () => {
     const question = (side: 'employee' | 'manager', id: string) =>
       questionFor(side, 'support_checkin', id);
 
-    it('keeps mood, then energyLevel/workload/workloadTriage/boundaries/discuss on the employee side', () => {
+    it('keeps mood, then energyLevel/workload/workloadTriage/boundaries on the employee side', () => {
       expect(questionIds('employee', 'support_checkin')).toEqual([
         'mood',
         'energyLevel',
         'workload',
         'workloadTriage',
         'boundaries',
-        'discuss',
       ]);
     });
 
-    it('gives the manager side commitments/checkInCadence/managerDiscuss', () => {
+    it('gives the manager side commitments/checkInCadence', () => {
       expect(questionIds('manager', 'support_checkin')).toEqual([
         'commitments',
         'checkInCadence',
-        'managerDiscuss',
       ]);
     });
 
-    it('keeps mood/workload/discuss and managerDiscuss identical to the regular template', () => {
+    it('keeps mood/workload identical to the regular template', () => {
       for (const [side, id] of [
         ['employee', 'mood'],
         ['employee', 'workload'],
-        ['employee', 'discuss'],
-        ['manager', 'managerDiscuss'],
       ] as const) {
         expect(question(side, id)).toEqual(questionFor(side, 'regular', id));
       }

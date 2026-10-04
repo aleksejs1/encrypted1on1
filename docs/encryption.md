@@ -79,7 +79,7 @@ Each 1:1 (a single meeting cycle between one manager and one employee; the code 
 2. It's **sealed** — `crypto_box_seal`, libsodium's anonymous public-key encryption — to each participant's X25519 public key, once per side. "Anonymous" means no sender keypair is needed or used; anyone can seal a message to a public key, but only the holder of the matching private key can open it. This is what lets the creator hand the same key to a counterpart they may never interact with directly, through the server, without the server ever holding the unsealed key.
 3. Both sealed copies (`employeeSealedKey`, `managerSealedKey`) go to the server. Each participant unseals *their own* copy locally with their own private key when they load the 1:1.
 
-Everything the two participants share about that 1:1 — both participants' published question answers, the shared comment thread, the outcomes list, goal progress checkpoints, which questions were marked as discussed during the meeting — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
+Everything the two participants share about that 1:1 — both participants' published question answers, the shared comment thread, the topics list, the outcomes list, goal progress checkpoints, which questions were marked as discussed during the meeting — is encrypted with this one key. Each participant's own [private notes](#private-notes) on it are not: the counterpart holds this key, so the notes have a key of their own.
 
 ### Envelope format
 
@@ -141,6 +141,7 @@ Assume the worst case: an attacker has read access to the entire database, every
 - Which meeting day each 1:1's "did it happen?" follow-up email was for (`followUpMeetingDay`, [GitHub issue #202](https://github.com/aleksejs1/encrypted1on1/issues/202)). Like the reminder day above, for a meeting moved after its follow-up it keeps the earlier date, and it shows that the meeting was still open the business day after that date.
 - That a 1:1 exists, was published, has N comments — metadata, not content.
 - When the "discussed" checkboxes on a 1:1 were changed. The list is padded to a fixed size (`DISCUSSED_PADDING_BYTES` in `frontend/src/anketa/discussed.ts`) before it's encrypted, since the question IDs differ in length and the built-in ones are public: its size reveals neither which questions are ticked nor how many, unless a very long custom template's list outgrows one padding step, which reveals a rough count.
+- That a 1:1's shared topics list was changed, when, and its ciphertext size ([GitHub issue #206](https://github.com/aleksejs1/encrypted1on1/issues/206)). Topics are added during the week, not only at the meeting, so the server sees when someone in the pair touched the list and roughly how much text it holds, though not who or what. It isn't padded, like outcomes and comments: free text has no fixed set of values for its size to give away.
 - That a user has private notes on a 1:1, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
 - Which admin invited whom, account creation dates, blocked/admin flags.
 
@@ -148,6 +149,7 @@ Assume the worst case: an attacker has read access to the entire database, every
 - 1:1 question answers, from either side, published or draft.
 - Comment text.
 - Outcome items' text.
+- Topics' text, who added each one, and which were ticked off as discussed.
 - Private notes' text. Inside the app, neither the counterpart nor a company admin can learn whether they exist; someone who can read the database sees what's listed under *Visible*.
 - Goal progress checkpoint text.
 - Which questions were marked as discussed.

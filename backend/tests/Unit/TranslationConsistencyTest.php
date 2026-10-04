@@ -3,6 +3,7 @@
 namespace App\Tests\Unit;
 
 use App\Anketa\AnketaAlreadyArchivedException;
+use App\Anketa\AnketaTopicsChangedException;
 use App\Entity\User;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
@@ -116,6 +117,7 @@ class TranslationConsistencyTest extends TestCase
         $translations = $this->loadAllTranslations();
 
         self::assertSame($translations['en']['errors']['anketa_archived'], (new AnketaAlreadyArchivedException())->getMessage());
+        self::assertSame($translations['en']['errors']['topics_conflict'], (new AnketaTopicsChangedException())->getMessage());
     }
 
     /**

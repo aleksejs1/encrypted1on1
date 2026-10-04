@@ -5,6 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEMO_LOCALES, CONTENT } from './demo-fixture-content.mjs';
 import { fillDateInput } from './fillDateInput.mjs';
+import {
+  addTopic,
+  outcomeForm,
+  topicsCard,
+  topicsSaved,
+} from './topicsCard.mjs';
 import { ARGON2ID_REDIRECT_TIMEOUT } from './playwrightTimeouts.mjs';
 
 /**
@@ -41,7 +47,14 @@ const REPO_ROOT = path.resolve(
 );
 const FIXTURE_PATH = path.join(REPO_ROOT, 'backend/fixtures/demo-seed.json');
 
-const BASE_URL = 'http://localhost:5173';
+// The dev stack by default. A dev database that already has the demo
+// accounts can't activate them again, so the isolated e2e stack works too
+// (`make e2e-up` and `npm run dev:e2e`, a fresh database):
+//   DEMO_FIXTURE_BASE_URL=http://localhost:5174 \
+//   DEMO_FIXTURE_COMPOSE_FILE=docker-compose.e2e.yml node frontend/scripts/generate-demo-fixture.mjs
+const BASE_URL = process.env.DEMO_FIXTURE_BASE_URL ?? 'http://localhost:5173';
+const COMPOSE_FILE =
+  process.env.DEMO_FIXTURE_COMPOSE_FILE ?? 'docker-compose.dev.yml';
 const PASSWORD = 'e1o1-demo-2026';
 
 const FEELING_LABELS = {
@@ -59,7 +72,7 @@ function createActivationLink(email) {
     [
       'compose',
       '-f',
-      'docker-compose.dev.yml',
+      COMPOSE_FILE,
       'exec',
       '-T',
       'backend',
@@ -136,7 +149,6 @@ async function fillEmployeeSide(scope, c) {
   for (const entry of c.growth) await addListEntry(scope, 0, entry);
   await fillTextarea(scope, 3, c.harder);
   for (const entry of c.achievements) await addListEntry(scope, 1, entry);
-  for (const entry of c.whatElse) await addListEntry(scope, 2, entry);
 }
 
 async function fillManagerSide(scope, c) {
@@ -144,7 +156,25 @@ async function fillManagerSide(scope, c) {
   await fillTextarea(scope, 1, c.feedback);
   await fillTextarea(scope, 2, c.howCanIHelp);
   for (const entry of c.achievements) await addListEntry(scope, 0, entry);
-  for (const entry of c.whatElse) await addListEntry(scope, 1, entry);
+}
+
+/**
+ * Each side's `whatElse` content goes into the shared topics list: since
+ * form version 3 a regular 1:1 has no "What else to discuss" question.
+ */
+async function addTopics(page, anketaId, topics) {
+  for (const topic of topics) await addTopic(page, anketaId, topic);
+}
+
+/**
+ * Ticks the page's topics off as discussed, all but the last `keep`: those
+ * carry forward into the next cycle, like any topic the pair didn't get to.
+ */
+async function markTopicsDiscussed(page, anketaId, keep = 0) {
+  const boxes = topicsCard(page).locator('.topic-checkbox:not(:checked)');
+  while ((await boxes.count()) > keep) {
+    await Promise.all([topicsSaved(page, anketaId), boxes.first().check()]);
+  }
 }
 
 async function publish(page, anketaId, scope) {
@@ -180,14 +210,15 @@ async function addComment(managerPage, anketaId, text) {
 }
 
 async function addOutcome(page, anketaId, text) {
-  await page.getByPlaceholder(/outcome/i).fill(text);
+  const form = outcomeForm(page);
+  await form.getByPlaceholder(/outcome/i).fill(text);
   await Promise.all([
     page.waitForResponse(
       (res) =>
         res.request().method() === 'PUT' &&
         res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
     ),
-    page.getByRole('button', { name: 'Add', exact: true }).click(),
+    form.getByRole('button', { name: 'Add', exact: true }).click(),
   ]);
 }
 
@@ -305,6 +336,7 @@ async function runLocale(browser, localeCode) {
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   console.log('Cycle 1 anketa created:', cycle1Id);
 
+  await addTopics(employee, cycle1Id, c.cycle1.employee.whatElse);
   await fillEmployeeSide(
     employee.locator('.side-card').first(),
     c.cycle1.employee,
@@ -313,6 +345,7 @@ async function runLocale(browser, localeCode) {
 
   await manager.goto(`${BASE_URL}/anketas/${cycle1Id}`);
   await manager.waitForLoadState('networkidle');
+  await addTopics(manager, cycle1Id, c.cycle1.manager.whatElse);
   await fillManagerSide(
     manager.locator('.side-card').first(),
     c.cycle1.manager,
@@ -337,6 +370,7 @@ async function runLocale(browser, localeCode) {
   // --- Archive cycle 1 -> auto-creates cycle 2 (carries the in-progress goal + outcome) ---
   await employee.reload();
   await employee.waitForLoadState('networkidle');
+  await markTopicsDiscussed(employee, cycle1Id);
   await archive(employee, cycle1Id);
   const cycle2Id = await currentAnketaId(employee, [cycle1Id]);
   console.log('Cycle 2 anketa created:', cycle2Id);
@@ -344,6 +378,7 @@ async function runLocale(browser, localeCode) {
   // --- Cycle 2: fill ---
   await employee.goto(`${BASE_URL}/anketas/${cycle2Id}`);
   await employee.waitForLoadState('networkidle');
+  await addTopics(employee, cycle2Id, c.cycle2.employee.whatElse);
   await fillEmployeeSide(
     employee.locator('.side-card').first(),
     c.cycle2.employee,
@@ -352,6 +387,7 @@ async function runLocale(browser, localeCode) {
 
   await manager.goto(`${BASE_URL}/anketas/${cycle2Id}`);
   await manager.waitForLoadState('networkidle');
+  await addTopics(manager, cycle2Id, c.cycle2.manager.whatElse);
   await fillManagerSide(
     manager.locator('.side-card').first(),
     c.cycle2.manager,
@@ -373,9 +409,11 @@ async function runLocale(browser, localeCode) {
   await addCheckpoint(employee, cycle2Id, c.cycle2.checkpoint);
   console.log('Cycle 2 content filled.');
 
-  // --- Archive cycle 2 -> auto-creates cycle 3 (current, left empty) ---
+  // --- Archive cycle 2 -> auto-creates cycle 3 (current: no answers yet,
+  // and the one topic the pair didn't get to, carried forward) ---
   await employee.reload();
   await employee.waitForLoadState('networkidle');
+  await markTopicsDiscussed(employee, cycle2Id, 1);
   await archive(employee, cycle2Id);
   const cycle3Id = await currentAnketaId(employee, [cycle1Id, cycle2Id]);
   console.log('Cycle 3 (current) anketa created:', cycle3Id);
@@ -404,6 +442,8 @@ async function runLocale(browser, localeCode) {
       outcomesVersion: fromEmployee.outcomesVersion,
       goalCheckpointsBlob: fromEmployee.goalCheckpointsBlob,
       goalCheckpointsVersion: fromEmployee.goalCheckpointsVersion,
+      topicsBlob: fromEmployee.topicsBlob,
+      topicsVersion: fromEmployee.topicsVersion,
     };
   });
 

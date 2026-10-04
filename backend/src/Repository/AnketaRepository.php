@@ -274,18 +274,28 @@ class AnketaRepository extends ServiceEntityRepository
      * forking the pair's chain. The database serializes the two UPDATEs (a row lock on
      * MySQL, the write lock plus busy_timeout on SQLite), so the second one matches
      * no row.
+     *
+     * With `$expectedTopicsVersion` (GitHub issue #206), also only if the topics list is
+     * still at that version: the archiving browser built the successor's carried-forward
+     * topics from it, and a topic saved since would otherwise be missing from the next
+     * meeting. The same statement, so no topics save can land in between. False then
+     * means "already archived" or "topics changed"; the caller re-reads which.
      */
-    public function markArchivedIfOpen(Anketa $anketa, \DateTimeImmutable $archivedAt, bool $missed): bool
+    public function markArchivedIfOpen(Anketa $anketa, \DateTimeImmutable $archivedAt, bool $missed, ?int $expectedTopicsVersion = null): bool
     {
-        $affected = $this->getEntityManager()->createQuery(
-            'UPDATE '.Anketa::class.' a SET a.archivedAt = :archivedAt, a.missed = :missed WHERE a.id = :id AND a.archivedAt IS NULL'
-        )
+        $dql = 'UPDATE '.Anketa::class.' a SET a.archivedAt = :archivedAt, a.missed = :missed WHERE a.id = :id AND a.archivedAt IS NULL';
+        if (null !== $expectedTopicsVersion) {
+            $dql .= ' AND a.topicsVersion = :expectedTopicsVersion';
+        }
+        $query = $this->getEntityManager()->createQuery($dql)
             ->setParameter('archivedAt', $archivedAt, Types::DATETIME_IMMUTABLE)
             ->setParameter('missed', $missed, Types::BOOLEAN)
-            ->setParameter('id', $anketa->getId())
-            ->execute();
+            ->setParameter('id', $anketa->getId());
+        if (null !== $expectedTopicsVersion) {
+            $query->setParameter('expectedTopicsVersion', $expectedTopicsVersion);
+        }
 
-        return 1 === $affected;
+        return 1 === $query->execute();
     }
 
     /**
@@ -298,10 +308,27 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function saveDiscussedIfVersion(Anketa $anketa, string $blob, int $expectedVersion): bool
     {
-        $affected = $this->getEntityManager()->createQuery(
+        return $this->saveIfVersion(
             'UPDATE '.Anketa::class.' a SET a.discussedBlob = :blob, a.discussedVersion = a.discussedVersion + 1'
-            .' WHERE a.id = :id AND a.discussedVersion = :expectedVersion AND a.archivedAt IS NULL'
-        )
+            .' WHERE a.id = :id AND a.discussedVersion = :expectedVersion AND a.archivedAt IS NULL',
+            $anketa, $blob, $expectedVersion,
+        );
+    }
+
+    /** The same for the shared topics list (GitHub issue #206), which both participants add to and tick off during the meeting. */
+    public function saveTopicsIfVersion(Anketa $anketa, string $blob, int $expectedVersion): bool
+    {
+        return $this->saveIfVersion(
+            'UPDATE '.Anketa::class.' a SET a.topicsBlob = :blob, a.topicsVersion = a.topicsVersion + 1'
+            .' WHERE a.id = :id AND a.topicsVersion = :expectedVersion AND a.archivedAt IS NULL',
+            $anketa, $blob, $expectedVersion,
+        );
+    }
+
+    /** Runs one of the two conditional UPDATEs above and reports whether it matched the row. */
+    private function saveIfVersion(string $dql, Anketa $anketa, string $blob, int $expectedVersion): bool
+    {
+        $affected = $this->getEntityManager()->createQuery($dql)
             ->setParameter('blob', $blob)
             ->setParameter('id', $anketa->getId())
             ->setParameter('expectedVersion', $expectedVersion)

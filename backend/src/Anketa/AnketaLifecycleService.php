@@ -28,8 +28,8 @@ class AnketaLifecycleService
     }
 
     /**
-     * Builds a new Anketa (optionally seeded with a client-carried outcomesBlob) and
-     * copies in_progress goals from $carryFrom into it, if given — except for a one-off,
+     * Builds a new Anketa (optionally seeded with a client-carried outcomesBlob and
+     * topicsBlob) and copies in_progress goals from $carryFrom into it, if given — except for a one-off,
      * which never gets a carry-forward (GitHub issue #111, see Anketa::$oneOff): the
      * pair's open chain anketa already has it, and a second copy would just diverge.
      * Enforced here rather than by callers, so no caller can bring the duplicates back.
@@ -44,6 +44,7 @@ class AnketaLifecycleService
         string $managerSealedKey,
         int $periodicityDays,
         ?string $outcomesBlob = null,
+        ?string $topicsBlob = null,
         ?Anketa $carryFrom = null,
         string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
         bool $oneOff = false,
@@ -51,6 +52,7 @@ class AnketaLifecycleService
     ): Anketa {
         if ($oneOff) {
             $outcomesBlob = null;
+            $topicsBlob = null;
             $carryFrom = null;
         }
 
@@ -68,6 +70,9 @@ class AnketaLifecycleService
 
         if (null !== $outcomesBlob) {
             $anketa->seedOutcomes($outcomesBlob);
+        }
+        if (null !== $topicsBlob) {
+            $anketa->seedTopics($topicsBlob);
         }
 
         $this->entityManager->persist($anketa);
@@ -101,6 +106,7 @@ class AnketaLifecycleService
         string $managerSealedKey,
         int $periodicityDays,
         ?string $outcomesBlob = null,
+        ?string $topicsBlob = null,
         ?Anketa $carryFrom = null,
         ?User $creator = null,
         string $templateKey = Anketa::DEFAULT_TEMPLATE_KEY,
@@ -115,6 +121,7 @@ class AnketaLifecycleService
             managerSealedKey: $managerSealedKey,
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
+            topicsBlob: $topicsBlob,
             carryFrom: $carryFrom,
             templateKey: $templateKey,
             oneOff: $oneOff,
@@ -150,6 +157,8 @@ class AnketaLifecycleService
      * AnketaAlreadyArchivedException and changes nothing.
      *
      * @throws AnketaAlreadyArchivedException
+     * @throws AnketaTopicsChangedException   if `$expectedTopicsVersion` is given and the
+     *                                        topics list is no longer at it; nothing is archived
      */
     public function archive(
         Anketa $anketa,
@@ -160,8 +169,10 @@ class AnketaLifecycleService
         ?string $mySealedKey = null,
         ?string $counterpartSealedKey = null,
         ?string $outcomesBlob = null,
+        ?string $topicsBlob = null,
         ?string $nextTemplateKey = null,
         ?CustomTemplateVersion $nextCustomTemplateVersion = null,
+        ?int $expectedTopicsVersion = null,
     ): ?Anketa {
         $nextPeriodicityDays = $this->nextAnketaPeriodicity($anketa, $skipNextMeeting, $mySealedKey, $counterpartSealedKey);
         // A programming error, not a fallback: AnketaController::archive() always
@@ -174,14 +185,14 @@ class AnketaLifecycleService
         // archived — same reason as InviteController::create(): wrapInTransaction()
         // closes the EntityManager on any exception.
         $nextAnketa = $this->entityManager->wrapInTransaction(function () use (
-            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $nextTemplateKey, $nextCustomTemplateVersion,
+            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $topicsBlob, $nextTemplateKey, $nextCustomTemplateVersion, $expectedTopicsVersion,
         ): Anketa|false|null {
             $archivedAt = new \DateTimeImmutable();
             // Must stay the transaction's first statement. On SQLite (WAL), a deferred
             // transaction that has already read and then tries to write fails at once
             // with SQLITE_BUSY instead of waiting out busy_timeout, so the losing
             // request would get a 500 rather than this clean "already archived".
-            if (!$this->anketaRepository->markArchivedIfOpen($anketa, $archivedAt, $missed)) {
+            if (!$this->anketaRepository->markArchivedIfOpen($anketa, $archivedAt, $missed, $expectedTopicsVersion)) {
                 return false;
             }
             // Re-read rather than calling $anketa->archive(): the row is the source of
@@ -205,13 +216,14 @@ class AnketaLifecycleService
                 $mySealedKey,
                 $counterpartSealedKey,
                 $outcomesBlob,
+                $topicsBlob,
                 $nextTemplateKey,
                 $nextCustomTemplateVersion,
             );
         });
 
         if (false === $nextAnketa) {
-            throw new AnketaAlreadyArchivedException();
+            throw $this->archiveRefusal($anketa, $expectedTopicsVersion);
         }
 
         if (null !== $nextAnketa) {
@@ -289,6 +301,24 @@ class AnketaLifecycleService
     }
 
     /**
+     * Why archive()'s conditional UPDATE matched nothing. With a topics version named
+     * it may be that the list moved on rather than that the anketa is archived, so the
+     * row is re-read to tell. (archive()'s transaction callback returned, so the
+     * EntityManager is open.).
+     */
+    private function archiveRefusal(Anketa $anketa, ?int $expectedTopicsVersion): AnketaAlreadyArchivedException|AnketaTopicsChangedException
+    {
+        if (null !== $expectedTopicsVersion) {
+            $this->entityManager->refresh($anketa);
+            if (!$anketa->isArchived()) {
+                return new AnketaTopicsChangedException();
+            }
+        }
+
+        return new AnketaAlreadyArchivedException();
+    }
+
+    /**
      * The successor's periodicity if archive() should create one (see
      * shouldCreateNext()), after checking that everything it needs for one is there;
      * null if no successor is due.
@@ -326,6 +356,7 @@ class AnketaLifecycleService
         string $mySealedKey,
         string $counterpartSealedKey,
         ?string $outcomesBlob,
+        ?string $topicsBlob,
         string $nextTemplateKey,
         ?CustomTemplateVersion $nextCustomTemplateVersion,
     ): Anketa {
@@ -342,6 +373,7 @@ class AnketaLifecycleService
             managerSealedKey: $isEmployee ? $counterpartSealedKey : $mySealedKey,
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
+            topicsBlob: $topicsBlob,
             carryFrom: $anketa,
             templateKey: $nextTemplateKey,
             customTemplateVersion: $nextCustomTemplateVersion,

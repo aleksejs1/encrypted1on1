@@ -4,6 +4,7 @@ import {
   EMPLOYEE_BUILTIN_QUESTION_IDS,
   FIELD_TYPES,
   MANAGER_BUILTIN_QUESTION_IDS,
+  RETIRED_BUILTIN_QUESTION_IDS,
   CURRENT_ANKETA_FORM_VERSION,
   getQuestionsForSide,
   displayText,
@@ -398,7 +399,15 @@ describe('questionsFromDefinition', () => {
         formVersion <= CURRENT_ANKETA_FORM_VERSION;
         formVersion++
       ) {
-        const regular = getQuestionsForSide(side, formVersion, 'regular');
+        // The regular template itself drops its discuss blocks from form
+        // version 3 on (GitHub issue #206); a company template that lists
+        // them keeps them, the same questions as before.
+        const regular = [
+          ...getQuestionsForSide(side, formVersion, 'regular'),
+          ...getQuestionsForSide(side, 2, 'regular').filter((q) =>
+            RETIRED_BUILTIN_QUESTION_IDS.includes(q.id),
+          ),
+        ];
         const questions = questionsFromDefinition(
           definition,
           side,

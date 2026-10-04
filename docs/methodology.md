@@ -21,7 +21,7 @@ Answers stay editable for the entire period between meetings — even after publ
 
 ## Why the 1:1 stays open the whole cycle
 
-Several fields are lists you add dated entries to over time, not a single text box: what you learned or discovered (growth), things worth calling out as achievements, and topics you want to make sure get discussed. These are append-format on purpose — the idea someone learned something worth noting is far easier to capture in the moment it happens than to reconstruct from memory the night before a meeting that might be weeks away. An entry's own wording can still be corrected in place afterward (e.g. fixing a typo) without losing its original date or position in the log — only deleting and re-adding it would do that. The same applies to the manager's "achievements worth recognizing" for their report.
+Several fields are lists you add dated entries to over time, not a single text box: what you learned or discovered (growth), and things worth calling out as achievements. (Topics you want to make sure get discussed have a list of their own, shared with the other person as soon as you add one — see [user-flow.md](user-flow.md#filling-it-out).) These are append-format on purpose — the idea someone learned something worth noting is far easier to capture in the moment it happens than to reconstruct from memory the night before a meeting that might be weeks away. An entry's own wording can still be corrected in place afterward (e.g. fixing a typo) without losing its original date or position in the log — only deleting and re-adding it would do that. The same applies to the manager's "achievements worth recognizing" for their report.
 
 Other fields are deliberately the opposite — a single snapshot, not a log: mood and workload are asked as "how do you feel *right now*, and compared to last time" — a trend line across a 1:1's whole lifetime wouldn't mean much, since what matters is where things stand as the meeting approaches, not a diary of every day in between.
 
@@ -35,7 +35,6 @@ Other fields are deliberately the opposite — a single snapshot, not a log: moo
 - **Growth. What did you learn, discover, take away?** — an ongoing log of things learned, not a single reflection written under deadline. Growth is usually made of small moments that are easy to forget happened at all by the time a performance review rolls around — this is where they get kept.
 - **What's harder in my work than it should be** — friction: the things that are quietly costing time or energy. Naming this explicitly, as its own question rather than hoping it surfaces in conversation, is what turns a vague sense that something's off into something a manager can actually act on.
 - **Achievements** — a running list, not a last-minute reconstruction. Doubles as direct input to the [period report](user-flow.md#reports) when performance-review time comes, so recognition doesn't depend on anyone's memory being good months later.
-- **What else to discuss** — an open slot for anything the fixed questions above didn't anticipate. The structure above is deliberately not assumed to cover everything worth talking about.
 
 ### Manager side
 
@@ -43,7 +42,10 @@ Other fields are deliberately the opposite — a single snapshot, not a log: moo
 - **Feedback: what's going well, what could improve** — direct, two-sided feedback, not saved up for a formal review months away. Regular small feedback is what actually changes behavior; feedback that only shows up once or twice a year rarely does.
 - **How can I help / what gets in the way** — turns the manager's role in the conversation from "evaluate" to "unblock." Asked as its own explicit question so it doesn't get skipped in favor of the more evaluative ones above it.
 - **Achievements worth recognizing** — the manager's own log of things the employee did well, kept independently of the employee's own achievements list. The same thing can be worth noting from either side, and recognition means more when it wasn't prompted by the employee mentioning it first.
-- **What else to discuss** — the manager's version of the employee's open slot above, for the same reason.
+
+### Shared by both sides
+
+- **Topics to discuss** — an open list for anything the fixed questions didn't anticipate; the structure above is deliberately not assumed to cover everything worth talking about. Unlike the answers, it has no private draft: a topic is visible to the other person as soon as it's added, so nobody arrives at the meeting not knowing what the other wants to raise. It replaced a "What else to discuss" question each side used to have, which stayed hidden until that side published (1:1s created before the change still show it).
 
 ## Outcomes vs. goals — tactical vs. strategic
 
