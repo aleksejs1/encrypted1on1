@@ -8,6 +8,7 @@
   import AnketaHeader from '../anketa/AnketaHeader.svelte';
   import { goToArchiveSection } from '../anketa/archiveHeading';
   import { clearFollowUpHash, FOLLOW_UP_HASH } from '../anketa/followUpLinks';
+  import { isOpenPastPeriod, nextCadenceDate } from '../anketa/longOpen';
   import {
     clearJustCreated,
     isJustCreated,
@@ -475,8 +476,18 @@
       if (periodicityDays !== null) {
         // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local scratch value, mutated once and read once, never stored in reactive state
         const defaultNext = new Date();
-        defaultNext.setDate(defaultNext.getDate() + periodicityDays);
-        nextMeetingDate = defaultNext.toISOString().slice(0, 10);
+        if (isOpenPastPeriod(anketa, defaultNext)) {
+          // Left open for longer than its period (GitHub issue #204): back on
+          // the pair's cadence, not a full period from whenever it's closed.
+          nextMeetingDate = nextCadenceDate(
+            anketa.meetingDate,
+            periodicityDays,
+            defaultNext,
+          );
+        } else {
+          defaultNext.setDate(defaultNext.getDate() + periodicityDays);
+          nextMeetingDate = defaultNext.toISOString().slice(0, 10);
+        }
       }
       nextTemplateDefault = defaultNextChoice(anketa);
       nextTemplateChoice = nextTemplateDefault;

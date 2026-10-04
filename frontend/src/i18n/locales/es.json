@@ -193,6 +193,7 @@
     "badgeArchived": "archivada",
     "badgeMissed": "no realizada",
     "badgeNotClosed": "sin cerrar",
+    "longOpenText": "{name}: la reunión 1:1 del {date} aún no está cerrada.",
     "badgePublishedByMe": "publicado por mí",
     "badgePublishedByCounterpart": "publicado por el interlocutor",
     "errorLoad": "No se pudieron cargar las reuniones 1:1.",
