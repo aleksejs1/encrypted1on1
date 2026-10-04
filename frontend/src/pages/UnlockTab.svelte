@@ -5,7 +5,8 @@
   import type { MeResponse } from '../api/types';
   import { deriveArgon2idSalt } from '../crypto/salt';
   import { deriveKeysFromPassword } from '../crypto/password';
-  import { storeMasterKey } from '../crypto/session';
+  import { loadMasterKey, storeMasterKey } from '../crypto/session';
+  import { replaceRememberedMasterKey } from '../crypto/rememberedKey';
   import {
     checkUnlocked,
     isSessionExpiredError,
@@ -81,11 +82,20 @@
       // tells a genuinely wrong password apart from a network/server
       // failure, and a session that died in the meantime is handled the
       // same way it is everywhere else (App.svelte routes to Login rather
-      // than this page claiming a wrong password). checkUnlocked() itself
+      // than this page claiming a wrong password). ensureUnlocked() itself
       // clears the master key it just proved wrong — nothing left to do
       // here beyond showing the message.
       const outcome = await checkUnlocked();
-      if (outcome === 'wrong-password' || outcome === 'error') {
+      if (outcome === 'unlocked') {
+        // In a browser that remembers a key, this page only shows when that
+        // key no longer unwraps anything. The key now in the tab does, so it
+        // takes the remembered one's place and the next new tab opens
+        // without a password again. Nothing is written in a browser that
+        // remembers none, or another user's (`me` is from this page's load;
+        // if the account has changed since, the owners don't match).
+        const tabKey = await loadMasterKey();
+        if (tabKey) void replaceRememberedMasterKey(tabKey, me.publicKey);
+      } else if (outcome === 'wrong-password' || outcome === 'error') {
         error = $_(
           outcome === 'wrong-password'
             ? 'unlockTab.wrongPassword'

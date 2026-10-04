@@ -10,7 +10,7 @@
     wrapPrivateKey,
   } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
-  import { storeMasterKey } from '../crypto/session';
+  import { storeLoginMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { navigate } from '../router.svelte';
   import {
@@ -89,7 +89,9 @@
         encryptedPrivateKey: await packWrappedPrivateKey(wrapped),
       });
 
-      await storeMasterKey(masterKey);
+      // This login isn't a remembered one, and a key remembered in this
+      // browser is for the keypair just replaced.
+      await storeLoginMasterKey(masterKey, null);
       markAuthenticated();
       navigate('/');
     } catch (error) {

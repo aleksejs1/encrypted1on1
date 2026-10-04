@@ -29,6 +29,7 @@
   import { authState, checkAuth } from './auth.svelte';
   import { ensureUnlocked, loggedInUserId } from './crypto/identity.svelte';
   import { deriveNotesBackupKey } from './crypto/privateNotes';
+  import { discardExpiredRememberedKey } from './crypto/rememberedKey';
   import { discardUnopenableNotesBackups } from './anketa/notesBackup';
   import { refreshNotesUnloadWarning } from './anketa/notesUnloadWarning';
   import {
@@ -56,9 +57,14 @@
     // already setting authState.checked, so this tab still renders correctly
     // either way — but nothing else here awaits/catches it, so the rejection
     // itself needs handling to avoid a silent unhandled promise rejection.
-    checkAuth().catch((error: unknown) => {
-      console.error(error);
-    });
+    checkAuth()
+      .catch((error: unknown) => {
+        console.error(error);
+      })
+      // Whatever checkAuth() found: a "Remember this browser" key past its
+      // end date leaves the disk even if nobody logs in here again. After
+      // it, so unlocking this tab doesn't wait behind it.
+      .finally(() => void discardExpiredRememberedKey());
   });
 
   // Private notes left unsaved in this tab's backup warn on closing it, on

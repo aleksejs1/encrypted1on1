@@ -11,7 +11,7 @@
     wrapPrivateKey,
   } from '../crypto/keypair';
   import { toBase64 } from '../crypto/encoding';
-  import { storeMasterKey } from '../crypto/session';
+  import { storeLoginMasterKey } from '../crypto/session';
   import { markAuthenticated } from '../auth.svelte';
   import { navigate } from '../router.svelte';
   import { linkStateFromError, type LinkState } from '../activationLink';
@@ -130,7 +130,9 @@
         displayName: name.trim(),
       });
 
-      await storeMasterKey(masterKey);
+      // This login isn't a remembered one; a key an earlier account left in
+      // this browser goes.
+      await storeLoginMasterKey(masterKey, null);
       done = true;
       markAuthenticated();
       navigate('/');

@@ -13,6 +13,9 @@ readonly class LoginRequest
 
         #[Assert\NotBlank]
         public string $authKey = '',
+
+        /** "Remember this browser" (GitHub issue #205) — see AuthSession::logIn(). */
+        public bool $rememberMe = false,
     ) {
     }
 }
