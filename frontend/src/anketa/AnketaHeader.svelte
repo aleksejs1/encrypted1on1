@@ -8,6 +8,8 @@
   import { copyToClipboard } from '../admin/templatePortability';
   import { loggedInUserId } from '../crypto/identity.svelte';
   import { pairPath } from '../routes';
+  import ArchiveConfirm from './ArchiveConfirm.svelte';
+  import type { ArchiveConfirmation } from './archiveConfirmation';
   import { goToArchiveSection } from './archiveHeading';
   import { RESCHEDULE_DATE_ID } from './followUpLinks';
   import { isOverdue as computeIsOverdue } from './isOverdue';
@@ -25,7 +27,9 @@
     missed,
     oneOff,
     archiving,
+    publishing,
     answersEditOpen,
+    confirmation,
     actionError = $bindable<string | null>(),
     onArchive,
     onRescheduled,
@@ -43,13 +47,17 @@
     missed: boolean;
     /** A one-off has no next meeting to schedule, so the "close" action says only that. */
     oneOff: boolean;
+    /** Closing the meeting is in flight: the archive, or the publish before it. */
     archiving: boolean;
+    /** Any publish of my side is in flight; closing waits for it, since it may publish too. */
+    publishing: boolean;
     /**
      * See AnketaArchiveSection's prop of the same name. The same hint is
      * shown next to this button as next to that one: a page can show both,
      * but each explains the disabled button beside it.
      */
     answersEditOpen: boolean;
+    confirmation: ArchiveConfirmation;
     actionError: string | null;
     onArchive: (missed: boolean) => Promise<void>;
     onRescheduled: (meetingDate: string) => void;
@@ -260,17 +268,22 @@
         {rescheduling ? $_('anketa.rescheduling') : $_('anketa.reschedule')}
       </button>
     </div>
-    <button
-      type="button"
-      class="btn btn-ghost cancel-missed-btn"
-      onclick={() => onArchive(true)}
-      disabled={archiving || answersEditOpen}
-      aria-describedby={answersEditOpen
-        ? 'cancel-missed-after-edit-hint'
-        : undefined}
-    >
-      {archiving ? $_('anketa.cancelling') : $_('anketa.didNotHappen')}
-    </button>
+    <ArchiveConfirm
+      anketaId={id}
+      textId="cancel-missed-confirm-text"
+      {confirmation}
+      counterpartName={shortDisplayName(counterpartName, counterpartEmail)}
+      triggerClass="btn btn-ghost cancel-missed-btn"
+      triggerLabel={$_('anketa.didNotHappen')}
+      closing={archiving}
+      busy={archiving || publishing}
+      confirmLabel={$_('anketa.closeAsMissed')}
+      note={$_('anketa.closeConfirmMissed')}
+      busyLabel={$_('anketa.cancelling')}
+      blocked={answersEditOpen}
+      describedBy="cancel-missed-after-edit-hint"
+      onConfirm={() => onArchive(true)}
+    />
     {#if answersEditOpen}
       <p id="cancel-missed-after-edit-hint" class="text-muted overdue-note">
         {$_('anketa.archiveAfterAnswersEdit')}
@@ -340,8 +353,7 @@
     margin: 0;
   }
 
-  .cancel-missed-btn {
-    align-self: flex-start;
+  .overdue-card :global(.cancel-missed-btn) {
     padding: 4px 0;
   }
 </style>

@@ -18,6 +18,7 @@
   import AnketaTopics from '../anketa/AnketaTopics.svelte';
   import AnketaGoals from '../anketa/AnketaGoals.svelte';
   import AnketaArchiveSection from '../anketa/AnketaArchiveSection.svelte';
+  import { archiveConfirmation } from '../anketa/archiveConfirmation';
   import PrivateNotes, {
     readNotesPanelHidden,
   } from '../anketa/PrivateNotes.svelte';
@@ -32,6 +33,7 @@
     loadDraftBackup,
     saveDraftBackup,
   } from '../anketa/draftBackup';
+  import { hasAnswer } from '../anketa/answerDisplay';
   import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
   import {
     carryForwardOutcomeItems,
@@ -237,6 +239,31 @@
   let saveState = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let publishing = $state(false);
   let archiving = $state(false);
+  /** closeMeeting() is running: the publish before the archive, then the archive. */
+  let closingMeeting = $state(false);
+  // What closing the meeting asks to confirm first (GitHub issue #229): it
+  // never goes ahead over my own unpublished answers, see closeMeeting().
+  const myDraftHasAnswers = $derived.by(() => {
+    if (!detail || myPublished) return false;
+    // A company template whose questions couldn't be loaded: there are no
+    // fields to check the draft against, so any content in it counts.
+    if (detail.templateKey === 'custom' && customQuestions.status !== 'ready') {
+      return hasAnyAnswer(myAnswers);
+    }
+    return hasAnswer(questionsFor(detail.myRole), myAnswers);
+  });
+  const closeConfirmation = $derived(
+    archiveConfirmation({
+      myPublished,
+      counterpartPublished,
+      myDraftHasAnswers,
+    }),
+  );
+  // Closing waits for an open edit of my published answers, and, when it
+  // would publish my draft, for an open list-entry edit, like Publish does.
+  const closeBlockedByEdit = $derived(
+    editingMyAnswers || (closeConfirmation.publishFirst && anyEntryEditOpen),
+  );
   let actionError = $state<string | null>(null);
 
   let periodicityDays = $state<number | null>(null);
@@ -1262,8 +1289,37 @@
     }
   }
 
-  async function handlePublish() {
-    if (!anketaKey) return;
+  /**
+   * What both confirmations of closing the meeting call (GitHub issue #229):
+   * my unpublished answers are published first, and the meeting stays open
+   * if that fails, so closing never strands them in a draft.
+   */
+  async function closeMeeting(missedFlag: boolean): Promise<void> {
+    if (!detail) return;
+    // Checked before anything is published: a cleared or mistyped date is
+    // no reason to publish and then fail to close.
+    if (!skipNextMeeting && !detail.oneOff && !nextMeetingDate) {
+      actionError = $_('anketa.errorNextMeetingDate');
+      return;
+    }
+    closingMeeting = true;
+    try {
+      if (closeConfirmation.publishFirst) {
+        const closingId = id;
+        const published = await handlePublish();
+        // Not published (its error is shown), or the page has opened
+        // another anketa meanwhile.
+        if (id !== closingId || !published) return;
+      }
+      await handleArchive(missedFlag);
+    } finally {
+      closingMeeting = false;
+    }
+  }
+
+  /** Whether this call published my side. */
+  async function handlePublish(): Promise<boolean> {
+    if (!anketaKey) return false;
     publishing = true;
     actionError = null;
     try {
@@ -1272,9 +1328,21 @@
       await apiPost(`/api/anketas/${id}/publish`, { blob });
       myPublished = true;
       clearDraftBackup(id);
+      return true;
     } catch (error) {
-      actionError =
-        error instanceof ApiError ? error.message : $_('anketa.errorPublish');
+      if (error instanceof ApiError && error.status === 409) {
+        // My side is already published (in another tab, or by a request
+        // whose response was lost), or the meeting is archived. Nothing
+        // here learns the former by itself (the live-state poll leaves my
+        // own side alone), so every retry would be refused the same way:
+        // say what to do. Not reloaded for them: that would drop what is
+        // typed here and the archive form's choices.
+        actionError = $_('anketa.publishConflict');
+      } else {
+        actionError =
+          error instanceof ApiError ? error.message : $_('anketa.errorPublish');
+      }
+      return false;
     } finally {
       publishing = false;
     }
@@ -1566,9 +1634,10 @@
    * CreateAnketa.svelte) and sends the sealed keys along with the archive request.
    * The server never generates or even transiently holds an anketa key.
    *
-   * Called from both AnketaHeader (the "not closed" card's "Didn't happen" button,
-   * always with `missedFlag: true`) and AnketaArchiveSection (the regular archive
-   * button, always with `missedFlag: false`) via the same `onArchive` callback prop —
+   * Called through closeMeeting() from both AnketaHeader (the "not closed" card's
+   * "Didn't happen" button, always with `missedFlag: true`) and AnketaArchiveSection
+   * (the regular archive button, always with `missedFlag: false`), each after its
+   * own confirmation, via the same `onArchive` callback prop —
    * `skipNextMeeting`/`nextMeetingDate` stay page-level state (bound down into
    * AnketaArchiveSection for editing) precisely so this function keeps reading
    * whatever's currently set in that form regardless of which button triggered it,
@@ -1959,10 +2028,12 @@
         {archived}
         {missed}
         oneOff={detail.oneOff}
-        {archiving}
-        answersEditOpen={editingMyAnswers}
+        archiving={closingMeeting}
+        {publishing}
+        answersEditOpen={closeBlockedByEdit}
+        confirmation={closeConfirmation}
         bind:actionError
-        onArchive={handleArchive}
+        onArchive={closeMeeting}
         onRescheduled={(meetingDate) => {
           if (detail) detail = { ...detail, meetingDate };
         }}
@@ -2150,7 +2221,7 @@
             <button
               type="button"
               class="btn btn-primary side-publish-btn"
-              onclick={handlePublish}
+              onclick={() => void handlePublish()}
               disabled={publishing || anyEntryEditOpen}
             >
               {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
@@ -2281,8 +2352,15 @@
 
       {#if !archived}
         <AnketaArchiveSection
-          {archiving}
-          answersEditOpen={editingMyAnswers}
+          anketaId={id}
+          archiving={closingMeeting}
+          {publishing}
+          answersEditOpen={closeBlockedByEdit}
+          confirmation={closeConfirmation}
+          counterpartName={shortDisplayName(
+            detail.counterpartName,
+            detail.counterpartEmail,
+          )}
           oneOff={detail.oneOff}
           bind:skipNextMeeting
           bind:nextMeetingDate
@@ -2291,7 +2369,7 @@
           {companyTemplates}
           templateRetired={detail.templateKey === 'custom' &&
             detail.nextCycleTemplateKey !== 'custom'}
-          onArchive={handleArchive}
+          onArchive={closeMeeting}
         />
       {/if}
     </div>
