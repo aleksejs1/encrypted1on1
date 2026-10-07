@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   GENERIC_LABEL_KEYS,
+  hasAnswer,
   isAnswerEmpty,
   readonlyVisibleFields,
   selectedOptions,
@@ -124,6 +125,35 @@ describe('readonlyVisibleFields', () => {
       (fieldId) => fieldId === 't',
     );
     expect(visible.map((f) => f.id)).toEqual(['t', 'l']);
+  });
+});
+
+describe('hasAnswer', () => {
+  const questions: Question[] = [
+    { id: 'q1', titleKey: 'x.q1', fields: [radioField, textField] },
+    { id: 'q2', titleKey: 'x.q2', fields: [listField] },
+  ];
+
+  it('is false for no answers at all', () => {
+    expect(hasAnswer(questions, {})).toBe(false);
+    expect(hasAnswer([], { t: 'text' })).toBe(false);
+  });
+
+  it('is false for answers that would show nothing', () => {
+    expect(hasAnswer(questions, { t: '  \n', l: [], r: 'gone' })).toBe(false);
+  });
+
+  it('is true for one answered field in any question', () => {
+    expect(hasAnswer(questions, { t: 'text' })).toBe(true);
+    expect(
+      hasAnswer(questions, {
+        l: [{ id: '1', date: '2026-01-01', text: 'entry' }],
+      }),
+    ).toBe(true);
+  });
+
+  it('ignores answers to fields the questions do not have', () => {
+    expect(hasAnswer(questions, { other: 'text' })).toBe(false);
   });
 });
 

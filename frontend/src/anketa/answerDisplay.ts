@@ -50,6 +50,16 @@ export function isAnswerEmpty(
 }
 
 /**
+ * Whether any field of `questions` is answered: what publishing these
+ * `answers` would show the counterpart.
+ */
+export function hasAnswer(questions: Question[], answers: Answers): boolean {
+  return questions.some((question) =>
+    question.fields.some((field) => !isAnswerEmpty(field, answers[field.id])),
+  );
+}
+
+/**
  * The fields of `question` the collapsed view renders, in definition order:
  * every answered field, plus any unanswered one that already has comments
  * (so a comment on an answer that was later cleared stays reachable).

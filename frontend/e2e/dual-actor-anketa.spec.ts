@@ -7,6 +7,11 @@ import {
   type Route,
 } from '@playwright/test';
 import {
+  archive,
+  archiveButton,
+  confirmArchiveButton,
+} from './helpers/archive.js';
+import {
   createActivationLink,
   setFormVersion,
   uniqueEmail,
@@ -833,9 +838,7 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
   await expect(answersEditButton(employeeMySide, 'save')).toBeVisible();
   // Archiving from this tab waits for the edit to be saved or cancelled —
   // otherwise the edit would become unsaveable (GitHub issue #130 review).
-  await expect(
-    employee.getByRole('button', { name: 'Archive' }),
-  ).toBeDisabled();
+  await expect(archiveButton(employee)).toBeDisabled();
 
   // Manager — a separate session — archives the anketa (skipping next-cycle
   // creation, which needs no client-side key generation and keeps this test
@@ -847,8 +850,8 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
   await manager
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await manager.getByRole('button', { name: 'Archive' }).click();
-  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await archive(manager);
+  await expect(archiveButton(manager)).toHaveCount(0);
 
   // No employee.reload() — this has to arrive via the live-state poll. Once
   // it does, editingMyAnswers must have been reset: no Save/Cancel/Edit
@@ -934,11 +937,10 @@ test('archiving an anketa the counterpart already archived shows it as archived,
       response.url().endsWith('/archive') &&
       response.request().method() === 'POST',
   );
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   expect((await archiveResponse).status()).toBe(409);
 
-  const archiveButton = employee.getByRole('button', { name: 'Archive' });
-  await expect(archiveButton).toHaveCount(0);
+  await expect(archiveButton(employee)).toHaveCount(0);
   // Not the generic "Could not archive." — a notice that this click's own
   // choices may not be what got applied.
   await expect(
@@ -966,7 +968,7 @@ test('archiving an anketa the counterpart already archived shows it as archived,
   await expect
     .poll(() => heldPolls.length, { timeout: 8000 })
     .toBeGreaterThan(1);
-  await expect(archiveButton).toHaveCount(0);
+  await expect(archiveButton(employee)).toHaveCount(0);
   await expect(employee.getByText('missed', { exact: true })).toBeVisible();
   await Promise.all(heldPolls.slice(1).map((route) => route.continue()));
   await employee.unroute('**/live-state');
@@ -1046,8 +1048,8 @@ test('counterpart archiving an anketa the other side never published on disables
   await manager
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await manager.getByRole('button', { name: 'Archive' }).click();
-  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await archive(manager);
+  await expect(archiveButton(manager)).toHaveCount(0);
 
   // No employee.reload() — this has to arrive via the live-state poll. The
   // draft textarea and Publish button must both disappear, replaced by the
@@ -1062,6 +1064,168 @@ test('counterpart archiving an anketa the other side never published on disables
   ).toBeVisible();
   // Read-only now, so nothing is left to call optional.
   await expect(optionalHint).toHaveCount(0);
+});
+
+/**
+ * GitHub issue #229: closing a meeting is never one click, and never goes
+ * ahead over my own unpublished answers. The incident behind it: an employee
+ * with a filled-in draft scrolled to the bottom of the page for Publish and
+ * pressed Archive instead, which closed the meeting for both and left the
+ * draft unpublishable.
+ */
+test('closing a meeting asks first, and publishes my unpublished answers before closing', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-confirm-close');
+  const managerEmail = uniqueEmail('manager-confirm-close');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+  const employeeMySide = employee.locator('.side-card').first();
+
+  let archiveRequests = 0;
+  employee.on('request', (request) => {
+    if (request.url().endsWith('/archive')) archiveRequests++;
+  });
+
+  // Nothing typed or published by anyone: closing is allowed, and says so.
+  await employee
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await archiveButton(employee).click();
+  const cancel = employee.getByRole('button', { name: 'Cancel' });
+  await expect(cancel).toBeFocused();
+  await expect(
+    employee.getByText('Neither of you has published any answers.'),
+  ).toBeVisible();
+  await expect(confirmArchiveButton(employee)).toHaveText('Close this 1:1');
+  // A cleared next-meeting date stops the close before anything is sent.
+  await employee
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .uncheck({ force: true });
+  await employee.locator('#next-meeting-date').fill('');
+  await employee.locator('#next-meeting-date').blur();
+  await confirmArchiveButton(employee).click();
+  await expect(
+    employee
+      .getByRole('alert')
+      .filter({ hasText: 'Enter the next meeting date first.' }),
+  ).toBeVisible();
+  await employee
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await archiveButton(employee).click();
+  // Enter on the focused Cancel backs out, with focus on the button again.
+  await employee.keyboard.press('Enter');
+  await expect(archiveButton(employee)).toBeFocused();
+  await expect(confirmArchiveButton(employee)).toHaveCount(0);
+
+  // With a draft, the only way to close is to publish it first.
+  const answer = 'an answer nearly lost to the wrong button';
+  await employeeMySide.locator('textarea').first().fill(answer);
+  // A double click on the button only opens the confirmation: its second
+  // click neither confirms nor cancels.
+  await archiveButton(employee).dblclick();
+  await expect(
+    employee.getByText(/Your answers aren't published yet/),
+  ).toBeVisible();
+  await expect(confirmArchiveButton(employee)).toHaveText('Publish and close');
+  expect(archiveRequests).toBe(0);
+
+  const published = employee.waitForResponse((response) =>
+    response.url().endsWith('/publish'),
+  );
+  await confirmArchiveButton(employee).click();
+  expect((await published).status()).toBe(200);
+  await expectArchived(employee);
+  expect(archiveRequests).toBe(1);
+
+  // The manager sees the answer the draft would otherwise have kept.
+  await manager.goto(anketaUrl);
+  await expect(manager.getByText(answer)).toBeVisible();
+});
+
+/**
+ * A tab that doesn't know its side is already published (here, a publish
+ * whose response was lost; the live-state poll never updates my own side)
+ * gets "Publish and close" refused with 409 on every attempt. It must say
+ * what to do, keep what was typed and chosen, and work after a reload.
+ */
+test('closing from a tab that missed its own publish says to reload, and closes after it', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-close-stale');
+  const managerEmail = uniqueEmail('manager-close-stale');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  await activate(browser, createActivationLink(managerEmail));
+  await createAnketa(employee, managerEmail, 3);
+  const employeeMySide = employee.locator('.side-card').first();
+  const firstAnswer = employeeMySide.locator('textarea').first();
+  await firstAnswer.fill('published unseen');
+  const skipNext = employee.getByRole('checkbox', {
+    name: "Don't create the next meeting",
+  });
+  await skipNext.check({ force: true });
+
+  // The server publishes, but this tab never hears back.
+  await employee.route(
+    '**/publish',
+    async (route) => {
+      await route.fetch();
+      await route.abort();
+    },
+    { times: 1 },
+  );
+  await archive(employee);
+  await expect(employee.getByRole('alert')).toBeVisible();
+  await firstAnswer.fill('typed after the lost publish');
+
+  // The next attempt is refused as already published. The meeting stays
+  // open, with the text and the form's choice as they were.
+  await archive(employee);
+  await expect(
+    employee.getByRole('alert').filter({ hasText: /reload the page/ }),
+  ).toBeVisible();
+  await expect(firstAnswer).toHaveValue('typed after the lost publish');
+  await expect(skipNext).toBeChecked();
+
+  // Reloaded, the side is published and closing is a plain confirmation.
+  await employee.reload();
+  await expect(employeeMySide.getByText('published unseen')).toBeVisible();
+  await skipNext.check({ force: true });
+  await archiveButton(employee).click();
+  await expect(confirmArchiveButton(employee)).toHaveText('Close this 1:1');
+  await confirmArchiveButton(employee).click();
+  await expectArchived(employee);
+});
+
+test('the published side can close a meeting the counterpart never published on, after a warning', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-close-unpublished');
+  const managerEmail = uniqueEmail('manager-close-unpublished');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+
+  await manager.goto(anketaUrl);
+  const managerMySide = manager.locator('.side-card').first();
+  await managerMySide.locator('textarea').first().fill('the manager side');
+  await managerMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(
+    managerMySide.getByRole('button', { name: 'Publish' }),
+  ).toHaveCount(0);
+
+  await manager
+    .getByRole('checkbox', { name: "Don't create the next meeting" })
+    .check({ force: true });
+  await archiveButton(manager).click();
+  await expect(
+    manager.getByText(/hasn't published their answers yet/),
+  ).toBeVisible();
+  await expect(confirmArchiveButton(manager)).toHaveText('Close this 1:1');
+  await confirmArchiveButton(manager).click();
+  await expectArchived(manager);
 });
 
 /**
@@ -1210,11 +1374,11 @@ test('a non-default meeting template reaches both sides, and its successor falls
   const archiveRequest = manager.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
-  await manager.getByRole('button', { name: 'Archive' }).click();
+  await archive(manager);
   expect((await archiveRequest).postDataJSON()).not.toHaveProperty(
     'nextTemplateKey',
   );
-  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await expect(archiveButton(manager)).toHaveCount(0);
 
   // The employee's list now has the archived anketa plus its auto-created
   // successor. Only a still-open anketa carries a meeting-type label, and the
@@ -1293,10 +1457,8 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
   await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
     goalTitle,
   );
-  await employee.getByRole('button', { name: 'Archive' }).click();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
-    0,
-  );
+  await archive(employee);
+  await expect(archiveButton(employee)).toHaveCount(0);
 
   await employee.goto('/');
   await expect(employee.locator('.anketa-row')).toHaveCount(2);
@@ -1346,10 +1508,8 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
   await expect(employee.locator('#next-meeting-date')).toHaveCount(0);
   await expect(employee.locator('#next-meeting-type')).toHaveCount(0);
 
-  await employee.getByRole('button', { name: 'Archive' }).click();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
-    0,
-  );
+  await archive(employee);
+  await expect(archiveButton(employee)).toHaveCount(0);
 
   // Archiving the one-off created nothing: still just the three anketas, and
   // the chain's own anketa is the pair's only open one, goal intact.
@@ -1440,11 +1600,11 @@ test('archiving with a chosen next meeting type creates the successor with that 
   const archiveRequest = manager.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
-  await manager.getByRole('button', { name: 'Archive' }).click();
+  await archive(manager);
   expect((await archiveRequest).postDataJSON()).toMatchObject({
     nextTemplateKey: 'career_growth',
   });
-  await expect(manager.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+  await expect(archiveButton(manager)).toHaveCount(0);
 
   const successorUrl = await openSuccessor(manager, anketaUrl);
   await expectCareerGrowthOnMySide(manager, 'manager');
@@ -1499,7 +1659,12 @@ test('cancel as missed creates the successor with the chosen next meeting type',
   const archiveRequest = employee.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
+  // Asks for confirmation first, like the archive form's button (#229).
   await employee.getByRole('button', { name: "Didn't happen" }).click();
+  await employee
+    .locator('.overdue-card')
+    .getByRole('button', { name: 'Close as missed' })
+    .click();
   expect((await archiveRequest).postDataJSON()).toMatchObject({
     missed: true,
     nextTemplateKey: 'career_growth',
@@ -1689,7 +1854,7 @@ test('the read-only view hides unanswered fields and generic labels', async ({
   await manager
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await manager.getByRole('button', { name: 'Archive' }).click();
+  await archive(manager);
   await expectArchived(manager);
   await expect(
     questionBlock(managerCounterpartSide, 'Feelings').locator('.block-empty'),
@@ -1775,7 +1940,7 @@ test('the read-only view keeps real sub-prompt labels above an answer', async ({
   await manager
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await manager.getByRole('button', { name: 'Archive' }).click();
+  await archive(manager);
   await expectArchived(manager);
   await employee.reload();
   await expectArchived(employee);
@@ -1884,7 +2049,7 @@ test('the read-only view shows only the chosen radio and checkbox options', asyn
   await manager
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await manager.getByRole('button', { name: 'Archive' }).click();
+  await archive(manager);
   await expectArchived(manager);
   await employee.reload();
   await expectArchived(employee);
@@ -2426,7 +2591,7 @@ async function archiveChoosing(
   const archiveRequest = page.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
-  await page.getByRole('button', { name: 'Archive' }).click();
+  await archive(page);
   expect((await archiveRequest).postDataJSON()).toMatchObject({
     nextTemplateKey: 'custom',
   });
@@ -2524,7 +2689,7 @@ test('editing a company template leaves an open anketa as it is, and its success
   ).toHaveCount(0);
 
   // Archived with the untouched default, the successor is on the new version.
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   await expectArchived(employee);
   await openSuccessor(employee, anketaUrl);
   await expect(
@@ -2566,7 +2731,7 @@ test('once a company template is archived, its anketa defaults back to Regular',
     employee.getByText('Your admin retired this template'),
   ).toBeVisible();
 
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   await expectArchived(employee);
   await openSuccessor(employee, anketaUrl);
   await expect(
@@ -2607,19 +2772,19 @@ test('a chosen template archived while the archive form is open: the error, a re
     },
   );
 
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   await expect(
     employee.getByText('This template is no longer available.'),
   ).toBeVisible();
   // Still open, back on the default, with the chosen date kept.
-  await expect(employee.getByRole('button', { name: 'Archive' })).toBeEnabled();
+  await expect(archiveButton(employee)).toBeEnabled();
   await expect(employee.getByLabel('Next meeting type')).toHaveValue('regular');
   await expect(nextDate).toHaveValue(chosenText);
 
   const archiveRequest = employee.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   expect((await archiveRequest).postDataJSON()).not.toHaveProperty(
     'nextTemplateKey',
   );
@@ -2677,7 +2842,7 @@ test("an anketa whose questions can't be loaded still archives", async ({
   await expect(
     employee.getByText("This 1:1's questions couldn't be loaded."),
   ).toBeVisible();
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   await expectArchived(employee);
   failVersions = false;
   await openSuccessor(employee, anketaUrl);
@@ -2755,7 +2920,7 @@ test('discussed question checkboxes live-sync across sessions and freeze on arch
   await expect(managerWorkloadToggle).toBeChecked({ timeout: 8000 });
 
   // Uncompleted items do not block archiving; archiving succeeds
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   await expectArchived(employee);
 
   // Archived state renders checkboxes as disabled (read-only) while preserving state
@@ -2944,7 +3109,7 @@ test('topics to discuss are shared before publishing, live-sync, and carry forwa
     (response) =>
       response.url().endsWith('/archive') && response.status() === 409,
   );
-  await employee.getByRole('button', { name: 'Archive' }).click();
+  await archive(employee);
   await refusedArchive;
   await expectArchived(employee);
   await employee.unroute('**/live-state');
@@ -3067,26 +3232,22 @@ test("a pair's calendar link follows the chain across cycles", async ({
   await manager.waitForURL(firstUrl);
 
   // Archived with a next meeting: the same link now opens the successor.
-  await employee.getByRole('button', { name: 'Archive' }).click();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
-    0,
-  );
+  await archive(employee);
+  await expect(archiveButton(employee)).toHaveCount(0);
   await employee.goto(link);
   await employee.waitForURL(
     (url) =>
       /\/anketas\/[0-9a-f-]+$/.test(url.pathname) && url.href !== firstUrl,
   );
   const secondUrl = employee.url();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toBeVisible();
+  await expect(archiveButton(employee)).toBeVisible();
 
   // The chain ends: the link shows the last meeting and offers the next one.
   await employee
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await employee.getByRole('button', { name: 'Archive' }).click();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
-    0,
-  );
+  await archive(employee);
+  await expect(archiveButton(employee)).toHaveCount(0);
   await employee.goto(link);
   await expect(
     employee.getByRole('heading', { name: /^No open 1:1 with / }),

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { archive, archiveButton } from './helpers/archive.js';
 import {
   test,
   expect,
@@ -160,10 +161,8 @@ test('notes stay editable after the anketa is archived', async ({
   await employee
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await employee.getByRole('button', { name: 'Archive' }).click();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
-    0,
-  );
+  await archive(employee);
+  await expect(archiveButton(employee)).toHaveCount(0);
 
   await typeAndSave(employee, 'written up after the meeting');
   await employee.reload();

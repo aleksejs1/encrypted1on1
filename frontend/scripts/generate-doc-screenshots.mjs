@@ -528,13 +528,19 @@ backdateMeetingDate(anketaId, 5);
 // --- Archive (auto-creates the next, current anketa) ---
 await employee.reload();
 await employee.waitForLoadState('networkidle');
+// The first press only opens the confirmation (GitHub issue #229).
+await employee
+  .locator('section:has(#archive-heading) [data-action="close"]')
+  .click();
 await Promise.all([
   employee.waitForResponse(
     (res) =>
       res.request().method() === 'POST' &&
       res.url().endsWith(`/api/anketas/${anketaId}/archive`),
   ),
-  employee.getByRole('button', { name: 'Archive', exact: true }).click(),
+  employee
+    .locator('section:has(#archive-heading) [data-action="confirm-close"]')
+    .click(),
 ]);
 console.log('Archived.');
 

@@ -276,13 +276,19 @@ async function addCheckpoint(page, anketaId, checkpoint) {
 }
 
 async function archive(page, anketaId) {
+  // The first press only opens the confirmation (GitHub issue #229).
+  await page
+    .locator('section:has(#archive-heading) [data-action="close"]')
+    .click();
   await Promise.all([
     page.waitForResponse(
       (res) =>
         res.request().method() === 'POST' &&
         res.url().endsWith(`/api/anketas/${anketaId}/archive`),
     ),
-    page.getByRole('button', { name: 'Archive', exact: true }).click(),
+    page
+      .locator('section:has(#archive-heading) [data-action="confirm-close"]')
+      .click(),
   ]);
 }
 
