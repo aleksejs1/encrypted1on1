@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
+import { EMOJI_SHORTCODES } from './emojiShortcodes';
 import {
+  EMOJI_SHORTCODE_NAME,
   inlineMarkdownToPlainText,
   renderAnswerMarkdown,
   renderInlineMarkdown,
@@ -576,5 +578,313 @@ describe('inlineMarkdownToPlainText', () => {
         container.textContent,
       );
     }
+  });
+});
+
+describe('emoji shortcodes', () => {
+  /** Both renderers, which share the text renderer: the inline one adds no `<p>`. */
+  function expectBoth(source: string, html: string): void {
+    expect(renderInlineMarkdown(source), source).toBe(html);
+    expect(renderAnswerMarkdown(source), source).toBe(`<p>${html}</p>\n`);
+  }
+
+  it('shows a known shortcode as the emoji character', () => {
+    expectBoth('Great sprint :slightly_smiling_face:', 'Great sprint 🙂');
+    expectBoth(':tada:', '🎉');
+    expectBoth('a :+1: b :-1:', 'a 👍 b 👎');
+    expectBoth('(:tada:) :rocket:, :100:!', '(🎉) 🚀, 💯!');
+    // Short and word-like names render too, as on GitHub.
+    expectBoth('Option A :x: Option B', 'Option A ❌ Option B');
+    // Keycaps and flags are several code points.
+    expectBoth(':one: :de: :hash:', '1️⃣ 🇩🇪 #️⃣');
+  });
+
+  it('knows the common Slack names as well as the GitHub ones', () => {
+    expectBoth(':thinking: :thinking_face:', '🤔 🤔');
+    expectBoth(':man_shrugging: :man-shrugging:', '🤷‍♂️ 🤷‍♂️');
+    expectBoth(':star_struck: :star-struck:', '🤩 🤩');
+  });
+
+  it('can match every name in the generated table', () => {
+    const name = new RegExp(`^${EMOJI_SHORTCODE_NAME}$`);
+    for (const shortcode of EMOJI_SHORTCODES.keys()) {
+      expect(shortcode).toMatch(name);
+    }
+  });
+
+  it('renders a known shortcode after an unknown one, such as a workspace emoji', () => {
+    expectBoth(':partyparrot::tada:', ':partyparrot:🎉');
+    expectBoth(
+      'ok :one_custom::two-custom::tada::rocket:',
+      'ok :one_custom::two-custom:🎉🚀',
+    );
+    // The unknown one's own neighbours still count.
+    expectBoth('10:30::tada:', '10:30::tada:');
+    expectBoth('user:id::tada:', 'user:id::tada:');
+  });
+
+  it('finds a shortcode that opens at the closing colon of an unknown one', () => {
+    // Anywhere in the text, not only at its start.
+    expectBoth('x :a+:tada:', 'x :a+🎉');
+    expectBoth(':a+:tada:', ':a+🎉');
+    expectBoth('x :zz::tada: y', 'x :zz:🎉 y');
+  });
+
+  it('renders shortcodes that follow one another', () => {
+    expectBoth(':tada::tada:', '🎉🎉');
+    expectBoth(':tada: :tada:', '🎉 🎉');
+    expect(renderAnswerMarkdown(':tada:\n:tada:')).toBe('<p>🎉<br>🎉</p>\n');
+  });
+
+  it('renders inside emphasis, a link label, a list item, a heading and a table cell', () => {
+    expectBoth(
+      '**:tada:** *:tada:* ~~:tada:~~',
+      ['<strong>🎉</strong>', '<em>🎉</em>', '<del>🎉</del>'].join(' '),
+    );
+    expectBoth(
+      '[:tada:](https://example.com)',
+      '<a href="https://example.com" rel="noopener noreferrer" target="_blank">🎉</a>',
+    );
+    expect(renderAnswerMarkdown('- [ ] :tada:\n- item :rocket:')).toBe(
+      '<ul>\n<li>[ ] 🎉</li>\n<li>item 🚀</li>\n</ul>\n',
+    );
+    expect(renderAnswerMarkdown('# :tada: Title')).toBe('<h2>🎉 Title</h2>\n');
+    expect(renderAnswerMarkdown('| a |\n|:-:|\n| :tada: |')).toContain(
+      '<td>🎉</td>',
+    );
+  });
+
+  it('leaves an unknown shortcode as typed', () => {
+    expectBoth(':not_an_emoji:', ':not_an_emoji:');
+    // Not in the table: skin tones aren't supported, and the emoji before one still renders.
+    expectBoth(':wave::skin-tone-3:', '👋:skin-tone-3:');
+  });
+
+  it('finds nothing for a name every object has', () => {
+    expectBoth(
+      ':constructor: :toString: :valueOf:',
+      ':constructor: :toString: :valueOf:',
+    );
+    // `__proto__` is Markdown's own bold, with or without shortcodes.
+    expectBoth(':__proto__:', ':<strong>proto</strong>:');
+  });
+
+  it('matches lowercase names only', () => {
+    expectBoth(':TADA: :Tada:', ':TADA: :Tada:');
+    expectBoth('Status :OK: done', 'Status :OK: done');
+  });
+
+  it('leaves a shortcode inside code as typed', () => {
+    expectBoth('`:tada:` and :tada:', '<code>:tada:</code> and 🎉');
+    expect(renderAnswerMarkdown('```\n:tada:\n```')).toBe(
+      '<pre><code>:tada:\n</code></pre>\n',
+    );
+  });
+
+  it('leaves a shortcode as typed after a letter, digit, underscore, colon, backtick, * or ~', () => {
+    for (const source of [
+      '10:30:45',
+      'user:id:int',
+      'std::time::now',
+      // Letters of another script: a Cyrillic word on each side.
+      '\u043A\u043B\u044E\u0447:id:\u0437\u043D\u0430\u043A',
+      'é:tada:',
+      // A decomposed "é": the character before the colon is a combining mark.
+      'e\u0301:tada:',
+      'snake_:tada:',
+      // One and two characters into the text.
+      'x:tada:',
+      'xy:tada:',
+      '::tada:',
+      'x:tada::tada:',
+    ]) {
+      expectBoth(source, source);
+    }
+    // A backtick, `*` or `~` that is only text, not the end of code or emphasis.
+    expectBoth('2*:tada:', '2*:tada:');
+    expectBoth('~:tada: and ~~:tada:', '~:tada: and ~~:tada:');
+    expectBoth('`:tada:', '`:tada:');
+    // Only the glued one is skipped.
+    expectBoth('x:tada: :tada:', 'x:tada: 🎉');
+  });
+
+  it('starts fresh after a code span, emphasis, a link or an escaped character', () => {
+    // The rule reads one piece of text at a time.
+    expectBoth('`done`:tada:', '<code>done</code>🎉');
+    expectBoth(
+      '**Done**:tada: ~~no~~:x:',
+      '<strong>Done</strong>🎉 <del>no</del>❌',
+    );
+    expectBoth(
+      '[a](https://example.com):tada:',
+      '<a href="https://example.com" rel="noopener noreferrer" target="_blank">a</a>🎉',
+    );
+    expectBoth('x \\*:tada:', 'x *🎉');
+    expectBoth(
+      'write bob@example.com:x: now',
+      'write <a href="mailto:bob@example.com" rel="noopener noreferrer" target="_blank">bob@example.com</a>❌ now',
+    );
+    expectBoth('<b>y</b>:id: z', '&lt;b&gt;y&lt;/b&gt;🆔 z');
+    // The same on the other side: emphasis or a link right after doesn't block it.
+    expectBoth(
+      ':id:*x* :tada:www.example.com',
+      [
+        '🆔<em>x</em>',
+        '🎉<a href="http://www.example.com" rel="noopener noreferrer" target="_blank">www.example.com</a>',
+      ].join(' '),
+    );
+    // The character after still counts, so these code-like texts stay as typed.
+    expectBoth('`user`:id:int', '<code>user</code>:id:int');
+    expectBoth('**key**:id:x', '<strong>key</strong>:id:x');
+  });
+
+  it('handles a long glued run in linear time', () => {
+    // Both were quadratic in earlier versions: seconds at this size.
+    const started = performance.now();
+    expect(renderInlineMarkdown(`x${':zz:'.repeat(50_000)}`)).toHaveLength(
+      200_001,
+    );
+    expect(renderInlineMarkdown(':tada:'.repeat(50_000))).toBe(
+      '🎉'.repeat(50_000),
+    );
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it('leaves a shortcode as typed before a colon that opens no shortcode', () => {
+    for (const source of ['field :id::int', 'see :key::value', ':tada::']) {
+      expectBoth(source, source);
+    }
+    expectBoth(':tada::zz: :tada::zz::rocket:', '🎉:zz: 🎉:zz:🚀');
+    // The closing colon of a replaced shortcode opens nothing.
+    expectBoth(':+1:+1:', '👍+1:');
+  });
+
+  it('leaves a shortcode as typed before a letter, digit or underscore', () => {
+    for (const source of [
+      ':id:int',
+      'see :id:42 and :key:value',
+      'foo :tada:bar',
+      ':tada:_x',
+      // A Cyrillic letter, and a combining accent that belongs to following text.
+      ':tada:\u044F',
+      ':tada:\u0301',
+    ]) {
+      expectBoth(source, source);
+    }
+  });
+
+  it('renders after other punctuation and before a variation selector', () => {
+    expectBoth('a/:tada:/b x=:tada: -:tada:', 'a/🎉/b x=🎉 -🎉');
+    expectBoth(':tada:\uFE0F', '🎉\uFE0F');
+  });
+
+  it('renders right after a literal emoji, whatever code point it ends in', () => {
+    // A variation selector and the keycap mark are combining marks, but not part of a word.
+    expectBoth('🎉:tada: ❤️:tada: 1️⃣:tada:', '🎉🎉 ❤️🎉 1️⃣🎉');
+    // A word in a script that ends words in a combining mark still blocks.
+    const devanagariWord = '\u0939\u093F\u0902\u0926\u0940';
+    expectBoth(`${devanagariWord}:tada:`, `${devanagariWord}:tada:`);
+  });
+
+  it('keeps links working next to a known shortcode left as typed', () => {
+    expectBoth(
+      'user:id:int https://example.com:8080/a',
+      'user:id:int <a href="https://example.com:8080/a" rel="noopener noreferrer" target="_blank">https://example.com:8080/a</a>',
+    );
+    // The same text with unknown names, which is never cut, links the same way.
+    for (const [first, second] of [
+      [':id:', ':key:'],
+      [':zz:', ':zz:'],
+    ]) {
+      expectBoth(
+        `x${first}www.example.com and y${second}bob@example.com`,
+        `x${first}<a href="http://www.example.com" rel="noopener noreferrer" target="_blank">www.example.com</a> and y${second}<a href="mailto:bob@example.com" rel="noopener noreferrer" target="_blank">bob@example.com</a>`,
+      );
+    }
+    expectBoth(
+      '**a:id:b** *c:key:d*',
+      '<strong>a:id:b</strong> <em>c:key:d</em>',
+    );
+  });
+
+  it('lets a backslash opt out', () => {
+    expectBoth('\\:tada:', ':tada:');
+  });
+
+  it('leaves a link target and a bare URL alone', () => {
+    expectBoth(
+      '[x](https://example.com/:smile:)',
+      '<a href="https://example.com/:smile:" rel="noopener noreferrer" target="_blank">x</a>',
+    );
+    expectBoth(
+      'https://example.com/:smile:/a',
+      '<a href="https://example.com/:smile:/a" rel="noopener noreferrer" target="_blank">https://example.com/:smile:/a</a>',
+    );
+  });
+
+  it('keeps text shown as source as typed', () => {
+    expectBoth(
+      '![:tada:](https://x.example/y.png)',
+      '![:tada:](https://x.example/y.png)',
+    );
+    expectBoth('[:tada:](/relative)', '[:tada:](/relative)');
+  });
+
+  it('keeps links, escaping and line breaks around a shortcode working', () => {
+    expectBoth(
+      'see https://example.com:8080/a :tada:',
+      'see <a href="https://example.com:8080/a" rel="noopener noreferrer" target="_blank">https://example.com:8080/a</a> 🎉',
+    );
+    expectBoth(
+      'mail bob@example.com :tada: www.example.com',
+      'mail <a href="mailto:bob@example.com" rel="noopener noreferrer" target="_blank">bob@example.com</a> 🎉 <a href="http://www.example.com" rel="noopener noreferrer" target="_blank">www.example.com</a>',
+    );
+    expectBoth(
+      '<b>:tada:</b> &amp; :tada: &notes;',
+      ['&lt;b&gt;🎉&lt;/b&gt;', '&amp;amp;', '🎉', '&amp;notes;'].join(' '),
+    );
+    expectBoth(
+      ':tada: **bold** :tada: *it* :tada:',
+      ['🎉', '<strong>bold</strong>', '🎉', '<em>it</em>', '🎉'].join(' '),
+    );
+  });
+
+  it('renders colon-heavy text without a known shortcode as before', () => {
+    // Every piece between two colons is checked below to be no shortcode name.
+    for (const [source, html] of [
+      ['Meeting at 10:30, then 14:00:15.', 'Meeting at 10:30, then 14:00:15.'],
+      ['Note: follow up: tomorrow', 'Note: follow up: tomorrow'],
+      ['a :: b ::: c', 'a :: b ::: c'],
+      [':) :-) :D :p', ':) :-) :D :p'],
+      ['ratio 1:2:3 and key:value:', 'ratio 1:2:3 and key:value:'],
+      [':unknown_name: :another-one:', ':unknown_name: :another-one:'],
+      [
+        'see http://localhost:8080/a:q1:c now',
+        'see <a href="http://localhost:8080/a:q1:c" rel="noopener noreferrer" target="_blank">http://localhost:8080/a:q1:c</a> now',
+      ],
+      [
+        'write: bob@example.com: thanks',
+        'write: <a href="mailto:bob@example.com" rel="noopener noreferrer" target="_blank">bob@example.com</a>: thanks',
+      ],
+      [
+        '**Done:** shipped *today:*',
+        '<strong>Done:</strong> shipped <em>today:</em>',
+      ],
+      ['R&D: a < b &copy; :zz', 'R&amp;D: a &lt; b &amp;copy; :zz'],
+    ]) {
+      for (const piece of source.split(':')) {
+        expect(EMOJI_SHORTCODES.has(piece), piece).toBe(false);
+      }
+      expectBoth(source, html);
+    }
+    expect(renderAnswerMarkdown('| a | b |\n|:--|:-:|\n| 1 | 2 |')).toContain(
+      '<td>1</td>',
+    );
+  });
+
+  it('reads an emoji as itself in the plain text for a screen reader', () => {
+    expect(inlineMarkdownToPlainText('agreed :+1: **thanks**')).toBe(
+      'agreed 👍 thanks',
+    );
   });
 });
