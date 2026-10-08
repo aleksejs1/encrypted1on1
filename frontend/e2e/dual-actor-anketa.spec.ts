@@ -300,15 +300,21 @@ test('employee and manager complete an anketa across two independent sessions', 
   // toggle is clicked.
   await expect(managerThread.locator('input[type=text]')).not.toBeVisible();
   await managerThread.getByRole('button', { name: /comment/i }).click();
-  await managerThread.locator('input[type=text]').fill('looks good to me');
+  await managerThread.locator('input[type=text]').fill('looks **good** to me');
   await managerThread.getByRole('button', { name: 'Post' }).click();
+  // Rendered as inline Markdown (GitHub issue #241).
   await expect(managerThread.getByText('looks good to me')).toBeVisible();
+  await expect(managerThread.locator('.comment strong')).toHaveText('good');
 
   // Manager edits their own comment through the real Edit/Save UI (typing,
   // clicking — not just the pure editComment() unit tests in comments.ts) —
   // still their own session/tab, real WASM crypto re-encrypting the whole
   // commentsBlob on Save.
   await managerThread.getByRole('button', { name: 'Edit' }).click();
+  // Edit shows the Markdown source, not the rendered text.
+  await expect(
+    managerThread.locator('.edit-form input[type=text]'),
+  ).toHaveValue('looks **good** to me');
   await managerThread
     .locator('.edit-form input[type=text]')
     .fill('looks good to me, approved');
@@ -766,19 +772,48 @@ test('published answer edits and new comments appear on an already-open tab with
   // Manager comments on that same field from their already-open tab.
   const managerThread = moodNotesThread(managerCounterpartSide);
   await managerThread.getByRole('button', { name: /comment/i }).click();
-  await managerThread.locator('input[type=text]').fill('nice progress');
+  await managerThread
+    .locator('input[type=text]')
+    .fill('nice **progress**, see [doc](https://example.com)');
   await managerThread.getByRole('button', { name: 'Post' }).click();
-  await expect(managerThread.getByText('nice progress')).toBeVisible();
+  await expect(managerThread.getByText('nice progress, see doc')).toBeVisible();
 
   // Employee's own tab (still open on the same field, myPublished so its own
   // CommentThread instance is rendered) picks up the new comment without a
   // reload, and briefly highlights it (private/live-updates-proposal.md §7).
   const employeeThread = moodNotesThread(employeeMySide);
   const newComment = employeeThread.locator('.comment', {
-    hasText: 'nice progress',
+    hasText: 'nice progress, see doc',
   });
   await expect(newComment).toBeVisible({ timeout: 8000 });
   await expect(newComment).toHaveClass(/recently-arrived/, { timeout: 2000 });
+  // A screen reader hears the text as shown, not its Markdown source or the
+  // link's URL (GitHub issue #241).
+  await expect(employeeThread.locator('.sr-only[aria-live]')).toHaveText(
+    `${managerEmail}: nice progress, see doc`,
+    { timeout: 2000 },
+  );
+  // The comment renders as inline Markdown on both sides.
+  for (const thread of [managerThread, employeeThread]) {
+    await expect(thread.locator('.comment strong')).toHaveText('progress');
+    await expect(thread.getByRole('link', { name: 'doc' })).toHaveAttribute(
+      'href',
+      'https://example.com',
+    );
+  }
+
+  // A long comment with nowhere to break wraps on a phone instead of
+  // widening its thread, and with it the page.
+  await manager.setViewportSize({ width: 360, height: 800 });
+  const threadWidth = () => managerThread.evaluate((el) => el.clientWidth);
+  const widthBefore = await threadWidth();
+  const unbroken = `[spec](/${'x'.repeat(90)})`;
+  await managerThread.locator('input[type=text]').fill(unbroken);
+  await managerThread.getByRole('button', { name: 'Post' }).click();
+  await expect(
+    managerThread.locator('.comment', { hasText: unbroken }),
+  ).toBeVisible();
+  expect(await threadWidth()).toBeLessThanOrEqual(widthBefore);
 });
 
 /**

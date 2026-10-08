@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import {
+  inlineMarkdownToPlainText,
   renderAnswerMarkdown,
   renderInlineMarkdown,
   sanitizeAnswerHtml,
@@ -518,5 +519,62 @@ describe('renderInlineMarkdown', () => {
     expect(renderInlineMarkdown('[x](javascript:alert(1))')).toBe(
       '[x](javascript:alert(1))',
     );
+  });
+});
+
+describe('inlineMarkdownToPlainText', () => {
+  it('drops the Markdown syntax and a link target, keeping what is shown', () => {
+    expect(
+      inlineMarkdownToPlainText(
+        'agree, see **point 2** and [the RFC](https://example.com/spec/long-path)',
+      ),
+    ).toBe('agree, see point 2 and the RFC');
+    expect(inlineMarkdownToPlainText('`const x = 1` and ~~done~~')).toBe(
+      'const x = 1 and done',
+    );
+    expect(inlineMarkdownToPlainText('[**bold** label](https://e.com)')).toBe(
+      'bold label',
+    );
+  });
+
+  it('keeps a bare URL, which is its own label', () => {
+    expect(inlineMarkdownToPlainText('See https://example.com')).toBe(
+      'See https://example.com',
+    );
+  });
+
+  it('keeps text that is shown as typed', () => {
+    for (const source of [
+      'Non-web [doc](/wiki/page)',
+      'R&D <script>alert(1)</script> notes&notes;',
+      '![x](https://evil.example/p.gif) <b>y</b> &amp; a < b',
+      '# not a heading',
+      'plain text',
+    ]) {
+      expect(inlineMarkdownToPlainText(source), source).toBe(source);
+    }
+  });
+
+  it('follows the rendered text for stored plain text read as Markdown', () => {
+    expect(inlineMarkdownToPlainText('2*3*4')).toBe('234');
+  });
+
+  it('returns an empty string for a missing or empty text', () => {
+    expect(inlineMarkdownToPlainText('')).toBe('');
+    expect(inlineMarkdownToPlainText(null as unknown as string)).toBe('');
+    expect(inlineMarkdownToPlainText(undefined as unknown as string)).toBe('');
+  });
+
+  it('matches the text content of the rendered HTML', () => {
+    const container = document.createElement('div');
+    for (const source of [
+      'a **b** [c](https://example.com) `d` ~~e~~',
+      'x <b>y</b> &copy; [z](/relative) https://example.com/?a=1&b=2',
+    ]) {
+      container.innerHTML = renderInlineMarkdown(source);
+      expect(inlineMarkdownToPlainText(source), source).toBe(
+        container.textContent,
+      );
+    }
   });
 });

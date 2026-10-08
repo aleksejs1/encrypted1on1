@@ -217,6 +217,38 @@ and a fenced code block's info string disappears, since
 of the answer, losing that line. It is the same kind of coincidence as a line starting with `#`:
 rare, and fenced blocks stay available to anyone who types them on purpose.
 
+## Extension: inline Markdown in comments (2026-10-08)
+
+[GitHub issue #241](https://github.com/aleksejs1/encrypted1on1/issues/241): a comment's text
+renders as inline Markdown, through the same `InlineMarkdown.svelte` and `renderInlineMarkdown()`
+as list entries and shared topics, with no rule of its own. Frontend and display only: the stored
+text, the encrypted comments blob, the backend and the export are unchanged. The comment field
+stays a single-line `<input>` with no toolbar, and Edit shows the Markdown source.
+
+Comments already stored are read as Markdown from now on, with the list-entry trade-offs above
+(emphasis in code-like text, a dropped backslash before punctuation, bare URLs linked).
+
+The `aria-live` announcement of a comment arriving through the live-update poll used the raw text,
+so it would read out asterisks, brackets and a link's URL. `inlineMarkdownToPlainText()` in
+`markdown.ts` gives the text as shown instead. It takes the text content of the nodes DOMPurify
+returns (`RETURN_DOM_FRAGMENT`) rather than assigning the rendered HTML to an element's
+`innerHTML`: the result is the same, and the code gains no new place that parses a string as HTML.
+The announcement follows the rendered text, so a stored `2*3*4` is announced as "234".
+
+Layout: a long string with no spaces (a link shown as source, say) used to widen the comment's
+row, and that was already so with the plain span. The comment's span now has
+`overflow-wrap: anywhere`, as a shared topic does, so such a string breaks where it must. The
+issue's other option, `min-width: 0` with `.inline-markdown`'s own `overflow-wrap: break-word`,
+fixed an isolated row but not the page: with `break-word` the string still counts as one long word
+for the minimum width, so every flex column above the row grew to fit it and the page scrolled
+sideways (629px wide in a 360px viewport, measured on the e2e stack). An ordinary sentence wraps at
+spaces as before. No `flex: 1`: it would move a short comment's Edit and Delete buttons to the
+right edge.
+
+Not changed: meeting outcomes and goal checkpoints, titles and descriptions, and private notes stay
+plain text. Outcomes are not the same one-line swap: a done outcome is struck through, and so is
+`~~text~~` once Markdown renders, which needs a decision of its own.
+
 ## Alternatives considered
 
 An in-browser editor library (EasyMDE/Tiptap) was rejected in favor of a hand-written toolbar —
@@ -258,3 +290,11 @@ allowlist removing a table's `align`, plus line breaks inside text shown as sour
 link's label, and an ordered list's `start`. A separate test runs the old payloads straight through
 the free-text sanitizer (`sanitizeAnswerHtml()`, exported for it), so the second layer stays
 guarded on its own.
+
+Comments (#241): `markdown.test.ts` covers `inlineMarkdownToPlainText()` (dropped syntax and link
+targets, text shown as typed, a missing text, and agreement with the rendered HTML's text content).
+In `frontend/e2e/dual-actor-anketa.spec.ts` the live-arrival test posts a comment with bold text
+and a link, checks both on both sides and the announcement's text on the receiving side, and checks
+at 360px that a long unbroken comment doesn't widen its thread (it fails with `min-width: 0`
+alone); the comment-edit test checks that Edit
+shows the Markdown source.
