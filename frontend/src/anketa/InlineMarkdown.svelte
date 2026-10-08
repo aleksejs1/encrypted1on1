@@ -1,8 +1,8 @@
 <script lang="ts">
   import { renderInlineMarkdown } from './markdown';
 
-  // A list entry's text, rendered as inline Markdown. The one {@html} site
-  // for list entries, shared by AnswerField.svelte and Report.svelte.
+  // One line of user-typed text (a list entry, a shared topic, a comment),
+  // rendered as inline Markdown. The one {@html} site for all of them.
   let { text, class: className = '' }: { text: string; class?: string } =
     $props();
 

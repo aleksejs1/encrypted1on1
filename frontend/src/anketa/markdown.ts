@@ -268,7 +268,7 @@ export function sanitizeAnswerHtml(html: string): string {
 }
 
 /**
- * The list-entry instance: the shared overrides, with a hard line break (two trailing spaces or
+ * The inline instance (list entries, topics, comments): the shared overrides, with a hard line break (two trailing spaces or
  * a backslash before a newline) as a space, so the words on either side never run together. No
  * `breaks: true`: a lone `\n` stays a soft break.
  */
@@ -288,14 +288,34 @@ const INLINE_SANITIZE_CONFIG = {
 };
 
 /**
- * Renders a `field.type === 'list'` entry's inline Markdown (bold, italic, code, links,
- * strikethrough) to sanitized HTML with no wrapping `<p>`. Block syntax (`# `, `- `, `> `) stays
- * literal text, since `parseInline()` never runs the block tokenizer.
+ * Inline Markdown as unsanitized HTML: bold, italic, code, links and strikethrough, with no
+ * wrapping `<p>`. Block syntax (`# `, `- `, `> `) stays literal text, since `parseInline()` never
+ * runs the block tokenizer.
  */
-export function renderInlineMarkdown(source: string): string {
-  // Decrypted answers aren't shape-checked, and marked throws on a non-string, which would take
+function parseInlineMarkdown(source: string): string {
+  // Decrypted content isn't shape-checked, and marked throws on a non-string, which would take
   // the whole page down with it. Stringified the way `{entry.text}` showed it before.
   const text = String((source as unknown) ?? '');
-  const html = inlineRenderer.parseInline(text, { async: false }) as string;
-  return purifier.sanitize(html, INLINE_SANITIZE_CONFIG);
+  return inlineRenderer.parseInline(text, { async: false }) as string;
+}
+
+/**
+ * Renders one line of user-typed text (a list entry, a shared topic, a comment) as inline
+ * Markdown, to sanitized HTML.
+ */
+export function renderInlineMarkdown(source: string): string {
+  return purifier.sanitize(parseInlineMarkdown(source), INLINE_SANITIZE_CONFIG);
+}
+
+/**
+ * The text a reader sees for `renderInlineMarkdown(source)`, for a screen-reader announcement:
+ * no asterisks or brackets, and a link's label without its URL. DOMPurify hands back the
+ * sanitized nodes themselves, so this adds no place of its own that parses a string as HTML.
+ */
+export function inlineMarkdownToPlainText(source: string): string {
+  const fragment = purifier.sanitize(parseInlineMarkdown(source), {
+    ...INLINE_SANITIZE_CONFIG,
+    RETURN_DOM_FRAGMENT: true,
+  });
+  return fragment.textContent ?? '';
 }

@@ -474,8 +474,8 @@ textarea.input {
 /*
  * A published anketa free-text answer's Markdown, rendered to sanitized HTML via `{@html}`
  * (frontend/src/anketa/markdown.ts, used by AnswerField.svelte and MarkdownEditor.svelte's
- * preview), and `.inline-markdown`, a list entry's inline Markdown (AnswerField.svelte and
- * Report.svelte). Global rules, not component-scoped: Svelte's per-component style scoping only tags
+ * preview), and `.inline-markdown`, one line of inline Markdown (InlineMarkdown.svelte: list
+ * entries, shared topics, comments). Global rules, not component-scoped: Svelte's per-component style scoping only tags
  * elements written literally in that component's own template — it never reaches elements
  * injected via `{@html}`, so nested markdown output (a `<p>`/`<ul>`/`<code>` the renderer
  * produced) needs plain global selectors like every other class in this file.
