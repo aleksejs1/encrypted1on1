@@ -253,7 +253,8 @@ test('employee and manager complete an anketa across two independent sessions', 
   ).toBeFocused();
   await expect(editBar).not.toContainText('Unsaved changes');
   const firstAnswer = employeeMySide.locator('textarea').first();
-  await firstAnswer.fill(employeeEditedMarker);
+  // With an emoji shortcode (GitHub issue #240), stored as typed.
+  await firstAnswer.fill(`${employeeEditedMarker} :tada:`);
   await expect(editBar).toContainText('Unsaved changes');
   await answersEditButton(employeeMySide, 'save').scrollIntoViewIfNeeded();
   await expect(editBar).toBeInViewport();
@@ -280,10 +281,19 @@ test('employee and manager complete an anketa across two independent sessions', 
   // Manager — a separate session — reloads and sees the edited content, not the
   // original marker: the edit genuinely round-tripped through the server,
   // re-encrypted under the shared anketa key, not merely updated in local state.
+  // The shortcode shows as the emoji.
   await manager.reload();
   await expect(
     managerCounterpartSide.locator('.answer-text').first(),
-  ).toHaveText(employeeEditedMarker);
+  ).toHaveText(`${employeeEditedMarker} 🎉`);
+
+  // Edit reopens the text as typed, shortcode included.
+  await answersEditButton(employeeMySide, 'edit', 'top').click();
+  await expect(employeeMySide.locator('textarea').first()).toHaveValue(
+    `${employeeEditedMarker} :tada:`,
+  );
+  await answersEditButton(employeeMySide, 'cancel', 'top').click();
+  await expect(editBar).toHaveCount(0);
 
   // Manager publishes their own side with a second marker.
   const managerMarker = `E2E-MARKER-MANAGER-${Date.now()}`;

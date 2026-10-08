@@ -1,5 +1,6 @@
 import { Marked, type MarkedExtension } from 'marked';
 import DOMPurify from 'dompurify';
+import { EMOJI_SHORTCODES } from './emojiShortcodes';
 
 /**
  * The overrides both renderers share. Stored answers and entries are years of plain text written
@@ -32,7 +33,8 @@ import DOMPurify from 'dompurify';
  *   otherwise open an app page or GET endpoint, signed in, from text the counterpart wrote, and
  *   the source keeps a mistyped target like `example.com` visible, and `<xsl:template>` or
  *   `<std::vector>`, which marked reads as an autolink, as typed. A link's title is dropped (a
- *   known exception, like a fenced code block's info string).
+ *   known exception, like a fenced code block's info string);
+ * - the one thing text doesn't show as typed is a known emoji shortcode, see `withEmoji()`.
  *
  * `source` escapes what is shown as source (a tag, an image, a link, a task-list box), which can
  * span lines. Source shows as typed throughout, a `<br>` inside it included.
@@ -45,12 +47,17 @@ function showAsTyped(source: (raw: string) => string): MarkedExtension {
       text: (token) =>
         'tokens' in token && token.tokens
           ? false
-          : escapeAll(token.type === 'text' ? token.raw : token.text),
+          : escapeAll(
+              token.type === 'text' ? withEmoji(token.raw) : token.text,
+            ),
       html: ({ text }) => source(text),
       image: ({ raw }) => source(raw),
       checkbox: ({ raw }) => source(raw),
       link(token) {
-        const label = this.parser.parseInline(token.tokens);
+        // A bare URL or address is its own label, as typed, emoji shortcodes included.
+        const label = token.raw.startsWith('[')
+          ? this.parser.parseInline(token.tokens)
+          : escapeAll(token.text);
         if (
           isBlank(label) ||
           /<a\s/.test(label) ||
@@ -78,6 +85,79 @@ function showAsTyped(source: (raw: string) => string): MarkedExtension {
       },
     },
   };
+}
+
+/**
+ * The characters of a shortcode name, as Slack and GitHub write them: lowercase only. Exported so
+ * a test can hold every name in the generated table to it.
+ */
+export const EMOJI_SHORTCODE_NAME = '[a-z0-9_+-]+';
+
+/** A colon that opens a `:name:`. A lookahead, so `:a:b:` is tried at both of its openings. */
+const SHORTCODE_OPENING = new RegExp(`:(?=(${EMOJI_SHORTCODE_NAME}):)`, 'g');
+
+/**
+ * A character that is part of a word: a letter, a digit, `_`, or a combining mark, which belongs
+ * to its letter (words in many scripts end in one). The variation selectors and the keycap mark
+ * are combining marks too, but they end many emoji (`❤️:tada:`), so they don't count.
+ */
+const WORD_CHARACTER = '[\\p{L}\\p{N}_]|(?![\\uFE0E\\uFE0F\\u20E3])\\p{M}';
+
+/** Text a shortcode may not directly follow: `10:30:45`, `std::time::now`, `2*:x:`. */
+const BLOCKS_BEFORE = new RegExp(`(?:${WORD_CHARACTER}|[:\`*~])$`, 'u');
+
+/**
+ * What a shortcode may not be directly followed by, matched at `lastIndex`: a word character
+ * (`:id:int`), or a colon that opens no `:name:` of its own (`:id::int`).
+ */
+const BLOCKS_AFTER = new RegExp(
+  `(?:${WORD_CHARACTER}|:(?!${EMOJI_SHORTCODE_NAME}:))`,
+  'uy',
+);
+
+/**
+ * Replaces each known emoji shortcode (`:tada:`, as pasted from Slack or GitHub) that stands on
+ * its own with the emoji character. Display only: the stored text keeps the shortcode. A
+ * character, never an image, so nothing is fetched. An unknown name, or an uppercase one, is
+ * ordinary text.
+ *
+ * Text written before this existed is full of colons, so a `:name:` counts only when the text
+ * before it doesn't block it (`BLOCKS_BEFORE`), or when it directly follows another `:name:` that
+ * counted, known or not: `:tada::tada:` and `:custom_one::tada:` render the known ones. A known
+ * one is then replaced unless what follows blocks it (`BLOCKS_AFTER`).
+ *
+ * Called on one text token at a time, so "before" and "after" stop at a code span, bold text, a
+ * link or a typed tag, and start fresh inside a link's label. Code, link targets, bare URLs and text shown as
+ * source never come through here, and `\:tada:` opts out through Markdown's own escape, which
+ * takes the colon out of the text token.
+ */
+function withEmoji(text: string): string {
+  let result = '';
+  // Up to where `text` is already in `result`.
+  let done = 0;
+  // Where the last `:name:` that counted ended.
+  let runEnd = 0;
+  for (const match of text.matchAll(SHORTCODE_OPENING)) {
+    const start = match.index;
+    const end = start + match[1].length + 2;
+    // `start < done` is the closing colon of a shortcode just replaced, when what follows it
+    // reads as a name of its own: in `:+1:+1:` the second `:+1:` opens there.
+    if (
+      start < done ||
+      (start !== runEnd &&
+        BLOCKS_BEFORE.test(text.slice(Math.max(start - 2, 0), start)))
+    ) {
+      continue;
+    }
+    runEnd = end;
+    const emoji = EMOJI_SHORTCODES.get(match[1]);
+    BLOCKS_AFTER.lastIndex = end;
+    if (emoji && !BLOCKS_AFTER.test(text)) {
+      result += text.slice(done, start) + emoji;
+      done = end;
+    }
+  }
+  return result + text.slice(done);
 }
 
 /** For text and the href attribute alike. */

@@ -194,6 +194,11 @@ jobs:
       - name: Check for unused files/exports/dependencies
         run: npm run knip
 
+      # src/anketa/emojiShortcodes.ts is generated from the `gemoji` devDependency; this fails
+      # when the committed file no longer matches what the generator writes.
+      - name: Check the generated emoji shortcode table
+        run: npm run emoji-shortcodes -- --check
+
       - name: Unit tests with coverage
         run: npm run test:coverage
 
