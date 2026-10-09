@@ -519,6 +519,7 @@
   },
   "report": {
     "title": "Pārskats",
+    "reportTab": "1:1 pārskats",
     "reportForLabel": "Pārskats par",
     "me": "Sevi",
     "dateRangeLegend": "Laika periods",
@@ -536,6 +537,19 @@
     "goalProgressTrendLabel": "Mērķa progresa tendence laika gaitā",
     "errorLoad": "Neizdevās ielādēt 1:1 tikšanās.",
     "errorGenerate": "Neizdevās izveidot pārskatu."
+  },
+  "reportNotes": {
+    "intro": "Tās varat izlasīt tikai jūs. Piezīmes teksts neparādās ekrānā, kamēr to neparādāt.",
+    "everyone": "Visi",
+    "searchLabel": "Meklēt",
+    "searchPlaceholder": "Meklēt piezīmēs…",
+    "showNote": "Rādīt piezīmi",
+    "hideNote": "Paslēpt piezīmi",
+    "showAll": "Rādīt visas piezīmes",
+    "hideAll": "Paslēpt visas piezīmes",
+    "openMeeting": "Atvērt 1:1",
+    "empty": "Jums vēl nav privāto piezīmju. Tās raksta 1:1 tikšanās lapā.",
+    "noMatch": "Nav atbilstošu piezīmju."
   },
   "admin": {
     "title": "Administrēšana",

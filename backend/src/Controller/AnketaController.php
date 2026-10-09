@@ -766,8 +766,10 @@ class AnketaController
     }
 
     /**
-     * Every one of the requester's own private notes rows, for the data export. Not
-     * joined with anketa metadata: the export already has that from /api/anketas/bulk.
+     * Every one of the requester's own private notes rows, for the data export and the
+     * "My private notes" list in Reports (GitHub issue #243). Not joined with anketa
+     * metadata: the export already has that from /api/anketas/bulk, the list from
+     * /api/anketas.
      */
     #[Route('/api/me/private-notes', name: 'me_private_notes', methods: ['GET'])]
     public function listOwnPrivateNotes(Request $request): JsonResponse

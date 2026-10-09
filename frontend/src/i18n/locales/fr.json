@@ -534,6 +534,7 @@
   },
   "report": {
     "title": "Rapport",
+    "reportTab": "Rapport 1:1",
     "reportForLabel": "Rapport pour",
     "me": "Moi",
     "dateRangeLegend": "Période",
@@ -551,6 +552,19 @@
     "goalProgressTrendLabel": "Évolution de la progression des objectifs dans le temps",
     "errorLoad": "Impossible de charger les 1:1.",
     "errorGenerate": "Impossible de générer le rapport."
+  },
+  "reportNotes": {
+    "intro": "Vous seul pouvez les lire. Le texte d'une note n'apparaît à l'écran que lorsque vous l'affichez.",
+    "everyone": "Tout le monde",
+    "searchLabel": "Rechercher",
+    "searchPlaceholder": "Rechercher dans les notes…",
+    "showNote": "Afficher la note",
+    "hideNote": "Masquer la note",
+    "showAll": "Afficher toutes les notes",
+    "hideAll": "Masquer toutes les notes",
+    "openMeeting": "Ouvrir le 1:1",
+    "empty": "Vous n'avez pas encore écrit de notes privées. Elles s'écrivent sur la page d'un 1:1.",
+    "noMatch": "Aucune note ne correspond."
   },
   "admin": {
     "title": "Panneau d'administration",

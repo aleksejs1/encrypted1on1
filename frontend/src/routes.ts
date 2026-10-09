@@ -10,6 +10,8 @@ export const PATHS = {
   createCompany: '/create-company',
   anketaList: '/',
   report: '/report',
+  // Every private note of mine, in one list (GitHub issue #243).
+  reportNotes: '/report/notes',
   admin: '/admin',
   adminReports: '/admin/reports',
   adminInvites: '/admin/invites',
@@ -24,6 +26,7 @@ export const PATHS = {
 export const MIGRATED_AUTHED_PATHS: string[] = [
   PATHS.anketaList,
   PATHS.report,
+  PATHS.reportNotes,
   PATHS.admin,
   PATHS.adminReports,
   PATHS.adminInvites,

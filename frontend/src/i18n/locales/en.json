@@ -517,6 +517,7 @@
   },
   "report": {
     "title": "Report",
+    "reportTab": "1:1 report",
     "reportForLabel": "Report for",
     "me": "Me",
     "dateRangeLegend": "Date range",
@@ -534,6 +535,19 @@
     "goalProgressTrendLabel": "Goal progress trend over time",
     "errorLoad": "Could not load 1:1s.",
     "errorGenerate": "Could not generate the report."
+  },
+  "reportNotes": {
+    "intro": "Only you can read these. A note's text stays off the screen until you show it.",
+    "everyone": "Everyone",
+    "searchLabel": "Search",
+    "searchPlaceholder": "Search notes…",
+    "showNote": "Show note",
+    "hideNote": "Hide note",
+    "showAll": "Show all notes",
+    "hideAll": "Hide all notes",
+    "openMeeting": "Open 1:1",
+    "empty": "You haven't written any private notes yet. They're written on a 1:1's page.",
+    "noMatch": "No notes match."
   },
   "admin": {
     "title": "Admin panel",

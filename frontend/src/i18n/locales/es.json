@@ -521,6 +521,7 @@
   },
   "report": {
     "title": "Informe",
+    "reportTab": "Informe de 1:1",
     "reportForLabel": "Informe de",
     "me": "Mí",
     "dateRangeLegend": "Rango de fechas",
@@ -538,6 +539,19 @@
     "goalProgressTrendLabel": "Tendencia de progreso del objetivo en el tiempo",
     "errorLoad": "No se pudieron cargar las reuniones 1:1.",
     "errorGenerate": "No se pudo generar el informe."
+  },
+  "reportNotes": {
+    "intro": "Solo tú puedes leerlas. El texto de una nota no aparece en pantalla hasta que lo muestras.",
+    "everyone": "Todos",
+    "searchLabel": "Buscar",
+    "searchPlaceholder": "Buscar en las notas…",
+    "showNote": "Mostrar nota",
+    "hideNote": "Ocultar nota",
+    "showAll": "Mostrar todas las notas",
+    "hideAll": "Ocultar todas las notas",
+    "openMeeting": "Abrir 1:1",
+    "empty": "Aún no has escrito notas privadas. Se escriben en la página de una reunión 1:1.",
+    "noMatch": "Ninguna nota coincide."
   },
   "admin": {
     "title": "Administración",
