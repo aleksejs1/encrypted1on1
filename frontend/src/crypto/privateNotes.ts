@@ -135,6 +135,17 @@ export function encodedNotesLength(text: string): number {
 }
 
 /**
+ * Whether a blob holds an empty text, told by its length alone (the blob
+ * isn't padded), so without the key. A note typed and then cleared stays on
+ * the server as such a blob; once it can't be opened (a password reset) this
+ * is the only way to tell it from a note that holds something. The length is
+ * today's envelope's: a change to the envelope has to keep older blobs in mind.
+ */
+export function isEmptyNotesBlob(notesBlob: string): boolean {
+  return notesBlob.length === encodedNotesLength('');
+}
+
+/**
  * The blob's share of the cap in whole percent, cheaply 0 for text far below
  * it. A UTF-16 unit costs at most 6 JSON bytes (a `\u00XX` escape), so text
  * under this length can't reach 90% and skips the full encode on each keystroke.

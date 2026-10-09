@@ -22,6 +22,7 @@
   } from '../anketa/goalProgressTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
   import InlineMarkdown from '../anketa/InlineMarkdown.svelte';
+  import ReportTabStrip from '../report/ReportTabStrip.svelte';
 
   interface AnketaBulkRow {
     id: string;
@@ -193,6 +194,7 @@
 
 <main>
   <h1>{$_('report.title')}</h1>
+  <ReportTabStrip active="report" />
 
   {#if loadError}
     <p class="banner-error">{loadError}</p>

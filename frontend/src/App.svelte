@@ -11,6 +11,7 @@
   import Signup from './pages/Signup.svelte';
   import CreateCompany from './pages/CreateCompany.svelte';
   import Report from './pages/Report.svelte';
+  import ReportNotes from './pages/ReportNotes.svelte';
   import AccountSettings from './pages/AccountSettings.svelte';
   import NotFound from './pages/NotFound.svelte';
   import TemplatePreview from './pages/TemplatePreview.svelte';
@@ -172,6 +173,8 @@
     {/key}
   {:else if routerState.path === PATHS.report}
     <Report />
+  {:else if routerState.path === PATHS.reportNotes}
+    <ReportNotes />
   {:else if routerState.path === PATHS.account}
     <AccountSettings />
   {:else if routerState.path === PATHS.admin}

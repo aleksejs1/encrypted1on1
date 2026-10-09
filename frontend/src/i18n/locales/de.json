@@ -525,6 +525,7 @@
   },
   "report": {
     "title": "Bericht",
+    "reportTab": "1:1-Bericht",
     "reportForLabel": "Bericht für",
     "me": "Ich",
     "dateRangeLegend": "Zeitraum",
@@ -542,6 +543,19 @@
     "goalProgressTrendLabel": "Zielfortschritt über die Zeit",
     "errorLoad": "1:1s konnten nicht geladen werden.",
     "errorGenerate": "Der Bericht konnte nicht erstellt werden."
+  },
+  "reportNotes": {
+    "intro": "Nur Sie können sie lesen. Der Text einer Notiz erscheint erst auf dem Bildschirm, wenn Sie ihn einblenden.",
+    "everyone": "Alle",
+    "searchLabel": "Suche",
+    "searchPlaceholder": "Notizen durchsuchen…",
+    "showNote": "Notiz einblenden",
+    "hideNote": "Notiz ausblenden",
+    "showAll": "Alle Notizen einblenden",
+    "hideAll": "Alle Notizen ausblenden",
+    "openMeeting": "1:1 öffnen",
+    "empty": "Sie haben noch keine privaten Notizen geschrieben. Sie werden auf der Seite eines 1:1 geschrieben.",
+    "noMatch": "Keine passenden Notizen."
   },
   "admin": {
     "title": "Admin-Bereich",
