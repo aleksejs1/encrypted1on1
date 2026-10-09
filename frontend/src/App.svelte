@@ -24,6 +24,8 @@
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
   import AppHeader from './design/AppHeader.svelte';
   import AppFooter from './design/AppFooter.svelte';
+  import ConnectionBanner from './design/ConnectionBanner.svelte';
+  import { initConnectionListeners } from './connectivity/connectionState.svelte';
   import { onMount } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { routerState } from './router.svelte';
@@ -54,6 +56,7 @@
   // re-trigger this when an unauthenticated 401 triggers
   // markSessionExpired() -> invalidateIdentity() (generation++).
   onMount(() => {
+    initConnectionListeners();
     // checkAuth() re-throws any unexpected (non-session-expired) error after
     // already setting authState.checked, so this tab still renders correctly
     // either way — but nothing else here awaits/catches it, so the rejection
@@ -134,6 +137,10 @@
   );
 </script>
 
+<ConnectionBanner
+  meetingPage={!!anketaMatch && routerState.path !== '/anketas/new'}
+/>
+
 <div class="app-shell">
   {#if showAppHeader}
     <AppHeader />
@@ -209,5 +216,8 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    /* The fixed connection banner (design/ConnectionBanner.svelte) would
+       otherwise cover the app header at the top of the page. */
+    padding-top: var(--connection-banner-offset, 0px);
   }
 </style>

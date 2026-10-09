@@ -8,6 +8,12 @@ import {
   resetCsrfToken,
   warmCsrfToken,
 } from './client';
+import {
+  connectionEpoch,
+  connectionState,
+  recordOffline,
+  recordOnline,
+} from '../connectivity/connectionState.svelte';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -284,5 +290,217 @@ describe('api/client keepalive and CSRF warm-up', () => {
       status: 500,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('api/client connection tracking (GitHub issue #242)', () => {
+  beforeEach(() => {
+    resetCsrfToken();
+    // Fake timers: nothing here waits for the probe or for "Back online".
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    // Back to 'online' for the next test, whatever this one left.
+    recordOffline();
+    recordOnline(connectionEpoch());
+    vi.advanceTimersByTime(3000);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function respond(status: number, contentType: string, body: string): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(body, {
+            status,
+            headers: { 'Content-Type': contentType },
+          }),
+        ),
+      ),
+    );
+  }
+
+  function fail(error: unknown): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(error as Error)),
+    );
+  }
+
+  it('goes offline on a network error', async () => {
+    fail(new TypeError('Failed to fetch'));
+    await expect(apiGet('/api/anketas')).rejects.toThrow(TypeError);
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it('goes offline on a timeout', async () => {
+    fail(new DOMException('timed out', 'TimeoutError'));
+    await expect(apiGet('/api/anketas')).rejects.toThrow('timed out');
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it("stays online on the caller's own abort", async () => {
+    fail(new DOMException('aborted', 'AbortError'));
+    await expect(apiGet('/api/anketas')).rejects.toThrow('aborted');
+    expect(connectionState.status).toBe('online');
+  });
+
+  it('goes offline when the CSRF token request fails, before the write is sent', async () => {
+    fail(new TypeError('Failed to fetch'));
+    await expect(apiPut('/api/anketas/1/draft', {})).rejects.toThrow(TypeError);
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it.each([502, 504])('goes offline on a %i', async (status) => {
+    respond(status, 'application/json', '{"error":"x"}');
+    await expect(apiGet('/api/anketas')).rejects.toThrow();
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it.each([503, 521, 523])(
+    "goes offline on a proxy's %i page",
+    async (status) => {
+      respond(status, 'text/html', '<html></html>');
+      await expect(apiGet('/api/anketas')).rejects.toThrow();
+      expect(connectionState.status).toBe('offline');
+    },
+  );
+
+  it("stays online on the app's own 503", async () => {
+    respond(503, 'application/json', '{"error":"Billing is not configured."}');
+    await expect(apiGet('/api/anketas')).rejects.toThrow(
+      'Billing is not configured.',
+    );
+    expect(connectionState.status).toBe('online');
+  });
+
+  it.each([401, 403, 404, 409, 500])(
+    'reconnects on a %i: the app answered',
+    async (status) => {
+      recordOffline();
+      respond(status, 'application/json', '{"error":"x"}');
+      await expect(apiGet('/api/anketas')).rejects.toThrow();
+      expect(connectionState.status).toBe('reconnected');
+    },
+  );
+
+  it('reconnects on a successful request', async () => {
+    recordOffline();
+    respond(200, 'application/json', '{}');
+    await apiGet('/api/anketas');
+    expect(connectionState.status).toBe('reconnected');
+  });
+
+  it('stays offline on the answer to a request sent before the connection was lost', async () => {
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))),
+    );
+    const request = apiGet('/api/anketas');
+    recordOffline();
+
+    answer(jsonResponse({}));
+    await request;
+
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it('stays online when a request that hung through a whole outage fails after it', async () => {
+    let fail: (error: Error) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>((_resolve, reject) => (fail = reject))),
+    );
+    const request = apiGet('/api/anketas');
+    recordOffline();
+    recordOnline(connectionEpoch());
+
+    fail(new DOMException('timed out', 'TimeoutError'));
+    await expect(request).rejects.toThrow('timed out');
+
+    expect(connectionState.status).toBe('reconnected');
+  });
+
+  it('goes offline when the connection is lost while the body is read', async () => {
+    const response = new Response('{}', { status: 200 });
+    vi.spyOn(response, 'json').mockRejectedValue(
+      new DOMException('timed out', 'TimeoutError'),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response)),
+    );
+    await expect(apiGet('/api/anketas')).rejects.toThrow('timed out');
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it.each([
+    ['is not JSON', new SyntaxError('Unexpected token <')],
+    [
+      "was dropped by the caller's own abort",
+      new DOMException('x', 'AbortError'),
+    ],
+  ])('stays online when the body %s', async (_name, error) => {
+    const response = new Response('<html>', { status: 200 });
+    vi.spyOn(response, 'json').mockRejectedValue(error);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response)),
+    );
+    await expect(apiGet('/api/anketas')).rejects.toThrow();
+    expect(connectionState.status).toBe('online');
+  });
+
+  it.each([
+    ["a captive portal's page", 200, 'text/html'],
+    ["a proxy's plain 404", 404, 'text/plain'],
+  ])('stays offline on %s: not the app', async (_name, status, contentType) => {
+    recordOffline();
+    respond(status, contentType, 'x');
+    await expect(apiGet('/api/anketas')).rejects.toThrow();
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it.each([404, 500])(
+    "stays online on a %i page that isn't the app's",
+    async (status) => {
+      respond(status, 'text/plain', 'x');
+      await expect(apiGet('/api/anketas')).rejects.toThrow();
+      expect(connectionState.status).toBe('online');
+    },
+  );
+
+  it("reconnects on API Platform's JSON-LD", async () => {
+    recordOffline();
+    respond(200, 'application/ld+json; charset=utf-8', '[]');
+    await apiGet('/api/users');
+    expect(connectionState.status).toBe('reconnected');
+  });
+
+  it('goes offline when the connection is lost while an error body is read', async () => {
+    const response = new Response('{}', {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    vi.spyOn(response, 'json').mockRejectedValue(
+      new TypeError('network error'),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response)),
+    );
+    await expect(apiGet('/api/anketas')).rejects.toThrow();
+    expect(connectionState.status).toBe('offline');
+  });
+
+  it('stays offline on a gateway error while offline', async () => {
+    recordOffline();
+    respond(502, 'text/html', '');
+    await expect(apiGet('/api/anketas')).rejects.toThrow();
+    expect(connectionState.status).toBe('offline');
   });
 });

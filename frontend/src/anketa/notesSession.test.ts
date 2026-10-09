@@ -224,6 +224,165 @@ describe('NotesSession', () => {
     expect(putBodies()[1].notesBlob).toBe('blob:ab');
   });
 
+  describe('when the connection comes back (GitHub issue #242)', () => {
+    it('saves again once the automatic retries have run out', async () => {
+      api.apiGet.mockResolvedValue(null);
+      api.apiPut.mockRejectedValue(new TypeError('offline'));
+      const { session } = makeSession();
+      await session.load();
+      session.edit('typed offline');
+      // The save, then the retries after 2, 5 and 15 seconds.
+      await vi.advanceTimersByTimeAsync(1000 + 2000 + 5000 + 15000);
+      expect(api.apiPut).toHaveBeenCalledTimes(4);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(api.apiPut).toHaveBeenCalledTimes(4);
+
+      api.apiPut.mockResolvedValue({ version: 1 });
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(api.apiPut).toHaveBeenCalledTimes(5);
+      expect(putBodies()[4].notesBlob).toBe('blob:typed offline');
+      expect(session.getModel().status).toBe('idle');
+    });
+
+    it('saves at once, without waiting for a retry that is still scheduled', async () => {
+      api.apiGet.mockResolvedValue(null);
+      api.apiPut
+        .mockRejectedValueOnce(new TypeError('offline'))
+        .mockResolvedValue({ version: 1 });
+      const { session } = makeSession();
+      await session.load();
+      session.edit('a');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(session.getModel().status).toBe('retrying');
+
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(api.apiPut).toHaveBeenCalledTimes(2);
+
+      // The scheduled retry was replaced, not left to send a third time.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(api.apiPut).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries a save that was still in flight, once it fails', async () => {
+      api.apiGet.mockResolvedValue(null);
+      const hung = deferred<{ version: number }>();
+      api.apiPut
+        .mockRejectedValueOnce(new TypeError('offline'))
+        .mockRejectedValueOnce(new TypeError('offline'))
+        .mockRejectedValueOnce(new TypeError('offline'))
+        // The last automatic retry hangs through the outage.
+        .mockReturnValueOnce(hung.promise)
+        .mockResolvedValue({ version: 1 });
+      const { session } = makeSession();
+      await session.load();
+      session.edit('a');
+      await vi.advanceTimersByTimeAsync(1000 + 2000 + 5000 + 15000);
+      expect(session.getModel().status).toBe('saving');
+
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(api.apiPut).toHaveBeenCalledTimes(4);
+
+      hung.reject(new TypeError('timed out'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(api.apiPut).toHaveBeenCalledTimes(5);
+      expect(session.getModel().status).toBe('idle');
+    });
+
+    it('sends nothing more when the save in flight succeeds', async () => {
+      api.apiGet.mockResolvedValue(null);
+      const inFlight = deferred<{ version: number }>();
+      api.apiPut.mockReturnValueOnce(inFlight.promise);
+      const { session } = makeSession();
+      await session.load();
+      session.edit('a');
+      await vi.advanceTimersByTimeAsync(1000);
+
+      session.reconnected();
+      inFlight.resolve({ version: 1 });
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(api.apiPut).toHaveBeenCalledTimes(1);
+      expect(session.getModel().status).toBe('idle');
+    });
+
+    it('sends nothing when there is nothing unsaved', async () => {
+      api.apiGet.mockResolvedValue(null);
+      const { session } = makeSession();
+      await session.load();
+
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(api.apiPut).not.toHaveBeenCalled();
+      expect(api.apiGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('loads again after a load that failed for the network', async () => {
+      api.apiGet.mockRejectedValueOnce(new TypeError('offline'));
+      const { session } = makeSession();
+      await session.load();
+      expect(session.getModel().status).toBe('loadError');
+
+      api.apiGet.mockResolvedValue(null);
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(api.apiGet).toHaveBeenCalledTimes(2);
+      expect(session.getModel().status).toBe('idle');
+    });
+
+    it("doesn't load again after a load the server refused", async () => {
+      api.apiGet.mockRejectedValueOnce(new ApiError(403, 'Forbidden'));
+      const { session } = makeSession();
+      await session.load();
+      expect(session.getModel().loadErrorNeedsReload).toBe(true);
+
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(api.apiGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries nothing for a panel destroyed while its save was in flight', async () => {
+      api.apiGet.mockResolvedValue(null);
+      const hung = deferred<{ version: number }>();
+      api.apiPut.mockReturnValueOnce(hung.promise);
+      const { session } = makeSession();
+      await session.load();
+      session.edit('a');
+      await vi.advanceTimersByTimeAsync(1000);
+
+      session.reconnected();
+      session.destroy();
+      hung.reject(new TypeError('timed out'));
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(api.apiPut).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing in a destroyed panel', async () => {
+      api.apiGet.mockResolvedValue(null);
+      api.apiPut.mockRejectedValue(new TypeError('offline'));
+      const { session } = makeSession();
+      await session.load();
+      session.edit('a');
+      await vi.advanceTimersByTimeAsync(1000);
+      session.destroy();
+      await vi.advanceTimersByTimeAsync(0);
+      const sent = api.apiPut.mock.calls.length;
+
+      session.reconnected();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(api.apiPut).toHaveBeenCalledTimes(sent);
+    });
+  });
+
   it('backs off instead of looping when an insert keeps getting a null 409', async () => {
     api.apiGet.mockResolvedValue(null);
     api.apiPut.mockRejectedValue(
