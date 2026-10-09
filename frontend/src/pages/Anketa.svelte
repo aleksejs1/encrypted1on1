@@ -3,6 +3,8 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
+  import { onReconnect } from '../connectivity/connectionState.svelte';
+  import { requestTimeout } from '../api/requestTimeout';
   import AnswerBlock from '../anketa/AnswerBlock.svelte';
   import LockIcon from '../anketa/LockIcon.svelte';
   import AnketaHeader from '../anketa/AnketaHeader.svelte';
@@ -491,6 +493,7 @@
     // Set when the stored draft should be re-saved as soon as the page is
     // loaded, without waiting for an edit — see below.
     let resaveDraft = false;
+    let serverDraftFingerprint: string | null = answersFingerprint({});
     try {
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
@@ -673,6 +676,7 @@
         const draft = await decryptDraft(myBlob, draftKey, mk);
         myAnswers = draft?.answers ?? {};
         draftUnreadable = draft === null;
+        serverDraftFingerprint = draft && answersFingerprint(draft.answers);
         // Stored under the master key from before drafts moved off it —
         // re-saved under the draft key, so a later password change can't
         // strand it.
@@ -708,6 +712,10 @@
         counterpartAnswers = envelope.data;
       }
 
+      // Of the server's draft, not of a local backup that replaced it above
+      // (that one still has to be sent); unknown for a draft that is written
+      // back right below, until that save is confirmed.
+      savedDraftFingerprint = resaveDraft ? null : serverDraftFingerprint;
       loaded = true;
       followEmailLink();
       // Not on an archived anketa: the server refuses draft saves there. (A
@@ -831,6 +839,13 @@
   }
 
   const LIVE_STATE_POLL_INTERVAL_MS = 4000;
+  /**
+   * `fetch` has no timeout of its own, and a request into a dead VPN or a
+   * captive portal hangs instead of failing: without one, a hung tick would
+   * hold `pollInFlight` and no later tick would ever notice the connection is
+   * gone (GitHub issue #242).
+   */
+  const LIVE_STATE_TIMEOUT_MS = 10_000;
   let livePollTimer: ReturnType<typeof setInterval> | undefined;
 
   /**
@@ -876,8 +891,10 @@
     // an immediate tick there would only ever find "nothing changed."
     function resumePolling() {
       if (document.hidden || livePollTimer) return;
-      tick();
+      // Armed first: a tick that fails stops the interval it started under
+      // (pollLiveState()), and that has to be this one.
       armInterval();
+      tick();
     }
 
     function stop() {
@@ -896,9 +913,18 @@
     armInterval();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', resumePolling);
+    // The connection came back (GitHub issue #242): the poll stopped at its
+    // first failed tick.
+    const stopOnReconnect = onReconnect(() => {
+      // From a clean start: a tick that hung before the loss may still hold
+      // the old interval, and resumePolling() does nothing while one is set.
+      stop();
+      resumePolling();
+    });
 
     return () => {
       stop();
+      stopOnReconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', resumePolling);
     };
@@ -935,6 +961,7 @@
   async function pollLiveState(): Promise<void> {
     if (!anketaKey || !detail || pollInFlight) return;
     const pollId = id;
+    const timerAtStart = livePollTimer;
     pollInFlight = true;
     try {
       await pollLiveStateFor(pollId);
@@ -954,9 +981,15 @@
       // for a truly expired session, each such attempt just fails and stops
       // again, at the pace of the user actually switching tabs, never a
       // tight retry loop.
+      //
+      // Only the interval this tick started under: a tick that hung through
+      // an outage fails after the reconnect has already started a new one
+      // (GitHub issue #242), and mustn't stop that.
       console.error(error);
-      clearInterval(livePollTimer);
-      livePollTimer = undefined;
+      if (livePollTimer === timerAtStart) {
+        clearInterval(livePollTimer);
+        livePollTimer = undefined;
+      }
     } finally {
       pollInFlight = false;
     }
@@ -976,6 +1009,7 @@
   async function pollLiveStateFor(pollId: string): Promise<void> {
     const live = await apiGet<AnketaLiveState>(
       `/api/anketas/${pollId}/live-state`,
+      { signal: AbortSignal.timeout(LIVE_STATE_TIMEOUT_MS) },
     );
     if (id !== pollId || !detail || !anketaKey) return;
 
@@ -1120,7 +1154,9 @@
       willApplyDiscussed;
     if (!needsFullDetail) return;
 
-    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${pollId}`);
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${pollId}`, {
+      signal: AbortSignal.timeout(LIVE_STATE_TIMEOUT_MS),
+    });
     if (id !== pollId || !detail || !anketaKey) return;
 
     // The decrypt-and-apply blocks below run sequentially, not Promise.all'd,
@@ -1272,22 +1308,87 @@
     // here is so a future change to saveDraft() can't turn into a silent unhandled
     // rejection.
     saveTimer = setTimeout(() => {
+      saveTimer = undefined;
       saveDraft().catch((error: unknown) => {
         console.error(error);
       });
     }, 1000);
   }
 
+  /**
+   * The draft as the server has it, as far as this page knows: the
+   * fingerprint of the draft it sent on load or of the last save it
+   * confirmed, and null when that isn't known (a save is in flight or has
+   * failed: its request may or may not have arrived). "Unsaved" is derived
+   * from it (as for published answers, GitHub issue #166), not kept as a
+   * flag.
+   */
+  let savedDraftFingerprint: string | null = null;
+  /**
+   * One draft save at a time, so the last one sent is the last one the
+   * server gets: with two in flight, an older one that hung could arrive
+   * after a newer one. 'inFlightThenAgain': a save came due meanwhile, and
+   * runs when this one ends, however it ends.
+   */
+  let draftSave: 'idle' | 'inFlight' | 'inFlightThenAgain' = 'idle';
+
+  /** Ends the save in flight; whether another one came due during it. */
+  function endDraftSave(): boolean {
+    const again = draftSave === 'inFlightThenAgain';
+    draftSave = 'idle';
+    return again;
+  }
+
   async function saveDraft() {
     if (!draftKey) return;
+    // A publish in flight sends these answers itself; if it fails, it sees
+    // to the draft (handlePublish()).
+    if (myPublished || publishing) {
+      saveState = 'idle';
+      return;
+    }
+    if (draftSave !== 'idle') {
+      draftSave = 'inFlightThenAgain';
+      return;
+    }
+    // Of the answers being sent, taken before any await: answers typed while
+    // the request is in flight aren't saved by it.
+    const sent = answersFingerprint(myAnswers);
+    if (sent === savedDraftFingerprint) {
+      saveState = 'saved';
+      return;
+    }
+    const savingId = id;
+    draftSave = 'inFlight';
+    savedDraftFingerprint = null;
     try {
       const blob = await encryptBlob(myAnswers, draftKey);
-      await apiPut(`/api/anketas/${id}/draft`, { blob });
+      await apiPut(
+        `/api/anketas/${savingId}/draft`,
+        { blob },
+        // So a save into a dead connection ends, and the next one can start.
+        { signal: requestTimeout(blob.length) },
+      );
+      if (id === savingId) savedDraftFingerprint = sent;
       saveState = 'saved';
     } catch {
       saveState = 'error';
     }
+    const again = endDraftSave();
+    // Still "Saving…" with another save due or about to be.
+    if (again || saveTimer !== undefined) saveState = 'saving';
+    if (again) await saveDraft();
   }
+
+  /** On reconnect: a draft the server doesn't have is saved without waiting for the next edit. */
+  function retryDraftSave() {
+    // An unreadable draft with nothing typed over it is never replaced by an
+    // empty one (GitHub issue #129); the autosave effect has the same rule.
+    if (archived || draftUnreadable) return;
+    if (answersFingerprint(myAnswers) === savedDraftFingerprint) return;
+    scheduleSave();
+  }
+  onDestroy(onReconnect(retryDraftSave));
 
   /**
    * What both confirmations of closing the meeting call (GitHub issue #229):
@@ -1322,8 +1423,13 @@
     if (!anketaKey) return false;
     publishing = true;
     actionError = null;
+    // Whether the draft still has to be saved once this has failed: the
+    // publish cancels the pending draft save, and a reconnect during it
+    // leaves the draft to it.
+    let draftStillDue = false;
     try {
       clearTimeout(saveTimer);
+      saveTimer = undefined;
       const blob = await encryptBlob(myAnswers, anketaKey);
       await apiPost(`/api/anketas/${id}/publish`, { blob });
       myPublished = true;
@@ -1341,10 +1447,17 @@
       } else {
         actionError =
           error instanceof ApiError ? error.message : $_('anketa.errorPublish');
+        // Not after a 409 above, which refuses a draft too.
+        draftStillDue = true;
       }
       return false;
     } finally {
       publishing = false;
+      if (draftStillDue) retryDraftSave();
+      // The cancelled save's "Saving…" doesn't outlive it.
+      if (saveTimer === undefined && draftSave === 'idle') {
+        if (saveState === 'saving') saveState = 'idle';
+      }
     }
   }
 
@@ -2444,7 +2557,7 @@
       grid-row: 1 / -1;
       align-self: start;
       position: sticky;
-      top: 16px;
+      top: calc(16px + var(--connection-banner-offset, 0px));
     }
   }
 
@@ -2477,12 +2590,12 @@
   /* Keyboard focus scrolled to the top doesn't land under the sticky edit
      bar: one row of it, or two once it wraps on a narrow screen. */
   :global(html:has(.answers-edit-bar)) {
-    scroll-padding-top: 4rem;
+    scroll-padding-top: calc(4rem + var(--connection-banner-offset, 0px));
   }
 
   @media (max-width: 30em) {
     :global(html:has(.answers-edit-bar)) {
-      scroll-padding-top: 6.5rem;
+      scroll-padding-top: calc(6.5rem + var(--connection-banner-offset, 0px));
     }
   }
 
@@ -2496,7 +2609,8 @@
      context, hence the z-index. */
   .answers-edit-bar {
     position: sticky;
-    top: 0;
+    /* Below the fixed connection banner, when it's up. */
+    top: var(--connection-banner-offset, 0px);
     z-index: 1;
     display: flex;
     flex-wrap: wrap;

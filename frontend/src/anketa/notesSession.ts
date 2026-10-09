@@ -1,4 +1,5 @@
 import { ApiError, apiGet, apiPut, warmCsrfToken } from '../api/client';
+import { requestTimeout } from '../api/requestTimeout';
 import {
   MAX_NOTES_BLOB_LENGTH,
   decryptNotes,
@@ -66,17 +67,6 @@ const DETACHED_WAIT_MS = 5000;
 const KEEPALIVE_QUOTA = 60_000;
 /** A GET can bring back a row as large as the cap. */
 const MAX_ROW_LENGTH = MAX_NOTES_BLOB_LENGTH + 200;
-/**
- * A request still unanswered after this counts as a network failure, so a
- * stalled connection can't leave the panel "Saving…" for good. Whether it
- * landed is then unknown, which sentSinceAck already accounts for. Scaled
- * with the body, so a near-cap save on a slow link isn't cut off (a 409
- * brings a row of the same size back).
- */
-function requestTimeout(bodyLength: number): AbortSignal {
-  return AbortSignal.timeout(20_000 + 2 * Math.ceil(bodyLength / 1000) * 100);
-}
-
 /**
  * What makes a save request, where it matters: while retrying, only the retry
  * timer, the manual Retry, a hidden tab, pagehide and destroy send; the
@@ -198,6 +188,31 @@ export class NotesSession {
       return;
     }
     this.apply({ type: 'loaded', row, backup, freshKeys });
+  }
+
+  /**
+   * The connection came back (GitHub issue #242): a save or a load that
+   * failed for the network goes again, also after the automatic retries ran
+   * out (22 seconds, less than an ordinary Wi-Fi drop lasts). A save still in
+   * flight hung through the outage and will fail after this, with no second
+   * reconnect to follow, so this waits for it. A destroyed panel doesn't
+   * retry, as everywhere else.
+   */
+  reconnected(): void {
+    void this.whenSettled().then(() => {
+      if (!this.destroyed) this.retryAfterReconnect();
+    });
+  }
+
+  private retryAfterReconnect(): void {
+    if (this.model.status === 'retrying') {
+      this.requestSave('manual');
+    } else if (
+      this.model.status === 'loadError' &&
+      !this.model.loadErrorNeedsReload
+    ) {
+      this.retryLoad();
+    }
   }
 
   retryLoad(): void {

@@ -50,7 +50,10 @@ test('an expired invite can be renewed from the link and re-sent by an admin', a
   ).toBeVisible();
   await expect(invitee.locator('#act-password')).toHaveCount(0);
   await invitee.getByRole('button', { name: 'Request new invitation' }).click();
-  const confirmation = invitee.getByRole('status');
+  // Not the connection banner's live region, which is always on the page.
+  const confirmation = invitee
+    .getByRole('status')
+    .filter({ hasText: 'Request sent.' });
   await expect(confirmation).toContainText('Request sent.');
   // The button is gone; focus moves to the outcome instead of <body>.
   await expect(confirmation).toBeFocused();
@@ -60,7 +63,7 @@ test('an expired invite can be renewed from the link and re-sent by an admin', a
 
   // The request survives a reload, so the button doesn't come back.
   await invitee.reload();
-  await expect(invitee.getByRole('status')).toContainText('Request sent.');
+  await expect(confirmation).toBeVisible();
 
   await admin.goto('/admin/invites');
   const row = admin.getByRole('row').filter({ hasText: inviteeEmail });
@@ -70,8 +73,10 @@ test('an expired invite can be renewed from the link and re-sent by an admin', a
   await row
     .getByRole('button', { name: `Re-send invite to ${inviteeEmail}` })
     .click();
-  const resent = admin.getByRole('status');
-  await expect(resent).toHaveText(`New invitation sent to ${inviteeEmail}.`);
+  const resent = admin
+    .getByRole('status')
+    .filter({ hasText: `New invitation sent to ${inviteeEmail}.` });
+  await expect(resent).toBeVisible();
   await expect(resent).toBeFocused();
 
   // The new pending invite sits above the old row, which no longer offers
