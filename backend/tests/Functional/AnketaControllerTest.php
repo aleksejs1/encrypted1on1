@@ -1288,6 +1288,22 @@ class AnketaControllerTest extends ApiTestCase
         self::assertFalse($next['oneOff']);
     }
 
+    /**
+     * GitHub issue #208: a Quick check-in is the one built-in type besides Regular
+     * whose default successor is itself, with nothing chosen on the archive form.
+     */
+    public function testArchivingAQuickCheckInCreatesAnotherByDefault(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('next-type-quick');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'], ['templateKey' => 'lightweight'])['json']['id'];
+
+        self::assertSame('lightweight', $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['nextCycleTemplateKey']);
+
+        $next = $this->archiveAndGetSuccessor($employeeClient, $anketaId);
+        self::assertSame('lightweight', $next['templateKey']);
+        self::assertFalse($next['oneOff']);
+    }
+
     /** "Cancel as missed" sends the same choice, so it creates the same type. */
     public function testMissedArchiveWithNextTemplateKeyCreatesThatType(): void
     {

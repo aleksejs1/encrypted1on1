@@ -232,6 +232,8 @@
     "templateCareerGrowthDescription": "Saruna par karjeru (piemēram, reizi ceturksnī) — enerģijas retrospektīva, attīstības virziens, izaicinoši uzdevumi un 90 dienu attīstības plāns parasto regulārās tikšanās lauku vietā.",
     "templateSupportCheckin": "Saruna par atbalstu un darba slodzi",
     "templateSupportCheckinDescription": "Enerģija un darba slodze — ko var atlikt vai nodot citiem, kas palīdzētu pasargāt laiku koncentrētam darbam un atpūtai, un konkrēti nākamie soļi, kopā ar ierastajiem jautājumiem par noskaņojumu un darba slodzi.",
+    "templateLightweight": "Īsa pārbaude",
+    "templateLightweightDescription": "Īsa tikšanās — noskaņojums un viens atvērts jautājums darbiniekam, viens jautājums vadītājam. Darba kārtība ir kopīgais saraksts “Apspriežamās tēmas”.",
     "meetingDateLabel": "Tikšanās datums",
     "periodicityLabel": "Cik bieži jūs tiksieties?",
     "periodicityWeekly": "Reizi nedēļā",
@@ -239,7 +241,7 @@
     "periodicityMonthly": "Reizi mēnesī",
     "periodicityInherited": "Jūs jau esat tikušies iepriekš — šī pāra periodiskums jau ir noteikts un tiek pārnests automātiski.",
     "pairHasOpenAnketa": "Šim pārim jau ir atvērta 1:1 tikšanās, tāpēc šī būs vienreizēja: tajā nekas netiek pārnests, šeit pievienotie mērķi un rezultāti netiks pārnesti uz pāra nākamo tikšanos, un tās arhivēšana neieplānos nākamo tikšanos. Pāra regulārās tikšanās turpinās otrā, jau atvērtajā 1:1 tikšanās reizē.",
-    "pairHasOpenAnketaHowToSwitch": "Lai tā vietā pāra nākamā regulārā tikšanās notiktu šajā formātā, izvēlieties to kā nākamās tikšanās veidu, arhivējot pašreizējo.",
+    "pairHasOpenAnketaHowToSwitch": "Lai pāra nākamā regulārā tikšanās notiktu šajā formātā, izvēlieties to kā nākamās tikšanās veidu, arhivējot pašreizējo.",
     "companyTemplatesHeading": "Jūsu uzņēmuma veidnes",
     "companyTemplatesCreate": "Izveidot uzņēmuma veidni →",
     "companyTemplatesNone": "Jūsu uzņēmuma administrators var pievienot savas tikšanās veidnes.",
@@ -408,6 +410,9 @@
       "friction": { "title": "Kas manā darbā ir grūtāk, nekā vajadzētu būt" },
       "achievements": { "title": "Sasniegumi" },
       "discuss": { "title": "Par ko vēl parunāt" },
+      "periodNotes": {
+        "title": "Svarīgākais šajā periodā un kur man vajadzīga palīdzība"
+      },
       "workingAgreement": {
         "title": "Darba vienošanās: kā līdz šim ir gājušas tikšanās?"
       },

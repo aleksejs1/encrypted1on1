@@ -154,6 +154,8 @@ describe('getQuestionsForSide', () => {
       onboarding: ['discuss'],
       career_growth: ['discuss', 'managerDiscuss'],
       support_checkin: ['discuss', 'managerDiscuss'],
+      // Added at form version 3, so it never had them.
+      lightweight: [],
     };
     for (const templateKey of ANKETA_TEMPLATES) {
       const discussIdsAt = (version: number) =>
@@ -635,6 +637,40 @@ describe('getQuestionsForSide', () => {
           f.type,
         ]),
       ).toEqual([['checkInCadenceNotes', 'text']]);
+    });
+  });
+
+  describe("the 'lightweight' template", () => {
+    it('gives the employee side mood and one question of its own', () => {
+      expect(questionIds('employee', 'lightweight')).toEqual([
+        'mood',
+        'periodNotes',
+      ]);
+    });
+
+    it('gives the manager side support only', () => {
+      expect(questionIds('manager', 'lightweight')).toEqual(['support']);
+    });
+
+    // The same objects, so the mood trend line and comment threads key on
+    // the same field ids as on a regular check-in.
+    it('keeps mood/support identical to the regular template', () => {
+      for (const [side, id] of [
+        ['employee', 'mood'],
+        ['manager', 'support'],
+      ] as const) {
+        expect(questionFor(side, 'lightweight', id)).toBe(
+          questionFor(side, 'regular', id),
+        );
+      }
+    });
+
+    it('gives periodNotes a single free-text field', () => {
+      expect(
+        questionFor('employee', 'lightweight', 'periodNotes')?.fields.map(
+          (f) => [f.id, f.type],
+        ),
+      ).toEqual([['periodNotesDetails', 'text']]);
     });
   });
 });

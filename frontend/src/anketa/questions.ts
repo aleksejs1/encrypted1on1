@@ -774,6 +774,29 @@ const supportCheckinManagerQuestions: Question[] = [
   managerDiscussQuestion,
 ];
 
+/** The 'lightweight' template's one question of its own (GitHub issue #208): the
+ * whole period in one free-text field, next to the shared topics list. */
+const periodNotesQuestion: Question = {
+  id: 'periodNotes',
+  titleKey: 'questions.employee.periodNotes.title',
+  fields: [
+    {
+      id: 'periodNotesDetails',
+      type: 'text',
+      labelKey: 'questions.fields.details',
+    },
+  ],
+};
+
+/** Same uniform `(formVersion)` signature as `onboardingEmployeeQuestions()`. The
+ * template was added at form version 3, so it never had a "What else to discuss"
+ * block. `mood` is kept so the pair's mood trend line continues. */
+function lightweightEmployeeQuestions(_formVersion: number): Question[] {
+  return [moodQuestion, periodNotesQuestion];
+}
+
+const lightweightManagerQuestions: Question[] = [supportQuestion];
+
 /**
  * Which built-in meeting-type template an anketa uses — see
  * private/anketa-meeting-templates-proposal.md (not tracked in git) for the full design.
@@ -786,6 +809,7 @@ const supportCheckinManagerQuestions: Question[] = [
  */
 export const ANKETA_TEMPLATES = [
   'regular',
+  'lightweight',
   'onboarding',
   'career_growth',
   'support_checkin',
@@ -825,6 +849,12 @@ const TEMPLATES: Record<TemplateKey, AnketaTemplate> = {
     managerQuestions,
     labelKey: 'createAnketa.templateRegular',
     descriptionKey: 'createAnketa.templateRegularDescription',
+  },
+  lightweight: {
+    employeeQuestions: lightweightEmployeeQuestions,
+    managerQuestions: lightweightManagerQuestions,
+    labelKey: 'createAnketa.templateLightweight',
+    descriptionKey: 'createAnketa.templateLightweightDescription',
   },
   onboarding: {
     employeeQuestions: onboardingEmployeeQuestions,

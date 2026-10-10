@@ -232,6 +232,8 @@
     "templateCareerGrowthDescription": "Una conversación sobre la carrera profesional (por ejemplo, trimestral) — retrospectiva de energía, trayectoria, oportunidades de reto y un plan de desarrollo a 90 días en lugar de los campos habituales del check-in regular.",
     "templateSupportCheckin": "Reunión de apoyo y carga de trabajo",
     "templateSupportCheckinDescription": "Una conversación sobre energía y carga de trabajo — qué pausar o delegar, qué ayudaría a proteger el tiempo de concentración y descanso, y próximos pasos concretos, junto con las preguntas habituales sobre estado de ánimo y carga de trabajo.",
+    "templateLightweight": "Reunión breve",
+    "templateLightweightDescription": "Una reunión corta: estado de ánimo y una pregunta abierta para el empleado, una pregunta para el responsable. La agenda es la lista compartida «Temas a tratar».",
     "meetingDateLabel": "Fecha de la reunión",
     "periodicityLabel": "¿Con qué frecuencia os reuniréis?",
     "periodicityWeekly": "Semanalmente",
@@ -412,6 +414,9 @@
       },
       "achievements": { "title": "Logros" },
       "discuss": { "title": "Qué más comentar" },
+      "periodNotes": {
+        "title": "Lo más importante del periodo y dónde necesito ayuda"
+      },
       "workingAgreement": {
         "title": "Acuerdo de trabajo: ¿cómo han sido las reuniones hasta ahora?"
       },
