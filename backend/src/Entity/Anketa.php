@@ -473,6 +473,16 @@ class Anketa
         return $user->getId() === $this->employee->getId();
     }
 
+    /** The other participant. Throws for a user who isn't one of the two. */
+    public function counterpartOf(User $user): User
+    {
+        if (!$this->isParticipant($user)) {
+            throw new \LogicException('Not a participant of this anketa.');
+        }
+
+        return $this->isEmployee($user) ? $this->manager : $this->employee;
+    }
+
     public function getEmployeeBlob(): ?string
     {
         return $this->employeeBlob;

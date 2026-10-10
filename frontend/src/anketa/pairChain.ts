@@ -107,7 +107,8 @@ export function pairCounterpartId(
 
 /**
  * My role in the pair's most recent meeting, open or archived, or null for a
- * new pair. One-offs count too: the role is the same person's either way.
+ * new pair. One-offs count too, so after the pair swapped roles for its next
+ * 1:1 (GitHub issue #254) a later-dated one-off can still state the old ones.
  * Shown on the create form as a fact about the pair (GitHub issue #252),
  * never used to select a role (#251).
  */

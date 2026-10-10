@@ -164,7 +164,7 @@ class PasswordResetController
 
         $counterparts = [];
         foreach ($anketas as $anketa) {
-            $counterpart = $anketa->isEmployee($target) ? $anketa->getManager() : $anketa->getEmployee();
+            $counterpart = $anketa->counterpartOf($target);
             $counterparts[$counterpart->getId()] = $counterpart;
         }
 

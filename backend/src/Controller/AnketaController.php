@@ -583,6 +583,7 @@ class AnketaController
                 topicsBlob: $payload->topicsBlob,
                 nextTemplateKey: $nextTemplateKey,
                 nextCustomTemplateVersion: $nextCustomTemplateVersion,
+                swapRolesNext: $payload->swapRolesNext ?? false,
                 // Only with a successor: nothing is carried forward otherwise.
                 expectedTopicsVersion: $createNext ? $payload->topicsVersion : null,
             );

@@ -221,10 +221,11 @@ class ResetDemoDataCommand extends Command
         $anketas = $this->entityManager->createQueryBuilder()
             ->select('anketa')
             ->from(Anketa::class, 'anketa')
-            ->where('anketa.employee = :employee')
-            ->andWhere('anketa.manager = :manager')
-            ->setParameter('employee', $employee)
-            ->setParameter('manager', $manager)
+            // Either way round: a visitor can create a 1:1 with the roles swapped, or
+            // swap them for the next one at archive (GitHub issue #254).
+            ->where('(anketa.employee = :a AND anketa.manager = :b) OR (anketa.employee = :b AND anketa.manager = :a)')
+            ->setParameter('a', $employee)
+            ->setParameter('b', $manager)
             ->getQuery()
             ->getResult();
 
