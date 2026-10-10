@@ -19,6 +19,15 @@ readonly class ArchiveAnketaRequest
         #[Assert\Type('string')]
         public ?string $outcomesBlob = null,
         #[Assert\Type('string')]
+        public ?string $topicsBlob = null,
+        // The topics version that topicsBlob was built from (GitHub issue #206). If the
+        // list has changed since, the archive is refused with the current list, so the
+        // client rebuilds the carry-forward instead of leaving a new topic behind.
+        // Absent (an older client) means no check.
+        #[Assert\Type('int')]
+        #[Assert\PositiveOrZero]
+        public ?int $topicsVersion = null,
+        #[Assert\Type('string')]
         public ?string $mySealedKey = null,
         #[Assert\Type('string')]
         public ?string $counterpartSealedKey = null,

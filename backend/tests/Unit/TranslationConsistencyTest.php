@@ -2,6 +2,8 @@
 
 namespace App\Tests\Unit;
 
+use App\Anketa\AnketaAlreadyArchivedException;
+use App\Anketa\AnketaTopicsChangedException;
 use App\Entity\User;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
@@ -94,6 +96,48 @@ class TranslationConsistencyTest extends TestCase
                 "Locale '{$locale}' has empty 'errors.internal_server_error'."
             );
         }
+    }
+
+    /**
+     * GitHub issue #195: the product's object is a "1:1" in every locale;
+     * "anketa" survives only in keys, identifiers and routes. The other words
+     * are the questionnaire terms es/de/fr used before the rename.
+     */
+    public function testNoTranslationCallsA1on1AnAnketa(): void
+    {
+        $translations = $this->loadAllTranslations();
+
+        foreach (self::LOCALES as $locale) {
+            self::assertSame([], $this->keysMatching($translations[$locale], '/anket|анкет|cuestionario|fragebogen|questionnaire/iu'), "Locale '{$locale}' still says \"anketa\" in these values.");
+        }
+    }
+
+    public function testAlreadyArchivedExceptionMatchesEnglishTranslation(): void
+    {
+        $translations = $this->loadAllTranslations();
+
+        self::assertSame($translations['en']['errors']['anketa_archived'], (new AnketaAlreadyArchivedException())->getMessage());
+        self::assertSame($translations['en']['errors']['topics_conflict'], (new AnketaTopicsChangedException())->getMessage());
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return list<string> dotted keys whose value matches $pattern
+     */
+    private function keysMatching(array $data, string $pattern, string $prefix = ''): array
+    {
+        $keys = [];
+        foreach ($data as $key => $value) {
+            $fullKey = '' !== $prefix ? "{$prefix}.{$key}" : $key;
+            if (\is_array($value)) {
+                $keys = array_merge($keys, $this->keysMatching($value, $pattern, $fullKey));
+            } elseif (\is_string($value) && 1 === preg_match($pattern, $value)) {
+                $keys[] = $fullKey;
+            }
+        }
+
+        return $keys;
     }
 
     /**

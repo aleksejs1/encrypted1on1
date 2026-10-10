@@ -33,8 +33,23 @@ class AnketaNotifier
     public function notifyAnketaCreated(Anketa $anketa, User $recipient, User $creator): void
     {
         $this->send($recipient, 'email.anketa_created', [
-            '%creator%' => $creator->getEmail(),
-            '%date%' => $this->formatDate($anketa),
+            '%creator%' => $this->nameOf($creator),
+            '%date%' => $this->formatDate($anketa->getMeetingDate()),
+            '%url%' => $this->anketaUrl($anketa),
+        ]);
+    }
+
+    /**
+     * Tells the counterpart a meeting moved to another day (GitHub issue #200). Mandatory,
+     * like notifyAnketaCreated(), not gated by User::wantsMeetingReminders(): see
+     * docs/decisions/2026-10-03-email-copy-single-reminder-reschedule-notice.md.
+     */
+    public function notifyMeetingRescheduled(Anketa $anketa, User $recipient, User $actor, \DateTimeImmutable $previousDate): void
+    {
+        $this->send($recipient, 'email.meeting_rescheduled', [
+            '%actor%' => $this->nameOf($actor),
+            '%old_date%' => $this->formatDate($previousDate),
+            '%date%' => $this->formatDate($anketa->getMeetingDate()),
             '%url%' => $this->anketaUrl($anketa),
         ]);
     }
@@ -44,28 +59,41 @@ class AnketaNotifier
         return $this->sendReminder('email.meeting_tomorrow', $anketa, $recipient, $counterpart);
     }
 
-    public function notifyNotFilledOut(Anketa $anketa, User $recipient, User $counterpart): bool
-    {
-        return $this->sendReminder('email.not_filled_out', $anketa, $recipient, $counterpart);
-    }
-
     /** Friday's reminder for a Monday meeting (GitHub issue #167) — "tomorrow" would be wrong. */
     public function notifyMeetingMonday(Anketa $anketa, User $recipient, User $counterpart): bool
     {
         return $this->sendReminder('email.meeting_monday', $anketa, $recipient, $counterpart);
     }
 
-    /** Friday's reminder for a Monday meeting (GitHub issue #167) — "tomorrow" would be wrong. */
-    public function notifyNotFilledOutMonday(Anketa $anketa, User $recipient, User $counterpart): bool
+    /**
+     * Asks whether a meeting that is past its day and still open happened (GitHub issue
+     * #202), with one link to close it and one to move it; the fragments are read by
+     * frontend/src/anketa/followUpLinks.ts. A one-off has no next meeting to schedule, so
+     * its copy says only "close". Gated and reported like the reminders: see sendReminder().
+     */
+    public function notifyMeetingFollowUp(Anketa $anketa, User $recipient, User $counterpart): bool
     {
-        return $this->sendReminder('email.not_filled_out_monday', $anketa, $recipient, $counterpart);
+        if (!$recipient->wantsMeetingReminders()) {
+            return true;
+        }
+        $url = $this->anketaUrl($anketa);
+
+        return $this->send($recipient, 'email.meeting_follow_up', [
+            '%counterpart%' => $this->nameOf($counterpart),
+            '%date%' => $this->formatDate($anketa->getMeetingDate()),
+            '%close_url%' => $url.'#close',
+            '%reschedule_url%' => $url.'#reschedule',
+        ], $anketa->isOneOff() ? 'body_one_off' : 'body');
     }
 
     /**
-     * Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated(), which is always
-     * mandatory. Returns false only when the mail transport failed (already logged), so
-     * SendRemindersCommand can leave the reminder due for a retry; an opted-out recipient
-     * counts as done.
+     * One email per recipient (GitHub issue #200): a recipient whose side isn't published
+     * gets the same reminder with one more line (`body_not_published`), not a second email.
+     *
+     * Gated by User::wantsMeetingReminders() — unlike notifyAnketaCreated() and
+     * notifyMeetingRescheduled(), which are always mandatory. Returns false only when the
+     * mail transport failed (already logged), so SendRemindersCommand can leave the
+     * reminder due for a retry; an opted-out recipient counts as done.
      */
     private function sendReminder(string $key, Anketa $anketa, User $recipient, User $counterpart): bool
     {
@@ -74,10 +102,10 @@ class AnketaNotifier
         }
 
         return $this->send($recipient, $key, [
-            '%counterpart%' => $counterpart->getEmail(),
-            '%date%' => $this->formatDate($anketa),
+            '%counterpart%' => $this->nameOf($counterpart),
+            '%date%' => $this->formatDate($anketa->getMeetingDate()),
             '%url%' => $this->anketaUrl($anketa),
-        ]);
+        ], $anketa->isPublished($recipient) ? 'body' : 'body_not_published');
     }
 
     /**
@@ -85,14 +113,14 @@ class AnketaNotifier
      *
      * @return bool false if the mail transport failed, which is logged rather than thrown
      */
-    private function send(User $recipient, string $key, array $params): bool
+    private function send(User $recipient, string $key, array $params, string $body = 'body'): bool
     {
         $locale = $recipient->getLocale();
         $email = (new Email())
             ->from($this->mailerFrom)
             ->to($recipient->getEmail())
             ->subject($this->translator->trans("$key.subject", $params, null, $locale))
-            ->text($this->translator->trans("$key.body", $params, null, $locale));
+            ->text($this->translator->trans("$key.$body", $params, null, $locale));
 
         try {
             $this->mailer->send($email);
@@ -105,9 +133,21 @@ class AnketaNotifier
         }
     }
 
-    private function formatDate(Anketa $anketa): string
+    /**
+     * "Display name (email)", or the email alone for someone who never set a name. The
+     * email stays: a display name is self-chosen, and an email naming only "the CEO"
+     * from this instance's own sender address would be an impersonation tool.
+     */
+    private function nameOf(User $user): string
     {
-        return $anketa->getMeetingDate()->format('Y-m-d');
+        return '' !== $user->getDisplayName()
+            ? sprintf('%s (%s)', $user->getDisplayName(), $user->getEmail())
+            : $user->getEmail();
+    }
+
+    private function formatDate(\DateTimeImmutable $date): string
+    {
+        return $date->format('Y-m-d');
     }
 
     private function anketaUrl(Anketa $anketa): string

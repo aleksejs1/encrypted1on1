@@ -189,6 +189,58 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertFalse($this->isDue($anketa, $monday), 'moved back to the day already reminded');
     }
 
+    /** GitHub issue #202: the follow-up is claimed for its meeting day like the reminder. */
+    public function testClaimFollowUpSucceedsOncePerMeetingDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-once');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+
+        self::assertTrue($this->isDueForFollowUp($anketa, $monday));
+        self::assertTrue($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+        self::assertFalse($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+        self::assertFalse($this->isDueForFollowUp($anketa, $monday));
+        // Its own column: the reminder for that day is still due.
+        self::assertTrue($this->isDue($anketa, $monday));
+    }
+
+    public function testReleaseFollowUpRestoresThePreviousDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-release');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        $wednesday = new \DateTimeImmutable('2091-08-08T00:00:00Z');
+        self::assertTrue($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+        $anketa->reschedule($wednesday);
+        $this->entityManager()->flush();
+        self::assertTrue($this->isDueForFollowUp($anketa, $wednesday), 'moved to another day');
+        self::assertTrue($anketaRepo->claimFollowUp($anketa->getId(), $wednesday));
+
+        $anketaRepo->releaseFollowUp($anketa->getId(), $wednesday, $monday);
+
+        self::assertTrue($this->isDueForFollowUp($anketa, $wednesday));
+        $anketa->reschedule($monday);
+        $this->entityManager()->flush();
+        self::assertFalse($this->isDueForFollowUp($anketa, $monday), 'moved back to the day already followed up');
+    }
+
+    public function testClaimFollowUpMissesAMeetingMovedToAnotherDay(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-moved');
+        $anketa->reschedule(new \DateTimeImmutable('2091-08-08T00:00:00Z'));
+        $this->entityManager()->flush();
+
+        self::assertFalse($anketaRepo->claimFollowUp($anketa->getId(), new \DateTimeImmutable('2091-08-06T00:00:00Z')));
+    }
+
+    public function testClaimFollowUpRefusesAnArchivedAnketa(): void
+    {
+        [$anketaRepo, $anketa] = $this->reminderAnketa('follow-up-archived');
+        $monday = new \DateTimeImmutable('2091-08-06T00:00:00Z');
+        self::assertTrue($anketaRepo->markArchivedIfOpen($anketa, new \DateTimeImmutable(), false));
+
+        self::assertFalse($this->isDueForFollowUp($anketa, $monday));
+        self::assertFalse($anketaRepo->claimFollowUp($anketa->getId(), $monday));
+    }
+
     /** @return array{0: AnketaRepository, 1: Anketa} */
     private function reminderAnketa(string $label): array
     {
@@ -205,6 +257,11 @@ class AnketaRepositoryTest extends ApiTestCase
     private function isDue(Anketa $anketa, \DateTimeImmutable $dayStart): bool
     {
         return \in_array($anketa->getId(), $this->entityManager()->getRepository(Anketa::class)->findDueForReminder($dayStart), true);
+    }
+
+    private function isDueForFollowUp(Anketa $anketa, \DateTimeImmutable $dayStart): bool
+    {
+        return \in_array($anketa->getId(), $this->entityManager()->getRepository(Anketa::class)->findDueForFollowUp($dayStart), true);
     }
 
     /**
@@ -230,6 +287,99 @@ class AnketaRepositoryTest extends ApiTestCase
         self::assertNotNull($reloaded);
         self::assertSame('third', $reloaded->getDiscussedBlob());
         self::assertSame(2, $reloaded->getDiscussedVersion());
+    }
+
+    /**
+     * GitHub issue #206: the topics list is saved the same way, and on its own version:
+     * a topics save neither needs nor moves the discussed ticks' version.
+     */
+    public function testSaveTopicsIfVersionOnlySucceedsOnceForAVersionAndLeavesDiscussedAlone(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('topics-once');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        self::assertTrue($anketaRepo->saveDiscussedIfVersion($anketa, 'ticks', 0));
+        self::assertTrue($anketaRepo->saveTopicsIfVersion($anketa, 'first', 0));
+        self::assertFalse($anketaRepo->saveTopicsIfVersion($anketa, 'second', 0));
+        self::assertTrue($anketaRepo->saveTopicsIfVersion($anketa, 'third', 1));
+
+        $em->clear();
+        $reloaded = $anketaRepo->find($anketaId);
+        self::assertNotNull($reloaded);
+        self::assertSame('third', $reloaded->getTopicsBlob());
+        self::assertSame(2, $reloaded->getTopicsVersion());
+        self::assertSame('ticks', $reloaded->getDiscussedBlob());
+        self::assertSame(1, $reloaded->getDiscussedVersion());
+    }
+
+    public function testSaveTopicsIfVersionRefusesAnArchivedAnketa(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('topics-archived');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        // The stale in-memory copy a request loaded just before the archive landed.
+        self::assertTrue($anketaRepo->markArchivedIfOpen($anketa, new \DateTimeImmutable('2026-09-01 10:00:00'), false));
+        self::assertFalse($anketaRepo->saveTopicsIfVersion($anketa, 'late', 0));
+
+        $em->clear();
+        $reloaded = $anketaRepo->find($anketaId);
+        self::assertNotNull($reloaded);
+        self::assertNull($reloaded->getTopicsBlob());
+        self::assertSame(0, $reloaded->getTopicsVersion());
+    }
+
+    public function testMarkArchivedIfOpenWithATopicsVersionOnlyMatchesThatVersion(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('archive-topics-version');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+        self::assertTrue($anketaRepo->saveTopicsIfVersion($anketa, 'topics', 0));
+
+        $archivedAt = new \DateTimeImmutable('2026-09-01 10:00:00');
+        self::assertFalse($anketaRepo->markArchivedIfOpen($anketa, $archivedAt, false, 0));
+        $em->clear();
+        $stillOpen = $anketaRepo->find($anketaId);
+        self::assertNotNull($stillOpen);
+        self::assertFalse($stillOpen->isArchived());
+
+        self::assertTrue($anketaRepo->markArchivedIfOpen($stillOpen, $archivedAt, false, 1));
+        $em->clear();
+        self::assertTrue($anketaRepo->find($anketaId)?->isArchived());
+    }
+
+    public function testSaveTopicsIfVersionTouchesOnlyItsOwnAnketa(): void
+    {
+        [$empClient, , , $manager] = $this->makePair('topics-own-row');
+        $anketaId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+        // The same pair's second open meeting (a one-off).
+        $otherId = $this->createAnketaAsEmployee($empClient, $manager['id'])['json']['id'];
+
+        $em = $this->entityManager();
+        $anketaRepo = $em->getRepository(Anketa::class);
+        $anketa = $anketaRepo->find($anketaId);
+        self::assertNotNull($anketa);
+
+        self::assertTrue($anketaRepo->saveTopicsIfVersion($anketa, 'mine', 0));
+
+        $em->clear();
+        $other = $anketaRepo->find($otherId);
+        self::assertNotNull($other);
+        self::assertNull($other->getTopicsBlob());
+        self::assertSame(0, $other->getTopicsVersion());
     }
 
     public function testSaveDiscussedIfVersionRefusesAnArchivedAnketa(): void

@@ -15,9 +15,12 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class AnketaRepository extends ServiceEntityRepository
 {
-    /** An open anketa meeting on the `:start`–`:end` day, not yet reminded for that `:day`. See onDay(). */
-    private const string DUE_FOR_REMINDER = 'a.archivedAt IS NULL AND a.meetingDate >= :start AND a.meetingDate < :end'
-        .' AND (a.reminderMeetingDay IS NULL OR a.reminderMeetingDay <> :day)';
+    /** An open anketa meeting on the `:start`–`:end` day. See onDay(). */
+    private const string OPEN_ON_DAY = 'a.archivedAt IS NULL AND a.meetingDate >= :start AND a.meetingDate < :end';
+    /** ...not yet reminded for that `:day`. */
+    private const string DUE_FOR_REMINDER = self::OPEN_ON_DAY.' AND (a.reminderMeetingDay IS NULL OR a.reminderMeetingDay <> :day)';
+    /** ...not yet followed up for that `:day` (GitHub issue #202). */
+    private const string DUE_FOR_FOLLOW_UP = self::OPEN_ON_DAY.' AND (a.followUpMeetingDay IS NULL OR a.followUpMeetingDay <> :day)';
 
     public function __construct(ManagerRegistry $registry)
     {
@@ -129,14 +132,7 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function findDueForReminder(\DateTimeImmutable $dayStart): array
     {
-        /** @var list<string> $ids */
-        $ids = $this->onDay($this->createQueryBuilder('a')
-            ->select('a.id')
-            ->where(self::DUE_FOR_REMINDER)
-            ->getQuery(), $dayStart)
-            ->getSingleColumnResult();
-
-        return $ids;
+        return $this->idsDueOn(self::DUE_FOR_REMINDER, $dayStart);
     }
 
     /**
@@ -177,8 +173,74 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function releaseReminder(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
     {
+        $this->restoreClaimedDay('reminderMeetingDay', $id, $dayStart, $previousDay);
+    }
+
+    /**
+     * Ids of still-open anketas that met on the day starting at `$dayStart` and haven't had
+     * their follow-up email for that day (GitHub issue #202). The follow-up counterpart of
+     * findDueForReminder(), with the same reasons for returning ids only and for being
+     * cross-tenant.
+     *
+     * @return list<string>
+     */
+    public function findDueForFollowUp(\DateTimeImmutable $dayStart): array
+    {
+        return $this->idsDueOn(self::DUE_FOR_FOLLOW_UP, $dayStart);
+    }
+
+    /**
+     * claimReminder() for the follow-up email: stamps the anketa as followed up for the
+     * day starting at `$dayStart` only if it is still open, still on that day and not yet
+     * followed up for it, and reports whether this call did it. A meeting archived or
+     * moved since the select is skipped. Cross-tenant by design, like claimReminder().
+     */
+    public function claimFollowUp(string $id, \DateTimeImmutable $dayStart): bool
+    {
+        $affected = $this->onDay($this->getEntityManager()->createQuery(
+            'UPDATE '.Anketa::class.' a SET a.followUpMeetingDay = :day WHERE a.id = :id AND '.self::DUE_FOR_FOLLOW_UP
+        ), $dayStart)
+            ->setParameter('id', $id)
+            ->execute();
+
+        return 1 === $affected;
+    }
+
+    /**
+     * Undoes claimFollowUp() when sending failed after the claim, restoring the day the
+     * anketa was followed up for before it, like releaseReminder().
+     */
+    public function releaseFollowUp(string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
+    {
+        $this->restoreClaimedDay('followUpMeetingDay', $id, $dayStart, $previousDay);
+    }
+
+    /**
+     * @param self::DUE_FOR_* $due
+     *
+     * @return list<string>
+     */
+    private function idsDueOn(string $due, \DateTimeImmutable $dayStart): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->onDay($this->createQueryBuilder('a')
+            ->select('a.id')
+            ->where($due)
+            ->getQuery(), $dayStart)
+            ->getSingleColumnResult();
+
+        return $ids;
+    }
+
+    /**
+     * Puts `$previousDay` back into a claim column, only while it still holds `$dayStart`.
+     *
+     * @param 'reminderMeetingDay'|'followUpMeetingDay' $column
+     */
+    private function restoreClaimedDay(string $column, string $id, \DateTimeImmutable $dayStart, ?\DateTimeImmutable $previousDay): void
+    {
         $this->getEntityManager()->createQuery(
-            'UPDATE '.Anketa::class.' a SET a.reminderMeetingDay = :previousDay WHERE a.id = :id AND a.reminderMeetingDay = :day'
+            'UPDATE '.Anketa::class." a SET a.$column = :previousDay WHERE a.id = :id AND a.$column = :day"
         )
             ->setParameter('previousDay', $previousDay, Types::DATE_IMMUTABLE)
             ->setParameter('id', $id)
@@ -187,7 +249,7 @@ class AnketaRepository extends ServiceEntityRepository
     }
 
     /**
-     * Binds DUE_FOR_REMINDER's parameters for the UTC day starting at `$dayStart`.
+     * Binds OPEN_ON_DAY's and the two DUE_FOR_* conditions' parameters for the UTC day starting at `$dayStart`.
      *
      * @template TKey
      * @template TResult
@@ -212,18 +274,28 @@ class AnketaRepository extends ServiceEntityRepository
      * forking the pair's chain. The database serializes the two UPDATEs (a row lock on
      * MySQL, the write lock plus busy_timeout on SQLite), so the second one matches
      * no row.
+     *
+     * With `$expectedTopicsVersion` (GitHub issue #206), also only if the topics list is
+     * still at that version: the archiving browser built the successor's carried-forward
+     * topics from it, and a topic saved since would otherwise be missing from the next
+     * meeting. The same statement, so no topics save can land in between. False then
+     * means "already archived" or "topics changed"; the caller re-reads which.
      */
-    public function markArchivedIfOpen(Anketa $anketa, \DateTimeImmutable $archivedAt, bool $missed): bool
+    public function markArchivedIfOpen(Anketa $anketa, \DateTimeImmutable $archivedAt, bool $missed, ?int $expectedTopicsVersion = null): bool
     {
-        $affected = $this->getEntityManager()->createQuery(
-            'UPDATE '.Anketa::class.' a SET a.archivedAt = :archivedAt, a.missed = :missed WHERE a.id = :id AND a.archivedAt IS NULL'
-        )
+        $dql = 'UPDATE '.Anketa::class.' a SET a.archivedAt = :archivedAt, a.missed = :missed WHERE a.id = :id AND a.archivedAt IS NULL';
+        if (null !== $expectedTopicsVersion) {
+            $dql .= ' AND a.topicsVersion = :expectedTopicsVersion';
+        }
+        $query = $this->getEntityManager()->createQuery($dql)
             ->setParameter('archivedAt', $archivedAt, Types::DATETIME_IMMUTABLE)
             ->setParameter('missed', $missed, Types::BOOLEAN)
-            ->setParameter('id', $anketa->getId())
-            ->execute();
+            ->setParameter('id', $anketa->getId());
+        if (null !== $expectedTopicsVersion) {
+            $query->setParameter('expectedTopicsVersion', $expectedTopicsVersion);
+        }
 
-        return 1 === $affected;
+        return 1 === $query->execute();
     }
 
     /**
@@ -236,10 +308,27 @@ class AnketaRepository extends ServiceEntityRepository
      */
     public function saveDiscussedIfVersion(Anketa $anketa, string $blob, int $expectedVersion): bool
     {
-        $affected = $this->getEntityManager()->createQuery(
+        return $this->saveIfVersion(
             'UPDATE '.Anketa::class.' a SET a.discussedBlob = :blob, a.discussedVersion = a.discussedVersion + 1'
-            .' WHERE a.id = :id AND a.discussedVersion = :expectedVersion AND a.archivedAt IS NULL'
-        )
+            .' WHERE a.id = :id AND a.discussedVersion = :expectedVersion AND a.archivedAt IS NULL',
+            $anketa, $blob, $expectedVersion,
+        );
+    }
+
+    /** The same for the shared topics list (GitHub issue #206), which both participants add to and tick off during the meeting. */
+    public function saveTopicsIfVersion(Anketa $anketa, string $blob, int $expectedVersion): bool
+    {
+        return $this->saveIfVersion(
+            'UPDATE '.Anketa::class.' a SET a.topicsBlob = :blob, a.topicsVersion = a.topicsVersion + 1'
+            .' WHERE a.id = :id AND a.topicsVersion = :expectedVersion AND a.archivedAt IS NULL',
+            $anketa, $blob, $expectedVersion,
+        );
+    }
+
+    /** Runs one of the two conditional UPDATEs above and reports whether it matched the row. */
+    private function saveIfVersion(string $dql, Anketa $anketa, string $blob, int $expectedVersion): bool
+    {
+        $affected = $this->getEntityManager()->createQuery($dql)
             ->setParameter('blob', $blob)
             ->setParameter('id', $anketa->getId())
             ->setParameter('expectedVersion', $expectedVersion)

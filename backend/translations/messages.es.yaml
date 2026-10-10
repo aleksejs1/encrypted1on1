@@ -1,19 +1,22 @@
 email:
     anketa_created:
-        subject: 'Nuevo cuestionario 1:1 programado'
-        body: "%creator% ha programado una reunión 1:1 contigo para el %date%.\n\nPor favor, completa tu parte: %url%"
+        subject: 'Nueva reunión 1:1 programada'
+        body: "%creator% ha programado una reunión 1:1 contigo para el %date%.\n\nAquí se preparan los temas de la reunión y se anota lo acordado. Tus respuestas están cifradas de extremo a extremo: nadie más que ustedes dos puede leerlas, ni el servidor ni los administradores de tu empresa. Escribe tan poco como quieras.\n\n%url%"
+    meeting_rescheduled:
+        subject: 'Tu reunión 1:1 ha cambiado de fecha'
+        body: "%actor% ha cambiado tu reunión 1:1 del %old_date% al %date%.\n\n%url%"
     meeting_tomorrow:
         subject: 'Tu reunión 1:1 es mañana'
         body: "Tu reunión 1:1 con %counterpart% es mañana (%date%).\n\n%url%"
-    not_filled_out:
-        subject: 'Recordatorio: completa el cuestionario antes de la reunión de mañana'
-        body: "Todavía no has completado tu parte para la reunión 1:1 de mañana con %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Tu reunión 1:1 con %counterpart% es mañana (%date%).\n\nTodavía no has publicado tu parte.\n\n%url%"
     meeting_monday:
         subject: 'Tu reunión 1:1 es el lunes'
         body: "Tu reunión 1:1 con %counterpart% es el lunes (%date%).\n\n%url%"
-    not_filled_out_monday:
-        subject: 'Recordatorio: completa el cuestionario antes de la reunión del lunes'
-        body: "Todavía no has completado tu parte para la reunión 1:1 del lunes con %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Tu reunión 1:1 con %counterpart% es el lunes (%date%).\n\nTodavía no has publicado tu parte.\n\n%url%"
+    meeting_follow_up:
+        subject: "¿Se celebró tu reunión 1:1?"
+        body: "¿Se celebró tu reunión 1:1 con %counterpart% del %date%? Aún no está cerrada.\n\nCerrar y programar la siguiente:\n%close_url%\n\nO cambiarla a otra fecha:\n%reschedule_url%"
+        body_one_off: "¿Se celebró tu reunión 1:1 con %counterpart% del %date%? Aún no está cerrada.\n\nCerrar la reunión:\n%close_url%\n\nO cambiarla a otra fecha:\n%reschedule_url%"
     invited:
         subject: 'Te han invitado a encrypted1on1'
         body: "%inviter% te ha invitado a encrypted1on1.\n\nActiva tu cuenta: %url%"
@@ -22,26 +25,33 @@ email:
         body: "Hemos recibido una solicitud para restablecer tu contraseña.\n\nElige una nueva contraseña: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
     counterpart_key_changed:
         subject: 'La clave de cifrado de un interlocutor ha cambiado'
-        body: "La cuenta de %counterpart% pasó por un restablecimiento de contraseña, lo que reemplazó su clave de cifrado.\n\nEs posible que los cuestionarios que compartes con esa persona deban compartirse de nuevo antes de que pueda leerlos — si es así, verás un aviso al respecto en tu lista de cuestionarios."
+        body: "La cuenta de %counterpart% pasó por un restablecimiento de contraseña, lo que reemplazó su clave de cifrado.\n\nEs posible que las reuniones 1:1 que compartes con esa persona deban compartirse de nuevo antes de que pueda leerlas — si es así, verás un aviso al respecto en tu lista de reuniones 1:1."
     signup:
         subject: 'Confirma tu email para encrypted1on1'
         body: "Hemos recibido una solicitud para crear una cuenta de encrypted1on1 con esta dirección de correo.\n\nActiva tu cuenta: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
     company_signup:
         subject: 'Confirma tu nueva empresa en encrypted1on1'
         body: "Hemos recibido una solicitud para crear una nueva empresa, \"%company%\", en encrypted1on1, contigo como su primer administrador.\n\nActiva tu cuenta: %url%\n\nSi no solicitaste esto, puedes ignorar este correo."
+    invite_renewal_requested:
+        subject: "%invitee% ha pedido una nueva invitación a encrypted1on1"
+        body: "%invitee% intentó activar su cuenta de encrypted1on1, pero su enlace de invitación había caducado.\n\nEnvíale una nueva invitación: %url%"
 errors:
     not_authenticated: 'No autenticado.'
     missing_or_invalid_field: 'Falta o no es válido el campo "%field%".'
-    anketa_archived: 'El cuestionario está archivado.'
+    anketa_archived: 'Esta reunión 1:1 está archivada.'
     missing_blob_or_expected_version: 'Falta "blob" o "expectedVersion".'
-    already_published: 'Ya publicado.'
-    not_published_yet: 'Aún no publicado.'
+    already_published: 'Tu parte ya está publicada.'
+    not_published_yet: 'Tu parte aún no está publicada.'
     missing_blob: 'Falta "blob".'
     description_must_be_string: '"description" debe ser una cadena de texto.'
     target_date_must_be_valid_date: '"targetDate" debe ser una fecha válida.'
     meeting_date_must_be_valid_date: '"meetingDate" debe ser una fecha válida.'
     outcomes_blob_must_be_string: '"outcomesBlob" debe ser una cadena de texto.'
     invalid_or_expired_activation_link: 'Enlace de activación no válido o caducado.'
+    activation_link_expired: "Este enlace de activación ha caducado."
+    account_already_active: "La cuenta ya está activa. Inicia sesión."
+    activation_link_not_expired: "Este enlace de activación sigue siendo válido."
+    invite_renewal_send_failed: "No se pudo enviar la solicitud. Inténtalo de nuevo más tarde."
     invalid_or_expired_reset_link: 'Enlace de restablecimiento de contraseña no válido o caducado.'
     missing_email_or_auth_key: 'Falta "email" o "authKey".'
     invalid_email_or_password: 'Email o contraseña incorrectos.'
@@ -85,6 +95,7 @@ errors:
     outcomes_conflict: 'Los resultados de la reunión han cambiado desde la última vez que los leíste.'
     goal_checkpoints_conflict: 'Los avances de los objetivos han cambiado desde la última vez que los leíste.'
     discussed_conflict: 'Las preguntas tratadas han cambiado desde la última vez que las leíste.'
+    topics_conflict: 'Los temas han cambiado desde la última vez que los leíste.'
     private_notes_conflict: 'Tus notas privadas han cambiado desde la última vez que las leíste.'
     private_notes_too_large: 'Las notas privadas son demasiado largas para guardarlas.'
     private_notes_key_invalid: '"encryptedNotesKey" no es una clave cifrada válida.'
@@ -99,9 +110,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" y "skipNextMeeting" deben ser valores booleanos.'
     next_meeting_date_must_be_string: '"nextMeetingDate" debe ser una cadena de texto.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" debe ser una fecha válida.'
-    no_periodicity_on_record: 'Este cuestionario no tiene periodicidad registrada — envía "skipNextMeeting": true.'
+    no_periodicity_on_record: 'Esta reunión 1:1 no tiene periodicidad registrada — envía "skipNextMeeting": true.'
     missing_sealed_keys: 'Falta "mySealedKey" o "counterpartSealedKey".'
-    anketa_not_found: 'Cuestionario no encontrado.'
+    anketa_not_found: 'Reunión 1:1 no encontrada.'
     not_a_participant: 'No eres participante.'
     missing_meeting_date: 'Falta "meetingDate".'
     invalid_csrf_token: 'Token CSRF no válido.'

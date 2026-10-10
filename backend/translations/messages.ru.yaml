@@ -1,19 +1,22 @@
 email:
     anketa_created:
-        subject: 'Новая анкета 1-на-1'
-        body: "%creator% назначил(а) с вами встречу 1-на-1 на %date%.\n\nПожалуйста, заполните свою часть: %url%"
+        subject: 'Назначена новая встреча 1:1'
+        body: "%creator% назначил(а) с вами встречу 1:1 на %date%.\n\nЗдесь вы оба готовите темы к встрече и записываете договорённости. Ваши ответы защищены сквозным шифрованием: прочитать их можете только вы двое — ни сервер, ни администраторы вашей компании. Писать можно совсем немного.\n\n%url%"
+    meeting_rescheduled:
+        subject: 'Ваша встреча 1:1 перенесена'
+        body: "%actor% перенёс(ла) вашу встречу 1:1 с %old_date% на %date%.\n\n%url%"
     meeting_tomorrow:
-        subject: 'Ваша встреча 1-на-1 завтра'
-        body: "Ваша встреча 1-на-1 с %counterpart% состоится завтра (%date%).\n\n%url%"
-    not_filled_out:
-        subject: 'Напоминание: заполните анкету к завтрашней встрече'
-        body: "Вы ещё не заполнили свою часть анкеты к завтрашней встрече 1-на-1 с %counterpart% (%date%).\n\n%url%"
+        subject: 'Ваша встреча 1:1 завтра'
+        body: "Ваша встреча 1:1 с %counterpart% состоится завтра (%date%).\n\n%url%"
+        body_not_published: "Ваша встреча 1:1 с %counterpart% состоится завтра (%date%).\n\nВы ещё не опубликовали свою часть.\n\n%url%"
     meeting_monday:
-        subject: 'Ваша встреча 1-на-1 в понедельник'
-        body: "Ваша встреча 1-на-1 с %counterpart% состоится в понедельник (%date%).\n\n%url%"
-    not_filled_out_monday:
-        subject: 'Напоминание: заполните анкету к встрече в понедельник'
-        body: "Вы ещё не заполнили свою часть анкеты к встрече 1-на-1 с %counterpart% в понедельник (%date%).\n\n%url%"
+        subject: 'Ваша встреча 1:1 в понедельник'
+        body: "Ваша встреча 1:1 с %counterpart% состоится в понедельник (%date%).\n\n%url%"
+        body_not_published: "Ваша встреча 1:1 с %counterpart% состоится в понедельник (%date%).\n\nВы ещё не опубликовали свою часть.\n\n%url%"
+    meeting_follow_up:
+        subject: "Ваша встреча 1:1 состоялась?"
+        body: "Ваша встреча 1:1 с %counterpart% %date% состоялась? Она ещё не закрыта.\n\nЗакрыть и назначить следующую:\n%close_url%\n\nИли перенести на другую дату:\n%reschedule_url%"
+        body_one_off: "Ваша встреча 1:1 с %counterpart% %date% состоялась? Она ещё не закрыта.\n\nЗакрыть встречу:\n%close_url%\n\nИли перенести на другую дату:\n%reschedule_url%"
     invited:
         subject: 'Вас пригласили в encrypted1on1'
         body: "%inviter% пригласил(а) вас в encrypted1on1.\n\nАктивируйте аккаунт: %url%"
@@ -22,17 +25,20 @@ email:
         body: "Мы получили запрос на сброс пароля.\n\nВыберите новый пароль: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
     counterpart_key_changed:
         subject: 'У собеседника изменился ключ шифрования'
-        body: "Аккаунт %counterpart% прошёл через сброс пароля, из-за чего изменился его ключ шифрования.\n\nВозможно, анкеты, которые у вас с ним общие, нужно будет предоставить заново, прежде чем он сможет их прочитать — если это так, вы увидите баннер об этом в списке анкет."
+        body: "Аккаунт %counterpart% прошёл через сброс пароля, из-за чего изменился его ключ шифрования.\n\nВозможно, к встречам 1:1, которые у вас с ним общие, нужно будет заново предоставить доступ, прежде чем он сможет их прочитать — если это так, вы увидите баннер об этом в списке встреч 1:1."
     signup:
         subject: 'Подтвердите email для encrypted1on1'
         body: "Мы получили запрос на создание аккаунта encrypted1on1 с этим email.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
     company_signup:
         subject: 'Подтвердите новую компанию в encrypted1on1'
         body: "Мы получили запрос на создание новой компании «%company%» в encrypted1on1, где вы будете первым администратором.\n\nАктивируйте аккаунт: %url%\n\nЕсли вы не запрашивали это, просто проигнорируйте это письмо."
+    invite_renewal_requested:
+        subject: "%invitee% просит новое приглашение в encrypted1on1"
+        body: "%invitee% пытается активировать аккаунт в encrypted1on1, но срок действия ссылки-приглашения истёк.\n\nОтправьте новое приглашение: %url%"
 errors:
     not_authenticated: 'Вы не авторизованы.'
     missing_or_invalid_field: 'Отсутствует или некорректно поле «%field%».'
-    anketa_archived: 'Анкета в архиве.'
+    anketa_archived: 'Эта встреча 1:1 в архиве.'
     missing_blob_or_expected_version: 'Отсутствует «blob» или «expectedVersion».'
     already_published: 'Уже опубликовано.'
     not_published_yet: 'Ещё не опубликовано.'
@@ -42,6 +48,10 @@ errors:
     meeting_date_must_be_valid_date: '«meetingDate» должно быть корректной датой.'
     outcomes_blob_must_be_string: '«outcomesBlob» должно быть строкой.'
     invalid_or_expired_activation_link: 'Недействительная или истёкшая ссылка активации.'
+    activation_link_expired: "Срок действия ссылки активации истёк."
+    account_already_active: "Аккаунт уже активирован. Войдите в систему."
+    activation_link_not_expired: "Ссылка активации ещё действительна."
+    invite_renewal_send_failed: "Не удалось отправить запрос. Попробуйте снова позже."
     invalid_or_expired_reset_link: 'Недействительная или истёкшая ссылка для сброса пароля.'
     missing_email_or_auth_key: 'Отсутствует «email» или «authKey».'
     invalid_email_or_password: 'Неверный email или пароль.'
@@ -85,6 +95,7 @@ errors:
     outcomes_conflict: 'Итоги встречи изменились с момента вашего последнего чтения.'
     goal_checkpoints_conflict: 'Чекпоинты целей изменились с момента вашего последнего чтения.'
     discussed_conflict: 'Обсуждённые вопросы изменились с момента вашего последнего чтения.'
+    topics_conflict: 'Темы изменились с момента вашего последнего чтения.'
     private_notes_conflict: 'Ваши личные заметки изменились с момента вашего последнего чтения.'
     private_notes_too_large: 'Личные заметки слишком длинные для сохранения.'
     private_notes_key_invalid: '"encryptedNotesKey" не является корректным зашифрованным ключом.'
@@ -99,9 +110,9 @@ errors:
     missed_skip_must_be_booleans: '«missed» и «skipNextMeeting» должны быть булевыми значениями.'
     next_meeting_date_must_be_string: '«nextMeetingDate» должно быть строкой.'
     next_meeting_date_must_be_valid_date: '«nextMeetingDate» должно быть корректной датой.'
-    no_periodicity_on_record: 'Для этой анкеты не задана периодичность — передайте «skipNextMeeting»: true.'
+    no_periodicity_on_record: 'Для этой встречи 1:1 не задана периодичность — передайте «skipNextMeeting»: true.'
     missing_sealed_keys: 'Отсутствует «mySealedKey» или «counterpartSealedKey».'
-    anketa_not_found: 'Анкета не найдена.'
+    anketa_not_found: 'Встреча 1:1 не найдена.'
     not_a_participant: 'Вы не являетесь участником.'
     missing_meeting_date: 'Отсутствует «meetingDate».'
     invalid_csrf_token: 'Недействительный CSRF-токен.'

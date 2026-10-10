@@ -13,6 +13,7 @@
   import { decryptBlob, unsealAnketaKey } from '../crypto/anketaKey';
   import { toBase64 } from '../crypto/encoding';
   import { storeMasterKey, loadMasterKey } from '../crypto/session';
+  import { replaceRememberedMasterKey } from '../crypto/rememberedKey';
   import {
     ensureUnlocked,
     updateCachedDisplayName,
@@ -35,6 +36,7 @@
   import { dateFormatState, setDateFormat } from '../datePreference.svelte';
   import type { AnketaTemplateKey, Answers } from '../anketa/questions';
   import { templateExporter } from '../anketa/templateExport';
+  import { downloadJsonFile } from '../downloadFile';
   import { fetchTemplateVersion } from '../api/templates';
   import { decryptDraft, migrateLegacyDrafts } from '../anketa/drafts';
   import {
@@ -44,10 +46,16 @@
   } from '../anketa/notesExport';
   import type { Comment } from '../anketa/comments';
   import type { OutcomeItem } from '../anketa/outcomes';
+  import { decryptTopics } from '../anketa/topics';
   import type { Goal, GoalCheckpoint } from '../anketa/goals';
   import { decryptDiscussed } from '../anketa/discussed';
 
   let meetingRemindersEnabled = $state<boolean | null>(null);
+
+  // `?invite=<email>`: the link in an "asked for a new invitation" email (GitHub
+  // issue #169) fills in the invite form below.
+  const inviteEmailFromUrl =
+    new URLSearchParams(window.location.search).get('invite') ?? '';
 
   // Cancels the mount-time fetch below on unmount — see GitHub issue #95.
   const readAbort = abortOnDestroy();
@@ -188,6 +196,12 @@
       });
 
       await storeMasterKey(newMasterKey);
+      // Only if this browser remembers a key (GitHub issue #205): the old one
+      // no longer unwraps anything.
+      void replaceRememberedMasterKey(
+        newMasterKey,
+        await toBase64(identity.publicKey),
+      );
       currentPassword = '';
       newPassword = '';
       confirmPassword = '';
@@ -243,6 +257,7 @@
     goals: Goal[];
     goalCheckpointsBlob: string | null;
     discussedBlob: string | null;
+    topicsBlob: string | null;
     templateKey: AnketaTemplateKey;
     formVersion: number;
     customTemplateVersionId: string | null;
@@ -260,18 +275,6 @@
 
   let exporting = $state(false);
   let exportError = $state<string | null>(null);
-
-  function downloadJson(filename: string, data: unknown): void {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
 
   async function handleExport(): Promise<void> {
     exporting = true;
@@ -349,6 +352,7 @@
               )
             ).data
           : [];
+        const topics = await decryptTopics(detail.topicsBlob, anketaKey);
         const discussed = await decryptDiscussed(
           detail.discussedBlob,
           anketaKey,
@@ -367,6 +371,7 @@
           myAnswers,
           myDraftUnreadable,
           counterpartAnswers,
+          topics,
           comments,
           outcomes,
           goals: detail.goals,
@@ -390,15 +395,19 @@
         });
       }
 
-      downloadJson(
+      downloadJsonFile(
         `encrypted1on1-export-${new Date().toISOString().slice(0, 10)}.json`,
-        {
-          exportedAt: new Date().toISOString(),
-          email: identity.email,
-          displayName: identity.displayName,
-          anketas: exportedAnketas,
-          privateNotes: privateNotesForExport(openedNotes, exportedAnketas),
-        },
+        JSON.stringify(
+          {
+            exportedAt: new Date().toISOString(),
+            email: identity.email,
+            displayName: identity.displayName,
+            anketas: exportedAnketas,
+            privateNotes: privateNotesForExport(openedNotes, exportedAnketas),
+          },
+          null,
+          2,
+        ),
       );
     } catch (error) {
       exportError =
@@ -600,7 +609,7 @@
     </div>
 
     {#if showInvite}
-      <InviteForm />
+      <InviteForm initialEmail={inviteEmailFromUrl} />
     {/if}
 
     <div class="card elev-md">

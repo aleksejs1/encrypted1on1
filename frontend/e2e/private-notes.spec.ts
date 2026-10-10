@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { archive, archiveButton } from './helpers/archive.js';
 import {
   test,
   expect,
@@ -52,6 +53,9 @@ async function createAnketa(
     .getByPlaceholder('Type a name or email to search…')
     .fill(counterpartEmail);
   await creator.getByRole('button', { name: counterpartEmail }).click();
+  await creator
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
   const dd = String(meetingDate.getDate()).padStart(2, '0');
@@ -59,7 +63,7 @@ async function createAnketa(
   const input = creator.locator('#meeting-date');
   await input.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await input.blur();
-  await creator.getByRole('button', { name: 'Create anketa' }).click();
+  await creator.getByRole('button', { name: 'Create 1:1' }).click();
   await creator.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return creator.url();
 }
@@ -157,10 +161,8 @@ test('notes stay editable after the anketa is archived', async ({
   await employee
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
-  await employee.getByRole('button', { name: 'Archive' }).click();
-  await expect(employee.getByRole('button', { name: 'Archive' })).toHaveCount(
-    0,
-  );
+  await archive(employee);
+  await expect(archiveButton(employee)).toHaveCount(0);
 
   await typeAndSave(employee, 'written up after the meeting');
   await employee.reload();
@@ -354,7 +356,7 @@ test('after a password reset the notes are unreadable, and new notes can be star
   await employee.locator('#reset-confirm').fill(newPassword);
   await employee
     .getByText(
-      'I understand my existing anketas will be unreadable until access is restored.',
+      'I understand my existing 1:1s will be unreadable until access is restored.',
     )
     .click();
   await employee.getByRole('button', { name: 'Reset password' }).click();

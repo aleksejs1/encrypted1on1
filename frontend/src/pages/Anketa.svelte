@@ -1,14 +1,26 @@
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, apiPut, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
+  import { onReconnect } from '../connectivity/connectionState.svelte';
+  import { requestTimeout } from '../api/requestTimeout';
   import AnswerBlock from '../anketa/AnswerBlock.svelte';
   import LockIcon from '../anketa/LockIcon.svelte';
   import AnketaHeader from '../anketa/AnketaHeader.svelte';
+  import { goToArchiveSection } from '../anketa/archiveHeading';
+  import { clearFollowUpHash, FOLLOW_UP_HASH } from '../anketa/followUpLinks';
+  import { isOpenPastPeriod, nextCadenceDate } from '../anketa/longOpen';
+  import {
+    clearJustCreated,
+    isJustCreated,
+    startCreateAnother,
+  } from '../anketa/createDefaults';
   import AnketaOutcomes from '../anketa/AnketaOutcomes.svelte';
+  import AnketaTopics from '../anketa/AnketaTopics.svelte';
   import AnketaGoals from '../anketa/AnketaGoals.svelte';
   import AnketaArchiveSection from '../anketa/AnketaArchiveSection.svelte';
+  import { archiveConfirmation } from '../anketa/archiveConfirmation';
   import PrivateNotes, {
     readNotesPanelHidden,
   } from '../anketa/PrivateNotes.svelte';
@@ -23,8 +35,18 @@
     loadDraftBackup,
     saveDraftBackup,
   } from '../anketa/draftBackup';
+  import { hasAnswer } from '../anketa/answerDisplay';
   import { decryptDraft, hasAnyAnswer } from '../anketa/drafts';
-  import { carryForwardOutcomes, type OutcomeItem } from '../anketa/outcomes';
+  import {
+    carryForwardOutcomeItems,
+    type OutcomeItem,
+  } from '../anketa/outcomes';
+  import {
+    carryForwardTopicItems,
+    decryptTopics,
+    type TopicItem,
+  } from '../anketa/topics';
+  import { TopicsSync } from '../anketa/topicsSync';
   import { pruneStaleBusyEntries } from '../anketa/commentThreadsBusy';
   import {
     decryptDiscussed,
@@ -52,8 +74,21 @@
     fetchCompanyTemplates,
     fetchTemplateVersion,
   } from '../api/templates';
-  import { updateBlobWithRetry } from '../anketa/blobSync';
-  import { beginAction, refocus } from '../anketa/keepFocus';
+  import { updateBlobWithRetry, versionConflictBody } from '../anketa/blobSync';
+  import {
+    beginAction,
+    fallbackFocusOptions,
+    findRow,
+    ignoreHeldEnter,
+    refocus,
+    type ActionStart,
+  } from '../anketa/keepFocus';
+  import {
+    answersFingerprint,
+    isSaveShortcut,
+    saveShortcutPlace,
+    setAnswersUnloadWarning,
+  } from '../anketa/answersEdit';
   import type {
     AnketaDetail,
     AnketaLiveState,
@@ -68,6 +103,7 @@
   } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity.svelte';
+  import { navigate } from '../router.svelte';
   import { deriveDraftKey } from '../crypto/keypair';
   import { loadMasterKey } from '../crypto/session';
   import { shortDisplayName } from '../userDisplay';
@@ -126,6 +162,10 @@
    *   buttons are disabled while `editingMyAnswers`, and "Edit" is disabled
    *   while `archiving` — either order would otherwise strand an unsaved edit
    *   on an archived anketa (GitHub issue #130 review).
+   * - Unsaved changes (GitHub issue #166) aren't a separate state: they're
+   *   `answersEditUnsaved`, derived from myAnswers against the snapshot taken
+   *   when editing started. Shown in the sticky edit bar, and a beforeunload
+   *   warning is attached only while it's true.
    * - Also reset to "not editing" whenever `id` changes (load(), a new anketa entirely)
    *   — the router reuses this component instance across same-page navigation with no
    *   remount, so a left-open edit session must not leak into the next anketa.
@@ -157,7 +197,8 @@
     return byTarget;
   });
   let myBlobVersion = $state(0);
-  let answersBeforeEdit: Answers | null = null;
+  /** A plain snapshot of myAnswers from when editing started; what Cancel restores. */
+  let answersBeforeEdit = $state.raw<Answers | null>(null);
 
   /** Shared by every "is anything in this keyed record currently open/in-progress" derived below (anyEntryEditOpen, anyCommentThreadBusy, anyCheckpointAdding). */
   function anyTrue(record: Record<string, boolean>): boolean {
@@ -175,9 +216,56 @@
   let fieldsWithOpenEntryEdit = $state<Record<string, boolean>>({});
   const anyEntryEditOpen = $derived(anyTrue(fieldsWithOpenEntryEdit));
 
+  /**
+   * Whether the answers edit has anything not saved yet (GitHub issue
+   * #166): a changed answer, or a list entry's inline edit still open with
+   * its text not yet applied (counted as soon as it's open, even unchanged:
+   * Save is disabled until it's applied or cancelled anyway, and a warning
+   * too many beats a lost entry). Not "Add an entry" text that was never
+   * added: it isn't an answer, and Save doesn't keep it. Also true while the
+   * save is in flight.
+   */
+  const answersFingerprintBeforeEdit = $derived(
+    answersBeforeEdit && answersFingerprint(answersBeforeEdit),
+  );
+  const answersEditUnsaved = $derived(
+    editingMyAnswers &&
+      (anyEntryEditOpen ||
+        answersFingerprint(myAnswers) !== answersFingerprintBeforeEdit),
+  );
+  $effect(() => {
+    setAnswersUnloadWarning(answersEditUnsaved);
+    return () => setAnswersUnloadWarning(false);
+  });
+
   let saveState = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let publishing = $state(false);
   let archiving = $state(false);
+  /** closeMeeting() is running: the publish before the archive, then the archive. */
+  let closingMeeting = $state(false);
+  // What closing the meeting asks to confirm first (GitHub issue #229): it
+  // never goes ahead over my own unpublished answers, see closeMeeting().
+  const myDraftHasAnswers = $derived.by(() => {
+    if (!detail || myPublished) return false;
+    // A company template whose questions couldn't be loaded: there are no
+    // fields to check the draft against, so any content in it counts.
+    if (detail.templateKey === 'custom' && customQuestions.status !== 'ready') {
+      return hasAnyAnswer(myAnswers);
+    }
+    return hasAnswer(questionsFor(detail.myRole), myAnswers);
+  });
+  const closeConfirmation = $derived(
+    archiveConfirmation({
+      myPublished,
+      counterpartPublished,
+      myDraftHasAnswers,
+    }),
+  );
+  // Closing waits for an open edit of my published answers, and, when it
+  // would publish my draft, for an open list-entry edit, like Publish does.
+  const closeBlockedByEdit = $derived(
+    editingMyAnswers || (closeConfirmation.publishFirst && anyEntryEditOpen),
+  );
   let actionError = $state<string | null>(null);
 
   let periodicityDays = $state<number | null>(null);
@@ -234,6 +322,16 @@
   const anotherOutcomeActionOpen = $derived(
     editingOutcomeId !== null || confirmingDeleteOutcomeId !== null,
   );
+
+  /**
+   * The shared "Topics to discuss" list (GitHub issue #206): one TopicsSync
+   * per loaded anketa, like discussedSync below, created once its key and
+   * list are known. Null until then, which hides the card. `allTopics`
+   * mirrors its list.
+   */
+  // $state.raw: a class instance, replaced whole, never mutated through the proxy.
+  let topicsSync = $state.raw<TopicsSync | null>(null);
+  let allTopics = $state<TopicItem[]>([]);
 
   /**
    * Live updates (poll a cheap endpoint, refresh whichever sections changed
@@ -334,6 +432,7 @@
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let loaded = false;
+  let header: AnketaHeader | undefined = $state();
 
   // Cancels load()'s own detail fetch on unmount — see GitHub issue #95. Not
   // extended to pollLiveState's fetches below: those are already bounded by
@@ -343,7 +442,17 @@
   // even if applied.
   const readAbort = abortOnDestroy();
   // No more discussed saves once the page is gone (one in flight finishes).
-  onDestroy(() => discussedSync?.stop());
+  onDestroy(() => {
+    discussedSync?.stop();
+    topicsSync?.stop();
+  });
+  // The "1:1 created." offer is for the visit right after creating it only:
+  // dropped when this page moves to another 1:1 (the instance is reused
+  // across ids) or is left.
+  $effect(() => {
+    void id;
+    return clearJustCreated;
+  });
 
   $effect(() => {
     void id;
@@ -360,6 +469,7 @@
     // changing re-runs the $effect above without a remount) — an answers-edit session
     // left open on the previous anketa must not leak into the next one's otherwise-
     // fresh state below.
+    loadGeneration++;
     editingMyAnswers = false;
     savingAnswersEdit = false;
     answersBeforeEdit = null;
@@ -376,10 +486,14 @@
       discussedSync = null;
       discussedQuestions = [];
       discussedError = null;
+      topicsSync?.stop();
+      topicsSync = null;
+      allTopics = [];
     });
     // Set when the stored draft should be re-saved as soon as the page is
     // loaded, without waiting for an edit — see below.
     let resaveDraft = false;
+    let serverDraftFingerprint: string | null = answersFingerprint({});
     try {
       const [identity, mk, anketa] = await Promise.all([
         ensureUnlocked(),
@@ -418,8 +532,18 @@
       if (periodicityDays !== null) {
         // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local scratch value, mutated once and read once, never stored in reactive state
         const defaultNext = new Date();
-        defaultNext.setDate(defaultNext.getDate() + periodicityDays);
-        nextMeetingDate = defaultNext.toISOString().slice(0, 10);
+        if (isOpenPastPeriod(anketa, defaultNext)) {
+          // Left open for longer than its period (GitHub issue #204): back on
+          // the pair's cadence, not a full period from whenever it's closed.
+          nextMeetingDate = nextCadenceDate(
+            anketa.meetingDate,
+            periodicityDays,
+            defaultNext,
+          );
+        } else {
+          defaultNext.setDate(defaultNext.getDate() + periodicityDays);
+          nextMeetingDate = defaultNext.toISOString().slice(0, 10);
+        }
       }
       nextTemplateDefault = defaultNextChoice(anketa);
       nextTemplateChoice = nextTemplateDefault;
@@ -457,6 +581,34 @@
           key,
         );
         allOutcomes = envelope.data;
+      }
+
+      // Bound to this anketa's id and key, like the discussed sync below.
+      const topicsAnketaId = anketa.id;
+      const topics: TopicsSync = new TopicsSync({
+        items: await decryptTopics(anketa.topicsBlob, key),
+        version: anketa.topicsVersion,
+        save: async (items, expectedVersion) => {
+          const blob = await encryptBlob(items, key);
+          const result = await apiPut<{ topicsVersion: number }>(
+            `/api/anketas/${topicsAnketaId}/topics`,
+            { blob, expectedVersion },
+          );
+          return result.topicsVersion;
+        },
+        decrypt: (blob) => decryptTopics(blob, key),
+        onChange: (items) => {
+          if (topicsSync === topics) allTopics = items;
+        },
+        onArchived: () => {
+          if (topicsSync === topics) enterArchivedState();
+        },
+      });
+      if (id === loadId) {
+        topicsSync?.stop();
+        topicsSync = topics;
+        allTopics = topics.items();
+        if (anketa.archivedAt !== null) topics.stop();
       }
 
       goals = anketa.goals;
@@ -524,6 +676,7 @@
         const draft = await decryptDraft(myBlob, draftKey, mk);
         myAnswers = draft?.answers ?? {};
         draftUnreadable = draft === null;
+        serverDraftFingerprint = draft && answersFingerprint(draft.answers);
         // Stored under the master key from before drafts moved off it —
         // re-saved under the draft key, so a later password change can't
         // strand it.
@@ -559,7 +712,12 @@
         counterpartAnswers = envelope.data;
       }
 
+      // Of the server's draft, not of a local backup that replaced it above
+      // (that one still has to be sent); unknown for a draft that is written
+      // back right below, until that save is confirmed.
+      savedDraftFingerprint = resaveDraft ? null : serverDraftFingerprint;
       loaded = true;
+      followEmailLink();
       // Not on an archived anketa: the server refuses draft saves there. (A
       // same-instance switch to another anketa id mid-load is unreachable today
       // — see docs/decisions/2026-09-10-comment-thread-reuse-state-deferred.md.)
@@ -594,6 +752,27 @@
       questions === null
         ? { status: 'failed' }
         : { status: 'ready', questions };
+    followEmailLink();
+  }
+
+  /**
+   * The follow-up email's two links (GitHub issue #202) land on the archive
+   * form or on the date field that moves the meeting. Not before this anketa
+   * is loaded with everything above the form in place, a company template's
+   * questions included, or the form would be pushed back down. Also called on
+   * hashchange: the link may open in a tab already showing this meeting.
+   */
+  function followEmailLink(): void {
+    const hash = window.location.hash;
+    if (hash !== FOLLOW_UP_HASH.close && hash !== FOLLOW_UP_HASH.reschedule) {
+      return;
+    }
+    if (!loaded || detail?.id !== id || customQuestions.status === 'loading') {
+      return;
+    }
+    clearFollowUpHash();
+    if (hash === FOLLOW_UP_HASH.reschedule) header?.focusRescheduleDate();
+    else void tick().then(goToArchiveSection);
   }
 
   /**
@@ -660,6 +839,13 @@
   }
 
   const LIVE_STATE_POLL_INTERVAL_MS = 4000;
+  /**
+   * `fetch` has no timeout of its own, and a request into a dead VPN or a
+   * captive portal hangs instead of failing: without one, a hung tick would
+   * hold `pollInFlight` and no later tick would ever notice the connection is
+   * gone (GitHub issue #242).
+   */
+  const LIVE_STATE_TIMEOUT_MS = 10_000;
   let livePollTimer: ReturnType<typeof setInterval> | undefined;
 
   /**
@@ -705,8 +891,10 @@
     // an immediate tick there would only ever find "nothing changed."
     function resumePolling() {
       if (document.hidden || livePollTimer) return;
-      tick();
+      // Armed first: a tick that fails stops the interval it started under
+      // (pollLiveState()), and that has to be this one.
       armInterval();
+      tick();
     }
 
     function stop() {
@@ -725,9 +913,18 @@
     armInterval();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', resumePolling);
+    // The connection came back (GitHub issue #242): the poll stopped at its
+    // first failed tick.
+    const stopOnReconnect = onReconnect(() => {
+      // From a clean start: a tick that hung before the loss may still hold
+      // the old interval, and resumePolling() does nothing while one is set.
+      stop();
+      resumePolling();
+    });
 
     return () => {
       stop();
+      stopOnReconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', resumePolling);
     };
@@ -764,6 +961,7 @@
   async function pollLiveState(): Promise<void> {
     if (!anketaKey || !detail || pollInFlight) return;
     const pollId = id;
+    const timerAtStart = livePollTimer;
     pollInFlight = true;
     try {
       await pollLiveStateFor(pollId);
@@ -783,9 +981,15 @@
       // for a truly expired session, each such attempt just fails and stops
       // again, at the pace of the user actually switching tabs, never a
       // tight retry loop.
+      //
+      // Only the interval this tick started under: a tick that hung through
+      // an outage fails after the reconnect has already started a new one
+      // (GitHub issue #242), and mustn't stop that.
       console.error(error);
-      clearInterval(livePollTimer);
-      livePollTimer = undefined;
+      if (livePollTimer === timerAtStart) {
+        clearInterval(livePollTimer);
+        livePollTimer = undefined;
+      }
     } finally {
       pollInFlight = false;
     }
@@ -805,6 +1009,7 @@
   async function pollLiveStateFor(pollId: string): Promise<void> {
     const live = await apiGet<AnketaLiveState>(
       `/api/anketas/${pollId}/live-state`,
+      { signal: AbortSignal.timeout(LIVE_STATE_TIMEOUT_MS) },
     );
     if (id !== pollId || !detail || !anketaKey) return;
 
@@ -863,6 +1068,8 @@
       live[counterpartKeys.blobVersion] !== appliedCounterpartBlobVersion;
     const commentsChanged = live.commentsVersion !== appliedCommentsVersion;
     const outcomesChanged = live.outcomesVersion !== appliedOutcomesVersion;
+    const topicsChanged =
+      topicsSync !== null && live.topicsVersion > topicsSync.version;
     // `>`: a live-state read that left before this tab's own save landed can
     // be older than the version that save already confirmed.
     const discussedChanged =
@@ -879,6 +1086,7 @@
       !counterpartBlobChanged &&
       !commentsChanged &&
       !outcomesChanged &&
+      !topicsChanged &&
       !checkpointsChanged &&
       !discussedChanged
     ) {
@@ -923,6 +1131,11 @@
       !anyCommentThreadBusy;
     const willApplyCheckpoints =
       checkpointsChanged && !anyCheckpointAdding && !anyCommentThreadBusy;
+    // The same for the topics: an open edit form there is no reason to wait,
+    // since it keeps its text while the list around it changes.
+    const pollTopicsSync = topicsSync;
+    const willApplyTopics =
+      topicsChanged && pollTopicsSync !== null && !pollTopicsSync.busy;
     const willApplyMyBlob = myBlobChanged && !wasEditingMyAnswers;
     // DiscussedSync.applyRemote() re-checks busy and the version itself, after
     // the awaits below, so the snapshot here only saves a pointless fetch.
@@ -936,11 +1149,14 @@
       willApplyMyBlob ||
       willApplyComments ||
       willApplyOutcomes ||
+      willApplyTopics ||
       willApplyCheckpoints ||
       willApplyDiscussed;
     if (!needsFullDetail) return;
 
-    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${pollId}`);
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${pollId}`, {
+      signal: AbortSignal.timeout(LIVE_STATE_TIMEOUT_MS),
+    });
     if (id !== pollId || !detail || !anketaKey) return;
 
     // The decrypt-and-apply blocks below run sequentially, not Promise.all'd,
@@ -1006,6 +1222,11 @@
           new Set(decrypted.map((o) => o.id)),
         );
       }
+    }
+
+    if (willApplyTopics && pollTopicsSync === topicsSync) {
+      const decrypted = await decryptTopics(fresh.topicsBlob, anketaKey);
+      pollTopicsSync?.applyRemote(decrypted, fresh.topicsVersion);
     }
 
     if (willApplyCheckpoints) {
@@ -1087,52 +1308,309 @@
     // here is so a future change to saveDraft() can't turn into a silent unhandled
     // rejection.
     saveTimer = setTimeout(() => {
+      saveTimer = undefined;
       saveDraft().catch((error: unknown) => {
         console.error(error);
       });
     }, 1000);
   }
 
+  /**
+   * The draft as the server has it, as far as this page knows: the
+   * fingerprint of the draft it sent on load or of the last save it
+   * confirmed, and null when that isn't known (a save is in flight or has
+   * failed: its request may or may not have arrived). "Unsaved" is derived
+   * from it (as for published answers, GitHub issue #166), not kept as a
+   * flag.
+   */
+  let savedDraftFingerprint: string | null = null;
+  /**
+   * One draft save at a time, so the last one sent is the last one the
+   * server gets: with two in flight, an older one that hung could arrive
+   * after a newer one. 'inFlightThenAgain': a save came due meanwhile, and
+   * runs when this one ends, however it ends.
+   */
+  let draftSave: 'idle' | 'inFlight' | 'inFlightThenAgain' = 'idle';
+
+  /** Ends the save in flight; whether another one came due during it. */
+  function endDraftSave(): boolean {
+    const again = draftSave === 'inFlightThenAgain';
+    draftSave = 'idle';
+    return again;
+  }
+
   async function saveDraft() {
     if (!draftKey) return;
+    // A publish in flight sends these answers itself; if it fails, it sees
+    // to the draft (handlePublish()).
+    if (myPublished || publishing) {
+      saveState = 'idle';
+      return;
+    }
+    if (draftSave !== 'idle') {
+      draftSave = 'inFlightThenAgain';
+      return;
+    }
+    // Of the answers being sent, taken before any await: answers typed while
+    // the request is in flight aren't saved by it.
+    const sent = answersFingerprint(myAnswers);
+    if (sent === savedDraftFingerprint) {
+      saveState = 'saved';
+      return;
+    }
+    const savingId = id;
+    draftSave = 'inFlight';
+    savedDraftFingerprint = null;
     try {
       const blob = await encryptBlob(myAnswers, draftKey);
-      await apiPut(`/api/anketas/${id}/draft`, { blob });
+      await apiPut(
+        `/api/anketas/${savingId}/draft`,
+        { blob },
+        // So a save into a dead connection ends, and the next one can start.
+        { signal: requestTimeout(blob.length) },
+      );
+      if (id === savingId) savedDraftFingerprint = sent;
       saveState = 'saved';
     } catch {
       saveState = 'error';
     }
+    const again = endDraftSave();
+    // Still "Saving…" with another save due or about to be.
+    if (again || saveTimer !== undefined) saveState = 'saving';
+    if (again) await saveDraft();
   }
 
-  async function handlePublish() {
-    if (!anketaKey) return;
+  /** On reconnect: a draft the server doesn't have is saved without waiting for the next edit. */
+  function retryDraftSave() {
+    // An unreadable draft with nothing typed over it is never replaced by an
+    // empty one (GitHub issue #129); the autosave effect has the same rule.
+    if (archived || draftUnreadable) return;
+    if (answersFingerprint(myAnswers) === savedDraftFingerprint) return;
+    scheduleSave();
+  }
+  onDestroy(onReconnect(retryDraftSave));
+
+  /**
+   * What both confirmations of closing the meeting call (GitHub issue #229):
+   * my unpublished answers are published first, and the meeting stays open
+   * if that fails, so closing never strands them in a draft.
+   */
+  async function closeMeeting(missedFlag: boolean): Promise<void> {
+    if (!detail) return;
+    // Checked before anything is published: a cleared or mistyped date is
+    // no reason to publish and then fail to close.
+    if (!skipNextMeeting && !detail.oneOff && !nextMeetingDate) {
+      actionError = $_('anketa.errorNextMeetingDate');
+      return;
+    }
+    closingMeeting = true;
+    try {
+      if (closeConfirmation.publishFirst) {
+        const closingId = id;
+        const published = await handlePublish();
+        // Not published (its error is shown), or the page has opened
+        // another anketa meanwhile.
+        if (id !== closingId || !published) return;
+      }
+      await handleArchive(missedFlag);
+    } finally {
+      closingMeeting = false;
+    }
+  }
+
+  /** Whether this call published my side. */
+  async function handlePublish(): Promise<boolean> {
+    if (!anketaKey) return false;
     publishing = true;
     actionError = null;
+    // Whether the draft still has to be saved once this has failed: the
+    // publish cancels the pending draft save, and a reconnect during it
+    // leaves the draft to it.
+    let draftStillDue = false;
     try {
       clearTimeout(saveTimer);
+      saveTimer = undefined;
       const blob = await encryptBlob(myAnswers, anketaKey);
       await apiPost(`/api/anketas/${id}/publish`, { blob });
       myPublished = true;
       clearDraftBackup(id);
+      return true;
     } catch (error) {
-      actionError =
-        error instanceof ApiError ? error.message : $_('anketa.errorPublish');
+      if (error instanceof ApiError && error.status === 409) {
+        // My side is already published (in another tab, or by a request
+        // whose response was lost), or the meeting is archived. Nothing
+        // here learns the former by itself (the live-state poll leaves my
+        // own side alone), so every retry would be refused the same way:
+        // say what to do. Not reloaded for them: that would drop what is
+        // typed here and the archive form's choices.
+        actionError = $_('anketa.publishConflict');
+      } else {
+        actionError =
+          error instanceof ApiError ? error.message : $_('anketa.errorPublish');
+        // Not after a 409 above, which refuses a draft too.
+        draftStillDue = true;
+      }
+      return false;
     } finally {
       publishing = false;
+      if (draftStillDue) retryDraftSave();
+      // The cancelled save's "Saving…" doesn't outlive it.
+      if (saveTimer === undefined && draftSave === 'idle') {
+        if (saveState === 'saving') saveState = 'idle';
+      }
     }
   }
 
-  function startEditingAnswers(): void {
-    answersBeforeEdit = { ...myAnswers };
-    editingMyAnswers = true;
-    actionError = null;
+  /**
+   * Which controls started an answers-edit action (GitHub issue #166): the
+   * card's top (the header's Edit, then the sticky edit bar) or its bottom,
+   * pressed or used with Ctrl+S / ⌘S, or Ctrl+S / ⌘S elsewhere in my side:
+   * in answer field `fieldId` of question `block`, or outside any field
+   * (`side`, in `block` if any). Each action swaps out the button it was pressed on, so
+   * focus moves to the control that replaces it in the same place (#149,
+   * #151): Edit to Cancel, Save and Cancel to Edit, a failed Save back to
+   * Save. The top's targets may be far from where the user was (the bar
+   * follows them down the card, the header's Edit doesn't), so the page only
+   * scrolls there for a keyboard press (`focusOptions`). A save from a field
+   * goes to its question's heading, since the field is swapped out while
+   * the save is in flight (see refocusAfterFieldSave()). Once archived, no
+   * Edit is left, so my side's heading.
+   */
+  type AnswersEditTrigger =
+    | { from: 'top' | 'bottom'; focusOptions: FocusOptions }
+    | { from: 'field'; block: HTMLElement | null; fieldId: string }
+    | { from: 'side'; block: HTMLElement | null };
+
+  function clickedAt(
+    from: 'top' | 'bottom',
+    click: MouseEvent,
+  ): AnswersEditTrigger {
+    return { from, focusOptions: fallbackFocusOptions(click) };
   }
 
-  function cancelEditingAnswers(): void {
+  /**
+   * The button an action lands on. At the top, Edit is in the card's header
+   * and Save/Cancel in the sticky bar: `data-answers-edit` tells them apart.
+   */
+  function answersEditButton(
+    from: 'top' | 'bottom',
+    action: 'edit-answers' | 'save-answers' | 'cancel-answers',
+  ): string {
+    const region =
+      from === 'bottom'
+        ? 'bottom'
+        : action === 'edit-answers'
+          ? 'header'
+          : 'bar';
+    return `[data-answers-edit="${region}"] [data-action="${action}"]`;
+  }
+
+  /** `failed`: a save that left the edit open. */
+  function focusAfterAnswersEdit(
+    trigger: AnswersEditTrigger,
+    action: 'edit-answers' | 'save-answers' | 'cancel-answers',
+    {
+      startedOn,
+      failed = false,
+    }: { startedOn?: ActionStart; failed?: boolean } = {},
+  ): void {
+    if (archived) {
+      void refocus(pageMain, '[data-my-side-heading]', { startedOn });
+    } else if (trigger.from === 'field') {
+      void refocusAfterShortcutSave(
+        trigger.block,
+        failed ? trigger.fieldId : null,
+        startedOn,
+      );
+    } else if (trigger.from === 'side') {
+      void refocusAfterShortcutSave(trigger.block, null, startedOn);
+    } else {
+      void refocus(pageMain, answersEditButton(trigger.from, action), {
+        startedOn,
+        focusOptions: trigger.focusOptions,
+      });
+    }
+  }
+
+  /**
+   * After a Ctrl+S save started in my side outside its edit controls: the
+   * question's heading, or, if the save failed in answer field
+   * `failedFieldId`, back into it when it's a free-text answer's textarea,
+   * where Ctrl+S is usually pressed. Other fields don't say which of their
+   * controls had focus, so the heading.
+   */
+  async function refocusAfterShortcutSave(
+    block: HTMLElement | null,
+    failedFieldId: string | null,
+    startedOn?: ActionStart,
+  ): Promise<void> {
+    if (!block) {
+      await refocus(pageMain, '[data-my-side-heading]', { startedOn });
+      return;
+    }
+    // Once the field is back from its read-only form.
+    await tick();
+    const field =
+      failedFieldId === null
+        ? undefined
+        : findRow(block, 'data-field-id', failedFieldId);
+    if (field?.querySelector('textarea')) {
+      await refocus(field, 'textarea', { startedOn });
+    } else {
+      await refocus(block, 'h4', { startedOn });
+    }
+  }
+
+  function startEditingAnswers(trigger: AnswersEditTrigger): void {
+    // A plain copy, not the $state proxy, so nothing typed in the edit reaches it.
+    answersBeforeEdit = $state.snapshot(myAnswers);
+    editingMyAnswers = true;
+    actionError = null;
+    focusAfterAnswersEdit(trigger, 'cancel-answers');
+  }
+
+  function cancelEditingAnswers(trigger: AnswersEditTrigger): void {
     if (answersBeforeEdit) myAnswers = answersBeforeEdit;
     answersBeforeEdit = null;
     editingMyAnswers = false;
     actionError = null;
+    focusAfterAnswersEdit(trigger, 'edit-answers');
+  }
+
+  let mySideCard = $state<HTMLElement>();
+  /** Bumped by every load(), so an answers save can tell its response is from before it. */
+  let loadGeneration = 0;
+
+  /**
+   * Ctrl+S / ⌘S in my side (see saveShortcutPlace()) saves the edit instead
+   * of opening the browser's "Save page" dialog. A held shortcut's repeats
+   * do nothing anywhere on the page, edit or not, so one that outlasts the
+   * save doesn't open that dialog either.
+   */
+  function handleMySideKeydown(event: KeyboardEvent): void {
+    if (!isSaveShortcut(event)) return;
+    if (event.repeat) {
+      event.preventDefault();
+      return;
+    }
+    if (!editingMyAnswers) return;
+    const place = saveShortcutPlace(event.target, mySideCard);
+    if (!place) return;
+    event.preventDefault();
+    if (savingAnswersEdit || anyEntryEditOpen || place.at === 'unadded-entry') {
+      return;
+    }
+    let trigger: AnswersEditTrigger;
+    if (place.at === 'field') {
+      trigger = { from: 'field', block: place.block, fieldId: place.fieldId };
+    } else if (place.at === 'side') {
+      trigger = { from: 'side', block: place.block };
+    } else {
+      trigger = { from: place.at, focusOptions: {} };
+    }
+    handleSaveAnswersEdit(trigger).catch((error: unknown) => {
+      console.error(error);
+    });
   }
 
   /**
@@ -1165,6 +1643,7 @@
     archived = true;
     exitAnswersEditSession();
     discussedSync?.stop();
+    topicsSync?.stop();
   }
 
   /**
@@ -1179,20 +1658,36 @@
    * race, not a hypothetical), stop offering editing entirely — see the editingMyAnswers
    * docblock above for the full state list this maps onto.
    */
-  async function handleSaveAnswersEdit(): Promise<void> {
+  async function handleSaveAnswersEdit(
+    trigger: AnswersEditTrigger,
+  ): Promise<void> {
     if (!anketaKey) return;
+    const anketaId = id;
+    // load() resets the edit when another anketa opens, or this one again,
+    // and a new edit may have started since: the response is then stale.
+    // Counted per load, since the id alone misses A → B → A.
+    const generation = loadGeneration;
+    const isSuperseded = () => loadGeneration !== generation;
+    // What Cancel would restore, read now: an archive during the awaits clears it.
+    const publishedBeforeEdit = answersBeforeEdit;
+    const expectedVersion = myBlobVersion;
+    const started = beginAction();
     savingAnswersEdit = true;
     actionError = null;
     try {
       const blob = await encryptBlob(myAnswers, anketaKey);
+      // Not sent at all for an edit the page has already dropped.
+      if (isSuperseded()) return;
       const result = await apiPut<{ blobVersion: number }>(
-        `/api/anketas/${id}/answers`,
-        { blob, expectedVersion: myBlobVersion },
+        `/api/anketas/${anketaId}/answers`,
+        { blob, expectedVersion },
       );
+      if (isSuperseded()) return;
       myBlobVersion = result.blobVersion;
       answersBeforeEdit = null;
       editingMyAnswers = false;
     } catch (error) {
+      if (isSuperseded()) return;
       if (error instanceof ApiError && error.status === 409) {
         const conflict = error.body as {
           blobVersion?: number;
@@ -1205,14 +1700,22 @@
           // the other tab's real save with no warning. Exiting edit mode (instead of
           // retrying automatically) means the user has to explicitly re-open editing
           // on top of the now-current content, never blindly resubmit over it.
-          myBlobVersion = conflict.blobVersion;
+          let saved: Answers | null = null;
           if (anketaKey && typeof conflict.blob === 'string') {
-            const envelope = await decryptBlob<Answers>(
-              conflict.blob,
-              anketaKey,
-            );
-            myAnswers = envelope.data;
+            try {
+              saved = (await decryptBlob<Answers>(conflict.blob, anketaKey))
+                .data;
+            } catch (decryptError) {
+              console.error(decryptError);
+            }
           }
+          if (isSuperseded()) return;
+          // Without readable saved content, what was published when this
+          // edit started, never this tab's unsent edit shown as published.
+          // The version is taken either way, or the live-state poll would
+          // re-fetch it on every tick.
+          myAnswers = saved ?? publishedBeforeEdit ?? myAnswers;
+          myBlobVersion = conflict.blobVersion;
           exitAnswersEditSession();
         } else {
           enterArchivedState();
@@ -1225,8 +1728,16 @@
             : $_('anketa.errorSaveAnswers');
       }
     } finally {
-      savingAnswersEdit = false;
+      // A superseded save's flag was reset by load(), and may be a newer save's now.
+      if (!isSuperseded()) savingAnswersEdit = false;
     }
+    // Back to Edit once the session is over (saved, or ended by a 409),
+    // to Save if it failed and is still open.
+    focusAfterAnswersEdit(
+      trigger,
+      editingMyAnswers ? 'save-answers' : 'edit-answers',
+      { startedOn: started, failed: editingMyAnswers },
+    );
   }
 
   /**
@@ -1236,9 +1747,10 @@
    * CreateAnketa.svelte) and sends the sealed keys along with the archive request.
    * The server never generates or even transiently holds an anketa key.
    *
-   * Called from both AnketaHeader (the overdue card's "cancel as missed" button,
-   * always with `missedFlag: true`) and AnketaArchiveSection (the regular archive
-   * button, always with `missedFlag: false`) via the same `onArchive` callback prop —
+   * Called through closeMeeting() from both AnketaHeader (the "not closed" card's
+   * "Didn't happen" button, always with `missedFlag: true`) and AnketaArchiveSection
+   * (the regular archive button, always with `missedFlag: false`), each after its
+   * own confirmation, via the same `onArchive` callback prop —
    * `skipNextMeeting`/`nextMeetingDate` stay page-level state (bound down into
    * AnketaArchiveSection for editing) precisely so this function keeps reading
    * whatever's currently set in that form regardless of which button triggered it,
@@ -1250,18 +1762,23 @@
    * forces that regardless of the request — so it's sent as an explicit skip,
    * with no next key to generate; the form hides the "skip" checkbox for it.
    */
-  async function handleArchive(missedFlag: boolean): Promise<void> {
+  async function handleArchive(
+    missedFlag: boolean,
+    topicsRetries = 0,
+  ): Promise<void> {
     if (!detail) return;
     archiving = true;
     actionError = null;
+    const archiveId = id;
     try {
       // Save the last "discussed" ticks first: archiving freezes them. If
       // that fails, its banner explains why; Archive again goes ahead. The
       // wait can be long enough for the page to open another anketa.
-      const archiveId = id;
       const saved = (await discussedSync?.settled()) ?? true;
+      // And any topic save: the carry-forward below reads the list it leaves.
+      const topicsSaved = (await topicsSync?.settled()) ?? true;
       if (id !== archiveId) return;
-      if (!saved) {
+      if (!saved || !topicsSaved) {
         // Archived meanwhile (the save got the archived 409), or the save
         // failed, whose own banner says why: either way this click didn't
         // archive, so say so.
@@ -1291,16 +1808,21 @@
         // after a save — self-initiated or, since this page now polls for
         // live updates, the counterpart's too) — archiving straight from a
         // stale snapshot would silently drop any outcome added/edited after
-        // this page first loaded. Re-encrypting the current list under the
-        // same (old) anketaKey first, then handing that fresh ciphertext to
-        // carryForwardOutcomes, is simpler than giving that function a
-        // separate already-decrypted-input code path for one caller.
-        const currentOutcomesBlob = await encryptBlob(allOutcomes, anketaKey);
-        const outcomesBlobNext = await carryForwardOutcomes(
-          currentOutcomesBlob,
-          anketaKey,
+        // this page first loaded.
+        const outcomesBlobNext = await carryForwardOutcomeItems(
+          allOutcomes,
           nextKey,
         );
+        // The topics not yet discussed (GitHub issue #206), with the
+        // version of the list they're taken from: if the counterpart has
+        // changed it since (the list here can be a poll interval behind),
+        // the server refuses the archive with the current list, and the
+        // catch below archives again with that. This tab's own topic saves
+        // are already in (settled() above).
+        const topicsBlobNext = topicsSync
+          ? await carryForwardTopicItems(topicsSync.items(), nextKey)
+          : undefined;
+        const topicsVersion = topicsSync?.version;
 
         body = {
           ...body,
@@ -1312,6 +1834,8 @@
           mySealedKey: mySealedKeyNext,
           counterpartSealedKey: counterpartSealedKeyNext,
           ...(outcomesBlobNext ? { outcomesBlob: outcomesBlobNext } : {}),
+          ...(topicsBlobNext ? { topicsBlob: topicsBlobNext } : {}),
+          ...(topicsVersion === undefined ? {} : { topicsVersion }),
         };
       }
 
@@ -1319,6 +1843,31 @@
       missed = missedFlag;
       enterArchivedState();
     } catch (error) {
+      // The page has opened another anketa meanwhile: nothing here is its.
+      if (id !== archiveId) return;
+      const newerTopics = versionConflictBody(
+        error,
+        'topicsBlob',
+        'topicsVersion',
+      );
+      if (newerTopics && anketaKey && topicsSync && topicsRetries < 3) {
+        // The topics changed after the carry-forward was built: take the
+        // list the refusal carries and archive again. Still not archived, so
+        // this click's choices stand.
+        const sync = topicsSync;
+        try {
+          const items = await decryptTopics(newerTopics.blob, anketaKey);
+          if (sync !== topicsSync) return;
+          sync.applyRemote(items, newerTopics.version);
+        } catch (decryptError) {
+          console.error(decryptError);
+          actionError = $_('anketa.errorArchive');
+          return;
+        }
+        // Handles its own errors, like this call.
+        await handleArchive(missedFlag, topicsRetries + 1);
+        return;
+      }
       const alreadyArchived =
         error instanceof ApiError && error.status === 409
           ? (error.body as {
@@ -1393,8 +1942,9 @@
   }
 
   /**
-   * Shared reapply-on-conflict update for the anketa's three optimistic-
-   * concurrency blobs (comments, outcomes, goal checkpoints — see blobSync.ts):
+   * Shared reapply-on-conflict update for the anketa's optimistic-
+   * concurrency list blobs (comments, outcomes, goal checkpoints — see
+   * blobSync.ts):
    * refetch, apply the caller's mutation, save, and on a 409 retry once
    * against whatever the conflict response carries under the same field names.
    *
@@ -1408,6 +1958,10 @@
    * wide gate, see anyCommentThreadBusy), that catch-up never runs, so every
    * subsequent tick keeps re-fetching the full anketa for nothing, for as
    * long as anything anywhere stays busy.
+   *
+   * Bound to the anketa and key it started with: if the page has opened
+   * another anketa by the time a request returns, nothing is sent to or
+   * applied on that one, and the caller gets undefined.
    */
   async function updateField<T>(
     blobKey: 'commentsBlob' | 'outcomesBlob' | 'goalCheckpointsBlob',
@@ -1416,11 +1970,13 @@
     endpoint: string,
     apply: (current: T) => T,
   ): Promise<{ items: T; version: number } | undefined> {
-    if (!anketaKey) return undefined;
-    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${id}`);
+    const key = anketaKey;
+    const anketaId = id;
+    if (!key) return undefined;
+    const fresh = await apiGet<AnketaDetail>(`/api/anketas/${anketaId}`);
     let savedVersion = fresh[versionKey];
     const items = await updateBlobWithRetry<T>(
-      anketaKey,
+      key,
       { blob: fresh[blobKey], version: fresh[versionKey] },
       apply,
       async (blob, expectedVersion) => {
@@ -1432,21 +1988,17 @@
         // response-shape change) leaves the pre-save version in place
         // instead of silently writing undefined/NaN into it.
         const result = await apiPut<Partial<Record<typeof versionKey, number>>>(
-          `/api/anketas/${id}/${endpoint}`,
+          `/api/anketas/${anketaId}/${endpoint}`,
           { blob, expectedVersion },
         );
         savedVersion = result[versionKey] ?? savedVersion;
       },
       (error) => {
-        if (!(error instanceof ApiError) || error.status !== 409)
-          return undefined;
-        const conflict = error.body as Record<string, string | number | null>;
-        return {
-          blob: conflict[blobKey] as string | null,
-          version: conflict[versionKey] as number,
-        };
+        // Not the "archived" 409, which carries no version to retry against.
+        return versionConflictBody(error, blobKey, versionKey) ?? undefined;
       },
     );
+    if (id !== anketaId) return undefined;
     return { items, version: savedVersion };
   }
 
@@ -1519,6 +2071,35 @@
   });
 </script>
 
+<!-- Save and Cancel of an answers edit, in the sticky bar and at the card's
+     bottom alike. -->
+{#snippet answersEditButtons(place: 'top' | 'bottom')}
+  <button
+    type="button"
+    class="btn {answersEditUnsaved ? 'btn-primary' : 'btn-secondary'}"
+    data-action="save-answers"
+    aria-keyshortcuts="Control+S Meta+S"
+    onclick={(click) => handleSaveAnswersEdit(clickedAt(place, click))}
+    disabled={savingAnswersEdit || anyEntryEditOpen}
+  >
+    {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
+  </button>
+  <button
+    type="button"
+    class="btn btn-ghost"
+    data-action="cancel-answers"
+    onclick={(click) => cancelEditingAnswers(clickedAt(place, click))}
+    disabled={savingAnswersEdit || anyEntryEditOpen}
+  >
+    {$_('anketa.cancel')}
+  </button>
+{/snippet}
+
+<!-- On the document rather than my side's <section>, which as a static
+     element mustn't take a key handler (a11y_no_static_element_interactions). -->
+<svelte:document onkeydown={handleMySideKeydown} />
+<svelte:window onhashchange={followEmailLink} />
+
 <!-- With the anketa loaded, the page is three blocks: the header, the notes
      panel and the rest. Narrow, they stack in that order; from 840px the notes
      become a sticky column on the right (GitHub issue #132 §6.1). -->
@@ -1533,18 +2114,39 @@
     <p class="text-muted">{$_('anketa.loading')}</p>
   {:else}
     <div class="anketa-top">
+      {#if isJustCreated(id)}
+        <!-- A button, not a link: a plain link reloads the page, and the
+             settings are handed to the form in memory (GitHub issue #198). -->
+        <p class="banner-success created-notice">
+          <span>{$_('anketa.createdNotice')}</span>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick={() => {
+              startCreateAnother(id);
+              navigate('/anketas/new');
+            }}>{$_('anketa.createAnother')}</button
+          >
+        </p>
+      {/if}
       <AnketaHeader
+        bind:this={header}
         {id}
+        counterpartId={detail.counterpartId}
+        counterpartDeleted={detail.counterpartDeleted}
         counterpartName={detail.counterpartName}
         counterpartEmail={detail.counterpartEmail}
         meetingDate={detail.meetingDate}
         templateName={detail.customTemplateName}
         {archived}
         {missed}
-        {archiving}
-        answersEditOpen={editingMyAnswers}
+        oneOff={detail.oneOff}
+        archiving={closingMeeting}
+        {publishing}
+        answersEditOpen={closeBlockedByEdit}
+        confirmation={closeConfirmation}
         bind:actionError
-        onArchive={handleArchive}
+        onArchive={closeMeeting}
         onRescheduled={(meetingDate) => {
           if (detail) detail = { ...detail, meetingDate };
         }}
@@ -1570,6 +2172,24 @@
     {/key}
 
     <div class="anketa-main">
+      <!-- Above both sides: the first thing seen on opening the meeting.
+           Keyed by id, like the notes panel: a topic typed but not added
+           mustn't follow the page to another meeting. -->
+      {#key id}
+        {#if topicsSync}
+          {@const sync = topicsSync}
+          <AnketaTopics
+            items={allTopics}
+            {myUserId}
+            {authorNames}
+            {archived}
+            locked={archiving}
+            oneOff={detail.oneOff}
+            updateTopics={(apply) => sync.update(apply)}
+          />
+        {/if}
+      {/key}
+
       {#if customQuestions.status === 'failed'}
         <section class="card">
           <p role="alert" class="banner-error">
@@ -1588,8 +2208,14 @@
         <p class="text-muted">{$_('anketa.loadingQuestions')}</p>
       {:else}
         <!-- My side -->
-        <section class="card side-card">
-          <div class="heading-row">
+        <!-- ignoreHeldEnter: Edit, Save and Cancel each move focus to the
+             button replacing them, which a held Enter would press next. -->
+        <section
+          class="card side-card"
+          bind:this={mySideCard}
+          onkeydowncapture={ignoreHeldEnter}
+        >
+          <div class="heading-row" data-answers-edit="header">
             <h2 tabindex="-1" data-my-side-heading>
               {$_('anketa.mySideHeading', {
                 values: {
@@ -1602,7 +2228,51 @@
               })}
             </h2>
             <LockIcon encrypted />
+            {#if myPublished && !archived && !editingMyAnswers}
+              <!-- Also at the card's bottom: either way, no scrolling the
+                   whole card just to start an edit (GitHub issue #166). -->
+              <button
+                type="button"
+                class="btn btn-ghost heading-edit-btn"
+                data-action="edit-answers"
+                onclick={(click) =>
+                  startEditingAnswers(clickedAt('top', click))}
+                disabled={archiving}
+              >
+                {$_('anketa.editAnswers')}
+              </button>
+            {/if}
           </div>
+
+          {#if editingMyAnswers}
+            <!-- Sticks to the top of the viewport while the card scrolls
+                 past, so Save is never a scroll away and the open edit,
+                 which is only saved by Save, stays visible (GitHub issue
+                 #166). The bottom's Save/Cancel stay too. -->
+            <div class="answers-edit-bar" data-answers-edit="bar">
+              <p class="answers-edit-status">
+                <span>{$_('anketa.editingAnswers')}</span>
+                <!-- Not a live region: it would be announced on nearly
+                     every keystroke into an empty or restored field. -->
+                {#if answersEditUnsaved}
+                  <span class="text-muted answers-edit-unsaved"
+                    >{$_('anketa.unsavedChanges')}</span
+                  >
+                {/if}
+              </p>
+              <div class="answers-edit-buttons">
+                {@render answersEditButtons('top')}
+              </div>
+            </div>
+          {/if}
+
+          {#if !myPublished && !archived}
+            <!-- Nothing requires an answer, but a page of empty blocks reads as
+                 a mandatory essay (GitHub issue #199). -->
+            <p class="text-muted optional-hint">
+              {$_('anketa.allFieldsOptional')}
+            </p>
+          {/if}
 
           {#if draftUnreadable && !myPublished && !archived}
             <p role="alert" class="banner-error">
@@ -1664,7 +2334,7 @@
             <button
               type="button"
               class="btn btn-primary side-publish-btn"
-              onclick={handlePublish}
+              onclick={() => void handlePublish()}
               disabled={publishing || anyEntryEditOpen}
             >
               {publishing ? $_('anketa.publishing') : $_('anketa.publish')}
@@ -1674,33 +2344,20 @@
               >{$_('anketa.badgePublished')}</span
             >
           {:else if editingMyAnswers}
-            <div class="answers-edit-actions">
-              <button
-                type="button"
-                class="btn btn-primary"
-                onclick={handleSaveAnswersEdit}
-                disabled={savingAnswersEdit || anyEntryEditOpen}
-              >
-                {savingAnswersEdit ? $_('anketa.saving') : $_('anketa.save')}
-              </button>
-              <button
-                type="button"
-                class="btn btn-ghost"
-                onclick={cancelEditingAnswers}
-                disabled={savingAnswersEdit || anyEntryEditOpen}
-              >
-                {$_('anketa.cancel')}
-              </button>
+            <div class="answers-edit-actions" data-answers-edit="bottom">
+              {@render answersEditButtons('bottom')}
             </div>
           {:else}
-            <div class="answers-edit-actions">
+            <div class="answers-edit-actions" data-answers-edit="bottom">
               <span class="tag tag-accent side-publish-btn"
                 >{$_('anketa.badgePublished')}</span
               >
               <button
                 type="button"
                 class="btn btn-ghost"
-                onclick={startEditingAnswers}
+                data-action="edit-answers"
+                onclick={(click) =>
+                  startEditingAnswers(clickedAt('bottom', click))}
                 disabled={archiving}
               >
                 {$_('anketa.editAnswers')}
@@ -1808,8 +2465,15 @@
 
       {#if !archived}
         <AnketaArchiveSection
-          {archiving}
-          answersEditOpen={editingMyAnswers}
+          anketaId={id}
+          archiving={closingMeeting}
+          {publishing}
+          answersEditOpen={closeBlockedByEdit}
+          confirmation={closeConfirmation}
+          counterpartName={shortDisplayName(
+            detail.counterpartName,
+            detail.counterpartEmail,
+          )}
           oneOff={detail.oneOff}
           bind:skipNextMeeting
           bind:nextMeetingDate
@@ -1818,7 +2482,7 @@
           {companyTemplates}
           templateRetired={detail.templateKey === 'custom' &&
             detail.nextCycleTemplateKey !== 'custom'}
-          onArchive={handleArchive}
+          onArchive={closeMeeting}
         />
       {/if}
     </div>
@@ -1833,6 +2497,15 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+
+  .created-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin: 0;
   }
 
   /* Below the breakpoint these keep main's own column and gap, so the page
@@ -1884,13 +2557,18 @@
       grid-row: 1 / -1;
       align-self: start;
       position: sticky;
-      top: 16px;
+      top: calc(16px + var(--connection-banner-offset, 0px));
     }
   }
 
   .blocks {
     display: flex;
     flex-direction: column;
+  }
+
+  .optional-hint {
+    font-size: 13px;
+    margin: 0;
   }
 
   .save-state {
@@ -1907,5 +2585,59 @@
     align-items: center;
     gap: 10px;
     align-self: flex-start;
+  }
+
+  /* Keyboard focus scrolled to the top doesn't land under the sticky edit
+     bar: one row of it, or two once it wraps on a narrow screen. */
+  :global(html:has(.answers-edit-bar)) {
+    scroll-padding-top: calc(4rem + var(--connection-banner-offset, 0px));
+  }
+
+  @media (max-width: 30em) {
+    :global(html:has(.answers-edit-bar)) {
+      scroll-padding-top: calc(6.5rem + var(--connection-banner-offset, 0px));
+    }
+  }
+
+  .heading-edit-btn {
+    margin-left: auto;
+  }
+
+  /* The card has no overflow clipping, so this sticks within it. It spans
+     the card's padding so the answers scrolling under it don't show at its
+     sides, and the discussed blocks' opacity puts them in their own stacking
+     context, hence the z-index. */
+  .answers-edit-bar {
+    position: sticky;
+    /* Below the fixed connection banner, when it's up. */
+    top: var(--connection-banner-offset, 0px);
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin: 0 calc(-1 * var(--space-3));
+    padding: 8px var(--space-3);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .answers-edit-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .answers-edit-unsaved {
+    font-weight: 400;
+  }
+
+  .answers-edit-buttons {
+    display: flex;
+    gap: 10px;
   }
 </style>

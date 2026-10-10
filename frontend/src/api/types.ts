@@ -90,6 +90,9 @@ export interface AnketaDetail {
   goalCheckpointsVersion: number;
   discussedBlob: string | null;
   discussedVersion: number;
+  /** The shared "Topics to discuss" list (GitHub issue #206), under the anketa key. */
+  topicsBlob: string | null;
+  topicsVersion: number;
   counterpartPublicKey: string;
   periodicityDays: number | null;
   missed: boolean;
@@ -164,6 +167,7 @@ export interface AnketaLiveState {
   outcomesVersion: number;
   goalCheckpointsVersion: number;
   discussedVersion: number;
+  topicsVersion: number;
 }
 
 /** One row of GET /api/templates: an active company template (GitHub issue #144). */

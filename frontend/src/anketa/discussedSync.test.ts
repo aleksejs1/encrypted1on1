@@ -183,7 +183,7 @@ describe('DiscussedSync', () => {
 
     sync.toggle('workload');
     sync.toggle('growth');
-    calls[0].reject(new ApiError(409, 'This anketa is archived.', {}));
+    calls[0].reject(new ApiError(409, 'This 1:1 is archived.', {}));
     await settle();
 
     expect(onArchived).toHaveBeenCalledOnce();
@@ -202,7 +202,7 @@ describe('DiscussedSync', () => {
 
     sync.toggle('mood');
     sync.stop();
-    calls[0].reject(new ApiError(409, 'This anketa is archived.', {}));
+    calls[0].reject(new ApiError(409, 'This 1:1 is archived.', {}));
     await settle();
 
     expect(onArchived).not.toHaveBeenCalled();

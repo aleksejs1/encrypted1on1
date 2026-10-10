@@ -2,9 +2,9 @@
 
 namespace App\Billing;
 
-use App\Entity\ActivationToken;
 use App\Entity\Company;
 use App\Entity\User;
+use App\Repository\ActivationTokenRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -33,8 +33,10 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 class SeatLimitChecker
 {
-    public function __construct(private readonly EntityManagerInterface $entityManager)
-    {
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+        private readonly ActivationTokenRepository $activationTokenRepository,
+    ) {
     }
 
     public function hasReachedLimit(Company $company): bool
@@ -53,16 +55,7 @@ class SeatLimitChecker
             ->getQuery()
             ->getSingleScalarResult();
 
-        $pendingInvites = (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(t.id)')
-            ->from(ActivationToken::class, 't')
-            ->where('t.company = :company')
-            ->andWhere('t.usedAt IS NULL')
-            ->andWhere('t.expiresAt > :now')
-            ->setParameter('company', $company)
-            ->setParameter('now', new \DateTimeImmutable())
-            ->getQuery()
-            ->getSingleScalarResult();
+        $pendingInvites = $this->activationTokenRepository->countUsable($company, new \DateTimeImmutable());
 
         return ($activeUsers + $pendingInvites) >= $seatLimit;
     }

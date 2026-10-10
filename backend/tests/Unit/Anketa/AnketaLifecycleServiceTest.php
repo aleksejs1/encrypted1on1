@@ -106,6 +106,7 @@ class AnketaLifecycleServiceTest extends TestCase
             managerSealedKey: 'new-mgr',
             periodicityDays: 14,
             outcomesBlob: 'initial-outcomes',
+            topicsBlob: 'initial-topics',
             carryFrom: $previousAnketa,
         );
 
@@ -114,6 +115,8 @@ class AnketaLifecycleServiceTest extends TestCase
         self::assertSame('carried-uuid', $persistedObjects[1]->getGoalUuid());
         self::assertSame('Carry me', $persistedObjects[1]->getTitle());
         self::assertSame('initial-outcomes', $anketa->getOutcomesBlob());
+        self::assertSame('initial-topics', $anketa->getTopicsBlob());
+        self::assertSame(0, $anketa->getTopicsVersion());
         self::assertSame('regular', $anketa->getTemplateKey());
     }
 
@@ -251,6 +254,8 @@ class AnketaLifecycleServiceTest extends TestCase
             // map; the full per-template table is AnketaTest::testNextCycleTemplateKeyFor's.
             'regular' => ['regular', 'regular'],
             'onboarding' => ['onboarding', 'regular'],
+            // The one built-in template besides 'regular' that maps to itself.
+            'lightweight' => ['lightweight', 'lightweight'],
             // The entity accepts any string (the DTO layer rejects an unrecognized key
             // as user input) — stale data from a retired template, or bad data.
             'unrecognized key' => ['not-a-real-key', 'regular'],
@@ -452,7 +457,7 @@ class AnketaLifecycleServiceTest extends TestCase
         $service = $this->createService(entityManager: $entityManager);
 
         $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessageMatches('/Next anketa requires a template key\./');
+        $this->expectExceptionMessageMatches('/Next 1:1 requires a template key\./');
 
         $service->archive(
             anketa: $anketa,
@@ -644,12 +649,14 @@ class AnketaLifecycleServiceTest extends TestCase
             managerSealedKey: 'new-mgr',
             periodicityDays: 14,
             outcomesBlob: 'client-carried-outcomes',
+            topicsBlob: 'client-carried-topics',
             carryFrom: $previousAnketa,
             oneOff: true,
         );
 
         self::assertTrue($anketa->isOneOff());
         self::assertNull($anketa->getOutcomesBlob());
+        self::assertNull($anketa->getTopicsBlob());
     }
 
     public function testCreateWithCarryForwardPassesOneOffThrough(): void
@@ -780,7 +787,7 @@ class AnketaLifecycleServiceTest extends TestCase
         $service = $this->createService();
 
         $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessageMatches('/Next anketa requires sealed keys\./');
+        $this->expectExceptionMessageMatches('/Next 1:1 requires sealed keys\./');
 
         $service->archive(
             anketa: $anketa,
@@ -849,7 +856,7 @@ class AnketaLifecycleServiceTest extends TestCase
         $service = $this->createService(entityManager: $entityManager);
 
         $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessageMatches('/Next anketa requires periodicity\./');
+        $this->expectExceptionMessageMatches('/Next 1:1 requires periodicity\./');
 
         $service->archive(
             anketa: $anketa,

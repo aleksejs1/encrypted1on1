@@ -1,9 +1,14 @@
 import { apiGet } from '../api/client';
 import type { MeResponse } from '../api/types';
 import { setDisplayNameState } from '../displayName.svelte';
-import { fromBase64 } from './encoding';
+import { fromBase64, toBase64 } from './encoding';
 import { unpackWrappedPrivateKey, unwrapPrivateKey } from './keypair';
-import { loadMasterKey } from './session';
+import { loadRememberedMasterKey } from './rememberedKey';
+import {
+  clearMasterKey,
+  loadMasterKey,
+  storeEncodedMasterKey,
+} from './session';
 
 export interface Identity {
   userId: string;
@@ -23,7 +28,7 @@ export interface Identity {
   privateKey: Uint8Array;
 }
 
-/** Thrown by ensureUnlocked() specifically when the AEAD unwrap rejects the master key — i.e. an actually wrong password, distinct from a network/server failure fetching /api/me (see auth.svelte.ts's checkUnlocked(), which relies on this to tell the two apart). */
+/** Thrown by ensureUnlocked() specifically when the AEAD unwrap rejects every master key this tab had (its own, then the remembered one) — i.e. an actually wrong password, distinct from a network/server failure fetching /api/me (see auth.svelte.ts's checkUnlocked(), which relies on this to tell the two apart). */
 export class WrongPasswordError extends Error {
   constructor() {
     super('Incorrect password.');
@@ -63,12 +68,33 @@ export function getGeneration(): number {
   return generation;
 }
 
+/** Null when the key doesn't open this wrapped private key. */
+async function unwrapOrNull(
+  wrapped: Awaited<ReturnType<typeof unpackWrappedPrivateKey>>,
+  masterKey: Uint8Array,
+): Promise<Uint8Array | null> {
+  try {
+    return await unwrapPrivateKey(wrapped, masterKey);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Re-derives the unwrapped private key from the sessionStorage master-key
  * (Phase 3) plus /api/me's encryptedPrivateKey (Phase 5) — the private key
  * itself lives only in this module-level variable, never in any browser
  * storage. Memoized for the tab's lifetime; a page refresh clears the cache
  * and this runs again (cheap: an AEAD decrypt, not a fresh argon2id run).
+ *
+ * A master key can come from two places, tried in this order: this tab's
+ * sessionStorage, then the browser's remembered key (crypto/rememberedKey.ts,
+ * GitHub issue #205). A tab key that doesn't unwrap is removed from the tab.
+ * A remembered key that doesn't is left where it is: that store is shared
+ * with every other tab, and this one can't tell a key that is wrong from a
+ * `me` fetched a moment before another tab changed the password. A
+ * remembered key that works is copied into this tab's sessionStorage, which
+ * every other reader of the master key uses.
  *
  * `meOverride` lets a caller that just fetched /api/me itself, in the same
  * synchronous flow, skip the otherwise-redundant second round trip — used
@@ -89,15 +115,16 @@ export async function ensureUnlocked(
 
   const startedAt = generation;
   const thisCall: Promise<Identity> = (async () => {
-    const masterKey = await loadMasterKey();
-    if (!masterKey) {
+    const tabKey = await loadMasterKey();
+    let remembered = tabKey ? null : await loadRememberedMasterKey();
+    if (!tabKey && !remembered) {
       throw new Error('Not logged in.');
     }
 
     // Checked here too, not just right before caching below: an
     // invalidation (a relogin as a different identity in this same tab)
     // that landed between snapshotting `startedAt` and this masterKey read
-    // means `masterKey` may already belong to that different identity —
+    // means the key just read may already belong to that different identity —
     // unwrapping *this* call's `me` (the identity this call started for)
     // against it would throw a WrongPasswordError that has nothing to do
     // with an actual wrong password, instead of the accurate "stale" signal.
@@ -107,19 +134,32 @@ export async function ensureUnlocked(
 
     const me = meOverride ?? (await apiGet<MeResponse>('/api/me'));
     const wrapped = await unpackWrappedPrivateKey(me.encryptedPrivateKey);
-    let privateKey: Uint8Array;
-    try {
-      privateKey = await unwrapPrivateKey(wrapped, masterKey);
-    } catch {
-      // An invalidation landing during this specific await (the narrowest
-      // remaining window: a same-tab relogin racing the exact moment this
-      // call is unwrapping) would otherwise surface as a false "wrong
-      // password" instead of the accurate stale/no-op signal, since a
-      // mismatched masterKey/me pairing from a mid-flight identity switch
-      // fails this unwrap the same way an actually wrong password does.
-      throw generation !== startedAt
-        ? new Error('Not logged in.')
-        : new WrongPasswordError();
+    // Every staleness check below sits right after an await and before any
+    // store is touched: an invalidation landing during that await (a logout,
+    // or a same-tab relogin as a different identity) means a failed unwrap
+    // says nothing about the key — a mismatched key/`me` pairing fails the
+    // same way a wrong password does — so no key may be removed over it, and
+    // the caller gets the accurate stale signal, not a false "wrong password".
+    let privateKey: Uint8Array | null = null;
+    if (tabKey) {
+      privateKey = await unwrapOrNull(wrapped, tabKey);
+      if (generation !== startedAt) throw new Error('Not logged in.');
+      if (!privateKey) {
+        clearMasterKey();
+        remembered = await loadRememberedMasterKey();
+        if (generation !== startedAt) throw new Error('Not logged in.');
+      }
+    }
+    // Set when the remembered key is the one that worked: copied into this
+    // tab at the commit below.
+    let encodedForTab: string | null = null;
+    if (!privateKey && remembered) {
+      privateKey = await unwrapOrNull(wrapped, remembered);
+      if (privateKey) encodedForTab = await toBase64(remembered);
+      if (generation !== startedAt) throw new Error('Not logged in.');
+    }
+    if (!privateKey) {
+      throw new WrongPasswordError();
     }
 
     const identity: Identity = {
@@ -141,12 +181,13 @@ export async function ensureUnlocked(
     // while any of the awaits above were in flight must win, otherwise this
     // call, started before the logout, would overwrite the `cached = null`
     // that logout already set with the previous user's decrypted identity.
-    // An earlier check (e.g. right after unwrapPrivateKey) would still
-    // leave the `await fromBase64(...)` above as an unguarded gap.
+    // The checks after each unwrap above still leave the
+    // `await fromBase64(...)` as a gap.
     if (generation !== startedAt) {
       throw new Error('Not logged in.');
     }
 
+    if (encodedForTab !== null) storeEncodedMasterKey(encodedForTab);
     cached = identity;
     unlockedUserId = identity.userId;
     setDisplayNameState(identity.displayName);

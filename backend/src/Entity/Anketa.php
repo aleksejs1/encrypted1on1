@@ -18,7 +18,8 @@ use Symfony\Component\Uid\Uuid;
 // a composite index lets either branch of the OR use it for both the filter and the sort.
 #[ORM\Index(columns: ['employee_id', 'manager_id', 'meetingDate'], name: 'idx_anketas_employee_manager_meeting_date')]
 // Covers AnketaRepository::findDueForReminder()'s daily `WHERE archivedAt IS NULL
-// AND meetingDate >= :start AND meetingDate < :end` (plus a reminderMeetingDay check on the few rows left).
+// AND meetingDate >= :start AND meetingDate < :end` (plus a reminderMeetingDay check on the few rows left),
+// and findDueForFollowUp()'s, the same shape.
 #[ORM\Index(columns: ['archivedAt', 'meetingDate'], name: 'idx_anketas_archived_meeting_date')]
 class Anketa
 {
@@ -36,7 +37,7 @@ class Anketa
      * that's a real product decision this is the simplest thing that lets
      * the one global form change over time without breaking old anketas.
      */
-    public const int CURRENT_FORM_VERSION = 2;
+    public const int CURRENT_FORM_VERSION = 3;
 
     /**
      * Which built-in question-set template this anketa uses (e.g. a different
@@ -71,7 +72,7 @@ class Anketa
      * cross-check compares this list with `[...ANKETA_TEMPLATES, 'custom']`, reading
      * it as a literal array of strings (so no `self::CUSTOM_TEMPLATE_KEY` here).
      */
-    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth', 'support_checkin', 'custom'];
+    public const TEMPLATE_KEYS = ['regular', 'lightweight', 'onboarding', 'career_growth', 'support_checkin', 'custom'];
 
     /** An anketa on a company template's version (GitHub issue #144, #133 §5.3). */
     public const CUSTOM_TEMPLATE_KEY = 'custom';
@@ -106,9 +107,14 @@ class Anketa
      * weekly/biweekly support check-in is a fine cadence, but self-recurrence would
      * still keep the pair on it indefinitely, until someone noticed and switched back
      * by hand. See docs/decisions/2026-09-23-support-checkin-template-does-not-recur.md.
+     * `'lightweight'` (GitHub issue #208) is the one built-in template besides
+     * `'regular'` that repeats itself: it is a pair's regular check-in in a shorter
+     * form, not a phase that ends, so staying on it is the point. See
+     * docs/decisions/2026-10-10-lightweight-template.md.
      */
     private const NEXT_CYCLE_TEMPLATE_KEY = [
         'regular' => 'regular',
+        'lightweight' => 'lightweight',
         'onboarding' => 'regular',
         'career_growth' => 'regular',
         'support_checkin' => 'regular',
@@ -228,6 +234,15 @@ class Anketa
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $reminderMeetingDay = null;
 
+    /**
+     * The meeting day (UTC) the "did your 1:1 happen?" follow-up email was for (GitHub
+     * issue #202), the same scheme as reminderMeetingDay: a follow-up is due while this
+     * differs from the meeting's current day, so a meeting moved after its follow-up is
+     * due again for its new day. Stamped by AnketaRepository::claimFollowUp().
+     */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $followUpMeetingDay = null;
+
     /** Set true only via the "cancel as missed" overdue action (Phase 6d) — skips the normal publish/discuss expectation but still auto-recreates the next anketa. */
     #[ORM\Column(type: 'boolean')]
     private bool $missed = false;
@@ -278,6 +293,18 @@ class Anketa
 
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $discussedVersion = 0;
+
+    /**
+     * The shared "Topics to discuss" list (GitHub issue #206), encrypted under anketaKey:
+     * either participant adds topics at any time, before or after publishing. Written
+     * only by AnketaRepository::saveTopicsIfVersion(), like discussedBlob, apart from
+     * seedTopics() at creation. DB-level default for the same reason as discussedVersion's.
+     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $topicsBlob = null;
+
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $topicsVersion = 0;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -672,6 +699,22 @@ class Anketa
         return $this->discussedVersion;
     }
 
+    public function getTopicsBlob(): ?string
+    {
+        return $this->topicsBlob;
+    }
+
+    /** Seeds the topics carried forward from the previous meeting at creation, like seedOutcomes(): topicsVersion stays 0. */
+    public function seedTopics(string $blob): void
+    {
+        $this->topicsBlob = $blob;
+    }
+
+    public function getTopicsVersion(): int
+    {
+        return $this->topicsVersion;
+    }
+
     public function isArchived(): bool
     {
         return null !== $this->archivedAt;
@@ -687,13 +730,18 @@ class Anketa
         return $this->reminderMeetingDay;
     }
 
+    public function getFollowUpMeetingDay(): ?\DateTimeImmutable
+    {
+        return $this->followUpMeetingDay;
+    }
+
     /**
      * Used only by bin/console app:reset-demo-data to set a freshly
      * constructed demo anketa's content to its seeded state in one shot
      * (each reset deletes and recreates every demo anketa from scratch —
      * see the command's own docblock for why). Bypasses the normal one-way
      * publish()/saveComments()/saveOutcomes()/saveGoalCheckpoints()
-     * version-guarded mutators and archive()'s "now" timestamp entirely on
+     * version-guarded mutators (and the repository's conditional topics save) and archive()'s "now" timestamp entirely on
      * purpose — those exist to protect real concurrent edits and record a
      * genuine archive moment, neither of which applies to a scheduled
      * reset replaying fixed, already-encrypted bytes. Blob/publishedAt
@@ -711,6 +759,8 @@ class Anketa
         int $outcomesVersion,
         ?string $goalCheckpointsBlob,
         int $goalCheckpointsVersion,
+        ?string $topicsBlob,
+        int $topicsVersion,
         bool $archived,
         bool $missed,
     ): void {
@@ -722,11 +772,14 @@ class Anketa
         $this->missed = $missed;
         $this->reminderSentAt = null;
         $this->reminderMeetingDay = null;
+        $this->followUpMeetingDay = null;
         $this->commentsBlob = $commentsBlob;
         $this->commentsVersion = $commentsVersion;
         $this->outcomesBlob = $outcomesBlob;
         $this->outcomesVersion = $outcomesVersion;
         $this->goalCheckpointsBlob = $goalCheckpointsBlob;
         $this->goalCheckpointsVersion = $goalCheckpointsVersion;
+        $this->topicsBlob = $topicsBlob;
+        $this->topicsVersion = $topicsVersion;
     }
 }

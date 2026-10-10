@@ -15,11 +15,14 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Meant to run periodically via an external cron entry (same ADR 5 no-worker-process
  * pattern as app:send-reminders/backup.sh — see docs/deployment.md) — deletes
- * ActivationToken/PasswordResetToken rows whose expiresAt has passed, used or not.
- * Nothing else in this app ever removes a row from either table, so without this both
- * grow forever; a used or expired token has no further function once it's past its TTL
- * (the raw token needed to redeem one was never stored to begin with — see each entity's
- * own tokenHash docblock), so there's nothing meaningful lost by deleting the row itself.
+ * PasswordResetToken rows whose expiresAt has passed, and ActivationToken rows
+ * ActivationToken::RETENTION_DAYS_AFTER_EXPIRY days after theirs, used or not. Nothing
+ * else in this app ever removes a row from either table, so without this both grow
+ * forever. A password-reset token has no further function once it's past its TTL (the
+ * raw token needed to redeem one was never stored to begin with — see each entity's own
+ * tokenHash docblock). An expired activation token can't be redeemed either, but for two
+ * weeks its row still lets the activation page tell an expired or already-used link from
+ * an unknown one, and offer a renewal request (GitHub issue #169).
  * A bulk DQL DELETE, not an entity-by-entity load+remove+flush loop: neither entity
  * carries relations that need Doctrine's own cascade/event handling, so there's no
  * reason to pay the cost of hydrating every expired row first.
@@ -30,7 +33,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * readable for admins well past that token's own deletion — see InviteRecord's own
  * docblock).
  */
-#[AsCommand(name: 'app:cleanup-expired-tokens', description: 'Delete expired activation/password-reset tokens and invite records past their retention window')]
+#[AsCommand(name: 'app:cleanup-expired-tokens', description: 'Delete expired password-reset tokens, and activation tokens and invite records past their retention windows')]
 class CleanupExpiredTokensCommand extends Command
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)
@@ -47,10 +50,11 @@ class CleanupExpiredTokensCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $now = new \DateTimeImmutable();
 
+        $activationTokenCutoff = $now->modify(sprintf('-%d days', ActivationToken::RETENTION_DAYS_AFTER_EXPIRY));
         $deletedActivationTokens = $this->entityManager->createQueryBuilder()
             ->delete(ActivationToken::class, 't')
-            ->where('t.expiresAt < :now')
-            ->setParameter('now', $now)
+            ->where('t.expiresAt < :cutoff')
+            ->setParameter('cutoff', $activationTokenCutoff)
             ->getQuery()
             ->execute();
         // A bulk DQL DELETE's execute() always returns the affected-row count as an int
@@ -75,7 +79,7 @@ class CleanupExpiredTokensCommand extends Command
         \assert(\is_int($deletedInviteRecords));
 
         $io->success(sprintf(
-            'Deleted %d expired activation token(s), %d expired password-reset token(s), and %d invite record(s) past their retention window.',
+            'Deleted %d activation token(s) past their retention window, %d expired password-reset token(s), and %d invite record(s) past their retention window.',
             $deletedActivationTokens,
             $deletedPasswordResetTokens,
             $deletedInviteRecords,

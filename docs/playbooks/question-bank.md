@@ -8,7 +8,7 @@
 
 ## How to Use This Bank
 
-Never read questions off a checklist like an interrogator. Pick **1 or 2 targeted questions** per meeting depending on where the team member is in their lifecycle, their recent energy levels, or what they published in their anketa.
+Never read questions off a checklist like an interrogator. Pick **1 or 2 targeted questions** per meeting depending on where the team member is in their lifecycle, their recent energy levels, or what they published in their 1:1.
 
 Always follow up an answer with active curiosity:
 - *"Tell me more about that."*

@@ -18,6 +18,7 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '../connectivity/connectionState.svelte';
   import { _ } from 'svelte-i18n';
   import {
     loggedInUserId,
@@ -102,8 +103,10 @@
         model = { ...model, status: 'loadError', loadErrorNeedsReload: true };
       }
     });
+    const stopOnReconnect = onReconnect(() => session?.reconnected());
     return () => {
       cancelled = true;
+      stopOnReconnect();
       session?.destroy();
     };
   });
@@ -479,7 +482,10 @@
      only once it sticks. */
   @media (min-width: 52.5em) {
     :global(main.with-notes) .private-notes:not(.is-hidden) {
-      height: min(100dvh - 32px, max(24rem, 100dvh - 160px));
+      height: min(
+        100dvh - 32px - var(--connection-banner-offset, 0px),
+        max(24rem, 100dvh - 160px - var(--connection-banner-offset, 0px))
+      );
       overflow-y: auto;
     }
 

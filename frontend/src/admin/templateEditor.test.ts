@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { repoFile } from '../testRepoFile';
 import {
+  CURRENT_ANKETA_FORM_VERSION,
   EMPLOYEE_BUILTIN_QUESTION_IDS,
   MANAGER_BUILTIN_QUESTION_IDS,
+  RETIRED_BUILTIN_QUESTION_IDS,
   builtinQuestionTitleKey,
+  getQuestionsForSide,
 } from '../anketa/questions';
 import {
   validateTemplateDefinition,
@@ -42,22 +45,38 @@ describe('ids', () => {
   });
 });
 
+function offered<T extends string>(ids: readonly T[]): T[] {
+  return ids.filter((id) => !RETIRED_BUILTIN_QUESTION_IDS.includes(id));
+}
+
 describe('regularPrefill', () => {
-  it('is the Regular check-in: every built-in of each side, in order, and valid', () => {
+  it('is the Regular check-in: every offered built-in of each side, in order, and valid', () => {
     const definition = regularPrefill();
 
     expect(definition.employee).toEqual(
-      EMPLOYEE_BUILTIN_QUESTION_IDS.map((questionId) => ({
+      offered(EMPLOYEE_BUILTIN_QUESTION_IDS).map((questionId) => ({
         kind: 'builtin',
         questionId,
       })),
     );
     expect(definition.manager).toEqual(
-      MANAGER_BUILTIN_QUESTION_IDS.map((questionId) => ({
+      offered(MANAGER_BUILTIN_QUESTION_IDS).map((questionId) => ({
         kind: 'builtin',
         questionId,
       })),
     );
+    // The same questions a new Regular 1:1 has.
+    for (const side of ['employee', 'manager'] as const) {
+      expect(
+        definition[side].map((block) =>
+          block.kind === 'builtin' ? block.questionId : null,
+        ),
+      ).toEqual(
+        getQuestionsForSide(side, CURRENT_ANKETA_FORM_VERSION, 'regular').map(
+          (question) => question.id,
+        ),
+      );
+    }
     expect(validateTemplateDefinition(definition)).toEqual([]);
   });
 
@@ -65,7 +84,7 @@ describe('regularPrefill', () => {
     const first = regularPrefill();
     first.employee.pop();
     expect(regularPrefill().employee).toHaveLength(
-      EMPLOYEE_BUILTIN_QUESTION_IDS.length,
+      offered(EMPLOYEE_BUILTIN_QUESTION_IDS).length,
     );
   });
 });
@@ -88,8 +107,33 @@ describe('availableBuiltins', () => {
     ]);
   });
 
+  // GitHub issue #206: a new template starts without them, since the shared
+  // topics list does their job, but they're the admin's to add (or to put
+  // back after removing one), and a definition with them is valid.
+  it('still offers the "What else to discuss" questions a new template starts without', () => {
+    const prefill = regularPrefill();
+    expect(availableBuiltins('employee', prefill.employee)).toEqual([
+      'discuss',
+    ]);
+    expect(availableBuiltins('manager', prefill.manager)).toEqual([
+      'managerDiscuss',
+    ]);
+    expect(
+      validateTemplateDefinition({
+        schemaVersion: 1,
+        employee: [{ kind: 'builtin', questionId: 'discuss' }],
+        manager: [{ kind: 'builtin', questionId: 'managerDiscuss' }],
+      }),
+    ).toEqual([]);
+  });
+
   it('offers nothing once every built-in is used', () => {
-    expect(availableBuiltins('manager', regularPrefill().manager)).toEqual([]);
+    const everyManagerBuiltin: TemplateBlock[] =
+      MANAGER_BUILTIN_QUESTION_IDS.map((questionId) => ({
+        kind: 'builtin',
+        questionId,
+      }));
+    expect(availableBuiltins('manager', everyManagerBuiltin)).toEqual([]);
   });
 });
 

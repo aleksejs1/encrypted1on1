@@ -2,6 +2,8 @@
 
 Closes [GitHub issue #167](https://github.com/aleksejs1/encrypted1on1/issues/167).
 
+> Since [GitHub issue #200](2026-10-03-email-copy-single-reminder-reschedule-notice.md) the "not filled out" nudge is a line in the reminder email, not a second email, and a reschedule emails the counterpart.
+
 ## Problem
 
 `app:send-reminders` runs once a day and reminds every meeting that is tomorrow. For a Monday 1:1

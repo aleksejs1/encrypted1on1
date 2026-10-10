@@ -4,9 +4,12 @@ import { createActivationLink, uniqueEmail } from './helpers/provision.js';
 const PASSWORD = 'correct horse battery staple 123';
 
 // Every e2e account lands in the one e2e company, and templates can't be
-// deleted, so each run of this file adds templates there for good. `make
-// e2e-up` (and CI) start from an empty database; a stack reused for about 25
-// runs of this file reaches the 50-template cap.
+// deleted, so each run of this file adds templates there for good, and
+// template-portability.spec.ts adds four more. CI starts from an empty
+// database; a local stack keeps its database in the `e2e_var` volume across
+// `make e2e-down`/`e2e-up`, and reaches the 50-template cap after about 8
+// runs of both files (`docker compose -f docker-compose.e2e.yml down -v`
+// empties it).
 
 test.afterEach(async ({ browser }) => {
   await Promise.all(browser.contexts().map((context) => context.close()));
@@ -56,9 +59,11 @@ test('an admin builds, previews, saves, edits, archives and restores a template'
   await admin.getByRole('link', { name: 'New template' }).click();
   await admin.waitForURL('/admin/templates/new');
 
-  // Pre-filled with the Regular check-in, and not savable without a name.
+  // Pre-filled with the Regular check-in (six employee questions: "What else
+  // to discuss" isn't in it since the shared topics list, GitHub issue #206),
+  // and not savable without a name.
   const employee = admin.locator('section.side').first();
-  await expect(employee.locator('li.block')).toHaveCount(7);
+  await expect(employee.locator('li.block')).toHaveCount(6);
   await expect(employee.getByText('Mood')).toBeVisible();
   await expect(admin.getByText(/stored unencrypted/)).toBeVisible();
   await expect(admin.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -82,7 +87,7 @@ test('an admin builds, previews, saves, edits, archives and restores a template'
     .getByRole('combobox', { name: 'Add a standard question…' })
     .selectOption({ label: 'Feelings' });
   await employee.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(employee.locator('li.block')).toHaveCount(7);
+  await expect(employee.locator('li.block')).toHaveCount(6);
   await employee.getByRole('button', { name: 'Remove: Feelings' }).click();
   await employee.getByRole('button', { name: 'Add a custom question' }).click();
   const custom = employee.locator('li.block').last();

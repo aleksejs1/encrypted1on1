@@ -46,7 +46,9 @@ specifically *because* it was designed one-way:
    There's no "edited at" timestamp, no diff, and — notably — no
    notification even on the *original* publish today (`AnketaNotifier`'s
    three methods only fire on anketa creation and two meeting reminders —
-   `notifyMeetingTomorrow`/`notifyNotFilledOut` — never on publish).
+   `notifyMeetingTomorrow`/`notifyNotFilledOut` — never on publish). (`notifyNotFilledOut`
+   was later folded into the reminder,
+   [GitHub issue #200](2026-10-03-email-copy-single-reminder-reschedule-notice.md).)
 4. Comments are anchored to a specific answer via `Comment.targetId`
    (`frontend/src/anketa/comments.ts`) and rendered once `myPublished` is
    true. If the answer text an existing comment refers to changes after the

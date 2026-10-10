@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Anketa\AnketaAlreadyArchivedException;
 use App\Anketa\AnketaLifecycleService;
 use App\Anketa\AnketaPresenter;
+use App\Anketa\AnketaTopicsChangedException;
 use App\Dto\ArchiveAnketaRequest;
 use App\Dto\CreateAnketaRequest;
 use App\Dto\CreateGoalRequest;
@@ -142,6 +143,7 @@ class AnketaController
             periodicityDays: $periodicityDays,
             // Dropped for a one-off by the service itself — see createWithCarryForward().
             outcomesBlob: $payload->outcomesBlob,
+            topicsBlob: $payload->topicsBlob,
             carryFrom: $previousAnketa,
             creator: $user,
             templateKey: $payload->templateKey,
@@ -307,22 +309,51 @@ class AnketaController
         [$anketa] = $this->findAccessible($id, $request);
         $expectedVersion = (int) $payload->expectedVersion;
 
-        if (!$this->anketaRepository->saveDiscussedIfVersion($anketa, (string) $payload->blob, $expectedVersion)) {
-            // A stale version or an archived anketa: re-read which one it was. The
-            // archived 409 carries no blob, so the client doesn't retry it as a conflict.
-            $this->entityManager->refresh($anketa);
-            if ($anketa->isArchived()) {
-                throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
-            }
-
-            return new JsonResponse([
-                'error' => $this->translator->trans('errors.discussed_conflict'),
-                'discussedBlob' => $anketa->getDiscussedBlob(),
-                'discussedVersion' => $anketa->getDiscussedVersion(),
-            ], 409);
+        if ($this->anketaRepository->saveDiscussedIfVersion($anketa, (string) $payload->blob, $expectedVersion)) {
+            return new JsonResponse(['discussedVersion' => $expectedVersion + 1]);
         }
+        $this->refreshAfterRefusedSave($anketa);
 
-        return new JsonResponse(['discussedVersion' => $expectedVersion + 1]);
+        return new JsonResponse([
+            'error' => $this->translator->trans('errors.discussed_conflict'),
+            'discussedBlob' => $anketa->getDiscussedBlob(),
+            'discussedVersion' => $anketa->getDiscussedVersion(),
+        ], 409);
+    }
+
+    /** The shared "Topics to discuss" list (GitHub issue #206); saved like the discussed ticks. */
+    #[Route('/api/anketas/{id}/topics', name: 'anketa_topics', methods: ['PUT'])]
+    public function saveTopics(
+        string $id,
+        #[MapRequestPayload] SaveVersionedBlobRequest $payload,
+        Request $request,
+    ): JsonResponse {
+        [$anketa] = $this->findAccessible($id, $request);
+        $expectedVersion = (int) $payload->expectedVersion;
+
+        if ($this->anketaRepository->saveTopicsIfVersion($anketa, (string) $payload->blob, $expectedVersion)) {
+            return new JsonResponse(['topicsVersion' => $expectedVersion + 1]);
+        }
+        $this->refreshAfterRefusedSave($anketa);
+
+        return new JsonResponse([
+            'error' => $this->translator->trans('errors.topics_conflict'),
+            'topicsBlob' => $anketa->getTopicsBlob(),
+            'topicsVersion' => $anketa->getTopicsVersion(),
+        ], 409);
+    }
+
+    /**
+     * After a conditional save matched no row: a stale version or an archived anketa.
+     * Re-reads which one it was, for the caller's conflict response. The archived 409
+     * carries no blob, so the client doesn't retry it as a conflict.
+     */
+    private function refreshAfterRefusedSave(Anketa $anketa): void
+    {
+        $this->entityManager->refresh($anketa);
+        if ($anketa->isArchived()) {
+            throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
+        }
     }
 
     #[Route('/api/anketas/{id}/goals', name: 'anketa_goal_create', methods: ['POST'])]
@@ -549,9 +580,21 @@ class AnketaController
                 mySealedKey: $mySealedKey,
                 counterpartSealedKey: $counterpartSealedKey,
                 outcomesBlob: $payload->outcomesBlob,
+                topicsBlob: $payload->topicsBlob,
                 nextTemplateKey: $nextTemplateKey,
                 nextCustomTemplateVersion: $nextCustomTemplateVersion,
+                // Only with a successor: nothing is carried forward otherwise.
+                expectedTopicsVersion: $createNext ? $payload->topicsVersion : null,
             );
+        } catch (AnketaTopicsChangedException) {
+            // Still open: the topics list changed after the client built its
+            // carry-forward (the service has re-read it). Same body as a refused topics
+            // save, so the client takes the current list and archives again.
+            return new JsonResponse([
+                'error' => $this->translator->trans('errors.topics_conflict'),
+                'topicsBlob' => $anketa->getTopicsBlob(),
+                'topicsVersion' => $anketa->getTopicsVersion(),
+            ], 409);
         } catch (AnketaAlreadyArchivedException) {
             // This request's copy predates the archive that won; re-read it for the
             // response. (wrapInTransaction() didn't throw, so the EntityManager is open.)
@@ -607,15 +650,13 @@ class AnketaController
         #[MapRequestPayload] RescheduleAnketaRequest $payload,
         Request $request,
     ): JsonResponse {
-        [$anketa] = $this->findAccessible($id, $request);
+        [$anketa, $user] = $this->findAccessible($id, $request);
 
         if ($anketa->isArchived()) {
             throw new ConflictHttpException($this->translator->trans('errors.anketa_archived'));
         }
 
-        $anketa->reschedule(new \DateTimeImmutable($payload->meetingDate));
-
-        $this->entityManager->flush();
+        $this->lifecycleService->reschedule($anketa, $user, new \DateTimeImmutable($payload->meetingDate));
 
         return new JsonResponse(['meetingDate' => $anketa->getMeetingDate()->format(\DATE_ATOM)]);
     }
@@ -725,8 +766,10 @@ class AnketaController
     }
 
     /**
-     * Every one of the requester's own private notes rows, for the data export. Not
-     * joined with anketa metadata: the export already has that from /api/anketas/bulk.
+     * Every one of the requester's own private notes rows, for the data export and the
+     * "My private notes" list in Reports (GitHub issue #243). Not joined with anketa
+     * metadata: the export already has that from /api/anketas/bulk, the list from
+     * /api/anketas.
      */
     #[Route('/api/me/private-notes', name: 'me_private_notes', methods: ['GET'])]
     public function listOwnPrivateNotes(Request $request): JsonResponse

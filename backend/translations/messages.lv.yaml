@@ -1,19 +1,22 @@
 email:
     anketa_created:
-        subject: 'Ieplānota jauna 1:1 anketa'
-        body: "%creator% ir ieplānojis(-usi) ar jums 1:1 tikšanos %date%.\n\nLūdzu, aizpildiet savu daļu: %url%"
+        subject: 'Ieplānota jauna 1:1 tikšanās'
+        body: "%creator% ir ieplānojis(-usi) ar jums 1:1 tikšanos %date%.\n\nŠeit jūs abi sagatavojat tēmas un pierakstāt, par ko vienojaties. Jūsu atbildes ir pilnībā šifrētas: tās varat izlasīt tikai jūs abi — ne serveris, ne jūsu uzņēmuma administratori. Rakstiet tik maz, cik vēlaties.\n\n%url%"
+    meeting_rescheduled:
+        subject: 'Jūsu 1:1 tikšanās ir pārcelta'
+        body: "%actor% pārcēla jūsu 1:1 tikšanos no %old_date% uz %date%.\n\n%url%"
     meeting_tomorrow:
         subject: 'Jūsu 1:1 tikšanās ir rīt'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir rīt (%date%).\n\n%url%"
-    not_filled_out:
-        subject: 'Atgādinājums: aizpildiet anketu pirms rītdienas tikšanās'
-        body: "Jūs vēl neesat aizpildījis(-usi) savu daļu rītdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Jūsu 1:1 tikšanās ar %counterpart% ir rīt (%date%).\n\nJūs vēl neesat publicējis(-usi) savu daļu.\n\n%url%"
     meeting_monday:
         subject: 'Jūsu 1:1 tikšanās ir pirmdien'
         body: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\n%url%"
-    not_filled_out_monday:
-        subject: 'Atgādinājums: aizpildiet anketu pirms pirmdienas tikšanās'
-        body: "Jūs vēl neesat aizpildījis(-usi) savu daļu pirmdienas 1:1 tikšanās ar %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Jūsu 1:1 tikšanās ar %counterpart% ir pirmdien (%date%).\n\nJūs vēl neesat publicējis(-usi) savu daļu.\n\n%url%"
+    meeting_follow_up:
+        subject: "Vai jūsu 1:1 tikšanās notika?"
+        body: "Vai jūsu 1:1 tikšanās ar %counterpart% %date% notika? Tā vēl nav slēgta.\n\nSlēgt un ieplānot nākamo:\n%close_url%\n\nVai pārcelt uz citu datumu:\n%reschedule_url%"
+        body_one_off: "Vai jūsu 1:1 tikšanās ar %counterpart% %date% notika? Tā vēl nav slēgta.\n\nSlēgt tikšanos:\n%close_url%\n\nVai pārcelt uz citu datumu:\n%reschedule_url%"
     invited:
         subject: 'Jūs esat uzaicināts(-a) uz encrypted1on1'
         body: "%inviter% jūs uzaicināja pievienoties encrypted1on1.\n\nAktivizējiet savu kontu: %url%"
@@ -22,17 +25,20 @@ email:
         body: "Mēs saņēmām pieprasījumu atiestatīt jūsu paroli.\n\nIzvēlieties jaunu paroli: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
     counterpart_key_changed:
         subject: 'Sarunu biedra šifrēšanas atslēga ir mainījusies'
-        body: "%counterpart% konts ir veicis paroles atiestatīšanu, kas nomainīja viņa šifrēšanas atslēgu.\n\nIespējams, ka anketas, kas jums ir kopīgas ar viņu, būs jāpiešķir vēlreiz, pirms viņš tās varēs izlasīt — ja tas tā ir, jūs redzēsiet par to baneri savā anketu sarakstā."
+        body: "%counterpart% konts ir veicis paroles atiestatīšanu, kas nomainīja viņa šifrēšanas atslēgu.\n\nIespējams, ka 1:1 tikšanās, kas jums ir kopīgas ar viņu, būs jāpiešķir vēlreiz, pirms viņš tās varēs izlasīt — ja tas tā ir, jūs redzēsiet par to baneri savā 1:1 tikšanos sarakstā."
     signup:
         subject: 'Apstipriniet savu e-pastu encrypted1on1'
         body: "Mēs saņēmām pieprasījumu izveidot encrypted1on1 kontu ar šo e-pasta adresi.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
     company_signup:
         subject: 'Apstipriniet savu jauno uzņēmumu encrypted1on1'
         body: "Mēs saņēmām pieprasījumu izveidot jaunu uzņēmumu \"%company%\" encrypted1on1, kur jūs būsiet tā pirmais administrators.\n\nAktivizējiet savu kontu: %url%\n\nJa jūs to nepieprasījāt, varat vienkārši ignorēt šo e-pastu."
+    invite_renewal_requested:
+        subject: "%invitee% lūdz jaunu ielūgumu uz encrypted1on1"
+        body: "%invitee% mēģināja aktivizēt savu encrypted1on1 kontu, bet ielūguma saitei bija beidzies derīguma termiņš.\n\nNosūtiet jaunu ielūgumu: %url%"
 errors:
     not_authenticated: 'Nav autentificēts.'
     missing_or_invalid_field: 'Trūkst vai nederīgs lauks "%field%".'
-    anketa_archived: 'Anketa ir arhivēta.'
+    anketa_archived: 'Šī 1:1 tikšanās ir arhivēta.'
     missing_blob_or_expected_version: 'Trūkst "blob" vai "expectedVersion".'
     already_published: 'Jau publicēts.'
     not_published_yet: 'Vēl nav publicēts.'
@@ -42,6 +48,10 @@ errors:
     meeting_date_must_be_valid_date: '"meetingDate" jābūt derīgam datumam.'
     outcomes_blob_must_be_string: '"outcomesBlob" jābūt virknei.'
     invalid_or_expired_activation_link: 'Nederīga vai beigusies aktivizācijas saite.'
+    activation_link_expired: "Aktivizācijas saitei ir beidzies derīguma termiņš."
+    account_already_active: "Konts jau ir aktivizēts. Lūdzu, piesakieties."
+    activation_link_not_expired: "Aktivizācijas saite joprojām ir derīga."
+    invite_renewal_send_failed: "Pieprasījumu neizdevās nosūtīt. Lūdzu, mēģiniet vēlreiz vēlāk."
     invalid_or_expired_reset_link: 'Nederīga vai beigusies paroles atiestatīšanas saite.'
     missing_email_or_auth_key: 'Trūkst "email" vai "authKey".'
     invalid_email_or_password: 'Nepareizs e-pasts vai parole.'
@@ -85,6 +95,7 @@ errors:
     outcomes_conflict: 'Tikšanās rezultāti ir mainījušies kopš pēdējās nolasīšanas.'
     goal_checkpoints_conflict: 'Mērķu kontrolpunkti ir mainījušies kopš pēdējās nolasīšanas.'
     discussed_conflict: 'Apspriestie jautājumi ir mainījušies kopš pēdējās nolasīšanas.'
+    topics_conflict: 'Tēmas ir mainījušās kopš pēdējās nolasīšanas.'
     private_notes_conflict: 'Jūsu privātās piezīmes ir mainījušās kopš pēdējās nolasīšanas.'
     private_notes_too_large: 'Privātās piezīmes ir pārāk garas, lai tās saglabātu.'
     private_notes_key_invalid: '"encryptedNotesKey" nav derīga šifrēta atslēga.'
@@ -99,9 +110,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" un "skipNextMeeting" jābūt būla vērtībām.'
     next_meeting_date_must_be_string: '"nextMeetingDate" jābūt virknei.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" jābūt derīgam datumam.'
-    no_periodicity_on_record: 'Šai anketai nav reģistrēta periodiskuma — norādiet "skipNextMeeting": true.'
+    no_periodicity_on_record: 'Šai 1:1 tikšanās reizei nav reģistrēta periodiskuma — norādiet "skipNextMeeting": true.'
     missing_sealed_keys: 'Trūkst "mySealedKey" vai "counterpartSealedKey".'
-    anketa_not_found: 'Anketa nav atrasta.'
+    anketa_not_found: '1:1 tikšanās nav atrasta.'
     not_a_participant: 'Jūs neesat dalībnieks.'
     missing_meeting_date: 'Trūkst "meetingDate".'
     invalid_csrf_token: 'Nederīgs CSRF marķieris.'

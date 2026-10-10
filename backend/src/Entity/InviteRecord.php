@@ -2,17 +2,22 @@
 
 namespace App\Entity;
 
+use App\Repository\InviteRecordRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * Admin-facing invite history — deliberately separate from ActivationToken, which is
- * hard-deleted daily by app:cleanup-expired-tokens regardless of used/expired status
- * (see that command's own docblock). Coupling admin visibility to that table would mean
- * either weakening a security-driven 24h cleanup or growing it a second, unrelated
- * retention concern. This entity carries no tokenHash and is never used to redeem
- * anything — it exists purely so `GET /api/admin/invites`/`GET /api/platform-admin/invites`
- * have something to read after the token itself is long gone. See GitHub issue #24 for
- * the full design discussion.
+ * Admin-facing invite history — deliberately separate from ActivationToken, which
+ * app:cleanup-expired-tokens hard-deletes ActivationToken::RETENTION_DAYS_AFTER_EXPIRY
+ * (14) days after expiry regardless of used/expired status (see that command's own
+ * docblock). Coupling admin visibility to that table would mean growing its retention
+ * to this table's 90 days for a second, unrelated reason. This entity carries no
+ * tokenHash and is never used to redeem anything. It exists so `GET /api/admin/invites`/
+ * `GET /api/platform-admin/invites` have something to read after the token itself is
+ * long gone (see GitHub issue #24 for the full design discussion), and, since GitHub
+ * issue #169, to tell an expired link to its address who to ask for a new invite
+ * (invitedBy) and to hold the per-address renewal cooldown (renewalRequestedAt), on the
+ * newest row for that address (InviteRenewal). An address with no row here at all can't
+ * be renewed, so every invite path that should be renewable must write one.
  *
  * `id` deliberately shares the value of the ActivationToken it's issued alongside
  * (InviteController::create()/SignupController::signup() generate one via
@@ -33,7 +38,7 @@ use Doctrine\ORM\Mapping as ORM;
  * would need to purge/reassign invite_records first too, or the FK will reject the
  * delete outright rather than fail gracefully.
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: InviteRecordRepository::class)]
 #[ORM\Table(name: 'invite_records')]
 // AccountDeleter looks up rows by email (scrubbing on account deletion); the daily
 // cleanup command deletes by createdAt (the retention cutoff, above) — both would
@@ -50,12 +55,15 @@ class InviteRecord
      */
     public const RETENTION_DAYS = 90;
 
+    /** How long a renewal request blocks the next one for the same invite (GitHub issue #169). */
+    public const RENEWAL_COOLDOWN_HOURS = 24;
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
     private string $id;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[AllowPlaintext(reason: 'Same as ActivationToken::$email — always plaintext — but retained far longer: up to RETENTION_DAYS (90d) for a never-accepted invite, not ActivationToken\'s own 24h TTL. A deliberate tradeoff (admin-facing invite history needs to outlive the token itself), not an oversight — see GitHub issue #24.')]
+    #[AllowPlaintext(reason: 'Same as ActivationToken::$email — always plaintext — but retained longer: up to RETENTION_DAYS (90d) for a never-accepted invite, against ActivationToken\'s 24h TTL plus RETENTION_DAYS_AFTER_EXPIRY (14d). A deliberate tradeoff (admin-facing invite history needs to outlive the token itself), not an oversight — see GitHub issue #24.')]
     private string $email;
 
     #[ORM\ManyToOne(targetEntity: Company::class)]
@@ -84,6 +92,14 @@ class InviteRecord
     /** Stamped by ActivationController::complete() once the invited person actually activates. */
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $acceptedAt = null;
+
+    /**
+     * When the invitee last asked, from the expired activation link, for a new invite
+     * (GitHub issue #169). Written only by InviteRecordRepository::claimRenewalRequest(),
+     * a conditional UPDATE, so two concurrent requests can't both notify the inviter.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $renewalRequestedAt = null;
 
     public function __construct(string $id, string $email, Company $company, ?User $invitedBy, \DateTimeImmutable $expiresAt)
     {
@@ -130,6 +146,21 @@ class InviteRecord
         return $this->acceptedAt;
     }
 
+    public function getRenewalRequestedAt(): ?\DateTimeImmutable
+    {
+        return $this->renewalRequestedAt;
+    }
+
+    /**
+     * A renewal request made after this instant is still within its cooldown, the one
+     * rule InviteRenewal (reading) and InviteRecordRepository::claimRenewalRequest()
+     * (writing) both use.
+     */
+    public static function renewalCooldownStart(\DateTimeImmutable $now): \DateTimeImmutable
+    {
+        return $now->modify(sprintf('-%d hours', self::RENEWAL_COOLDOWN_HOURS));
+    }
+
     public function markAccepted(): void
     {
         $this->acceptedAt = new \DateTimeImmutable();
@@ -152,6 +183,17 @@ class InviteRecord
      */
     public function scrubEmail(): void
     {
-        $this->email = sprintf('deleted-%s@deleted.invalid', $this->id);
+        $this->email = $this->scrubbedEmail();
+    }
+
+    /** True once scrubEmail() has replaced the address: there's nobody left to re-invite. */
+    public function isScrubbed(): bool
+    {
+        return $this->email === $this->scrubbedEmail();
+    }
+
+    private function scrubbedEmail(): string
+    {
+        return User::scrubbedEmailFor($this->id);
     }
 }

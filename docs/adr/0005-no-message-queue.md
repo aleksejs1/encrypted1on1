@@ -16,6 +16,6 @@ Both jobs are plain one-shot commands, triggered by an external cron entry on th
 
 - No worker process to keep alive, monitor, or restart on crash — one fewer moving part in the deployment.
 - No message broker (Redis, RabbitMQ) dependency for what is, in practice, two calls a day.
-- Idempotency has to be handled explicitly per job instead of relying on queue semantics — e.g. `Anketa::reminderMeetingDay` (claimed before sending, GitHub issue #167) makes `app:send-reminders` safe against a same-day cron rerun or an overlapping run.
+- Idempotency has to be handled explicitly per job instead of relying on queue semantics — e.g. `Anketa::reminderMeetingDay` (claimed before sending, GitHub issue #167; `followUpMeetingDay` for the follow-up email, #202) makes `app:send-reminders` safe against a same-day cron rerun or an overlapping run.
 - This only scales to "once or twice daily batch work." A future feature genuinely needing near-real-time background processing (not on the roadmap today) would need to revisit this decision, not extend the cron pattern to it.
 - Operators must remember to actually add the cron entries — this is a real, documented operational responsibility, not something the app enforces or checks.

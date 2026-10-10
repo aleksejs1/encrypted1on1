@@ -103,4 +103,4 @@ Avoid 10-point wish lists. Pick **one single focus area** for the next quarter:
 2. **Manager Sponsorship Action within 7 Days**:
    - Introduce the employee to the relevant project group, advocate for them to lead an RFC, or approve educational budget.
 3. **Archive**:
-   - Archiving the anketa cleanly transitions the pair back to their regular meeting cycle while preserving the goal across cycles.
+   - Archiving the 1:1 cleanly transitions the pair back to their regular meeting cycle while preserving the goal across cycles.

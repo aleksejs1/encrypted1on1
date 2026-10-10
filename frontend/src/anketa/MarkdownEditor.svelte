@@ -152,7 +152,7 @@
       {value}
       oninput={(e) => onChange(e.currentTarget.value)}></textarea>
   {:else}
-    <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderAnswerMarkdown sanitizes with a DOMPurify tag/attribute allowlist, see markdown.ts -->
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderAnswerMarkdown escapes raw HTML and sanitizes with a DOMPurify tag/attribute allowlist, see markdown.ts -->
     <div class="answer-text preview">{@html renderAnswerMarkdown(value)}</div>
   {/if}
 </div>

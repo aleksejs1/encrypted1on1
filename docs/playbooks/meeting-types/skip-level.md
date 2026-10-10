@@ -5,7 +5,7 @@
 > **Participants:** Senior Engineering Leader (Director / VP of Engineering / CTO) & Frontline Engineer (Senior / Staff / Lead)
 > **Cadence:** Quarterly or Bi-annually (Every 3–6 months per engineer or rotation)
 > **Duration:** 30–45 minutes
-> **Format in encrypted1on1:** An ad-hoc anketa between the senior leader and the engineer.
+> **Format in encrypted1on1:** An ad-hoc 1:1 between the senior leader and the engineer.
 
 ---
 
@@ -115,4 +115,4 @@ Frontline engineers know exactly where company money is being wasted:
    > *"There is a strong desire in the team for faster integration test suites. Let's see how Platform engineering can allocate resources to assist you."*
 3. **Close the Loop with the Engineer (within 7 days):** Send a brief private message updating them on the blocker they raised:
    > *"Hi Alex! Following up on our chat regarding staging delays: we just approved a dedicated DevOps sprint to overhaul our test runners. Thank you for flagging that!"*
-4. **Archive & Prevent Auto-Recurrence in encrypted1on1:** When archiving the meeting, **check "Don't create the next meeting" (`skipNextMeeting`)**. Because senior leaders and frontline engineers do not normally share an open anketa, the platform treats a newly created meeting as the start of a recurring pair chain. Ticking this box ensures that an unwanted bi-weekly follow-up is not automatically scheduled.
+4. **Archive & Prevent Auto-Recurrence in encrypted1on1:** When archiving the meeting, **check "Don't create the next meeting" (`skipNextMeeting`)**. Because senior leaders and frontline engineers do not normally share an open 1:1, the platform treats a newly created meeting as the start of a recurring pair chain. Ticking this box ensures that an unwanted bi-weekly follow-up is not automatically scheduled.

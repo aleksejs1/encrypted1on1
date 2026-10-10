@@ -10,6 +10,8 @@ export const PATHS = {
   createCompany: '/create-company',
   anketaList: '/',
   report: '/report',
+  // Every private note of mine, in one list (GitHub issue #243).
+  reportNotes: '/report/notes',
   admin: '/admin',
   adminReports: '/admin/reports',
   adminInvites: '/admin/invites',
@@ -17,11 +19,14 @@ export const PATHS = {
   adminTemplateNew: '/admin/templates/new',
   account: '/account',
   platformAdmin: '/platform-admin',
+  // Public: a shared template's preview, from its share link (GitHub issue #163).
+  templatePreview: '/templates/preview',
 } as const;
 
 export const MIGRATED_AUTHED_PATHS: string[] = [
   PATHS.anketaList,
   PATHS.report,
+  PATHS.reportNotes,
   PATHS.admin,
   PATHS.adminReports,
   PATHS.adminInvites,
@@ -38,6 +43,20 @@ export const ANKETA_PATTERN = /^\/anketas\/([^/]+)$/;
 // Also matches /admin/templates/new — App.svelte checks that literal path
 // first, like /anketas/new above (GitHub issue #143).
 export const ADMIN_TEMPLATE_PATTERN = /^\/admin\/templates\/([^/]+)$/;
+
+// A pair's permanent link, for a calendar event (GitHub issue #203):
+// pages/PairMeeting.svelte sends it on to the pair's current meeting. It
+// names both people, so the same link works for either of them.
+export const PAIR_PATTERN = /^\/pair\/([^/]+)\/([^/]+)$/;
+
+/**
+ * The path PAIR_PATTERN matches, the same one whichever of the two builds it
+ * (the ids are sorted). User ids are UUIDs, so nothing needs encoding.
+ */
+export function pairPath(userIdA: string, userIdB: string): string {
+  const [first, second] = [userIdA, userIdB].sort();
+  return `/pair/${first}/${second}`;
+}
 
 /**
  * One template's editor page, the path ADMIN_TEMPLATE_PATTERN matches. Ids
@@ -60,6 +79,7 @@ export function isKnownPath(path: string): boolean {
     ACTIVATION_PATTERN.test(path) ||
     RESET_PASSWORD_PATTERN.test(path) ||
     ANKETA_PATTERN.test(path) ||
+    PAIR_PATTERN.test(path) ||
     ADMIN_TEMPLATE_PATTERN.test(path)
   );
 }

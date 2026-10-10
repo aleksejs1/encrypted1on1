@@ -16,6 +16,8 @@
   } from '../crypto/anketaKey';
   import { groupByCounterpart } from '../anketa/groupByCounterpart';
   import { daysUntilMeeting } from '../anketa/isOverdue';
+  import { FOLLOW_UP_HASH } from '../anketa/followUpLinks';
+  import { isOpenPastPeriod } from '../anketa/longOpen';
   import { extractTrendValues } from '../anketa/moodWorkloadTrend';
   import TrendSparkline from '../anketa/TrendSparkline.svelte';
   import {
@@ -125,8 +127,8 @@
     const badges: BadgeMeta[] = [];
     if (overdue)
       badges.push({
-        cls: 'tag-outline',
-        label: $_('anketaList.badgeOverdue'),
+        cls: 'tag-neutral',
+        label: $_('anketaList.badgeNotClosed'),
       });
     if (anketa.archivedAt)
       badges.push({
@@ -166,6 +168,20 @@
           : null;
 
     return { badges, daysLabel, templateLabel };
+  }
+
+  /**
+   * Meetings left open for longer than their period (GitHub issue #204),
+   * oldest first. Not one with a deleted counterpart: there's nobody to
+   * schedule the next one with.
+   */
+  function longOpenMeetings(list: AnketaListRow[]): AnketaListRow[] {
+    const now = new Date();
+    return list
+      .filter(
+        (anketa) => !anketa.counterpartDeleted && isOpenPastPeriod(anketa, now),
+      )
+      .sort((a, b) => Date.parse(a.meetingDate) - Date.parse(b.meetingDate));
   }
 
   // Cancels this page's own passive read fetches (this one and
@@ -379,11 +395,45 @@
         </button>
       </div>
     {/if}
+    {@const longOpen = longOpenMeetings(list)}
+    {#if longOpen.length > 0}
+      <ul class="card elev-sm long-open">
+        {#each longOpen as anketa (anketa.id)}
+          <li>
+            <span
+              >{$_('anketaList.longOpenText', {
+                values: {
+                  name: fullDisplayName(
+                    anketa.counterpartName,
+                    anketa.counterpartEmail,
+                  ),
+                  date: formatDisplayDate(anketa.meetingDate),
+                },
+              })}</span
+            >
+            <!-- Only a link to the meeting's archive form, like the follow-up
+                 email's: closing a meeting from the list is GitHub issue #212. -->
+            <a href="/anketas/{anketa.id}{FOLLOW_UP_HASH.close}"
+              >{$_('anketa.closeAndScheduleNext')}</a
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
     {#if list.length === 0}
       <div class="card elev-sm empty-state">
-        <p class="text-muted">{$_('anketaList.empty')}</p>
+        <ol class="first-steps">
+          {#each [1, 2, 3] as step (step)}
+            <li>
+              <strong>{$_(`anketaList.emptyStep${step}Title`)}</strong>
+              <span class="text-muted"
+                >{$_(`anketaList.emptyStep${step}Text`)}</span
+              >
+            </li>
+          {/each}
+        </ol>
         <a href="/anketas/new" class="btn btn-primary"
-          >{$_('anketaList.newAnketa')}</a
+          >{$_('anketaList.emptyCta')}</a
         >
       </div>
     {:else}
@@ -524,6 +574,20 @@
     margin-bottom: 20px;
   }
 
+  .long-open {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .long-open li {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 10px;
+  }
+
   .view-toggle {
     margin-bottom: 20px;
   }
@@ -629,7 +693,29 @@
 
   .empty-state {
     align-items: center;
-    text-align: center;
-    padding: 48px 24px;
+    gap: var(--space-3);
+    padding: 32px 24px;
+  }
+
+  .first-steps {
+    margin: 0;
+    padding-left: 1.4em;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 46ch;
+  }
+
+  .first-steps li::marker {
+    font-weight: 700;
+  }
+
+  .first-steps strong,
+  .first-steps span {
+    display: block;
+  }
+
+  .first-steps span {
+    font-size: 14px;
   }
 </style>

@@ -34,7 +34,7 @@ Scan the operational environment over the past two weeks:
 *Use this context to calibrate empathy, not to accuse.*
 
 ### Step 2: In-App Workflow in encrypted1on1
-1. **Open the pair's Anketa**: Navigate to your Anketa list. If grouped by person, glance at the **mood and workload sparklines** to spot negative trends over past cycles.
+1. **Open the pair's 1:1**: Navigate to your 1:1 list. If grouped by person, glance at the **mood and workload sparklines** to spot negative trends over past cycles.
 2. **Read the Employee's Published Answers First**:
    - Notice their **Mood** and **Feelings** tags (e.g. *anxious*, *overwhelmed*, *frustrated*).
    - Check **What's harder than it should be** (friction) and their **Discuss** topics.
@@ -108,7 +108,7 @@ Use the **SBI Model** (Situation — Behavior — Impact):
 A meeting without recorded agreements is merely a nice chat that creates no real-world leverage.
 
 ### Step 1: Capture "Meeting Outcomes" Together
-In the **Outcomes** section of the anketa, log mutual action items:
+In the **Outcomes** section of the 1:1, log mutual action items:
 - Outcomes are **tactical, single-cycle commitments** (e.g. *"Schedule meeting with DevOps lead to fix CI flakiness"*, *"Review draft RFC by Thursday"*).
 - **Ownership rule**: Only the person who created an item can check it off or edit it. The counterpart can add comments.
 - Keep them to **1–3 high-priority commitments per person**. Avoid turning the list into a secondary backlog.
@@ -122,11 +122,11 @@ If you have multi-month development goals:
 As the manager, pick **one blocker** the employee mentioned (e.g. a missing software license, getting invited to an architectural committee, removing them from a pointless recurring meeting) and **resolve it within 24 hours of the meeting**.
 > **Why this matters**: A 24-hour quick win demonstrates that the 1:1 actually works and that you have their back. It builds instantaneous trust.
 
-### Step 4: Archive the Anketa
+### Step 4: Archive the 1:1
 Once outcomes are agreed upon:
 - Click **Archive** at the bottom of the page.
 - Ensure *"Don't create the next meeting"* remains **unchecked** (unless this was an ad-hoc one-off meeting).
-- The system automatically generates the next cycle's anketa, securely seals its encryption key to both public keys, and **automatically carries forward all unfinished outcomes and open goals**.
+- The system automatically generates the next cycle's 1:1, securely seals its encryption key to both public keys, and **automatically carries forward all unfinished outcomes and open goals**.
 
 ---
 

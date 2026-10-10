@@ -1,4 +1,4 @@
-import { decryptBlob, encryptBlob } from '../crypto/anketaKey';
+import { carryForwardBlob, carryForwardItems } from './blobSync';
 
 /**
  * "Итоги встречи": tactical agreed action items, jointly visible, no draft
@@ -95,16 +95,22 @@ export function deleteOutcome(
  * undefined when there's nothing to carry, so callers can omit the field entirely
  * rather than send an empty-array blob.
  */
-export async function carryForwardOutcomes(
+export function carryForwardOutcomes(
   blob: string | null,
   oldKey: Uint8Array,
   newKey: Uint8Array,
 ): Promise<string | undefined> {
-  if (!blob) return undefined;
+  return carryForwardBlob(blob, oldKey, newKey, notDone);
+}
 
-  const envelope = await decryptBlob<OutcomeItem[]>(blob, oldKey);
-  const unchecked = envelope.data.filter((item) => !item.done);
-  if (unchecked.length === 0) return undefined;
+/** The same from a list already decrypted: the open anketa's, on archive. */
+export function carryForwardOutcomeItems(
+  items: OutcomeItem[],
+  newKey: Uint8Array,
+): Promise<string | undefined> {
+  return carryForwardItems(items, newKey, notDone);
+}
 
-  return encryptBlob(unchecked, newKey);
+function notDone(item: OutcomeItem): boolean {
+  return !item.done;
 }

@@ -33,6 +33,7 @@ lint-frontend:
 	cd frontend && npm run lint
 	cd frontend && npm run format
 	cd frontend && npm run knip
+	cd frontend && npm run emoji-shortcodes -- --check
 
 # jscpd across both backend/src and frontend/src in one pass (it natively tokenizes
 # PHP and TS/Svelte, so one tool covers both) — needs `npm install` at the repo root

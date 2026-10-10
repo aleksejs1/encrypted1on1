@@ -16,11 +16,9 @@
   import { PATHS, adminTemplatePath } from '../routes';
   import type { AdminTemplate } from '../api/types';
   import {
-    CURRENT_ANKETA_FORM_VERSION,
     FIELD_TYPES,
+    SIDES,
     builtinQuestionTitleKey,
-    displayText,
-    questionsFromDefinition,
     type AnswerValue,
     type FieldType,
     type Side,
@@ -39,7 +37,20 @@
     type TemplateDefinition,
     type TemplateDefinitionError,
   } from '../anketa/templateDefinition';
-  import AnswerField from '../anketa/AnswerField.svelte';
+  import TemplateQuestions from './TemplateQuestions.svelte';
+  import CopyableLink from './CopyableLink.svelte';
+  import {
+    LONG_LINK_LENGTH,
+    copyToClipboard,
+    distinctImportName,
+    encodeShareFragment,
+    exportFileContent,
+    exportFileName,
+    shareLink,
+    takePendingImport,
+    type PortableTemplate,
+  } from './templatePortability';
+  import { downloadJsonFile } from '../downloadFile';
   import {
     beginAction,
     fallbackFocusOptions,
@@ -75,8 +86,6 @@
    * this component for each `id`, so its state always belongs to one template.
    */
   const { id }: { id: string | null } = $props();
-
-  const SIDES: readonly Side[] = ['employee', 'manager'];
 
   let status = $state<'loading' | 'ready' | 'notFound' | 'full'>('loading');
   let loadError = $state<string | null>(null);
@@ -126,6 +135,70 @@
   /** Edits not saved yet: leaving the page asks first while this is set. */
   let dirty = $state(false);
 
+  /**
+   * A template imported from a file or a share link (GitHub issue #163),
+   * pre-filled into a new template's form, which is otherwise the same: the
+   * admin reviews it and saves it, or leaves.
+   */
+  const imported = ownId === null ? takePendingImport() : null;
+  /** Its name was taken by another template, so it was renamed to this. */
+  let importRenamed = $state<string | null>(null);
+  /** The company's templates couldn't be loaded to compare names with. */
+  let importNamesUnchecked = $state(false);
+  if (imported !== null) {
+    name = imported.name;
+    description = imported.description;
+    draft = imported.definition;
+    nameTouched = true;
+  }
+
+  /**
+   * The last Copy share link press: the template content it was for, and its
+   * link (null if making it failed).
+   */
+  // Raw, not proxied: `source` is compared by identity with `portable`.
+  let shared = $state.raw<{
+    source: PortableTemplate;
+    link: string | null;
+    copied: boolean;
+  } | null>(null);
+  /** Bumped by every press, so a slower earlier one can't overwrite it. */
+  let shareRun = 0;
+
+  function downloadExport(): void {
+    if (portable === null) return;
+    downloadJsonFile(
+      exportFileName(portable.name),
+      exportFileContent(portable, new Date(), __APP_VERSION__),
+    );
+  }
+
+  async function copyShareLink(): Promise<void> {
+    if (portable === null) return;
+    const source = portable;
+    const template = $state.snapshot(portable);
+    const run = ++shareRun;
+    shared = null;
+    const link = encodeShareFragment(template).then((fragment) =>
+      shareLink(window.location.origin, fragment),
+    );
+    let copied = false;
+    try {
+      await copyToClipboard(link);
+      copied = true;
+    } catch {
+      // No clipboard access (an http:// instance, a denied permission): the
+      // link is shown to copy by hand instead.
+    }
+    let made: string | null = null;
+    try {
+      made = await link;
+    } catch {
+      // Shown as a failure below.
+    }
+    if (run === shareRun) shared = { source, link: made, copied };
+  }
+
   // Attached only while there's something to lose: Firefox keeps no page with
   // a beforeunload listener in its back-forward cache (see
   // anketa/notesUnloadWarning.ts). The editor's own links are full page
@@ -161,18 +234,34 @@
       nameProblem === null &&
       descriptionProblem === null,
   );
-  const previewQuestions = $derived.by(() => {
-    if (!preview || !valid) return [];
-    const trimmed = trimTemplateDefinition(snapshot);
-    return SIDES.map((side) => ({
-      side,
-      questions: questionsFromDefinition(
-        trimmed,
-        side,
-        CURRENT_ANKETA_FORM_VERSION,
-      ),
-    }));
-  });
+  /** What a save would send: the valid draft, trimmed; null while invalid. */
+  const trimmedDefinition = $derived(
+    valid ? trimTemplateDefinition(snapshot) : null,
+  );
+
+  /** The template on screen as an export carries it; null while invalid. */
+  const portable = $derived<PortableTemplate | null>(
+    trimmedDefinition === null
+      ? null
+      : {
+          name: trimTemplateText(name),
+          description: trimTemplateText(description),
+          definition: trimmedDefinition,
+        },
+  );
+  // Shown only while the form still holds what the link carries, however
+  // the form changed since (an edit, a reload after a conflict). Every change
+  // to the draft derives a new definition object, so comparing identities is
+  // enough, without serializing the whole template on every keystroke.
+  const currentShare = $derived(
+    shared !== null &&
+      portable !== null &&
+      shared.source.definition === portable.definition &&
+      shared.source.name === portable.name &&
+      shared.source.description === portable.description
+      ? shared
+      : null,
+  );
 
   // Cancels the fetches below on unmount — see GitHub issue #95.
   const readAbort = abortOnDestroy();
@@ -243,9 +332,30 @@
     try {
       const templates = await fetchAdminTemplates(readAbort);
       status = templates.length >= MAX_TEMPLATES_PER_COMPANY ? 'full' : 'ready';
+      // Unsaved from the moment the form shows it: before that (or if it
+      // never does), there's nothing on screen to warn about losing.
+      if (status === 'ready' && imported !== null) dirty = true;
+      if (imported !== null) {
+        const renamed = distinctImportName(
+          name,
+          // Archived ones too: one restored later would share the name.
+          templates.map((t) => t.name),
+          $_('templatePortability.importedSuffix'),
+        );
+        if (renamed !== null) {
+          name = renamed;
+          importRenamed = renamed;
+        }
+      }
     } catch (error) {
       if (isAbortError(error)) return;
       status = 'ready';
+      // The names couldn't be compared: say so, rather than let a
+      // duplicate through unremarked.
+      if (imported !== null) {
+        importNamesUnchecked = true;
+        dirty = true;
+      }
     }
   }
 
@@ -454,7 +564,7 @@
   }
 
   async function save(): Promise<void> {
-    if (!valid || saving || conflict !== null) return;
+    if (trimmedDefinition === null || saving || conflict !== null) return;
     saving = true;
     saveError = null;
     savedNotice = false;
@@ -463,7 +573,7 @@
     const body = {
       name,
       description,
-      definition: trimTemplateDefinition(snapshot),
+      definition: trimmedDefinition,
     };
     try {
       if (id === null) {
@@ -579,6 +689,11 @@
     {:else if status === 'notFound'}
       <p class="text-muted">{$_('adminTemplateEditor.notFound')}</p>
     {:else if status === 'full'}
+      {#if imported !== null}
+        <p class="banner-error" role="alert">
+          {$_('templatePortability.importAtCap')}
+        </p>
+      {/if}
       <p class="text-muted">
         {$_('adminTemplates.atCap', {
           values: { max: MAX_TEMPLATES_PER_COMPANY },
@@ -597,6 +712,19 @@
       <p class="banner-privacy" role="note">
         {$_('adminTemplateEditor.privacyNote')}
       </p>
+      {#if imported !== null}
+        <p class="banner-success" role="status">
+          {$_('templatePortability.importedNotice')}
+          {#if importRenamed !== null}
+            {$_('templatePortability.importRenamed', {
+              values: { name: importRenamed },
+            })}
+          {/if}
+          {#if importNamesUnchecked}
+            {$_('templatePortability.importNamesUnchecked')}
+          {/if}
+        </p>
+      {/if}
 
       {#if archived}
         <div class="card archived-card">
@@ -977,22 +1105,56 @@
         </div>
       {/if}
 
-      {#if preview && valid && !archived}
+      {#if preview && !archived && trimmedDefinition}
         <section class="card preview" aria-labelledby="preview-heading">
           <h2 id="preview-heading">{$_('adminTemplateEditor.preview')}</h2>
-          {#each previewQuestions as { side, questions } (side)}
-            <h3>{$_(`adminTemplateEditor.side.${side}`)}</h3>
-            {#each questions as question (question.id)}
-              <div class="block">
-                <h4>{displayText(question, $_)}</h4>
-                <!-- Keyed on the type too: a new type needs a fresh field, not
-                     one holding the old type's answer. -->
-                {#each question.fields as field (`${field.id}:${field.type}`)}
-                  <AnswerField {field} bind:value={previewAnswers[field.id]} />
-                {/each}
-              </div>
-            {/each}
-          {/each}
+          <TemplateQuestions
+            definition={trimmedDefinition}
+            headingLevel={3}
+            bind:answers={previewAnswers}
+          />
+        </section>
+      {/if}
+
+      {#if drawable}
+        <section class="export" aria-labelledby="export-heading">
+          <h2 id="export-heading">
+            {$_('templatePortability.exportHeading')}
+          </h2>
+          <p class="text-muted">{$_('templatePortability.exportIntro')}</p>
+          <p class="text-muted">{$_('templatePortability.shareWarning')}</p>
+          <div class="save-row">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              disabled={!valid}
+              onclick={downloadExport}
+              >{$_('templatePortability.download')}</button
+            >
+            <button
+              type="button"
+              class="btn btn-secondary"
+              disabled={!valid}
+              onclick={copyShareLink}
+              >{$_('templatePortability.copyLink')}</button
+            >
+          </div>
+          <CopyableLink
+            status={currentShare?.link == null
+              ? 'none'
+              : currentShare.copied
+                ? 'copied'
+                : 'failed'}
+            link={currentShare?.link ?? ''}
+          />
+          {#if currentShare?.link && currentShare.link.length > LONG_LINK_LENGTH}
+            <p class="text-muted">{$_('templatePortability.longLink')}</p>
+          {/if}
+          {#if currentShare && currentShare.link === null}
+            <p class="banner-error" role="alert">
+              {$_('templatePortability.errors.shareFailed')}
+            </p>
+          {/if}
         </section>
       {/if}
     {/if}
@@ -1126,7 +1288,14 @@
     margin: 16px 0;
   }
 
-  .preview {
+  .preview,
+  .export {
     margin-top: 16px;
+  }
+
+  .export {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 </style>

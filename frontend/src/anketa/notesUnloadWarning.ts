@@ -1,4 +1,5 @@
 import { hasNotesBackups } from './notesBackup';
+import { unloadWarning } from './unloadWarning';
 
 /**
  * Closing the tab warns while the logged-in user (or, logged out, anyone) has
@@ -10,18 +11,11 @@ import { hasNotesBackups } from './notesBackup';
  *
  * App.svelte re-evaluates this whenever the logged-in user changes (startup,
  * unlock, logout, login), and notesSession.ts whenever a panel's backup
- * changes. The listener is attached only while such a backup exists: Firefox
- * keeps no page with a beforeunload listener in its back-forward cache.
+ * changes. The listener is attached only while such a backup exists
+ * (unloadWarning.ts).
  */
 let userIdForWarning: string | null = null;
-let attachedOn: Window | null = null;
-
-function onBeforeUnload(event: BeforeUnloadEvent): void {
-  if (hasNotesBackups(userIdForWarning)) {
-    event.preventDefault();
-    event.returnValue = '';
-  }
-}
+const setWarning = unloadWarning(() => hasNotesBackups(userIdForWarning));
 
 /**
  * `userId` null means logged out: then any notes backup in the tab warns.
@@ -30,12 +24,5 @@ function onBeforeUnload(event: BeforeUnloadEvent): void {
  */
 export function refreshNotesUnloadWarning(userId: string | null): void {
   userIdForWarning = userId;
-  const needed = hasNotesBackups(userId);
-  if (needed && attachedOn !== window) {
-    window.addEventListener('beforeunload', onBeforeUnload);
-    attachedOn = window;
-  } else if (!needed && attachedOn === window) {
-    window.removeEventListener('beforeunload', onBeforeUnload);
-    attachedOn = null;
-  }
+  setWarning(hasNotesBackups(userId));
 }

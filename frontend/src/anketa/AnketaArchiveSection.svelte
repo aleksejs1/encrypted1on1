@@ -1,6 +1,9 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import DateInput from '../design/DateInput.svelte';
+  import ArchiveConfirm from './ArchiveConfirm.svelte';
+  import type { ArchiveConfirmation } from './archiveConfirmation';
+  import { ARCHIVE_HEADING_ID } from './archiveHeading';
   import type { CompanyTemplate } from '../api/types';
   import { ANKETA_TEMPLATES, templatePickerKeys } from './questions';
   import {
@@ -10,8 +13,12 @@
   } from './templateChoice';
 
   let {
+    anketaId,
     archiving,
+    publishing,
     answersEditOpen,
+    confirmation,
+    counterpartName,
     oneOff,
     skipNextMeeting = $bindable<boolean>(),
     nextMeetingDate = $bindable<string>(),
@@ -21,13 +28,20 @@
     templateRetired,
     onArchive,
   }: {
+    anketaId: string;
+    /** Closing the meeting is in flight: the archive, or the publish before it. */
     archiving: boolean;
+    /** Any publish of my side is in flight; closing waits for it, since it may publish too. */
+    publishing: boolean;
     /**
      * An unsaved edit of my own published answers is open. Archiving now would
      * make it unsaveable (editing is never offered on an archived anketa), so
-     * the button waits until it's saved or cancelled.
+     * the button waits until it's saved or cancelled. Also an open edit of a
+     * list entry in a draft that closing would publish.
      */
     answersEditOpen: boolean;
+    confirmation: ArchiveConfirmation;
+    counterpartName: string;
     oneOff: boolean;
     skipNextMeeting: boolean;
     nextMeetingDate: string;
@@ -57,7 +71,9 @@
 </script>
 
 <section class="card">
-  <h2>{$_('anketa.archiveHeading')}</h2>
+  <!-- tabindex="-1": focusable from script only, where the header's "not
+       closed" card sends focus (GitHub issue #201). -->
+  <h2 id={ARCHIVE_HEADING_ID} tabindex="-1">{$_('anketa.archiveHeading')}</h2>
   {#if oneOff}
     <p class="text-muted archive-no-next">
       {$_('anketa.archiveOneOff')}
@@ -124,15 +140,26 @@
       {$_('anketa.archiveAfterAnswersEdit')}
     </p>
   {/if}
-  <button
-    type="button"
-    class="btn btn-primary"
-    onclick={() => onArchive(false)}
-    disabled={archiving || answersEditOpen}
-    aria-describedby={answersEditOpen ? 'archive-after-edit-hint' : undefined}
-  >
-    {archiving ? $_('anketa.archiving') : $_('anketa.archive')}
-  </button>
+  <!-- Secondary: while my side is unpublished, Publish is the page's only
+       primary button, so "the big button at the bottom" isn't this one
+       (GitHub issue #229). -->
+  <ArchiveConfirm
+    {anketaId}
+    textId="archive-confirm-text"
+    {confirmation}
+    {counterpartName}
+    triggerClass="btn btn-secondary"
+    triggerLabel={oneOff || skipNextMeeting
+      ? $_('anketa.closeOneOff')
+      : $_('anketa.closeAndScheduleNext')}
+    closing={archiving}
+    busy={archiving || publishing}
+    confirmLabel={$_('anketa.closeOneOff')}
+    busyLabel={$_('anketa.archiving')}
+    blocked={answersEditOpen}
+    describedBy="archive-after-edit-hint"
+    onConfirm={() => onArchive(false)}
+  />
 </section>
 
 <style>

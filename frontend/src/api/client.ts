@@ -1,5 +1,11 @@
 import { get } from 'svelte/store';
 import { locale } from 'svelte-i18n';
+import {
+  connectionEpoch,
+  recordOffline,
+  recordOnline,
+} from '../connectivity/connectionState.svelte';
+import { isAbortError } from './abortOnDestroy';
 
 export class ApiError extends Error {
   constructor(
@@ -30,6 +36,69 @@ export interface RequestOptions {
   keepalive?: boolean;
 }
 
+/**
+ * Who a response is from, as far as its headers tell:
+ * - 'gateway': a reverse proxy or CDN answering for a backend it can't reach
+ *   (a restart during a deploy). The app never sends 502 or 504, and its own
+ *   503s (billing not configured, an invite email that couldn't be sent) are
+ *   JSON, which a proxy's error page isn't.
+ * - 'app': JSON, as every answer of the app's is, with any status.
+ * - 'unknown': anything else (a captive portal's login page, a proxy's plain
+ *   404 while the container is recreated). It proves neither that the
+ *   connection is lost nor that the app is back.
+ */
+function answeredBy(response: Response): 'app' | 'gateway' | 'unknown' {
+  const { status } = response;
+  if (status === 502 || status === 504) return 'gateway';
+  const isJson = (response.headers.get('content-type') ?? '').includes('json');
+  if (isJson) return 'app';
+  // 502 and up: a CDN's own codes for an origin it can't reach (520-530)
+  // too. Not a non-JSON 500, which is the backend itself crashing.
+  return status >= 502 ? 'gateway' : 'unknown';
+}
+
+/**
+ * `fetch`, reporting to connectivity/connectionState.svelte.ts whether the
+ * app answered (GitHub issue #242). Any status of the app's own, a 401 or a
+ * 500 included, means the connection works (see answeredBy()). No answer at all is a network
+ * error or a timeout (an `AbortSignal.timeout()` rejects with TimeoutError);
+ * a caller's own abort says nothing either way.
+ */
+async function trackedFetch(
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  const sentAtEpoch = connectionEpoch();
+  let response: Response;
+  try {
+    response = await fetch(path, init);
+  } catch (error) {
+    if (!isAbortError(error)) recordOffline(sentAtEpoch);
+    throw error;
+  }
+  const from = answeredBy(response);
+  if (from === 'gateway') recordOffline(sentAtEpoch);
+  else if (from === 'app') recordOnline(sentAtEpoch);
+  return response;
+}
+
+/**
+ * The body arrives after the headers, and the connection can go in between
+ * (or a request's timeout can run out: its signal covers the body too).
+ * Invalid JSON is an answer, just not a usable one.
+ */
+async function readJson<T>(response: Response): Promise<T> {
+  const startedAtEpoch = connectionEpoch();
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    if (!isAbortError(error) && !(error instanceof SyntaxError)) {
+      recordOffline(startedAtEpoch);
+    }
+    throw error;
+  }
+}
+
 let csrfToken: string | null = null;
 /**
  * Bumped by resetCsrfToken(). A token fetch that started before a logout must
@@ -44,14 +113,14 @@ async function getCsrfToken(options?: RequestOptions): Promise<string> {
     return csrfToken;
   }
   const startedEpoch = csrfEpoch;
-  const response = await fetch('/api/csrf-token', {
+  const response = await trackedFetch('/api/csrf-token', {
     credentials: 'include',
     signal: options?.signal,
   });
   // An error body has no token: fail, rather than send "undefined" and get a
   // 403 that reads as an ended session.
   if (!response.ok) throw await toApiError(response);
-  const data = (await response.json()) as { token: string };
+  const data = await readJson<{ token: string }>(response);
   if (startedEpoch === csrfEpoch) csrfToken = data.token;
   return data.token;
 }
@@ -80,7 +149,7 @@ export function resetCsrfToken(): void {
 
 async function toApiError(response: Response): Promise<ApiError> {
   try {
-    const data = (await response.json()) as { error?: string };
+    const data = await readJson<{ error?: string }>(response);
     return new ApiError(
       response.status,
       data.error ?? response.statusText,
@@ -95,7 +164,7 @@ export async function apiGet<T>(
   path: string,
   options?: RequestOptions,
 ): Promise<T> {
-  const response = await fetch(path, {
+  const response = await trackedFetch(path, {
     credentials: 'include',
     headers: { 'X-Locale': get(locale) ?? 'en' },
     signal: options?.signal,
@@ -103,7 +172,7 @@ export async function apiGet<T>(
   if (!response.ok) {
     throw await toApiError(response);
   }
-  return response.json() as Promise<T>;
+  return readJson<T>(response);
 }
 
 /**
@@ -136,7 +205,7 @@ async function send<T>(
   options?: RequestOptions,
 ): Promise<T> {
   const token = await getCsrfToken(options);
-  const response = await fetch(path, {
+  const response = await trackedFetch(path, {
     method,
     credentials: 'include',
     headers: {
@@ -153,7 +222,7 @@ async function send<T>(
   if (!response.ok) {
     throw await toApiError(response);
   }
-  return response.json() as Promise<T>;
+  return readJson<T>(response);
 }
 
 export function apiPost<T>(

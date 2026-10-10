@@ -152,11 +152,11 @@ class User
     private string $locale = 'en';
 
     /**
-     * Gates AnketaNotifier's meeting reminders only (notifyMeetingTomorrow()/
-     * notifyNotFilledOut() and their Monday variants, GitHub issue #167) — the
-     * "new anketa scheduled" email (notifyAnketaCreated()) stays mandatory regardless,
-     * per the account-settings plan. Defaults true so nobody's reminders silently stop
-     * without an explicit opt-out.
+     * Gates AnketaNotifier's meeting reminders only (notifyMeetingTomorrow() and its
+     * Monday variant, GitHub issue #167) — the "new anketa scheduled" and "meeting date
+     * changed" emails (notifyAnketaCreated(), notifyMeetingRescheduled()) stay mandatory,
+     * the first per the account-settings plan, the second per GitHub issue #200. Defaults
+     * true so nobody's reminders silently stop without an explicit opt-out.
      */
     #[ORM\Column(type: 'boolean')]
     private bool $meetingRemindersEnabled = true;
@@ -181,8 +181,10 @@ class User
         bool $isAdmin = false,
         string $locale = 'en',
         string $displayName = '',
+        ?string $id = null,
     ) {
-        $this->id = Uuid::v7()->toRfc4122();
+        // Only app:reset-demo-data passes an id: the demo fixture's ciphertext names its authors by user id.
+        $this->id = $id ?? Uuid::v7()->toRfc4122();
         $this->email = $email;
         $this->authHash = $authHash;
         $this->publicKey = $publicKey;
@@ -301,6 +303,19 @@ class User
     }
 
     /**
+     * Only for app:reset-demo-data: undoes what delete() did to a demo account's email,
+     * since a visitor can delete the shared demo account like any other. The row has to
+     * be reused rather than replaced, because the demo fixture's ciphertext names its
+     * authors by this row's id. The command restores everything else delete() changed
+     * that the demo needs (credentials, display name, the blocked flag).
+     */
+    public function restoreDemoAccount(string $email): void
+    {
+        $this->email = $email;
+        $this->deletedAt = null;
+    }
+
+    /**
      * Used only by bin/console app:reset-demo-data to restore one of the
      * fixed, publicly-known demo accounts to its seeded credentials — e.g.
      * if a visitor used the in-app "change password" flow on it, which
@@ -360,6 +375,15 @@ class User
     }
 
     /**
+     * The placeholder address delete() (and InviteRecord::scrubEmail()) writes over a real
+     * one, unique per row, at a reserved TLD that can never receive mail.
+     */
+    public static function scrubbedEmailFor(string $id): string
+    {
+        return sprintf('deleted-%s@deleted.invalid', $id);
+    }
+
+    /**
      * Self-service account deletion (AuthController::deleteAccount()) — anonymizes this
      * row in place rather than removing it (see $deletedAt's docblock for why). Scrubs
      * every identifying/sensitive field: email (rewritten to a non-identifying,
@@ -378,7 +402,7 @@ class User
      */
     public function delete(): void
     {
-        $this->email = sprintf('deleted-%s@deleted.invalid', $this->id);
+        $this->email = self::scrubbedEmailFor($this->id);
         $this->displayName = '';
         $this->authHash = bin2hex(random_bytes(32));
         $this->encryptedPrivateKey = '';

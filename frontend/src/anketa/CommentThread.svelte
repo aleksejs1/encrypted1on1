@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import type { Comment } from './comments';
+  import InlineMarkdown from './InlineMarkdown.svelte';
   import {
     beginAction,
     fallbackFocusOptions,
@@ -9,6 +10,7 @@
     refocus,
     type RefocusOptions,
   } from './keepFocus';
+  import { inlineMarkdownToPlainText } from './markdown';
 
   let {
     comments,
@@ -142,12 +144,16 @@
    * currently flags, joined. Derived (not written imperatively) so it stays in
    * sync however that Record changes, and goes back to '' once the parent
    * clears it a few seconds later — nothing left for a screen reader to
-   * re-announce on the next unrelated re-render.
+   * re-announce on the next unrelated re-render. A comment is announced as
+   * the text it shows, not its Markdown source (GitHub issue #241).
    */
   const newlyArrivedAnnouncement = $derived(
     comments
       .filter((c) => recentlyArrivedIds[c.id])
-      .map((c) => `${authorNames[c.authorId] ?? c.authorId}: ${c.text}`)
+      .map(
+        (c) =>
+          `${authorNames[c.authorId] ?? c.authorId}: ${inlineMarkdownToPlainText(c.text)}`,
+      )
       .join('. '),
   );
 
@@ -295,7 +301,13 @@
   }
 </script>
 
-<div class="thread" bind:this={root} onkeydowncapture={ignoreHeldEnter}>
+<!-- data-comment-thread: Ctrl+S here isn't an answers save (answersEdit.ts). -->
+<div
+  class="thread"
+  data-comment-thread
+  bind:this={root}
+  onkeydowncapture={ignoreHeldEnter}
+>
   <button type="button" class="btn btn-ghost toggle" onclick={toggleExpanded}>
     <svg
       class="icon"
@@ -368,7 +380,7 @@
             <span class="author"
               >{authorNames[comment.authorId] ?? comment.authorId}:</span
             >
-            <span class="text">{comment.text}</span>
+            <InlineMarkdown class="comment-text" text={comment.text} />
             {#if comment.authorId === currentUserId}
               {#if confirmingDeleteId === comment.id}
                 <span class="comment-actions">
@@ -492,6 +504,15 @@
   .author {
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  /* :global: the span belongs to InlineMarkdown.svelte. A long string with
+     nowhere to break (a link shown as source, say) may break anywhere, as a
+     shared topic does: with break-word alone it still counts as one long
+     word for the minimum width, which widens every flex column above it and
+     with them the page. min-width: 0 here doesn't help for that reason. */
+  .comment :global(.comment-text) {
+    overflow-wrap: anywhere;
   }
 
   .comment-actions {

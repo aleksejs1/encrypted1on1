@@ -2,7 +2,7 @@
 
 Welcome to the definitive guide on conducting effective 1:1 meetings, written from the ground up for both **first-time managers** and **team members** who have never experienced high-impact 1:1s before.
 
-This playbook bridges the gap between **interpersonal psychology outside the platform** (mindset, trust, conversational habits, active listening, unblocking) and the **digital mechanics inside [encrypted1on1](../../README.md)** (end-to-end encrypted anketas, private notes, outcomes, goals, and recurring cycles).
+This playbook bridges the gap between **interpersonal psychology outside the platform** (mindset, trust, conversational habits, active listening, unblocking) and the **digital mechanics inside [encrypted1on1](../../README.md)** (end-to-end encrypted 1:1s, private notes, outcomes, goals, and recurring cycles).
 
 ---
 
@@ -61,7 +61,7 @@ Result: Unblocked velocity, genuine psychological safety, tangible support.
 | **24h Before Meeting** | Employee reflects and sets the agenda; manager reviews employee's context beforehand. | **Asymmetric publishing workflow**: Employee publishes first; manager reads published side, then fills out and publishes their own. |
 | **During Meeting** | Open conversation, screen-sharing or face-to-face, unhurried dialogue. | Reviewing published blocks, using **Private Notes** (with a "Hide notes" button for screen sharing) and **Live Updates**. |
 | **Wrapping Up** | Negotiating mutual commitments and tracking multi-month strategic milestones. | **Meeting Outcomes** (single-cycle tactical action items) & **Goals** (strategic multi-cycle goals with encrypted checkpoints). |
-| **Post-Meeting** | Next meeting cadence guaranteed; immediate quick wins delivered. | **Archive cycle**: auto-creates next anketa on the schedule, carrying forward uncompleted outcomes and active goals. |
+| **Post-Meeting** | Next meeting cadence guaranteed; immediate quick wins delivered. | **Archive cycle**: auto-creates next 1:1 on the schedule, carrying forward uncompleted outcomes and active goals. |
 
 ---
 

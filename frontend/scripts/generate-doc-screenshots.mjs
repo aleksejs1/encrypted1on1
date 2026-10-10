@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEMO_LOCALES as ALL_DEMO_LOCALES } from './demo-fixture-content.mjs';
 import { fillDateInput } from './fillDateInput.mjs';
+import { addTopic, outcomeForm } from './topicsCard.mjs';
 import { ARGON2ID_REDIRECT_TIMEOUT } from './playwrightTimeouts.mjs';
 
 /**
@@ -292,8 +293,11 @@ await employee
   .getByPlaceholder('Type a name or email to search…')
   .fill(MANAGER_EMAIL);
 await employee.getByRole('button', { name: MANAGER_EMAIL }).click();
+await employee
+  .locator('label.radio', { hasText: "No, I'm the employee" })
+  .click();
 // Created in the near future (so the *empty* screenshot below doesn't show
-// an unrelated "this meeting is overdue" banner) — backdated via a direct
+// an unrelated "isn't closed yet" card) — backdated via a direct
 // SQL update further down, right before archiving, so the *archived*
 // screenshots show a sensible past meeting date and fall inside
 // Report.svelte's backward-looking default date range
@@ -308,13 +312,17 @@ const [createRes] = await Promise.all([
     (res) =>
       res.request().method() === 'POST' && res.url().endsWith('/api/anketas'),
   ),
-  employee.getByRole('button', { name: 'Create anketa' }).click(),
+  employee.getByRole('button', { name: 'Create 1:1' }).click(),
 ]);
 const anketaId = (await createRes.json()).id;
 await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
 console.log('Anketa created:', anketaId);
 
 // --- Empty state, before anyone fills anything in ---
+// Reloaded first: the tab that just created the 1:1 shows a "1:1 created."
+// notice, which isn't part of the page's steady state.
+await employee.reload();
+await employee.waitForLoadState('networkidle');
 await shot(employee, 'anketa_employee_empty.png');
 
 // --- Manager publishes first (mirrors the original set's README hero
@@ -347,9 +355,9 @@ await addListEntry(
   0,
   "First-time mentor for a new hire's on-call rotation — smooth ramp-up, no incidents.",
 );
-await addListEntry(
-  mgrSide,
-  1,
+await addTopic(
+  manager,
+  anketaId,
   'Ready to talk through what leading a cross-team project would actually look like for Priya next quarter.',
 );
 await publish(manager, anketaId, mgrSide);
@@ -420,9 +428,9 @@ await addListEntry(
   1,
   'Mentored the new hire through their first on-call rotation without a single escalation.',
 );
-await addListEntry(
-  empSide,
-  2,
+await addTopic(
+  employee,
+  anketaId,
   'Interested in leading a cross-team project next quarter — want to talk about what that path looks like.',
 );
 await publish(employee, anketaId, empSide);
@@ -447,7 +455,9 @@ await Promise.all([
       res.request().method() === 'PUT' &&
       res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
   ),
-  employee.getByRole('button', { name: 'Add', exact: true }).click(),
+  outcomeForm(employee)
+    .getByRole('button', { name: 'Add', exact: true })
+    .click(),
 ]);
 
 await manager.reload();
@@ -463,7 +473,9 @@ await Promise.all([
       res.request().method() === 'PUT' &&
       res.url().endsWith(`/api/anketas/${anketaId}/outcomes`),
   ),
-  manager.getByRole('button', { name: 'Add', exact: true }).click(),
+  outcomeForm(manager)
+    .getByRole('button', { name: 'Add', exact: true })
+    .click(),
 ]);
 
 // --- Goal + one checkpoint, added by the employee (goal author) ---
@@ -516,13 +528,19 @@ backdateMeetingDate(anketaId, 5);
 // --- Archive (auto-creates the next, current anketa) ---
 await employee.reload();
 await employee.waitForLoadState('networkidle');
+// The first press only opens the confirmation (GitHub issue #229).
+await employee
+  .locator('section:has(#archive-heading) [data-action="close"]')
+  .click();
 await Promise.all([
   employee.waitForResponse(
     (res) =>
       res.request().method() === 'POST' &&
       res.url().endsWith(`/api/anketas/${anketaId}/archive`),
   ),
-  employee.getByRole('button', { name: 'Archive', exact: true }).click(),
+  employee
+    .locator('section:has(#archive-heading) [data-action="confirm-close"]')
+    .click(),
 ]);
 console.log('Archived.');
 

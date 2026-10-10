@@ -54,6 +54,9 @@ async function createAnketaWith(page: Page, counterpartEmail: string) {
     .getByPlaceholder('Type a name or email to search…')
     .fill(counterpartEmail);
   await page.getByRole('button', { name: counterpartEmail }).click();
+  await page
+    .locator('label.radio', { hasText: "No, I'm the employee" })
+    .click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
   // DateInput is a DD.MM.YYYY text field that only parses on blur — see
@@ -63,7 +66,7 @@ async function createAnketaWith(page: Page, counterpartEmail: string) {
   const input = page.locator('#meeting-date');
   await input.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await input.blur();
-  await page.getByRole('button', { name: 'Create anketa' }).click();
+  await page.getByRole('button', { name: 'Create 1:1' }).click();
   await page.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return page.url();
 }
@@ -195,10 +198,14 @@ test('a tab left open through a password change keeps saving readable drafts', a
     browser,
     'pwchange-stale',
   );
-  // Unlocked with the old password and already on the anketa before the
-  // change, so it never re-derives anything afterwards.
-  const staleTab = await logIn(browser, employeeEmail, OLD_PASSWORD);
+  // A second tab of the same browser, unlocked with the old password and
+  // already on the anketa before the change, so it never re-derives anything
+  // afterwards. The same session: a password change ends every other one
+  // (GitHub issue #205).
+  const staleTab = await employee.context().newPage();
   await staleTab.goto(anketaUrl);
+  await staleTab.locator('#unlock-password').fill(OLD_PASSWORD);
+  await staleTab.getByRole('button', { name: 'Unlock' }).click();
   await expect(
     staleTab.locator('.side-card').first().locator('textarea').first(),
   ).toBeVisible();

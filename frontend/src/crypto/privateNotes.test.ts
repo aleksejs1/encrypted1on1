@@ -6,6 +6,7 @@ import {
   deriveNotesBackupKey,
   encodedNotesLength,
   encryptNotes,
+  isEmptyNotesBlob,
   generateNotesKey,
   notesAssociatedData,
   unwrapNotesKey,
@@ -139,6 +140,25 @@ describe('encodedNotesLength', () => {
 
     expect(encodedNotesLength(text)).toBe(blob.length);
   });
+});
+
+describe('isEmptyNotesBlob', () => {
+  const blobOf = async (text: string) =>
+    encryptNotes(text, await generateNotesKey(), notesAssociatedData('a', 'u'));
+
+  it('recognizes the blob of an empty text without its key', async () => {
+    expect(isEmptyNotesBlob(await blobOf(''))).toBe(true);
+  });
+
+  // The blob is padded base64, so texts up to two bytes apart can share a
+  // length. With today's envelope a single character already doesn't; a
+  // change that made it collide would hide a real note, and fails here.
+  it.each(['x', ' ', '\n', 'ok', 'я'])(
+    'does not take the blob of %j for an empty one',
+    async (text) => {
+      expect(isEmptyNotesBlob(await blobOf(text))).toBe(false);
+    },
+  );
 });
 
 describe('deriveNotesBackupKey', () => {

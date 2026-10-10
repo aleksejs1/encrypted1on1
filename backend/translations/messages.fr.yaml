@@ -2,20 +2,23 @@
 # messages.en.yaml exactly.
 email:
     anketa_created:
-        subject: 'Nouvelle anketa 1:1 planifiée'
-        body: "%creator% a planifié un 1:1 avec vous pour le %date%.\n\nVeuillez remplir votre partie : %url%"
+        subject: 'Nouveau 1:1 planifié'
+        body: "%creator% a planifié un 1:1 avec vous pour le %date%.\n\nC'est ici que vous préparez tous les deux vos sujets et notez ce dont vous convenez. Vos réponses sont chiffrées de bout en bout : vous seuls, tous les deux, pouvez les lire — ni le serveur, ni les administrateurs de votre entreprise. Écrivez aussi peu que vous le souhaitez.\n\n%url%"
+    meeting_rescheduled:
+        subject: 'Votre 1:1 a été déplacé'
+        body: "%actor% a déplacé votre 1:1 du %old_date% au %date%.\n\n%url%"
     meeting_tomorrow:
         subject: 'Votre 1:1 est demain'
         body: "Votre 1:1 avec %counterpart% est demain (%date%).\n\n%url%"
-    not_filled_out:
-        subject: "Rappel : remplissez l'anketa de demain"
-        body: "Vous n'avez pas encore rempli votre partie pour le 1:1 de demain avec %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Votre 1:1 avec %counterpart% est demain (%date%).\n\nVous n'avez pas encore publié votre partie.\n\n%url%"
     meeting_monday:
         subject: 'Votre 1:1 est lundi'
         body: "Votre 1:1 avec %counterpart% est lundi (%date%).\n\n%url%"
-    not_filled_out_monday:
-        subject: "Rappel : remplissez l'anketa de lundi"
-        body: "Vous n'avez pas encore rempli votre partie pour le 1:1 de lundi avec %counterpart% (%date%).\n\n%url%"
+        body_not_published: "Votre 1:1 avec %counterpart% est lundi (%date%).\n\nVous n'avez pas encore publié votre partie.\n\n%url%"
+    meeting_follow_up:
+        subject: "Votre 1:1 a-t-il eu lieu ?"
+        body: "Votre 1:1 avec %counterpart% du %date% a-t-il eu lieu ? Il n'est pas encore clôturé.\n\nClôturer et planifier le suivant :\n%close_url%\n\nOu le déplacer à une autre date :\n%reschedule_url%"
+        body_one_off: "Votre 1:1 avec %counterpart% du %date% a-t-il eu lieu ? Il n'est pas encore clôturé.\n\nClôturer ce 1:1 :\n%close_url%\n\nOu le déplacer à une autre date :\n%reschedule_url%"
     invited:
         subject: 'Vous avez été invité(e) sur encrypted1on1'
         body: "%inviter% vous a invité(e) sur encrypted1on1.\n\nActivez votre compte : %url%"
@@ -24,28 +27,35 @@ email:
         body: "Nous avons reçu une demande de réinitialisation de votre mot de passe.\n\nChoisissez un nouveau mot de passe : %url%\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."
     counterpart_key_changed:
         subject: "La clé de chiffrement d'un interlocuteur a changé"
-        body: "Le compte de %counterpart% a fait l'objet d'une réinitialisation de mot de passe, ce qui a remplacé sa clé de chiffrement.\n\nLes anketas que vous partagez avec cette personne devront peut-être être repartagées pour qu'elle puisse les lire — le cas échéant, vous verrez une bannière à ce sujet sur votre liste d'anketas."
+        body: "Le compte de %counterpart% a fait l'objet d'une réinitialisation de mot de passe, ce qui a remplacé sa clé de chiffrement.\n\nLes 1:1 que vous partagez avec cette personne devront peut-être être repartagés pour qu'elle puisse les lire — le cas échéant, vous verrez une bannière à ce sujet sur votre liste de réunions 1:1."
     signup:
         subject: 'Confirmez votre e-mail pour encrypted1on1'
         body: "Nous avons reçu une demande de création d'un compte encrypted1on1 avec cette adresse e-mail.\n\nActivez votre compte : %url%\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."
     company_signup:
         subject: 'Confirmez votre nouvelle entreprise sur encrypted1on1'
         body: "Nous avons reçu une demande de création d'une nouvelle entreprise, \"%company%\", sur encrypted1on1, avec vous comme premier administrateur.\n\nActivez votre compte : %url%\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."
+    invite_renewal_requested:
+        subject: "%invitee% demande une nouvelle invitation à encrypted1on1"
+        body: "%invitee% a essayé d'activer son compte encrypted1on1, mais son lien d'invitation avait expiré.\n\nEnvoyez-lui une nouvelle invitation : %url%"
 # API error messages (Phase 6j) — translated into the requesting user's active
 # UI locale (X-Locale header), not the recipient-locale mechanism email.* uses.
 errors:
     not_authenticated: 'Non authentifié.'
     missing_or_invalid_field: 'Champ "%field%" manquant ou invalide.'
-    anketa_archived: 'L''anketa est archivée.'
+    anketa_archived: 'Ce 1:1 est archivé.'
     missing_blob_or_expected_version: '"blob" ou "expectedVersion" manquant.'
-    already_published: 'Déjà publiée.'
-    not_published_yet: 'Pas encore publiée.'
+    already_published: 'Déjà publié.'
+    not_published_yet: 'Pas encore publié.'
     missing_blob: '"blob" manquant.'
     description_must_be_string: '"description" doit être une chaîne de caractères.'
     target_date_must_be_valid_date: '"targetDate" doit être une date valide.'
     meeting_date_must_be_valid_date: '"meetingDate" doit être une date valide.'
     outcomes_blob_must_be_string: '"outcomesBlob" doit être une chaîne de caractères.'
     invalid_or_expired_activation_link: "Lien d'activation invalide ou expiré."
+    activation_link_expired: "Ce lien d'activation a expiré."
+    account_already_active: "Le compte est déjà actif. Veuillez vous connecter."
+    activation_link_not_expired: "Ce lien d'activation est toujours valide."
+    invite_renewal_send_failed: "La demande n'a pas pu être envoyée. Veuillez réessayer plus tard."
     invalid_or_expired_reset_link: 'Lien de réinitialisation du mot de passe invalide ou expiré.'
     missing_email_or_auth_key: '"email" ou "authKey" manquant.'
     invalid_email_or_password: 'E-mail ou mot de passe invalide.'
@@ -89,6 +99,7 @@ errors:
     outcomes_conflict: 'Les résultats ont changé depuis votre dernière lecture.'
     goal_checkpoints_conflict: 'Les jalons de l''objectif ont changé depuis votre dernière lecture.'
     discussed_conflict: 'Les questions abordées ont changé depuis votre dernière lecture.'
+    topics_conflict: 'Les sujets ont changé depuis votre dernière lecture.'
     private_notes_conflict: 'Vos notes privées ont changé depuis votre dernière lecture.'
     private_notes_too_large: 'Les notes privées sont trop longues pour être enregistrées.'
     private_notes_key_invalid: '"encryptedNotesKey" n''est pas une clé chiffrée valide.'
@@ -103,9 +114,9 @@ errors:
     missed_skip_must_be_booleans: '"missed" et "skipNextMeeting" doivent être des booléens.'
     next_meeting_date_must_be_string: '"nextMeetingDate" doit être une chaîne de caractères.'
     next_meeting_date_must_be_valid_date: '"nextMeetingDate" doit être une date valide.'
-    no_periodicity_on_record: 'Aucune périodicité enregistrée pour cette anketa — transmettez "skipNextMeeting": true.'
+    no_periodicity_on_record: 'Aucune périodicité enregistrée pour ce 1:1 — transmettez "skipNextMeeting": true.'
     missing_sealed_keys: '"mySealedKey" ou "counterpartSealedKey" manquant.'
-    anketa_not_found: 'Anketa introuvable.'
+    anketa_not_found: '1:1 introuvable.'
     not_a_participant: 'Vous n''êtes pas participant.'
     missing_meeting_date: '"meetingDate" manquant.'
     invalid_csrf_token: 'Jeton CSRF invalide.'

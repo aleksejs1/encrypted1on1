@@ -37,7 +37,7 @@ The goal of this call is to get to know each other, explain how our regular sync
 figure out how we can best collaborate, and answer any early questions you have.
 
 There are NO status reports, NO technical quizzes, and NO grading here. This is your time.
-If there are any topics you'd like to touch on, feel free to add them to our encrypted anketa!
+If there are any topics you'd like to touch on, feel free to add them to our encrypted 1:1!
 Looking forward to chatting over coffee/tea.
 ```
 
@@ -87,7 +87,7 @@ New hires have a superpower that disappears after 30 days: **an unconditioned pe
 
 ## 4. In-Platform Field Mapping (`onboarding`)
 
-When you create an anketa with the `onboarding` template, `encrypted1on1` replaces routine status fields with onboarding-specific questions:
+When you create a 1:1 with the `onboarding` template, `encrypted1on1` replaces routine status fields with onboarding-specific questions:
 
 | Template Field | Who Fills It | Purpose |
 | :--- | :--- | :--- |
@@ -111,4 +111,4 @@ The single most impactful thing a manager can do after a first 1:1:
 This proves beyond any doubt that meetings with you are a tool with real operational leverage, not empty corporate talk.
 
 ### Archiving and Transitioning
-When you archive this anketa, `encrypted1on1`'s lifecycle service automatically switches the pair's next meeting to the `regular` template. You are now ready for your regular bi-weekly rhythm!
+When you archive this 1:1, `encrypted1on1`'s lifecycle service automatically switches the pair's next meeting to the `regular` template. You are now ready for your regular bi-weekly rhythm!

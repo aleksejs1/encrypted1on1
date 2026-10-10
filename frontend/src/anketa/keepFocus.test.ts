@@ -50,6 +50,13 @@ describe('refocus, right after the press', () => {
     expect(onRootGone).toHaveBeenCalledOnce();
   });
 
+  it('passes focusOptions on to focus()', async () => {
+    const target = root.querySelector<HTMLButtonElement>('.b')!;
+    const focus = vi.spyOn(target, 'focus');
+    await refocus(root, '.b', { focusOptions: { preventScroll: true } });
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
   it('does nothing when the selector matches nothing', async () => {
     await refocus(root, '.missing');
     expect(document.activeElement).toBe(document.body);

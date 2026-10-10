@@ -6,6 +6,7 @@ import {
   invalidateIdentity,
   WrongPasswordError,
 } from './crypto/identity.svelte';
+import { forgetRememberedMasterKey } from './crypto/rememberedKey';
 import { clearMasterKey } from './crypto/session';
 
 /**
@@ -107,6 +108,12 @@ export async function checkAuth(): Promise<void> {
  * - the cached decrypted identity (crypto/identity.svelte.ts) and its own
  *   in-flight resolution, if any — otherwise a slow ensureUnlocked() call
  *   started before this could resurrect the previous identity afterward.
+ *
+ * The browser's remembered key (crypto/rememberedKey.ts) is deliberately left
+ * alone: this also runs for a 401 a stale tab got for a request sent before
+ * another tab's fresh login, which must not delete the key that login just
+ * stored. Only logOut() forgets it; a key whose login has ended is replaced
+ * or forgotten by the next login, or deleted once past its own end date.
  */
 export function markSessionExpired(): void {
   invalidateIdentity();
@@ -173,11 +180,8 @@ export async function checkUnlocked(
     authState.unlockStatus = 'locked';
     if (error instanceof WrongPasswordError) {
       // Proven wrong (an AEAD authentication failure, not just "couldn't
-      // check") — clear it here rather than leave that to the caller:
-      // UnlockTab.svelte is the only caller today that stores a key before
-      // calling this, but nothing enforces that a future one wouldn't
-      // forget the cleanup step.
-      clearMasterKey();
+      // check"). ensureUnlocked() has already cleared this tab's key if
+      // that was the one proved wrong.
       return 'wrong-password';
     }
     // Anything else here (a transient network error, a non-401 server
@@ -224,14 +228,18 @@ export function markAuthenticated(): void {
 /**
  * Invalidates the server session and clears every trace of key material this
  * tab was holding (the unwrapped private key cached in identity.ts, the
- * master key in sessionStorage via markSessionExpired()) — logging out is
- * the one place both need to go away together, not just the server-side
- * half. Also resets the cached CSRF token: the server session invalidation
+ * master key in sessionStorage via markSessionExpired()) and the browser's
+ * remembered key — logging out is the one place all of it needs to go away
+ * together, not just the server-side half. Forgetting the remembered key
+ * starts first and isn't waited for: closing the tab or losing the network
+ * mid-logout still removes it, and a store that hangs doesn't hold up the
+ * logout. Also resets the cached CSRF token: the server session invalidation
  * this triggers wipes the secret backing it, so a stale cached token would
  * otherwise fail with a genuine 403 on the very next state-changing request
  * (e.g. logging back in).
  */
 export async function logOut(): Promise<void> {
+  void forgetRememberedMasterKey();
   try {
     await apiPost('/api/logout', {});
   } catch {
