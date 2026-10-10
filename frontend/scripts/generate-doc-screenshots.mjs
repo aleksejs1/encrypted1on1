@@ -293,9 +293,7 @@ await employee
   .getByPlaceholder('Type a name or email to search…')
   .fill(MANAGER_EMAIL);
 await employee.getByRole('button', { name: MANAGER_EMAIL }).click();
-await employee
-  .locator('label.radio', { hasText: "No, I'm the employee" })
-  .click();
+await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 // Created in the near future (so the *empty* screenshot below doesn't show
 // an unrelated "isn't closed yet" card) — backdated via a direct
 // SQL update further down, right before archiving, so the *archived*
