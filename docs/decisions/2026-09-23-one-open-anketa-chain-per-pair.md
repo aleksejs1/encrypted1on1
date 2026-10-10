@@ -38,8 +38,8 @@ more recent one, never replaces the chain's own open goals and outcomes.
 - **UI:** `oneOff` is in the list and detail payloads. Like `templateKey`, it's left out of the
   live-state poll, since it never changes. For a one-off, the
   archive form shows a short explanation instead of the "don't create the next meeting" checkbox
-  and date, and sends an explicit skip without generating a next key. `CreateAnketa.svelte` shows a one-off note
-  and skips the outcomes re-encryption. It asks the periodicity question only when the server has
+  and date, and sends an explicit skip without generating a next key. `CreateAnketa.svelte` shows a one-off note,
+  with a link to the pair's open anketa (GitHub issue #253), and skips the outcomes re-encryption. It asks the periodicity question only when the server has
   nothing to inherit, matching `create()`'s fallback chain. So a legacy anketa from before
   periodicity existed (`periodicityDays` NULL) still gets asked, rather than hitting the
   "periodicity required" 400 with no way to answer it. It mirrors the

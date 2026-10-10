@@ -1345,6 +1345,10 @@ test('the create form never preselects a role, and changing the colleague clears
     manager.getByText(/^Your role in your most recent 1:1/),
   ).toHaveCount(0);
   await expectNoRole(manager);
+  // Nor an open one to link to.
+  await expect(
+    manager.getByRole('link', { name: /^Open that 1:1/ }),
+  ).toHaveCount(0);
   // The first colleague again: it isn't brought back unasked either.
   await pickColleague(manager, employeeEmail);
   await expectNoRole(manager);
@@ -1619,6 +1623,16 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
   await expect(
     employee.getByText('This pair already has an open 1:1'),
   ).toBeVisible();
+  // The note links to that open meeting, so someone who only wanted it
+  // doesn't create a second one (GitHub issue #253).
+  await employee
+    .getByRole('link', { name: /^Open that 1:1 \(\d{2}\.\d{2}\.\d{4}\)$/ })
+    .click();
+  await employee.waitForURL(chainUrl);
+  await expect(employee.locator('input[id^="goal-title-"]')).toHaveValue(
+    goalTitle,
+  );
+  // The form still allows the one-off.
   const oneOffUrl = await createAnketa(
     employee,
     managerEmail,

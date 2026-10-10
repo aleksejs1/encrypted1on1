@@ -249,6 +249,7 @@
     "periodicityMonthly": "Monatlich",
     "periodicityInherited": "Sie haben sich bereits getroffen — die Periodizität dieses Paares ist bereits festgelegt und wird übernommen.",
     "pairHasOpenAnketa": "Dieses Paar hat bereits ein offenes 1:1, daher ist dieses einmalig: Es wird nichts übernommen, hier hinzugefügte Ziele und Ergebnisse gehen nicht in das nächste Meeting des Paares über, und beim Archivieren wird kein nächstes Meeting geplant. Die regelmäßigen Meetings des Paares gehen im anderen 1:1 weiter.",
+    "pairOpenAnketaLink": "Das andere 1:1 öffnen ({date})",
     "pairHasOpenAnketaHowToSwitch": "Um das nächste regelmäßige Meeting des Paares in diesem Format abzuhalten, wählen Sie es beim Archivieren des aktuellen Meetings als Art des nächsten Meetings.",
     "companyTemplatesHeading": "Vorlagen Ihres Unternehmens",
     "companyTemplatesCreate": "Unternehmensvorlage erstellen →",
