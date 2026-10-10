@@ -40,11 +40,14 @@ Implemented as designed in #132 §5:
   failed flush closes the EntityManager, so it isn't used afterwards, the same as
   `ActivationController`.
 - **Deletion.** `AccountDeleter` removes the user's rows in the same unit of work as the
-  anonymization. The demo reset deletes every note the demo accounts wrote, with one bulk `DELETE`
-  right before its flush. That covers the pair's anketas it's about to delete, since only a
-  participant can author notes. It also covers any other anketa, such as one a visitor created
-  with the roles swapped. That anketa survives the reset, and the demo keypair is restored on
-  every run, so its notes would otherwise stay readable to every later visitor. There's no anonymization to stay atomic with there. A visitor's
+  anonymization. The demo reset deletes every note the demo accounts wrote, and every note on the
+  anketas it's about to delete, with one bulk `DELETE` right before its flush. The reset deletes
+  every anketa a demo account takes part in (at first only the pair's own, later also one a
+  visitor created with any other user), so the second part covers that other user's notes, which
+  the foreign key would otherwise keep the anketa for. The first part still matters without
+  foreign keys: it removes, on the next run, a note whose anketa an earlier run deleted under it.
+  The demo keypair is restored on every run, so such a note would otherwise stay readable to
+  every later visitor. There's no anonymization to stay atomic with there. A visitor's
   autosave landing between an earlier `SELECT` and the flush would otherwise block the anketa
   delete. The doc-screenshot script's own account reset also deletes notes rows first.
 
@@ -116,8 +119,8 @@ Implemented as designed in #132 §5:
 - `AccountDeleterTest`, `ResetDemoDataCommandTest` and `SerializationBoundaryTest` each gained a
   case, and `AnketaPrivateNoteTest` unit-tests the entity's initial version and participant guard.
   The overwrite itself is covered by the functional tests. The demo reset test seeds notes by both
-  demo accounts, plus one on a swapped-role anketa outside the pair. Dropping the delete-by-author
-  condition made it fail.
+  demo accounts, and later ones seed another user's notes on 1:1s a demo account has with them, and a demo
+  account's note whose anketa is already gone (dropping the delete-by-author condition fails that one).
 - Migrations ran up, down and up on SQLite and on a throwaway MySQL 8.4. After them, neither
   engine's schema diff touches `anketa_private_notes`.
 - The notes, deletion and demo-reset tests pass against MySQL too. With the notes removal taken
