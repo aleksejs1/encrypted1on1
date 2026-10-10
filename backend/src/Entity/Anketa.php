@@ -72,7 +72,7 @@ class Anketa
      * cross-check compares this list with `[...ANKETA_TEMPLATES, 'custom']`, reading
      * it as a literal array of strings (so no `self::CUSTOM_TEMPLATE_KEY` here).
      */
-    public const TEMPLATE_KEYS = ['regular', 'onboarding', 'career_growth', 'support_checkin', 'custom'];
+    public const TEMPLATE_KEYS = ['regular', 'lightweight', 'onboarding', 'career_growth', 'support_checkin', 'custom'];
 
     /** An anketa on a company template's version (GitHub issue #144, #133 §5.3). */
     public const CUSTOM_TEMPLATE_KEY = 'custom';
@@ -107,9 +107,14 @@ class Anketa
      * weekly/biweekly support check-in is a fine cadence, but self-recurrence would
      * still keep the pair on it indefinitely, until someone noticed and switched back
      * by hand. See docs/decisions/2026-09-23-support-checkin-template-does-not-recur.md.
+     * `'lightweight'` (GitHub issue #208) is the one built-in template besides
+     * `'regular'` that repeats itself: it is a pair's regular check-in in a shorter
+     * form, not a phase that ends, so staying on it is the point. See
+     * docs/decisions/2026-10-10-lightweight-template.md.
      */
     private const NEXT_CYCLE_TEMPLATE_KEY = [
         'regular' => 'regular',
+        'lightweight' => 'lightweight',
         'onboarding' => 'regular',
         'career_growth' => 'regular',
         'support_checkin' => 'regular',

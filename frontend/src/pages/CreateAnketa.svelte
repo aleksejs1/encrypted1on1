@@ -391,9 +391,9 @@
       {#if counterpartId && pairHasOpenAnketa}
         <p class="text-muted periodicity-note">
           {$_('createAnketa.pairHasOpenAnketa')}
-          {#if templateChoice !== 'regular'}
-            {$_('createAnketa.pairHasOpenAnketaHowToSwitch')}
-          {/if}
+          <!-- For every type, Regular included: a pair on Quick check-ins or
+               on a company template stays on it by default. -->
+          {$_('createAnketa.pairHasOpenAnketaHowToSwitch')}
         </p>
       {/if}
 

@@ -232,6 +232,8 @@
     "templateCareerGrowthDescription": "Un échange sur la carrière (par exemple une fois par trimestre) — rétrospective d'énergie, trajectoire, missions stimulantes et un plan de développement à 90 jours à la place des champs habituels du point régulier.",
     "templateSupportCheckin": "Point soutien et charge de travail",
     "templateSupportCheckinDescription": "Un échange sur l'énergie et la charge de travail — ce qui peut être mis en pause ou délégué, ce qui aiderait à protéger le temps de concentration et de repos, et des prochaines étapes concrètes, en plus des questions habituelles sur l'humeur et la charge de travail.",
+    "templateLightweight": "Point rapide",
+    "templateLightweightDescription": "Un point court — l'humeur et une question ouverte pour l'employé, une question pour le manager. L'ordre du jour est la liste partagée « Sujets à aborder ».",
     "meetingDateLabel": "Date de la réunion",
     "periodicityLabel": "À quelle fréquence vous rencontrerez-vous ?",
     "periodicityWeekly": "Chaque semaine",
@@ -239,7 +241,7 @@
     "periodicityMonthly": "Chaque mois",
     "periodicityInherited": "Vous vous êtes déjà rencontrés — la périodicité de ce binôme est déjà définie et sera reprise.",
     "pairHasOpenAnketa": "Ce binôme a déjà un 1:1 ouvert : celui-ci sera donc ponctuel. Rien n'y est repris, les objectifs et résultats ajoutés ici ne seront pas reportés à la prochaine réunion du binôme, et l'archiver ne programmera pas de prochaine réunion. Les réunions régulières du binôme continuent dans l'autre 1:1.",
-    "pairHasOpenAnketaHowToSwitch": "Pour utiliser plutôt ce type pour la prochaine réunion régulière du binôme, choisissez-le comme type de la prochaine réunion lors de l'archivage de la réunion en cours.",
+    "pairHasOpenAnketaHowToSwitch": "Pour utiliser ce type pour la prochaine réunion régulière du binôme, choisissez-le comme type de la prochaine réunion lors de l'archivage de la réunion en cours.",
     "companyTemplatesHeading": "Modèles de votre entreprise",
     "companyTemplatesCreate": "Créer un modèle d'entreprise →",
     "companyTemplatesNone": "L'administrateur de votre entreprise peut ajouter ses propres modèles de réunion.",
@@ -412,6 +414,9 @@
       },
       "achievements": { "title": "Réussites" },
       "discuss": { "title": "Quoi d'autre à aborder" },
+      "periodNotes": {
+        "title": "L'essentiel de la période et là où j'ai besoin d'aide"
+      },
       "workingAgreement": {
         "title": "Accord de travail : comment se sont passés les 1:1 jusqu'à présent ?"
       },

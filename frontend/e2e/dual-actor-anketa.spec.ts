@@ -416,11 +416,7 @@ test('achievements list entry can be edited in place, and the edit survives publ
   const employee = await activate(browser, employeeToken);
   const manager = await activate(browser, managerToken);
 
-  await employee.goto('/anketas/new');
-  await employee
-    .getByPlaceholder('Type a name or email to search…')
-    .fill(managerEmail);
-  await employee.getByRole('button', { name: managerEmail }).click();
+  await openCreateFormWith(employee, managerEmail);
   await employee
     .locator('label.radio', { hasText: "No, I'm the employee" })
     .click();
@@ -1282,17 +1278,25 @@ test('the published side can close a meeting the counterpart never published on,
  * tests below use this — the older tests above predate it and still inline
  * the same steps.
  */
+/** Opens the create form and picks `counterpartEmail` in its typeahead. */
+async function openCreateFormWith(
+  page: Page,
+  counterpartEmail: string,
+): Promise<void> {
+  await page.goto('/anketas/new');
+  await page
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(counterpartEmail);
+  await page.getByRole('button', { name: counterpartEmail }).click();
+}
+
 async function createAnketa(
   creator: Page,
   counterpartEmail: string,
   daysAhead: number,
   templateLabel?: string,
 ): Promise<string> {
-  await creator.goto('/anketas/new');
-  await creator
-    .getByPlaceholder('Type a name or email to search…')
-    .fill(counterpartEmail);
-  await creator.getByRole('button', { name: counterpartEmail }).click();
+  await openCreateFormWith(creator, counterpartEmail);
   await creator
     .locator('label.radio', { hasText: "No, I'm the employee" })
     .click();
@@ -1333,8 +1337,9 @@ async function createAnketa(
  * client-side next-key generation/sealing in Anketa.svelte's handleArchive()
  * was never exercised in a browser. Here the successor is opened and
  * answered from both sides, proving the counterpart's sealed copy of that
- * browser-generated key actually unseals. Every template's successor falls
- * back to 'regular' (Anketa::NEXT_CYCLE_TEMPLATE_KEY).
+ * browser-generated key actually unseals. This template's successor falls
+ * back to 'regular' (Anketa::NEXT_CYCLE_TEMPLATE_KEY); 'lightweight' is the
+ * one that doesn't, see the Quick check-in test below.
  */
 test('a non-default meeting template reaches both sides, and its successor falls back to the regular template', async ({
   browser,
@@ -1658,6 +1663,113 @@ test('archiving with a chosen next meeting type creates the successor with that 
 
   await employee.goto(successorUrl);
   await expectCareerGrowthOnMySide(employee, 'employee');
+});
+
+/** `page`'s own side renders the Quick check-in question set. */
+async function expectQuickCheckInOnMySide(
+  page: Page,
+  role: 'employee' | 'manager',
+): Promise<void> {
+  const mySide = page.locator('.side-card').first();
+  await expect(
+    mySide.getByRole('heading', {
+      name:
+        role === 'employee'
+          ? 'Highlights and where I need help'
+          : 'How can I help / what gets in the way',
+    }),
+  ).toBeVisible();
+  // Regular-only on either side, absent from the Quick check-in.
+  await expect(
+    mySide.getByRole('heading', {
+      name: role === 'employee' ? 'Feelings' : 'Achievements worth recognizing',
+      exact: true,
+    }),
+  ).toHaveCount(0);
+}
+
+/**
+ * GitHub issue #208: the Quick check-in ('lightweight') template reaches both
+ * sides, and unlike every other non-default built-in template its successor
+ * stays on it (Anketa::NEXT_CYCLE_TEMPLATE_KEY), with nothing chosen on the
+ * archive form.
+ */
+test('a Quick check-in reaches both sides, and its successor stays a Quick check-in', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-quick');
+  const managerEmail = uniqueEmail('manager-quick');
+  const employeeToken = createActivationLink(employeeEmail);
+  const managerToken = createActivationLink(managerEmail);
+
+  const employee = await activate(browser, employeeToken);
+  const manager = await activate(browser, managerToken);
+
+  const anketaUrl = await createAnketa(
+    employee,
+    managerEmail,
+    3,
+    'Quick check-in',
+  );
+  await expectQuickCheckInOnMySide(employee, 'employee');
+
+  // The employee answers the template's own question, and the manager's
+  // browser decrypts it against the same question set.
+  const marker = `E2E-QUICK-MARKER-${Date.now()}`;
+  const employeeMySide = employee.locator('.side-card').first();
+  await questionBlock(employeeMySide, 'Highlights and where I need help')
+    .locator('textarea')
+    .fill(marker);
+  await employeeMySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(employeeMySide.getByText('Published')).toBeVisible();
+
+  await manager.goto(anketaUrl);
+  await expectQuickCheckInOnMySide(manager, 'manager');
+  await expect(manager.locator('.side-card').nth(1)).toContainText(marker);
+
+  await expect(manager.getByLabel('Next meeting type')).toHaveValue(
+    'lightweight',
+  );
+  const archiveRequest = manager.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await archive(manager);
+  expect((await archiveRequest).postDataJSON()).not.toHaveProperty(
+    'nextTemplateKey',
+  );
+  await expect(archiveButton(manager)).toHaveCount(0);
+
+  const successorUrl = await openSuccessor(manager, anketaUrl);
+  await expectQuickCheckInOnMySide(manager, 'manager');
+  await expect(manager.getByLabel('Next meeting type')).toHaveValue(
+    'lightweight',
+  );
+
+  await employee.goto(successorUrl);
+  await expectQuickCheckInOnMySide(employee, 'employee');
+  // The list labels the open successor with its meeting type.
+  await employee.goto('/');
+  await expect(
+    employee
+      .locator('.anketa-row')
+      .filter({ hasNot: employee.locator('.tag', { hasText: 'archived' }) }),
+  ).toContainText('Quick check-in');
+
+  // A 1:1 created next to the open Quick check-in is a one-off. The form
+  // says how to change the pair's regular meetings also with Regular
+  // check-in chosen: this pair's next regular meeting isn't one.
+  await employee.goto('/anketas/new');
+  await employee
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await employee.getByRole('button', { name: managerEmail }).click();
+  const howToSwitch = employee.getByText(
+    'choose it as the next meeting type when archiving the current one',
+  );
+  await expect(
+    employee.getByRole('radio', { name: 'Regular check-in' }),
+  ).toBeChecked();
+  await expect(howToSwitch).toBeVisible();
 });
 
 /**

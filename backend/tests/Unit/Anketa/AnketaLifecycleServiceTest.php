@@ -254,6 +254,8 @@ class AnketaLifecycleServiceTest extends TestCase
             // map; the full per-template table is AnketaTest::testNextCycleTemplateKeyFor's.
             'regular' => ['regular', 'regular'],
             'onboarding' => ['onboarding', 'regular'],
+            // The one built-in template besides 'regular' that maps to itself.
+            'lightweight' => ['lightweight', 'lightweight'],
             // The entity accepts any string (the DTO layer rejects an unrecognized key
             // as user input) — stale data from a retired template, or bad data.
             'unrecognized key' => ['not-a-real-key', 'regular'],
