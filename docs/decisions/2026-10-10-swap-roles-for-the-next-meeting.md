@@ -75,7 +75,12 @@ for the PhpMetrics check. It throws for a user who isn't a participant.
 
 [GitHub issue #255](https://github.com/aleksejs1/encrypted1on1/issues/255), frontend only:
 "Swap roles in the next 1:1" in `AnketaArchiveSection.svelte`, under the next meeting's date and
-type.
+type, inside a collapsed "More options" block (a native `<details>`).
+
+- **Collapsed by default.** The swap is for a pair whose roles were set wrong, once; as a plain
+  checkbox it sat on every archive form as if it were a routine choice (maintainer feedback right
+  after the first version). The line that names the result is outside the block, so a tick is
+  never out of sight when the block is collapsed again.
 
 - **The browser sends only the flag,** and only when ticked. `handleArchive()` seals the next key
   for me and for the counterpart exactly as before; the server puts each copy in its owner's new
