@@ -1735,6 +1735,10 @@ test('archiving with a chosen next meeting type creates the successor with that 
   await manager.goto(anketaUrl);
   const picker = manager.getByLabel('Next meeting type');
   await expect(picker).toHaveValue('regular');
+  // The selected type's description, as on the create form (GitHub issue #263).
+  await expect(picker).toHaveAccessibleDescription(
+    /^The standard recurring check-in/,
+  );
   await manager
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .check({ force: true });
@@ -1743,6 +1747,7 @@ test('archiving with a chosen next meeting type creates the successor with that 
     .getByRole('checkbox', { name: "Don't create the next meeting" })
     .uncheck({ force: true });
   await picker.selectOption({ label: 'Career growth' });
+  await expect(picker).toHaveAccessibleDescription(/^A career conversation/);
 
   const archiveRequest = manager.waitForRequest((request) =>
     request.url().endsWith('/archive'),
@@ -3021,9 +3026,11 @@ async function sessionRequest(
 async function createCompanyTemplate(
   admin: Page,
   name: string,
+  description = '',
 ): Promise<string> {
   const { id } = await sessionRequest(admin, 'POST', '/api/admin/templates', {
     name,
+    description,
     definition: sprintDefinition(SPRINT_QUESTION),
   });
   expect(id).toBeDefined();
@@ -3048,10 +3055,14 @@ async function employeeAndAdmin(
 async function archiveChoosing(
   page: Page,
   templateName: string,
+  description?: string,
 ): Promise<void> {
-  await page
-    .getByLabel('Next meeting type')
-    .selectOption({ label: templateName });
+  const picker = page.getByLabel('Next meeting type');
+  await picker.selectOption({ label: templateName });
+  if (description !== undefined) {
+    // A company template is described by its admin's own text (GitHub issue #263).
+    await expect(picker).toHaveAccessibleDescription(description);
+  }
   const archiveRequest = page.waitForRequest((request) =>
     request.url().endsWith('/archive'),
   );
@@ -3070,11 +3081,11 @@ test('a pair moves onto a company template at archive, and both sides use it', a
     'custom-move',
   );
   const templateName = `Sprint check ${Date.now()}`;
-  await createCompanyTemplate(admin, templateName);
+  await createCompanyTemplate(admin, templateName, 'After every sprint.');
 
   const regularUrl = await createAnketa(employee, adminEmail, 3);
   await admin.goto(regularUrl);
-  await archiveChoosing(admin, templateName);
+  await archiveChoosing(admin, templateName, 'After every sprint.');
   const successorUrl = await openSuccessor(admin, regularUrl);
 
   // The admin, as the manager, gets the template's manager side.
