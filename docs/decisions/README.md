@@ -30,6 +30,7 @@ Add a one-line index entry below when you add a file — newest first.
 
 ## Index
 
+- [2026-10-10 — The create form never preselects a role](2026-10-10-explicit-role-selection.md) — closes #251, the first part of #250 (inverted manager/employee roles). No role from the last 1:1 created on this device, from the pair's history or from "Create another", and changing the colleague clears it. Reverses part of #198.
 - [2026-10-10 — A built-in "Quick check-in" template that repeats itself](2026-10-10-lightweight-template.md) — closes #208. A fifth built-in template, `lightweight`: mood and one free-text question for the employee, `support` for the manager, no topics question (the shared list does that). Unlike the other non-default templates its successor stays on it. Built without the no-code experiment the issue asked for; a per-company default template is not built.
 - [2026-10-09 — All my private notes in one list, in Reports](2026-10-09-private-notes-in-reports.md) — closes #243. `/report/notes` lists every private note of mine with a colleague filter and text search, all in the browser. A note's text is in the page only after a click, never by loading the page or searching.
 - [2026-10-09 — A banner while the connection is lost, and a retry when it's back](2026-10-09-connection-loss-banner.md) — closes #242. One `online | offline | reconnected` status fed by every request; honest text that differs on a meeting page; on reconnect the live-update poll, an unsaved draft and private notes go again by themselves. No offline write queue.

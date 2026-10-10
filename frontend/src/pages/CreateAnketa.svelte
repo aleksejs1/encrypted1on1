@@ -31,10 +31,6 @@
   import { PATHS } from '../routes';
   import { pairChainState } from '../anketa/pairChain';
   import {
-    defaultRole,
-    pairRole,
-    readLastRole,
-    rememberLastRole,
     setJustCreated,
     takeCreateAnother,
     takeCreateWith,
@@ -53,25 +49,22 @@
   let loadError = $state<string | null>(null);
 
   // Set when this form was opened by "Create another" on a just-created
-  // meeting's page (GitHub issue #198): role, template and periodicity start
-  // as they were there.
+  // meeting's page (GitHub issue #198): template and periodicity start as
+  // they were there.
   const another = takeCreateAnother();
   // Set when a pair's permanent link sent the user here to schedule the
   // pair's next meeting (GitHub issue #203).
   const presetCounterpartId = takeCreateWith();
 
   let counterpartId = $state('');
-  // The role this user last chose: on the form "Create another" came from,
-  // else on this device. Null if never.
-  const lastRole = another?.role ?? readLastRole();
-  // Null until there's a default (see setCounterpart()) or the user picks:
-  // no preselected role, so nobody ends up on the wrong side of their own
-  // 1:1 by not noticing the radio buttons.
-  let myRole = $state<Side | null>(lastRole);
-  // Once the user has clicked a role on this form, it's theirs: choosing a
-  // colleague no longer changes it. Set on click, not change, so clicking
-  // the already-preselected role to confirm it counts too.
-  let rolePicked = false;
+  // Null until the user picks, and null again whenever the colleague field
+  // changes (setCounterpart()): a role is a statement about one pair, so it
+  // is asked after the colleague, and the radios are disabled until one is
+  // chosen. None is ever carried over from another meeting: not from the
+  // pair's history, not from the last 1:1 created here and not by "Create
+  // another". Any of them can be the wrong way round, and a preselected
+  // radio is easy not to notice (GitHub issue #251).
+  let myRole = $state<Side | null>(null);
   let templateChoice = $state<TemplateChoice>(
     another?.templateChoice ?? 'regular',
   );
@@ -118,13 +111,10 @@
       !submitting,
   );
 
-  // Choosing a colleague sets the role to its default for that pair, the
-  // role from the pair's history first, unless the user already picked one
-  // by hand. The typeahead also calls this with '' when the user types
-  // again, which falls back to the last choice.
+  // The typeahead also calls this with '' as soon as the user types again.
   function setCounterpart(id: string): void {
+    if (id !== counterpartId) myRole = null;
     counterpartId = id;
-    if (!rolePicked) myRole = defaultRole(pairRole(priorAnketas, id), lastRole);
   }
 
   // Cancels the two mount-time reads below on unmount — see GitHub issue #66.
@@ -182,12 +172,25 @@
     event.preventDefault();
     const role = myRole;
     if (!canSubmit || role === null) return;
+    // The form as submitted, read once before the first await: it stays
+    // editable while this runs, and a change made meanwhile (another
+    // colleague, most of all) must not end up in a request built partly
+    // from the old values. Below, read the form only through this.
+    const form = {
+      role,
+      counterpartId,
+      carryFrom: pairHasOpenAnketa ? undefined : previousAnketa,
+      inheritedDays: inheritedPeriodicityDays,
+      templateChoice,
+      meetingDate,
+      periodicityDays,
+    };
 
     submitting = true;
     submitError = null;
     try {
       const identity = await ensureUnlocked();
-      const counterpart = users.find((u) => u.id === counterpartId);
+      const counterpart = users.find((u) => u.id === form.counterpartId);
       if (!counterpart)
         throw new Error($_('createAnketa.errorCounterpartNotFound'));
 
@@ -205,10 +208,10 @@
       let outcomesBlob: string | undefined;
       // The same for the topics not yet discussed (GitHub issue #206).
       let topicsBlob: string | undefined;
-      if (previousAnketa && !pairHasOpenAnketa) {
+      if (form.carryFrom) {
         try {
           const previousDetail = await apiGet<AnketaDetailForCarry>(
-            `/api/anketas/${previousAnketa.id}`,
+            `/api/anketas/${form.carryFrom.id}`,
           );
           const previousKey = await unsealAnketaKey(
             previousDetail.mySealedKey,
@@ -235,31 +238,31 @@
         }
       }
 
-      // What "Create another" keeps, as sent: read here, not after the
-      // request, and with the periodicity the pair inherited if it wasn't asked.
+      // What "Create another" keeps, with the periodicity the pair inherited
+      // if it wasn't asked.
       const settings = {
-        role,
-        templateChoice,
-        periodicityDays: inheritedPeriodicityDays ?? periodicityDays,
+        templateChoice: form.templateChoice,
+        periodicityDays: form.inheritedDays ?? form.periodicityDays,
       };
       const result = await apiPost<{ id: string }>('/api/anketas', {
-        counterpartId,
-        myRole: role,
-        meetingDate: new Date(meetingDate).toISOString(),
+        counterpartId: form.counterpartId,
+        myRole: form.role,
+        meetingDate: new Date(form.meetingDate).toISOString(),
         mySealedKey,
         counterpartSealedKey,
         // Periodicity (Phase 6d) is only asked when there's nothing to inherit — see
         // inheritedPeriodicityDays; the server ignores it otherwise anyway.
-        ...(inheritedPeriodicityDays !== null ? {} : { periodicityDays }),
+        ...(form.inheritedDays !== null
+          ? {}
+          : { periodicityDays: form.periodicityDays }),
         ...(outcomesBlob ? { outcomesBlob } : {}),
         ...(topicsBlob ? { topicsBlob } : {}),
         // Unlike periodicity, template choice is never inherited-only — the picker is
         // shown (and sent) on every creation, continuing pair or not, since a manager
         // may deliberately want an ad-hoc template mid-cadence.
-        ...templateFields(templateChoice),
+        ...templateFields(form.templateChoice),
       });
 
-      rememberLastRole(role);
       setJustCreated(result.id, settings);
       navigate(`/anketas/${result.id}`);
     } catch (error) {
@@ -269,13 +272,13 @@
           : $_('createAnketa.genericError');
       // The chosen company template was archived since this page loaded
       // (#133 §7.2): back to Regular with a fresh list; everything else the
-      // user filled in stays.
+      // user filled in stays, a template they chose meanwhile included.
       if (
         error instanceof ApiError &&
         (error.body as { code?: string } | null)?.code ===
           'template_unavailable'
       ) {
-        templateChoice = 'regular';
+        if (templateChoice === form.templateChoice) templateChoice = 'regular';
         companyTemplates = await loadCompanyTemplates();
       }
     } finally {
@@ -301,28 +304,31 @@
         />
       </div>
 
-      <fieldset class="card">
+      <fieldset
+        class="card role-card"
+        disabled={counterpartId === ''}
+        aria-describedby={counterpartId === '' ? 'role-needs-colleague' : null}
+      >
         <legend>{$_('createAnketa.roleLegend')}</legend>
         <div class="radio-row">
           <label class="radio">
-            <input
-              type="radio"
-              bind:group={myRole}
-              value="manager"
-              onclick={() => (rolePicked = true)}
-            /><span class="dot"></span>
+            <input type="radio" bind:group={myRole} value="manager" /><span
+              class="dot"
+            ></span>
             {$_('createAnketa.roleManagerOption')}
           </label>
           <label class="radio">
-            <input
-              type="radio"
-              bind:group={myRole}
-              value="employee"
-              onclick={() => (rolePicked = true)}
-            /><span class="dot"></span>
+            <input type="radio" bind:group={myRole} value="employee" /><span
+              class="dot"
+            ></span>
             {$_('createAnketa.roleEmployeeOption')}
           </label>
         </div>
+        {#if counterpartId === ''}
+          <p class="text-muted role-hint" id="role-needs-colleague">
+            {$_('createAnketa.roleNeedsCounterpart')}
+          </p>
+        {/if}
       </fieldset>
 
       <fieldset class="card">
@@ -447,6 +453,22 @@
 </main>
 
 <style>
+  /* Scoped to this card: .radio is shared, and elsewhere a disabled one
+     (a read-only answer mid-save) must not dim. */
+  .role-card:disabled .radio {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  .role-card:disabled .radio:hover .dot {
+    border-color: var(--color-divider);
+  }
+
+  .role-hint {
+    margin: 8px 0 0;
+    font-size: 13px;
+  }
+
   main {
     max-width: 32rem;
     margin: 0 auto;

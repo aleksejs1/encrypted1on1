@@ -221,6 +221,7 @@
     "counterpartPlaceholder": "Type a name or email to search…",
     "counterpartNoResults": "No matching people found.",
     "roleLegend": "Are you leading this 1:1 as the manager?",
+    "roleNeedsCounterpart": "Choose the counterpart first.",
     "roleManagerOption": "Yes, I'm the manager",
     "roleEmployeeOption": "No, I'm the employee",
     "templateLegend": "Meeting type",

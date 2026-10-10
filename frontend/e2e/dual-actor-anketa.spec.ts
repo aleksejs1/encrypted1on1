@@ -161,8 +161,8 @@ test('employee and manager complete an anketa across two independent sessions', 
   // button starts out disabled, and a disabled button can't take focus to
   // blur this field for us, so it must be done explicitly first.
   await meetingDateInput.blur();
-  // No role is preselected for a new pair on a device that never chose one
-  // (GitHub issue #198), and the form can't be submitted without one.
+  // No role is preselected (GitHub issues #198, #251), and the form can't be
+  // submitted without one.
   const employeeRole = employee.getByRole('radio', {
     name: "No, I'm the employee",
   });
@@ -179,31 +179,18 @@ test('employee and manager complete an anketa across two independent sessions', 
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
 
-  // "Create another" reopens the form with the role kept, and colleague and
-  // date empty again.
+  // "Create another" reopens the form with colleague and date empty again,
+  // and no role: it's chosen for each colleague (GitHub issue #251).
   await employee
     .getByRole('button', {
       name: 'Create another 1:1 with the same settings',
     })
     .click();
   await employee.waitForURL('/anketas/new');
-  await expect(employeeRole).toBeChecked();
+  await expect(employeeRole).not.toBeChecked();
   await expect(counterpartInput).toHaveValue('');
   await expect(meetingDateInput).toHaveValue('');
   await expect(createButton).toBeDisabled();
-
-  // The manager's form, in a separate browser that never chose a role, takes
-  // the opposite role from the pair's history.
-  await manager.goto('/anketas/new');
-  const managerOwnRole = manager.getByRole('radio', {
-    name: "Yes, I'm the manager",
-  });
-  await expect(managerOwnRole).not.toBeChecked();
-  await manager
-    .getByPlaceholder('Type a name or email to search…')
-    .fill(employeeEmail);
-  await manager.getByRole('button', { name: employeeEmail }).click();
-  await expect(managerOwnRole).toBeChecked();
 
   // The first-step card is for an empty list only.
   await employee.goto('/');
@@ -1270,8 +1257,79 @@ test('the published side can close a meeting the counterpart never published on,
 });
 
 /**
- * Creates an anketa from `creator`'s side (always as the employee — the create
- * form's default role) against `counterpartEmail`, `daysAhead` days out, via
+ * GitHub issue #251: the create form never carries a role over from another
+ * meeting. The pair here already has a 1:1, created in the employee's
+ * browser: before #251 that browser's last role and the pair's history each
+ * preselected a role on the next form.
+ */
+test('the create form never preselects a role, and changing the colleague clears a clicked one', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-role');
+  const managerEmail = uniqueEmail('manager-role');
+  const thirdEmail = uniqueEmail('third-role');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+  await (
+    await activate(browser, createActivationLink(thirdEmail))
+  )
+    .context()
+    .close();
+  await createAnketa(employee, managerEmail, 3);
+
+  const roles = (page: Page) => ({
+    manager: page.getByRole('radio', { name: "Yes, I'm the manager" }),
+    employee: page.getByRole('radio', { name: "No, I'm the employee" }),
+  });
+  const expectNoRole = async (page: Page) => {
+    await expect(roles(page).manager).not.toBeChecked();
+    await expect(roles(page).employee).not.toBeChecked();
+    await expect(
+      page.getByRole('button', { name: 'Create 1:1' }),
+    ).toBeDisabled();
+  };
+
+  for (const [page, colleagueEmail] of [
+    [employee, managerEmail],
+    [manager, employeeEmail],
+  ] as const) {
+    // No colleague yet: a role can't be chosen for nobody.
+    await page.goto('/anketas/new');
+    await expect(roles(page).manager).toBeDisabled();
+    await expect(roles(page).employee).toBeDisabled();
+    await expect(page.getByText('Choose the counterpart first.')).toBeVisible();
+    await expectNoRole(page);
+    // A colleague this user has met before: still nothing selected.
+    await pickColleague(page, colleagueEmail);
+    await expect(roles(page).manager).toBeEnabled();
+    await expect(page.getByText('Choose the counterpart first.')).toHaveCount(
+      0,
+    );
+    await expectNoRole(page);
+  }
+
+  // A clicked role is for the colleague chosen at that moment: any change
+  // of the colleague field clears it.
+  await manager
+    .locator('label.radio', { hasText: "Yes, I'm the manager" })
+    .click();
+  await expect(roles(manager).manager).toBeChecked();
+  // Typing in the field: nobody is chosen, so no role can be.
+  await manager.getByPlaceholder('Type a name or email to search…').fill('x');
+  await expect(roles(manager).manager).toBeDisabled();
+  await expectNoRole(manager);
+  // Another colleague: the role wasn't chosen for them.
+  await pickColleague(manager, thirdEmail);
+  await expect(roles(manager).manager).toBeEnabled();
+  await expectNoRole(manager);
+  // The first colleague again: it isn't brought back unasked either.
+  await pickColleague(manager, employeeEmail);
+  await expectNoRole(manager);
+});
+
+/**
+ * Creates an anketa from `creator`'s side (always as the employee; the create
+ * form has no default role) against `counterpartEmail`, `daysAhead` days out, via
  * the real /anketas/new form, and returns its URL. `templateLabel` is the
  * picker's visible label (createAnketa.template* in en.json); omitted, the
  * form's own default ('regular') is left selected. Only the meeting-templates
@@ -1284,10 +1342,13 @@ async function openCreateFormWith(
   counterpartEmail: string,
 ): Promise<void> {
   await page.goto('/anketas/new');
-  await page
-    .getByPlaceholder('Type a name or email to search…')
-    .fill(counterpartEmail);
-  await page.getByRole('button', { name: counterpartEmail }).click();
+  await pickColleague(page, counterpartEmail);
+}
+
+/** Types `email` into the create form's colleague field and picks them. */
+async function pickColleague(page: Page, email: string): Promise<void> {
+  await page.getByPlaceholder('Type a name or email to search…').fill(email);
+  await page.getByRole('button', { name: email }).click();
 }
 
 async function createAnketa(
@@ -3419,6 +3480,11 @@ test("a pair's calendar link follows the chain across cycles", async ({
   ).toHaveValue(
     new RegExp(managerEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
+  // The colleague is preselected; the role isn't, though the pair has a
+  // history (GitHub issue #251).
+  for (const name of ["Yes, I'm the manager", "No, I'm the employee"]) {
+    await expect(employee.getByRole('radio', { name })).not.toBeChecked();
+  }
 
   // A link to a pair the manager isn't part of.
   await manager.goto(

@@ -221,6 +221,7 @@
     "counterpartPlaceholder": "Ierakstiet vārdu vai e-pastu, lai meklētu…",
     "counterpartNoResults": "Netika atrasta neviena atbilstība.",
     "roleLegend": "Vai jūs vadāt šo 1:1 tikšanos kā vadītājs?",
+    "roleNeedsCounterpart": "Vispirms izvēlieties sarunu biedru.",
     "roleManagerOption": "Jā, es esmu vadītājs",
     "roleEmployeeOption": "Nē, es esmu darbinieks",
     "templateLegend": "Tikšanās veids",
