@@ -249,6 +249,7 @@
     "periodicityMonthly": "Monthly",
     "periodicityInherited": "You've met before — this pair's periodicity is already set and carries over.",
     "pairHasOpenAnketa": "This pair already has an open 1:1, so this one is a one-off: nothing is carried over into it, goals and outcomes added here won't carry on to the pair's next meeting, and archiving it won't schedule one. The pair's regular meetings continue in the other 1:1.",
+    "pairOpenAnketaLink": "Open that 1:1 ({date})",
     "pairHasOpenAnketaHowToSwitch": "To use this type for the pair's next regular meeting, choose it as the next meeting type when archiving the current one.",
     "companyTemplatesHeading": "Your company's templates",
     "companyTemplatesCreate": "Create a company template →",

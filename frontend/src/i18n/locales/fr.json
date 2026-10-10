@@ -249,6 +249,7 @@
     "periodicityMonthly": "Chaque mois",
     "periodicityInherited": "Vous vous êtes déjà rencontrés — la périodicité de ce binôme est déjà définie et sera reprise.",
     "pairHasOpenAnketa": "Ce binôme a déjà un 1:1 ouvert : celui-ci sera donc ponctuel. Rien n'y est repris, les objectifs et résultats ajoutés ici ne seront pas reportés à la prochaine réunion du binôme, et l'archiver ne programmera pas de prochaine réunion. Les réunions régulières du binôme continuent dans l'autre 1:1.",
+    "pairOpenAnketaLink": "Ouvrir l'autre 1:1 ({date})",
     "pairHasOpenAnketaHowToSwitch": "Pour utiliser ce type pour la prochaine réunion régulière du binôme, choisissez-le comme type de la prochaine réunion lors de l'archivage de la réunion en cours.",
     "companyTemplatesHeading": "Modèles de votre entreprise",
     "companyTemplatesCreate": "Créer un modèle d'entreprise →",

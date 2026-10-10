@@ -17,6 +17,7 @@
   } from '../crypto/anketaKey';
   import { fromBase64 } from '../crypto/encoding';
   import { ensureUnlocked } from '../crypto/identity.svelte';
+  import { formatDisplayDate } from '../datePreference.svelte';
   import { navigate } from '../router.svelte';
   import { carryForwardOutcomes } from '../anketa/outcomes';
   import { carryForwardTopics } from '../anketa/topics';
@@ -98,7 +99,7 @@
   // help, since that's then an older anketa than the one the server carries from.
   const pairChain = $derived(pairChainState(priorAnketas, counterpartId));
   const previousAnketa = $derived(pairChain.previousAnketa);
-  const pairHasOpenAnketa = $derived(pairChain.openAnketa !== undefined);
+  const openAnketa = $derived(pairChain.openAnketa);
   const inheritedPeriodicityDays = $derived(pairChain.inheritedPeriodicityDays);
 
   // The role options name the colleague (GitHub issue #252): "who leads" is
@@ -209,7 +210,7 @@
     const form = {
       role,
       counterpartId,
-      carryFrom: pairHasOpenAnketa ? undefined : previousAnketa,
+      carryFrom: openAnketa ? undefined : previousAnketa,
       inheritedDays: inheritedPeriodicityDays,
       templateChoice,
       meetingDate,
@@ -472,12 +473,17 @@
         <DateInput id="meeting-date" bind:value={meetingDate} />
       </div>
 
-      {#if counterpartId && pairHasOpenAnketa}
+      {#if openAnketa}
         <p class="text-muted periodicity-note">
           {$_('createAnketa.pairHasOpenAnketa')}
           <!-- For every type, Regular included: a pair on Quick check-ins or
                on a company template stays on it by default. -->
           {$_('createAnketa.pairHasOpenAnketaHowToSwitch')}
+          <a class="open-anketa-link" href="/anketas/{openAnketa.id}"
+            >{$_('createAnketa.pairOpenAnketaLink', {
+              values: { date: formatDisplayDate(openAnketa.meetingDate) },
+            })}</a
+          >
         </p>
       {/if}
 
@@ -509,7 +515,7 @@
             </label>
           </div>
         </fieldset>
-      {:else if counterpartId && !pairHasOpenAnketa}
+      {:else if counterpartId && !openAnketa}
         <p class="text-muted periodicity-note">
           {$_('createAnketa.periodicityInherited')}
         </p>
@@ -650,5 +656,10 @@
   .periodicity-note {
     font-size: 12px;
     margin: 0;
+  }
+
+  .open-anketa-link {
+    display: block;
+    margin-top: 4px;
   }
 </style>

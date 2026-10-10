@@ -249,6 +249,7 @@
     "periodicityMonthly": "Mensualmente",
     "periodicityInherited": "Ya os habéis reunido antes — la periodicidad de esta pareja ya está establecida y se traslada automáticamente.",
     "pairHasOpenAnketa": "Esta pareja ya tiene una reunión 1:1 abierta, así que esta será puntual: no se le traslada nada, los objetivos y acuerdos que se añadan aquí no pasarán a la siguiente reunión de la pareja, y archivarla no programará la siguiente reunión. Las reuniones periódicas de la pareja continúan en la otra reunión 1:1.",
+    "pairOpenAnketaLink": "Abrir esa reunión 1:1 ({date})",
     "pairHasOpenAnketaHowToSwitch": "Para usar este tipo en la siguiente reunión periódica de la pareja, elíjalo como tipo de la siguiente reunión al archivar la actual.",
     "companyTemplatesHeading": "Plantillas de su empresa",
     "companyTemplatesCreate": "Crear una plantilla de la empresa →",
