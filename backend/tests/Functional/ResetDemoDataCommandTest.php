@@ -150,7 +150,8 @@ class ResetDemoDataCommandTest extends ApiTestCase
 
     public function testAnAccountCreatedUnderAnotherIdIsReplaced(): void
     {
-        static::createClient();
+        $client = static::createClient();
+        $outsiderId = $this->activateUser($client, $this->uniqueEmail('demo-outsider'))['id'];
         $fixture = $this->loadFixture()['locales']['en'];
         // What a database looks like after a run of this command from before it set
         // the ids: the demo emails taken, with history, under ids of their own.
@@ -167,8 +168,15 @@ class ResetDemoDataCommandTest extends ApiTestCase
         $oldManager = $this->entityManager()->getRepository(User::class)->find($oldManagerId);
         self::assertNotNull($oldEmployee);
         self::assertNotNull($oldManager);
+        $outsider = $this->entityManager()->getRepository(User::class)->find($outsiderId);
+        self::assertNotNull($outsider);
         $this->entityManager()->persist(new Anketa($oldEmployee, $oldManager, new \DateTimeImmutable(), 'sk-e', 'sk-m', 14));
+        // Whoever holds a demo email under another id may be a real person: their 1:1s
+        // with anyone else are left to the account deletion, not hard-deleted.
+        $withOutsider = new Anketa($oldEmployee, $outsider, new \DateTimeImmutable(), 'sk-e', 'sk-o', 14);
+        $this->entityManager()->persist($withOutsider);
         $this->entityManager()->flush();
+        $withOutsiderId = $withOutsider->getId();
         $this->entityManager()->clear();
 
         $this->runResetDemoDataCommand();
@@ -186,7 +194,11 @@ class ResetDemoDataCommandTest extends ApiTestCase
         $old = $this->entityManager()->getRepository(User::class)->find($oldEmployeeId);
         self::assertNotNull($old, 'deleted like any account: anonymized in place, not removed');
         self::assertNotNull($old->getDeletedAt());
-        self::assertCount(0, $this->entityManager()->getRepository(Anketa::class)->findBy(['employee' => $old]), 'its seeded history must not stay behind');
+        $left = $this->entityManager()->getRepository(Anketa::class)->findBy(['employee' => $old]);
+        self::assertSame([$withOutsiderId], array_map(static fn (Anketa $a) => $a->getId(), $left), 'its seeded history must not stay behind');
+
+        // Not the reset's to clean up, so removed here.
+        $connection->executeStatement('DELETE FROM anketas WHERE id = ?', [$withOutsiderId]);
     }
 
     public function testAnAccountAVisitorDeletedIsRestoredUnderTheSameId(): void
@@ -338,14 +350,7 @@ class ResetDemoDataCommandTest extends ApiTestCase
             $this->entityManager()->persist(new AnketaPrivateNote($anketa, $employee, 'visitor-key', 'visitor-notes'));
             $this->entityManager()->persist(new AnketaPrivateNote($anketa, $manager, 'visitor-key', 'visitor-notes'));
         }
-        // A visitor-made anketa outside the seeded pair (roles swapped), which the reset
-        // doesn't delete. Its notes must still go: the demo keypair is restored every run,
-        // so they'd stay readable to every later visitor.
-        $swapped = new Anketa($manager, $employee, new \DateTimeImmutable('+3 days'), 'sealed-e', 'sealed-m', 30);
-        $this->entityManager()->persist($swapped);
-        $this->entityManager()->persist(new AnketaPrivateNote($swapped, $employee, 'visitor-key', 'visitor-notes'));
         $this->entityManager()->flush();
-        $swappedId = $swapped->getId();
         $this->entityManager()->clear();
 
         $this->runResetDemoDataCommand();
@@ -358,9 +363,93 @@ class ResetDemoDataCommandTest extends ApiTestCase
         self::assertNotNull($employeeAfter);
         self::assertNotNull($managerAfter);
         self::assertCount(3, $this->anketasForPair($employeeAfter, $managerAfter));
+    }
 
-        // Not the reset's to clean up, so removed here to leave the demo pair as seeded.
-        $this->entityManager()->getConnection()->executeStatement('DELETE FROM anketas WHERE id = ?', [$swappedId]);
+    /**
+     * Without foreign keys (SQLite), a notes autosave landing between the reset's notes
+     * delete and its flush leaves a note whose anketa is gone. The next run must remove
+     * it: the demo keypair is restored every run, so every later visitor could read it.
+     */
+    public function testResetRemovesADemoAccountsNoteLeftWithoutItsAnketa(): void
+    {
+        static::createClient();
+        $this->runResetDemoDataCommand();
+
+        $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employee);
+        self::assertNotNull($manager);
+        $gone = new Anketa($employee, $manager, new \DateTimeImmutable('+3 days'), 'sealed-e', 'sealed-m', 30);
+        $this->entityManager()->persist($gone);
+        $this->entityManager()->persist(new AnketaPrivateNote($gone, $employee, 'visitor-key', 'orphaned-notes'));
+        $this->entityManager()->flush();
+        $connection = $this->entityManager()->getConnection();
+        if (0 === $connection->executeStatement('DELETE FROM anketas WHERE id = ?', [$gone->getId()])) {
+            self::markTestSkipped('This database enforces the foreign key, so the note can never outlive its anketa.');
+        }
+        $this->entityManager()->clear();
+
+        $this->runResetDemoDataCommand();
+
+        self::assertSame(0, (int) $connection->fetchOne("SELECT COUNT(*) FROM anketa_private_notes WHERE notesBlob = 'orphaned-notes'"));
+    }
+
+    /**
+     * A visitor can create a 1:1 with any other user of the company, not only with the
+     * demo counterpart. The reset removes it in either role, with its goal and with the
+     * other user's own private notes on it, and leaves that user's other anketas alone.
+     * SQLite here runs without foreign keys, so the order of the deletes is only
+     * checked for real on MySQL — run it there too.
+     */
+    public function testResetRemovesAnAnketaADemoAccountHasWithAnotherUser(): void
+    {
+        $client = static::createClient();
+        $this->runResetDemoDataCommand();
+
+        $otherId = $this->activateUser($client, $this->uniqueEmail('demo-outsider'))['id'];
+        $thirdId = $this->activateUser($client, $this->uniqueEmail('demo-bystander'))['id'];
+        $users = $this->entityManager()->getRepository(User::class);
+        $employee = $users->findOneBy(['email' => 'demo-employee@example.com']);
+        $manager = $users->findOneBy(['email' => 'demo-manager@example.com']);
+        $other = $users->find($otherId);
+        $third = $users->find($thirdId);
+        self::assertNotNull($employee);
+        self::assertNotNull($manager);
+        self::assertNotNull($other);
+        self::assertNotNull($third);
+
+        $asEmployee = new Anketa($employee, $other, new \DateTimeImmutable('+3 days'), 'sealed-e', 'sealed-o', 30);
+        $asManager = new Anketa($other, $manager, new \DateTimeImmutable('+4 days'), 'sealed-o', 'sealed-m', 30);
+        $unrelated = new Anketa($other, $third, new \DateTimeImmutable('+5 days'), 'sealed-o', 'sealed-t', 30);
+        foreach ([$asEmployee, $asManager, $unrelated] as $anketa) {
+            $this->entityManager()->persist($anketa);
+            $this->entityManager()->persist(new AnketaPrivateNote($anketa, $other, 'outsider-key', 'outsider-notes'));
+        }
+        $this->entityManager()->persist(new Goal(Uuid::v7()->toRfc4122(), $asEmployee, $employee, 'Visitor goal', null, null));
+        $this->entityManager()->flush();
+        $visitorMadeIds = [$asEmployee->getId(), $asManager->getId()];
+        $unrelatedId = $unrelated->getId();
+        $this->entityManager()->clear();
+
+        $this->runResetDemoDataCommand();
+
+        $connection = $this->entityManager()->getConnection();
+        foreach ($visitorMadeIds as $id) {
+            self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM anketas WHERE id = ?', [$id]));
+            self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM anketa_private_notes WHERE anketa_id = ?', [$id]));
+            self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM goals WHERE anketa_id = ?', [$id]));
+        }
+        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM anketas WHERE id = ?', [$unrelatedId]));
+        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM anketa_private_notes WHERE anketa_id = ?', [$unrelatedId]));
+        // Not the reset's to clean up, so removed here.
+        $connection->executeStatement('DELETE FROM anketa_private_notes WHERE anketa_id = ?', [$unrelatedId]);
+        $connection->executeStatement('DELETE FROM anketas WHERE id = ?', [$unrelatedId]);
+
+        $employeeAfter = $users->findOneBy(['email' => 'demo-employee@example.com']);
+        $managerAfter = $users->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employeeAfter);
+        self::assertNotNull($managerAfter);
+        self::assertCount(3, $this->anketasForPair($employeeAfter, $managerAfter));
     }
 
     private function runResetDemoDataCommand(): void

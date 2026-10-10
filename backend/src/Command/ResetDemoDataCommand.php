@@ -39,11 +39,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Unlike the single-anketa v1 of this command, every locale's anketas are
  * deleted and recreated from scratch on every run rather than found and
  * updated in place: a demo pair's own history is exclusively owned by this
- * command (no real external data ever references it), so a full teardown +
- * rebuild is both simpler than positional matching across resets (which
+ * command, so a full teardown + rebuild is both simpler than positional matching across resets (which
  * anketa is "cycle 2" after a visitor creates an extra one?) and correctly
  * self-heals from *any* vandalism — extra anketas, deleted rows, edited
- * content — not just content edits to rows that still exist.
+ * content — not just content edits to rows that still exist. "Extra
+ * anketas" includes one a visitor created with anybody else: every anketa
+ * a demo account takes part in is deleted, not only the pair's own, and
+ * with it whatever that other user wrote there (answers, goals, private
+ * notes). A 1:1 with the shared, public demo account lasts until the next
+ * run for either side.
  */
 #[AsCommand(name: 'app:reset-demo-data', description: 'Restore the fixed demo accounts and anketa history to their seeded state')]
 class ResetDemoDataCommand extends Command
@@ -80,7 +84,7 @@ class ResetDemoDataCommand extends Command
             $employee = $this->findOrCreateUser($data['employee']);
             $manager = $this->findOrCreateUser($data['manager']);
 
-            $this->deleteExistingAnketasForPair($employee, $manager);
+            $this->deleteAnketasOf($employee, $manager, betweenThemOnly: false);
 
             $targetDate = $now->modify(sprintf('+%d months', $data['goalTargetDateOffsetMonths']));
 
@@ -164,9 +168,11 @@ class ResetDemoDataCommand extends Command
         }
 
         // The pair's seeded history goes with them, rather than staying behind on an
-        // anonymized account where the next runs would no longer find it.
+        // anonymized account where the next runs would no longer find it. Only what the
+        // two have with each other: whoever holds a demo email under another id may be a
+        // real person, whose other 1:1s are left to the account deletion below.
         if (null !== $employee && null !== $manager) {
-            $this->deleteExistingAnketasForPair($employee, $manager);
+            $this->deleteAnketasOf($employee, $manager, betweenThemOnly: true);
         }
         foreach ($retired as $user) {
             $this->accountDeleter->delete($user);
@@ -214,23 +220,29 @@ class ResetDemoDataCommand extends Command
         return $user;
     }
 
-    /** Deletes Goals and private notes before their Anketas — both this app's own MySQL migration and a real DB's FK constraint require child rows gone first. */
-    private function deleteExistingAnketasForPair(User $employee, User $manager): void
+    /**
+     * Every anketa either demo account takes part in, in either role and with anybody: a
+     * visitor can create a 1:1 with the roles swapped, swap them for the next one at
+     * archive (GitHub issue #254), or create one with any other user of the company.
+     * With $betweenThemOnly, just the ones the two have with each other, either way round.
+     * Deletes Goals and private notes before their Anketas — both this app's own MySQL
+     * migration and a real DB's FK constraint require child rows gone first.
+     */
+    private function deleteAnketasOf(User $employee, User $manager, bool $betweenThemOnly): void
     {
         /** @var Anketa[] $anketas */
         $anketas = $this->entityManager->createQueryBuilder()
             ->select('anketa')
             ->from(Anketa::class, 'anketa')
-            // Either way round: a visitor can create a 1:1 with the roles swapped, or
-            // swap them for the next one at archive (GitHub issue #254).
-            ->where('(anketa.employee = :a AND anketa.manager = :b) OR (anketa.employee = :b AND anketa.manager = :a)')
-            ->setParameter('a', $employee)
-            ->setParameter('b', $manager)
+            ->where($betweenThemOnly
+                ? 'anketa.employee IN (:pair) AND anketa.manager IN (:pair)'
+                : 'anketa.employee IN (:pair) OR anketa.manager IN (:pair)')
+            ->setParameter('pair', [$employee, $manager])
             ->getQuery()
             ->getResult();
 
         if ([] === $anketas) {
-            $this->deletePrivateNotes($employee, $manager);
+            $this->deletePrivateNotes($employee, $manager, []);
 
             return;
         }
@@ -256,7 +268,7 @@ class ResetDemoDataCommand extends Command
         // types, so a note first saved after an earlier SELECT would block the anketa
         // delete on the foreign key. A save landing in the moment between this and the
         // flush still can; the next reset run then succeeds.
-        $this->deletePrivateNotes($employee, $manager);
+        $this->deletePrivateNotes($employee, $manager, $anketas);
 
         // Flushed immediately (not batched with the recreate below) — the new
         // rows this locale is about to get would otherwise collide with the
@@ -265,20 +277,24 @@ class ResetDemoDataCommand extends Command
     }
 
     /**
-     * Every private note (GitHub issue #132) the two demo accounts wrote. That covers the
-     * pair's anketas about to be deleted, whose only possible authors are these two
-     * (AnketaPrivateNote only accepts a participant), and any other anketa, e.g. one a
-     * visitor created with the roles swapped, which the reset doesn't delete. The demo
-     * keypairs are restored every run, so a note surviving the reset would stay
-     * readable to every later visitor.
+     * Every private note (GitHub issue #132) on the anketas about to be deleted, the
+     * other participant's of a visitor-made anketa included, plus every note the two
+     * accounts wrote anywhere. The second part isn't redundant: where there are no
+     * foreign keys (SQLite), an autosave landing between this and the flush leaves a note
+     * whose anketa is gone, and the demo keypairs are restored every run, so it would
+     * stay readable to every later visitor. By author, the next run removes it.
+     *
+     * @param Anketa[] $anketas
      */
-    private function deletePrivateNotes(User $employee, User $manager): void
+    private function deletePrivateNotes(User $employee, User $manager, array $anketas): void
     {
-        $this->entityManager->createQueryBuilder()
+        $delete = $this->entityManager->createQueryBuilder()
             ->delete(AnketaPrivateNote::class, 'note')
             ->where('note.author IN (:authors)')
-            ->setParameter('authors', [$employee, $manager])
-            ->getQuery()
-            ->execute();
+            ->setParameter('authors', [$employee, $manager]);
+        if ([] !== $anketas) {
+            $delete->orWhere('note.anketa IN (:anketas)')->setParameter('anketas', $anketas);
+        }
+        $delete->getQuery()->execute();
     }
 }
