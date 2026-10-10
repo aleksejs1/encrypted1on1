@@ -7,6 +7,7 @@
   import type { CompanyTemplate } from '../api/types';
   import { ANKETA_TEMPLATES, templatePickerKeys } from './questions';
   import {
+    choiceDescription,
     customChoice,
     customTemplateIdOf,
     type TemplateChoice,
@@ -77,6 +78,14 @@
         (template) => customChoice(template.id) === defaultChoice,
       ),
   );
+
+  // What the selected type is, as the create form says under each of its
+  // options: a select can't (GitHub issue #263).
+  const description = $derived(
+    nextTemplateChoice === null
+      ? null
+      : choiceDescription(nextTemplateChoice, companyTemplates),
+  );
 </script>
 
 <section class="card">
@@ -122,6 +131,9 @@
           class="input"
           bind:value={nextTemplateChoice}
           disabled={archiving}
+          aria-describedby={description
+            ? 'next-meeting-type-description'
+            : undefined}
         >
           {#each ANKETA_TEMPLATES as key (key)}
             <option value={key}>{$_(templatePickerKeys(key).labelKey)}</option>
@@ -141,6 +153,16 @@
             </optgroup>
           {/if}
         </select>
+        <!-- A field hint, read out on focus. Not a live region: it would
+             also speak when the company's templates finish loading. -->
+        {#if description}
+          <p
+            id="next-meeting-type-description"
+            class="text-muted archive-template-description"
+          >
+            {'key' in description ? $_(description.key) : description.text}
+          </p>
+        {/if}
       </div>
       {#if templateRetired}
         <p class="text-muted archive-template-retired">
@@ -223,14 +245,31 @@
     margin-bottom: 12px;
   }
 
+  /* The description is wider than the select, so that the longer ones
+     don't run to six lines. */
   .archive-template-field {
-    max-width: 320px;
+    max-width: 480px;
     margin-bottom: 12px;
+  }
+
+  .archive-template-field select {
+    max-width: 320px;
+  }
+
+  .archive-template-description {
+    margin: 6px 0 0;
+    font-size: 12px;
+    overflow-wrap: anywhere;
   }
 
   .archive-template-retired,
   .archive-more {
     margin-bottom: 12px;
+  }
+
+  /* As wide as the description above it. */
+  .archive-template-retired {
+    max-width: 480px;
   }
 
   .archive-more summary {

@@ -4,7 +4,13 @@
  * `custom:<templateId>` for a company template. Split back into the request's
  * separate key and template-id fields only when it's sent.
  */
-import type { AnketaTemplateKey, TemplateKey } from './questions';
+import type { CompanyTemplate } from '../api/types';
+import {
+  ANKETA_TEMPLATES,
+  templatePickerKeys,
+  type AnketaTemplateKey,
+  type TemplateKey,
+} from './questions';
 
 export type TemplateChoice = TemplateKey | `custom:${string}`;
 
@@ -20,6 +26,31 @@ export function customTemplateIdOf(choice: TemplateChoice): string | null {
   return choice.startsWith(CUSTOM_PREFIX)
     ? choice.slice(CUSTOM_PREFIX.length)
     : null;
+}
+
+/**
+ * What a picker shows under `choice` (GitHub issue #263): a built-in
+ * template's description as its i18n key, a company template's as the text
+ * its admin wrote. Null when there's nothing to show: a company template
+ * without a description or missing from `companyTemplates`, or a built-in
+ * key this build doesn't know (a tab older than the server), which mustn't
+ * get the Regular description `templatePickerKeys()` falls back to.
+ */
+export function choiceDescription(
+  choice: TemplateChoice,
+  companyTemplates: CompanyTemplate[],
+): { key: string } | { text: string } | null {
+  const templateId = customTemplateIdOf(choice);
+  if (templateId === null) {
+    const builtIn = ANKETA_TEMPLATES.find((key) => key === choice);
+    return builtIn === undefined
+      ? null
+      : { key: templatePickerKeys(builtIn).descriptionKey };
+  }
+  const text = companyTemplates.find(
+    (template) => template.id === templateId,
+  )?.description;
+  return text ? { text } : null;
 }
 
 /** A create request's template fields for `choice`. */

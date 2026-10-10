@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  choiceDescription,
   customChoice,
   customTemplateIdOf,
   defaultNextChoice,
   nextTemplateFields,
   templateFields,
+  type TemplateChoice,
 } from './templateChoice';
 
 describe('customChoice / customTemplateIdOf', () => {
@@ -17,6 +19,43 @@ describe('customChoice / customTemplateIdOf', () => {
   it('names no company template for a built-in key', () => {
     expect(customTemplateIdOf('regular')).toBeNull();
     expect(customTemplateIdOf('career_growth')).toBeNull();
+  });
+});
+
+describe('choiceDescription', () => {
+  const companyTemplates = [
+    { id: 't1', name: 'Sprint review', description: 'After every sprint.' },
+    { id: 't2', name: 'No description', description: '' },
+  ];
+
+  it("is a built-in template's description key", () => {
+    expect(choiceDescription('regular', companyTemplates)).toEqual({
+      key: 'createAnketa.templateRegularDescription',
+    });
+    expect(choiceDescription('career_growth', [])).toEqual({
+      key: 'createAnketa.templateCareerGrowthDescription',
+    });
+  });
+
+  it("is nothing for a built-in key this build doesn't know", () => {
+    expect(
+      choiceDescription('from_a_newer_server' as TemplateChoice, []),
+    ).toBeNull();
+  });
+
+  it("is a company template's own text", () => {
+    expect(choiceDescription(customChoice('t1'), companyTemplates)).toEqual({
+      text: 'After every sprint.',
+    });
+  });
+
+  it('is nothing for a company template without a description', () => {
+    expect(choiceDescription(customChoice('t2'), companyTemplates)).toBeNull();
+  });
+
+  it('is nothing for a company template missing from the list', () => {
+    expect(choiceDescription(customChoice('t3'), companyTemplates)).toBeNull();
+    expect(choiceDescription(customChoice('t1'), [])).toBeNull();
   });
 });
 
