@@ -1938,6 +1938,13 @@ function swapRolesCheckbox(page: Page) {
   return page.getByRole('checkbox', { name: 'Swap roles in the next 1:1' });
 }
 
+/** Opens the archive form's "More options", where the swap checkbox is. */
+async function openArchiveMoreOptions(page: Page): Promise<void> {
+  await expect(swapRolesCheckbox(page)).toBeHidden();
+  await page.getByText('More options', { exact: true }).click();
+  await expect(swapRolesCheckbox(page)).toBeVisible();
+}
+
 const EMPLOYEE_ONLY_HEADING = 'Feelings';
 const MANAGER_ONLY_HEADING = 'How did the period go since the last meeting';
 
@@ -1998,15 +2005,21 @@ test('swapping roles at archive gives each side the other role in the next 1:1',
   const anketaUrl = await createAnketa(employee, managerEmail, 3);
   await expectRegularQuestionsOnMySide(employee, 'employee');
 
-  // Unticked by default, with nothing said about roles.
+  // Out of the way under "More options", unticked, with nothing said about
+  // roles.
   const swap = swapRolesCheckbox(employee);
   const result = employee.locator('#swap-roles-result');
-  await expect(swap).not.toBeChecked();
   await expect(result).toBeEmpty();
+  await openArchiveMoreOptions(employee);
+  await expect(swap).not.toBeChecked();
   await swap.check({ force: true });
   await expect(result).toHaveText(
     /^In the next 1:1 you answer as the manager and .+ answers as the employee\.$/,
   );
+  // Collapsing the block hides the checkbox, never what it will do.
+  await employee.getByText('More options', { exact: true }).click();
+  await expect(swap).toBeHidden();
+  await expect(result).toBeVisible();
   // No next 1:1, nothing to swap.
   const skip = employee.getByRole('checkbox', {
     name: "Don't create the next meeting",
@@ -2015,8 +2028,9 @@ test('swapping roles at archive gives each side the other role in the next 1:1',
   await expect(swap).toHaveCount(0);
   // And a tick that went out of sight doesn't come back with the checkbox.
   await skip.uncheck({ force: true });
-  await expect(swap).not.toBeChecked();
   await expect(result).toBeEmpty();
+  await openArchiveMoreOptions(employee);
+  await expect(swap).not.toBeChecked();
   await swap.check({ force: true });
 
   const archiveRequest = employee.waitForRequest((request) =>
@@ -2049,12 +2063,14 @@ test('swapping roles at archive gives each side the other role in the next 1:1',
 
   // The one who is the employee now is offered the same: to lead the next.
   const managerSwap = swapRolesCheckbox(manager);
+  await openArchiveMoreOptions(manager);
   await managerSwap.check({ force: true });
   await expect(manager.locator('#swap-roles-result')).toHaveText(
     /^In the next 1:1 you answer as the manager and .+ answers as the employee\.$/,
   );
   // The tick is never stored: a fresh load of the page has none.
   await manager.reload();
+  await openArchiveMoreOptions(manager);
   await expect(managerSwap).not.toBeChecked();
   // An untouched form sends no flag and no swap is announced, so the 1:1
   // after this one inherits the swapped roles.
@@ -2092,6 +2108,7 @@ test('"Didn\'t happen" with the roles swapped creates the next 1:1 the other way
   const anketaUrl = await createAnketa(employee, managerEmail, -3);
   await manager.goto(anketaUrl);
   await expectRegularQuestionsOnMySide(manager, 'manager');
+  await openArchiveMoreOptions(manager);
   await swapRolesCheckbox(manager).check({ force: true });
   await expect(manager.locator('#swap-roles-result')).toHaveText(
     /^In the next 1:1 .+ answers as the manager and you answer as the employee\.$/,

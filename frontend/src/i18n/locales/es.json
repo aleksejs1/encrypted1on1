@@ -341,6 +341,7 @@
     "nextMeetingTypeSameTemplate": "La misma plantilla que ahora",
     "nextMeetingTypeCompanyTemplates": "Plantillas de su empresa",
     "templateRetired": "Su administrador retiró esta plantilla: la próxima reunión será una revisión habitual, salvo que elija otro tipo.",
+    "archiveMoreOptions": "Más opciones",
     "swapRolesNext": "Intercambiar los roles en la siguiente reunión 1:1",
     "swapRolesResultMeManager": "En la siguiente reunión 1:1 usted responde como responsable; {name} responde como empleado.",
     "swapRolesResultMeEmployee": "En la siguiente reunión 1:1 {name} responde como responsable; usted responde como empleado.",

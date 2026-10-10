@@ -147,20 +147,26 @@
           {$_('anketa.templateRetired')}
         </p>
       {/if}
-      <div class="archive-swap-roles">
-        <label class="radio">
-          <input
-            type="checkbox"
-            class="native-checkbox"
-            bind:checked={swapRolesNext}
-            disabled={archiving}
-          />
-          {$_('anketa.swapRolesNext')}
-        </label>
-        <!-- The result, not who holds which role now. A live region, there
-             whenever the checkbox is, not the checkbox's description: the
-             text appears after the checkbox got focus, when a description
-             is no longer read out. -->
+      <div class="archive-more">
+        <!-- Collapsed: the swap is for a pair whose roles were set wrong,
+             once, not a choice to weigh at every archive. -->
+        <details>
+          <summary class="text-muted">{$_('anketa.archiveMoreOptions')}</summary
+          >
+          <label class="radio archive-swap-roles">
+            <input
+              type="checkbox"
+              class="native-checkbox"
+              bind:checked={swapRolesNext}
+              disabled={archiving}
+            />
+            {$_('anketa.swapRolesNext')}
+          </label>
+        </details>
+        <!-- The result, not who holds which role now. Outside the collapsed
+             block, so a tick is never out of sight. A live region, not the
+             checkbox's description: the text appears after the checkbox
+             got focus, when a description is no longer read out. -->
         <p
           id="swap-roles-result"
           class="text-muted swap-roles-result"
@@ -223,8 +229,18 @@
   }
 
   .archive-template-retired,
-  .archive-swap-roles {
+  .archive-more {
     margin-bottom: 12px;
+  }
+
+  .archive-more summary {
+    cursor: pointer;
+    font-size: 12px;
+    width: fit-content;
+  }
+
+  .archive-swap-roles {
+    margin-top: 8px;
   }
 
   .swap-roles-result {
