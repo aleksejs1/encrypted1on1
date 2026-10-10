@@ -29,13 +29,14 @@
     type TemplateChoice,
   } from '../anketa/templateChoice';
   import { PATHS } from '../routes';
-  import { pairChainState } from '../anketa/pairChain';
+  import { pairChainState, pairRole } from '../anketa/pairChain';
   import {
     setJustCreated,
     takeCreateAnother,
     takeCreateWith,
   } from '../anketa/createDefaults';
   import type { Side } from '../anketa/questions';
+  import { fullDisplayName } from '../userDisplay';
   import UserTypeahead from '../anketa/UserTypeahead.svelte';
   import DateInput from '../design/DateInput.svelte';
 
@@ -100,15 +101,38 @@
   const pairHasOpenAnketa = $derived(pairChain.openAnketa !== undefined);
   const inheritedPeriodicityDays = $derived(pairChain.inheritedPeriodicityDays);
 
+  // The role options name the colleague (GitHub issue #252): "who leads" is
+  // easier to get right about a person than about "the manager".
+  const counterpartName = $derived.by(() => {
+    const counterpart = users.find((u) => u.id === counterpartId);
+    return counterpart
+      ? fullDisplayName(counterpart.displayName, counterpart.email)
+      : null;
+  });
+  // Shown as a line of fact under the matching card. It never selects one:
+  // for a pair whose roles are the wrong way round, "same as last time"
+  // would repeat the mistake.
+  const lastRole = $derived(pairRole(priorAnketas, counterpartId));
+
   // Recent counterparts (from this user's own anketa history) surface at the top of the
   // typeahead's suggestion list, per the spec — no full-company-list scrolling every time.
   const sortedUsers = $derived(sortByRecentCounterparts(users, priorAnketas));
 
+  // What the disabled "Create 1:1" is waiting for once there is a colleague
+  // (before that, the role group says so), one thing at a time, in the
+  // order of the form.
+  const missingKey = $derived(
+    counterpartId === ''
+      ? null
+      : myRole === null
+        ? 'createAnketa.missingRole'
+        : meetingDate === ''
+          ? 'createAnketa.missingDate'
+          : null,
+  );
+
   const canSubmit = $derived(
-    counterpartId !== '' &&
-      myRole !== null &&
-      meetingDate !== '' &&
-      !submitting,
+    counterpartId !== '' && missingKey === null && !submitting,
   );
 
   // The typeahead also calls this with '' as soon as the user types again.
@@ -147,12 +171,7 @@
         // A company template kept by "Create another" that isn't in the
         // picker (archived since, or the list couldn't be loaded) can't stay
         // chosen unseen.
-        if (
-          customTemplateIdOf(templateChoice) !== null &&
-          !templates?.some((t) => customChoice(t.id) === templateChoice)
-        ) {
-          templateChoice = 'regular';
-        }
+        if (!isOffered(templateChoice, templates)) templateChoice = 'regular';
       })
       .catch((error: unknown) => {
         if (isAbortError(error)) return;
@@ -162,6 +181,17 @@
             : $_('createAnketa.errorLoad');
       });
   });
+
+  /** Whether the picker has a radio for `choice`: any built-in, or a listed company template. */
+  function isOffered(
+    choice: TemplateChoice,
+    templates: CompanyTemplate[] | null,
+  ): boolean {
+    return (
+      customTemplateIdOf(choice) === null ||
+      (templates?.some((t) => customChoice(t.id) === choice) ?? false)
+    );
+  }
 
   /** The company templates, or null (never a rejection) if they can't be loaded. */
   function loadCompanyTemplates(): Promise<CompanyTemplate[] | null> {
@@ -278,8 +308,12 @@
         (error.body as { code?: string } | null)?.code ===
           'template_unavailable'
       ) {
+        // At once, not after the reload below, and whatever that returns.
         if (templateChoice === form.templateChoice) templateChoice = 'regular';
-        companyTemplates = await loadCompanyTemplates();
+        const templates = await loadCompanyTemplates();
+        companyTemplates = templates;
+        // One chosen while the request or the reload ran may be gone too.
+        if (!isOffered(templateChoice, templates)) templateChoice = 'regular';
       }
     } finally {
       submitting = false;
@@ -310,19 +344,63 @@
         aria-describedby={counterpartId === '' ? 'role-needs-colleague' : null}
       >
         <legend>{$_('createAnketa.roleLegend')}</legend>
-        <div class="radio-row">
-          <label class="radio">
-            <input type="radio" bind:group={myRole} value="manager" /><span
-              class="dot"
-            ></span>
-            {$_('createAnketa.roleManagerOption')}
-          </label>
-          <label class="radio">
-            <input type="radio" bind:group={myRole} value="employee" /><span
-              class="dot"
-            ></span>
-            {$_('createAnketa.roleEmployeeOption')}
-          </label>
+        <div class="option-list">
+          <div class="option">
+            <label class="radio">
+              <input
+                type="radio"
+                bind:group={myRole}
+                value="manager"
+                aria-describedby="role-manager-about"
+              /><span class="dot"></span>
+              {$_('createAnketa.roleManagerOption')}
+            </label>
+            <div id="role-manager-about">
+              {#if counterpartName !== null}
+                <p class="text-muted option-description">
+                  {$_('createAnketa.roleManagerDescription', {
+                    values: { name: counterpartName },
+                  })}
+                </p>
+              {/if}
+              {#if lastRole === 'manager'}
+                <p class="option-description">
+                  {$_('createAnketa.roleLastManager')}
+                </p>
+              {/if}
+            </div>
+          </div>
+          <div class="option">
+            <label class="radio">
+              <input
+                type="radio"
+                bind:group={myRole}
+                value="employee"
+                aria-describedby="role-employee-about"
+              /><span class="dot"></span>
+              <span class="option-name">
+                {counterpartName === null
+                  ? $_('createAnketa.roleEmployeeOptionNoName')
+                  : $_('createAnketa.roleEmployeeOption', {
+                      values: { name: counterpartName },
+                    })}
+              </span>
+            </label>
+            <div id="role-employee-about">
+              {#if counterpartName !== null}
+                <p class="text-muted option-description">
+                  {$_('createAnketa.roleEmployeeDescription', {
+                    values: { name: counterpartName },
+                  })}
+                </p>
+              {/if}
+              {#if lastRole === 'employee'}
+                <p class="option-description">
+                  {$_('createAnketa.roleLastEmployee')}
+                </p>
+              {/if}
+            </div>
+          </div>
         </div>
         {#if counterpartId === ''}
           <p class="text-muted role-hint" id="role-needs-colleague">
@@ -333,10 +411,10 @@
 
       <fieldset class="card">
         <legend>{$_('createAnketa.templateLegend')}</legend>
-        <div class="template-options">
+        <div class="option-list">
           {#each ANKETA_TEMPLATES as key (key)}
             {@const pickerKeys = templatePickerKeys(key)}
-            <div class="template-option">
+            <div class="option">
               <label class="radio">
                 <input
                   type="radio"
@@ -345,7 +423,7 @@
                 /><span class="dot"></span>
                 {$_(pickerKeys.labelKey)}
               </label>
-              <p class="text-muted template-description">
+              <p class="text-muted option-description">
                 {$_(pickerKeys.descriptionKey)}
               </p>
             </div>
@@ -366,9 +444,9 @@
               </p>
             {/if}
           {:else}
-            <div class="template-options">
+            <div class="option-list">
               {#each companyTemplates as template (template.id)}
-                <div class="template-option">
+                <div class="option">
                   <label class="radio">
                     <input
                       type="radio"
@@ -378,7 +456,7 @@
                     <span class="template-name">{template.name}</span>
                   </label>
                   {#if template.description}
-                    <p class="text-muted template-description">
+                    <p class="text-muted option-description">
                       {template.description}
                     </p>
                   {/if}
@@ -441,13 +519,28 @@
         <p class="banner-error">{submitError}</p>
       {/if}
 
-      <button
-        type="submit"
-        class="btn btn-primary btn-block"
-        disabled={!canSubmit}
-      >
-        {submitting ? $_('createAnketa.submitting') : $_('createAnketa.submit')}
-      </button>
+      <div class="submit">
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          disabled={!canSubmit}
+        >
+          {submitting
+            ? $_('createAnketa.submitting')
+            : $_('createAnketa.submit')}
+        </button>
+        <!-- A disabled button is skipped by Tab, so what is still missing
+             is said here, where it is announced as the form is filled in.
+             Always in the DOM and never display:none, like
+             ConnectionBanner's live region. -->
+        <p
+          class="text-muted missing"
+          class:shown={missingKey !== null && !submitting}
+          role="status"
+        >
+          {#if missingKey !== null && !submitting}{$_(missingKey)}{/if}
+        </p>
+      </div>
     </form>
   {/if}
 </main>
@@ -507,13 +600,13 @@
     flex-wrap: wrap;
   }
 
-  .template-options {
+  .option-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .template-option {
+  .option {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -532,15 +625,26 @@
   }
 
   .template-name,
-  .template-description {
+  .option-name,
+  .option-description {
     overflow-wrap: anywhere;
   }
 
-  .template-description {
+  .option-description {
     /* Lines up under the radio label text, past the 16px dot + 8px gap
        components.css's .radio already uses. */
     margin: 0 0 0 24px;
     font-size: 12px;
+  }
+
+  .missing {
+    font-size: 12px;
+    margin: 0;
+    text-align: center;
+  }
+
+  .missing.shown {
+    margin-top: 8px;
   }
 
   .periodicity-note {

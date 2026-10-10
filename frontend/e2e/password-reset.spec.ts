@@ -56,9 +56,7 @@ test('password reset issues a new keypair; counterpart re-share restores anketa 
   );
   await counterpartInput.fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);

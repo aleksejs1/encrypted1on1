@@ -150,9 +150,7 @@ test('a remembered browser opens a meeting after a restart without the password'
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await page.getByRole('button', { name: managerEmail }).click();
-  await page
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await page.locator('label.radio', { hasText: 'leads this 1:1' }).click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
   // DateInput is a DD.MM.YYYY text field that only parses on blur — see

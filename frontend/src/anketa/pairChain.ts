@@ -1,4 +1,5 @@
 import type { AnketaSummary } from '../api/types';
+import type { Side } from './questions';
 
 type PairAnketaSummary = Pick<
   AnketaSummary,
@@ -17,6 +18,17 @@ export interface PairChainState<T extends PairAnketaSummary> {
   openAnketa: T | undefined;
   /** What the server will inherit, or null when it has nothing and needs asking. */
   inheritedPeriodicityDays: number | null;
+}
+
+/** Earliest first; UUIDv7 ids sort by creation time. */
+function byMeetingDateThenId(
+  a: Pick<AnketaSummary, 'id' | 'meetingDate'>,
+  b: Pick<AnketaSummary, 'id' | 'meetingDate'>,
+): number {
+  return (
+    Date.parse(a.meetingDate) - Date.parse(b.meetingDate) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
 }
 
 /**
@@ -38,11 +50,7 @@ export function pairChainState<T extends PairAnketaSummary>(
   // the list's own tie order.
   const chain = priorAnketas
     .filter((a) => a.counterpartId === counterpartId && !a.oneOff)
-    .sort(
-      (a, b) =>
-        Date.parse(a.meetingDate) - Date.parse(b.meetingDate) ||
-        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-    );
+    .sort(byMeetingDateThenId);
   // The latest archived one (findMostRecentArchivedForPair()), and the earliest open
   // one (findOpenForPair() — only ambiguous for a pair that forked before issue #111's fix).
   const previousAnketa = chain.findLast((a) => a.archivedAt !== null);
@@ -95,4 +103,24 @@ export function pairCounterpartId(
   if (a === myUserId) return b;
   if (b === myUserId) return a;
   return null;
+}
+
+/**
+ * My role in the pair's most recent meeting, open or archived, or null for a
+ * new pair. One-offs count too: the role is the same person's either way.
+ * Shown on the create form as a fact about the pair (GitHub issue #252),
+ * never used to select a role (#251).
+ */
+export function pairRole(
+  priorAnketas: Pick<
+    AnketaSummary,
+    'id' | 'counterpartId' | 'meetingDate' | 'myRole'
+  >[],
+  counterpartId: string,
+): Side | null {
+  const latest = priorAnketas
+    .filter((a) => a.counterpartId === counterpartId)
+    .sort(byMeetingDateThenId)
+    .at(-1);
+  return latest?.myRole ?? null;
 }

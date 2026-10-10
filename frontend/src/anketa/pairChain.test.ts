@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { pairChainState, pairCounterpartId, pairMeeting } from './pairChain';
+import {
+  pairChainState,
+  pairCounterpartId,
+  pairMeeting,
+  pairRole,
+} from './pairChain';
+import type { Side } from './questions';
 
 function anketa(
   id: string,
@@ -207,5 +213,69 @@ describe('pairCounterpartId', () => {
   it("is null for a pair I'm not part of, or one of me alone", () => {
     expect(pairCounterpartId(['bob', 'carol'], 'me')).toBeNull();
     expect(pairCounterpartId(['me', 'me'], 'me')).toBeNull();
+  });
+});
+
+describe('pairRole', () => {
+  function withRole(
+    id: string,
+    myRole: Side,
+    overrides: Partial<{ counterpartId: string; meetingDate: string }> = {},
+  ) {
+    return {
+      id,
+      myRole,
+      counterpartId: 'bob',
+      meetingDate: '2026-01-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('is null for a pair with no meetings', () => {
+    expect(pairRole([], 'bob')).toBeNull();
+    expect(
+      pairRole([withRole('a', 'manager', { counterpartId: 'carol' })], 'bob'),
+    ).toBeNull();
+    expect(pairRole([withRole('a', 'manager')], '')).toBeNull();
+  });
+
+  it("is the role from the pair's most recent meeting, whatever the list order", () => {
+    const older = withRole('a', 'employee');
+    const newer = withRole('b', 'manager', {
+      meetingDate: '2026-02-01T00:00:00Z',
+    });
+    expect(pairRole([older, newer], 'bob')).toBe('manager');
+    expect(pairRole([newer, older], 'bob')).toBe('manager');
+  });
+
+  it('breaks a meeting-date tie by the later id', () => {
+    const first = withRole('a', 'employee');
+    const second = withRole('b', 'manager');
+    expect(pairRole([first, second], 'bob')).toBe('manager');
+    expect(pairRole([second, first], 'bob')).toBe('manager');
+  });
+
+  it('counts a one-off meeting like any other', () => {
+    const chain = withRole('a', 'employee');
+    const oneOff = {
+      ...withRole('b', 'manager', { meetingDate: '2026-02-01T00:00:00Z' }),
+      oneOff: true,
+    };
+    expect(pairRole([chain, oneOff], 'bob')).toBe('manager');
+  });
+
+  it("ignores other pairs' meetings", () => {
+    expect(
+      pairRole(
+        [
+          withRole('a', 'employee'),
+          withRole('b', 'manager', {
+            counterpartId: 'carol',
+            meetingDate: '2026-03-01T00:00:00Z',
+          }),
+        ],
+        'bob',
+      ),
+    ).toBe('employee');
   });
 });

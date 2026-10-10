@@ -164,17 +164,15 @@ test('employee and manager complete an anketa across two independent sessions', 
   // No role is preselected (GitHub issues #198, #251), and the form can't be
   // submitted without one.
   const employeeRole = employee.getByRole('radio', {
-    name: "No, I'm the employee",
+    name: 'leads this 1:1',
   });
   const createButton = employee.getByRole('button', { name: 'Create 1:1' });
   await expect(employeeRole).not.toBeChecked();
   await expect(
-    employee.getByRole('radio', { name: "Yes, I'm the manager" }),
+    employee.getByRole('radio', { name: 'I lead this 1:1' }),
   ).not.toBeChecked();
   await expect(createButton).toBeDisabled();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
   await createButton.click();
   await employee.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   const anketaUrl = employee.url();
@@ -404,9 +402,7 @@ test('achievements list entry can be edited in place, and the edit survives publ
   const manager = await activate(browser, managerToken);
 
   await openCreateFormWith(employee, managerEmail);
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -545,9 +541,7 @@ test('participant can change the meeting date on an upcoming (non-overdue) anket
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -630,9 +624,7 @@ test("the follow-up email's links land on the archive form and the reschedule fi
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() - 2);
   const dd = String(meetingDate.getDate()).padStart(2, '0');
@@ -718,9 +710,7 @@ test('published answer edits and new comments appear on an already-open tab with
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -835,9 +825,7 @@ test('counterpart archiving mid-edit exits edit mode on an already-open tab with
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -1040,9 +1028,7 @@ test('counterpart archiving an anketa the other side never published on disables
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   const meetingDate = new Date();
   meetingDate.setDate(meetingDate.getDate() + 3);
@@ -1278,8 +1264,8 @@ test('the create form never preselects a role, and changing the colleague clears
   await createAnketa(employee, managerEmail, 3);
 
   const roles = (page: Page) => ({
-    manager: page.getByRole('radio', { name: "Yes, I'm the manager" }),
-    employee: page.getByRole('radio', { name: "No, I'm the employee" }),
+    manager: page.getByRole('radio', { name: 'I lead this 1:1' }),
+    employee: page.getByRole('radio', { name: 'leads this 1:1' }),
   });
   const expectNoRole = async (page: Page) => {
     await expect(roles(page).manager).not.toBeChecked();
@@ -1289,15 +1275,19 @@ test('the create form never preselects a role, and changing the colleague clears
     ).toBeDisabled();
   };
 
-  for (const [page, colleagueEmail] of [
-    [employee, managerEmail],
-    [manager, employeeEmail],
+  for (const [page, colleagueEmail, lastRole] of [
+    [employee, managerEmail, 'employee'],
+    [manager, employeeEmail, 'manager'],
   ] as const) {
     // No colleague yet: a role can't be chosen for nobody.
     await page.goto('/anketas/new');
     await expect(roles(page).manager).toBeDisabled();
     await expect(roles(page).employee).toBeDisabled();
     await expect(page.getByText('Choose the counterpart first.')).toBeVisible();
+    await expect(
+      page.getByRole('radio', { name: 'The counterpart leads this 1:1' }),
+    ).toBeDisabled();
+    await expect(page.locator('form [role="status"]')).toBeEmpty();
     await expectNoRole(page);
     // A colleague this user has met before: still nothing selected.
     await pickColleague(page, colleagueEmail);
@@ -1305,15 +1295,44 @@ test('the create form never preselects a role, and changing the colleague clears
     await expect(page.getByText('Choose the counterpart first.')).toHaveCount(
       0,
     );
+    // The options name the colleague (GitHub issue #252); an account with no
+    // display name shows as its email.
+    await expect(
+      page.getByRole('radio', { name: `${colleagueEmail} leads this 1:1` }),
+    ).toBeEnabled();
+    await expect(
+      page.getByText(
+        `I answer as the manager, ${colleagueEmail} answers as the employee.`,
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        `${colleagueEmail} answers as the manager, I answer as the employee.`,
+      ),
+    ).toBeVisible();
+    // The pair has a 1:1: my role in it is stated under that role's
+    // option, and selects nothing.
+    await expect(
+      page
+        .locator(`#role-${lastRole}-about`)
+        .getByText(`Your role in your most recent 1:1 together: ${lastRole}.`),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/^Your role in your most recent 1:1/),
+    ).toHaveCount(1);
+    await expect(page.locator('form [role="status"]')).toHaveText(
+      'Choose who leads this 1:1.',
+    );
     await expectNoRole(page);
   }
 
   // A clicked role is for the colleague chosen at that moment: any change
   // of the colleague field clears it.
-  await manager
-    .locator('label.radio', { hasText: "Yes, I'm the manager" })
-    .click();
+  await manager.locator('label.radio', { hasText: 'I lead this 1:1' }).click();
   await expect(roles(manager).manager).toBeChecked();
+  await expect(manager.locator('form [role="status"]')).toHaveText(
+    'Choose the meeting date.',
+  );
   // Typing in the field: nobody is chosen, so no role can be.
   await manager.getByPlaceholder('Type a name or email to search…').fill('x');
   await expect(roles(manager).manager).toBeDisabled();
@@ -1321,6 +1340,10 @@ test('the create form never preselects a role, and changing the colleague clears
   // Another colleague: the role wasn't chosen for them.
   await pickColleague(manager, thirdEmail);
   await expect(roles(manager).manager).toBeEnabled();
+  // A new pair has no 1:1 to mention.
+  await expect(
+    manager.getByText(/^Your role in your most recent 1:1/),
+  ).toHaveCount(0);
   await expectNoRole(manager);
   // The first colleague again: it isn't brought back unasked either.
   await pickColleague(manager, employeeEmail);
@@ -1358,9 +1381,7 @@ async function createAnketa(
   templateLabel?: string,
 ): Promise<string> {
   await openCreateFormWith(creator, counterpartEmail);
-  await creator
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await creator.locator('label.radio', { hasText: 'leads this 1:1' }).click();
 
   if (templateLabel) {
     // Clicks the wrapping <label>, the way a real user picks it: the native
@@ -1379,6 +1400,8 @@ async function createAnketa(
   const meetingDateInput = creator.locator('#meeting-date');
   await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
   await meetingDateInput.blur();
+  // Nothing is missing any more, and the line under the button says so.
+  await expect(creator.locator('form [role="status"]')).toBeEmpty();
   await creator.getByRole('button', { name: 'Create 1:1' }).click();
   await creator.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return creator.url();
@@ -1592,9 +1615,7 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
     .getByPlaceholder('Type a name or email to search…')
     .fill(managerEmail);
   await employee.getByRole('button', { name: managerEmail }).click();
-  await employee
-    .locator('label.radio', { hasText: "No, I'm the employee" })
-    .click();
+  await employee.locator('label.radio', { hasText: 'leads this 1:1' }).click();
   await expect(
     employee.getByText('This pair already has an open 1:1'),
   ).toBeVisible();
@@ -3482,7 +3503,7 @@ test("a pair's calendar link follows the chain across cycles", async ({
   );
   // The colleague is preselected; the role isn't, though the pair has a
   // history (GitHub issue #251).
-  for (const name of ["Yes, I'm the manager", "No, I'm the employee"]) {
+  for (const name of ['I lead this 1:1', 'leads this 1:1']) {
     await expect(employee.getByRole('radio', { name })).not.toBeChecked();
   }
 

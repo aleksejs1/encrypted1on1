@@ -14,6 +14,9 @@ default role for a first-time user, but it did preselect one from two other plac
 - **The role in the pair's latest meeting.** Sensible for a pair whose roles are right, but for
   a pair with one inverted meeting it preselected the inverted role again.
 
+The question itself was abstract too: "Are you leading this 1:1 as the manager? Yes / No" named
+nobody, so it was easy to answer for the wrong person. See "Role cards with names" below.
+
 A preselected radio is easy not to notice, and the mistake doesn't stay in one meeting: every
 next 1:1 of the pair is created at archive with the roles of the one before.
 
@@ -25,7 +28,8 @@ is chosen ([GitHub issue #251](https://github.com/aleksejs1/encrypted1on1/issues
 part of #250). A role is a statement about one pair, so it is chosen for that pair.
 
 - `readLastRole()`, `rememberLastRole()`, `defaultRole()` and `pairRole()` are deleted from
-  `frontend/src/anketa/createDefaults.ts`, with the form's `rolePicked` flag that kept a default
+  `frontend/src/anketa/createDefaults.ts` (`pairRole()` came back in #252 for the caption
+  below, in `pairChain.ts`), with the form's `rolePicked` flag that kept a default
   from overriding a click. This reverses the two defaults above, which #198 had introduced.
 - **"Create another 1:1 with the same settings" no longer carries the role** (it keeps the
   meeting type and periodicity). #251 as written kept it, as the one exception. Review showed
@@ -63,10 +67,51 @@ The timer wasn't cancelled when the field was focused again, so choosing two col
 quick succession closed the list just reopened. Found by this change's e2e scenario and fixed.
 
 The cost is one more click per 1:1 created by hand, also for a manager setting up a whole team
-through "Create another", and, until #252 shows the pair's last role as a fact, nothing on the
-form of an established pair says which way round they were: a pair restarting its chain by hand
-(after "Don't create the next meeting", or through the pair link) can now pick the wrong role
-where the history default would have picked the right one.
+through "Create another". With #251 alone nothing on the form of an established pair said which
+way round they were; the caption below is the answer to that.
+
+## Role cards with names
+
+[GitHub issue #252](https://github.com/aleksejs1/encrypted1on1/issues/252), the second part of
+#250. The Yes / No radios became two options of the same radio group, under "Who leads this
+1:1?":
+
+- "I lead this 1:1": "I answer as the manager, {colleague} answers as the employee."
+- "{colleague} leads this 1:1": "{colleague} answers as the manager, I answer as the employee."
+
+Points that were decided:
+
+- **The text says who has which role, not which questions each gets.** It has to be right for
+  every meeting type, company templates included.
+- **Before a colleague is chosen** the options are shown disabled, as in #251, with "The
+  counterpart leads this 1:1" and no descriptions. Hiding them would hide that a role is asked
+  at all.
+- **A pair with a 1:1 gets one line of fact** under the option matching my role in their
+  latest meeting: "Your role in your most recent 1:1 together: employee." It is `pairRole()`
+  in `frontend/src/anketa/pairChain.ts` (latest by meeting date then id, one-offs included,
+  open or archived, hence no verb: that meeting may be over, open or still ahead). A one-off
+  dated after the chain's meetings is therefore the one quoted. It selects
+  nothing and isn't worded as "same as before": for an inverted pair that would push toward
+  the wrong role again.
+- **Only the colleague is named.** The issue also put my own name in "I lead this 1:1 (…)";
+  it added a second way of building an option's text and a no-name variant in 6 locales for
+  the moment before the page has loaded, and "I" is already unambiguous.
+- **The name is the display name, with the email only as its fallback.** Two colleagues with
+  the same display name look the same in the options; the colleague field just above still
+  shows the chosen one's email.
+- **They are plain radios with a description**, laid out like the meeting-type picker on the
+  same form, not a new card component.
+- **What "Create 1:1" is waiting for is said under it** once a colleague is chosen (the role,
+  then the date), in a `role="status"` line, so it is announced as the form is filled in.
+  With no role ever preselected, a disabled button is now everyone's first sight of the form.
+  Before a colleague is chosen the role group's own "choose the counterpart first" line says
+  it. Each radio is also described (`aria-describedby`) by the lines under it, which a
+  screen reader in forms mode would otherwise skip.
+
+A `code-review` pass over #251 after its merge found one regression in it, fixed here: after a
+`template_unavailable` answer, a company template chosen while the request was in flight was
+kept without checking it against the reloaded list (`isOffered()` in `CreateAnketa.svelte` now
+serves both that path and the mount-time one).
 
 ## Alternatives considered
 
@@ -87,3 +132,7 @@ would have selected a role there (the device one for the creator, the history on
 clicked role is gone as soon as the colleague field is typed in, for a third person, and for the
 first colleague chosen again. "Create another" opens with no role, and the pair link's "Schedule
 the next one" opens with the colleague chosen and no role.
+
+For #252 the same scenario checks the options' names and descriptions for both participants, the
+caption under the right option for a pair with history and its absence for a new pair, and the
+"what is missing" line. `pairRole()` has unit tests in `pairChain.test.ts`.
