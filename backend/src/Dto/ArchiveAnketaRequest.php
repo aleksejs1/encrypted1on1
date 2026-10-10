@@ -43,6 +43,11 @@ readonly class ArchiveAnketaRequest
         // only for it; resolved to its current version by AnketaController::archive().
         #[Assert\Type('string')]
         public ?string $nextCustomTemplateId = null,
+        // Creates the successor with the two roles swapped (GitHub issue #254): the way
+        // to fix a pair whose chain started with the roles inverted, since a successor
+        // otherwise inherits them. Ignored when no successor is created. Nullable for
+        // the same reason as `missed`.
+        public ?bool $swapRolesNext = false,
     ) {
     }
 

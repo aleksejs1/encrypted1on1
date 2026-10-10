@@ -217,6 +217,23 @@ class AnketaTest extends TestCase
         self::assertSame('sealed-m', $anketa->sealedKeyFor($anketa->getManager()));
     }
 
+    public function testCounterpartOfReturnsTheOtherParticipant(): void
+    {
+        $anketa = $this->makeAnketa();
+
+        self::assertSame($anketa->getManager(), $anketa->counterpartOf($anketa->getEmployee()));
+        self::assertSame($anketa->getEmployee(), $anketa->counterpartOf($anketa->getManager()));
+    }
+
+    public function testCounterpartOfThrowsForAThirdUser(): void
+    {
+        $anketa = $this->makeAnketa();
+        $stranger = new User('stranger@example.com', 'hash', 'pub', 'enc', new Company('Test Co'));
+
+        $this->expectException(\LogicException::class);
+        $anketa->counterpartOf($stranger);
+    }
+
     public function testIsParticipantIsFalseForAThirdUser(): void
     {
         $anketa = $this->makeAnketa();

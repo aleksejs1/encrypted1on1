@@ -1317,6 +1317,112 @@ class AnketaControllerTest extends ApiTestCase
         self::assertTrue(self::findById($list, $anketaId)['missed']);
     }
 
+    /**
+     * GitHub issue #254: the successor has the two roles swapped, and each participant
+     * gets the sealed key the archiver sent for them, not the one for their old role.
+     */
+    public function testArchiveWithSwapRolesNextCreatesTheSuccessorWithRolesSwapped(): void
+    {
+        [$employeeClient, $employee, $managerClient, $manager] = $this->makePair('swap-roles');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $nextId = $this->archiveAndGetSuccessor($employeeClient, $anketaId, ['swapRolesNext' => true])['id'];
+
+        $mine = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$nextId}")['json'];
+        self::assertSame('manager', $mine['myRole']);
+        self::assertSame($manager['id'], $mine['counterpartId']);
+        self::assertSame(str_repeat('n', 44), $mine['mySealedKey']);
+        self::assertFalse($mine['oneOff']);
+
+        $theirs = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$nextId}")['json'];
+        self::assertSame('employee', $theirs['myRole']);
+        self::assertSame($employee['id'], $theirs['counterpartId']);
+        self::assertSame(str_repeat('o', 44), $theirs['mySealedKey']);
+
+        // The archived one is unchanged.
+        self::assertSame('employee', $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$anketaId}")['json']['myRole']);
+        self::assertSame('manager', $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}")['json']['myRole']);
+
+        // The swapped roles are what the chain inherits from here on.
+        $thirdId = $this->archiveAndGetSuccessor($managerClient, $nextId)['id'];
+        self::assertSame('manager', $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$thirdId}")['json']['myRole']);
+        self::assertSame('employee', $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$thirdId}")['json']['myRole']);
+    }
+
+    /** The manager's side sends the flag the same way; "missed" swaps too. */
+    public function testMissedArchiveByTheManagerWithSwapRolesNextSwapsToo(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('swap-roles-missed');
+        $anketaId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        $nextId = $this->archiveAndGetSuccessor($managerClient, $anketaId, ['missed' => true, 'swapRolesNext' => true])['id'];
+
+        $mine = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$nextId}")['json'];
+        self::assertSame('employee', $mine['myRole']);
+        self::assertSame(str_repeat('n', 44), $mine['mySealedKey']);
+        $theirs = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$nextId}")['json'];
+        self::assertSame('manager', $theirs['myRole']);
+        self::assertSame(str_repeat('o', 44), $theirs['mySealedKey']);
+        self::assertTrue($this->jsonRequest($managerClient, 'GET', "/api/anketas/{$anketaId}")['json']['missed']);
+    }
+
+    /** Without the flag, or with an explicit false or null, the successor inherits the roles. */
+    public function testArchiveWithoutSwapRolesNextKeepsTheRoles(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('swap-roles-absent');
+
+        foreach ([[], ['swapRolesNext' => false], ['swapRolesNext' => null]] as $extra) {
+            $anketaId = $this->openAnketaIds($employeeClient)[0] ?? $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+            $nextId = $this->archiveAndGetSuccessor($employeeClient, $anketaId, $extra)['id'];
+
+            $mine = $this->jsonRequest($employeeClient, 'GET', "/api/anketas/{$nextId}")['json'];
+            self::assertSame('employee', $mine['myRole']);
+            self::assertSame(str_repeat('n', 44), $mine['mySealedKey']);
+            $theirs = $this->jsonRequest($managerClient, 'GET', "/api/anketas/{$nextId}")['json'];
+            self::assertSame('manager', $theirs['myRole']);
+            self::assertSame(str_repeat('o', 44), $theirs['mySealedKey']);
+        }
+    }
+
+    /**
+     * No successor, nothing to swap: with skipNextMeeting or on a one-off the flag asks
+     * for nothing more, sealed keys included, and creates nothing.
+     */
+    public function testSwapRolesNextIsIgnoredWhenNoSuccessorIsCreated(): void
+    {
+        [$employeeClient, , $managerClient, $manager] = $this->makePair('swap-roles-ignored');
+        $chainId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $oneOffId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+
+        // A one-off: no sealed keys needed either, as without the flag.
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$oneOffId}/archive", ['swapRolesNext' => true]);
+        self::assertSame(200, $result['status']);
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$chainId}/archive", ['skipNextMeeting' => true, 'swapRolesNext' => true]);
+        self::assertSame(200, $result['status']);
+
+        $rows = $this->jsonRequest($managerClient, 'GET', '/api/anketas')['json'];
+        self::assertCount(2, $rows);
+        foreach ($rows as $row) {
+            self::assertNotNull($row['archivedAt']);
+            self::assertSame('manager', $row['myRole']);
+        }
+    }
+
+    /** A blocked pair gets no successor either, so the same holds. */
+    public function testSwapRolesNextIsIgnoredForABlockedPair(): void
+    {
+        [$employeeClient, , , $manager] = $this->makePair('swap-roles-blocked');
+        $blockedPairId = $this->createAnketaAsEmployee($employeeClient, $manager['id'])['json']['id'];
+        $managerEntity = $this->entityManager()->find(User::class, $manager['id']);
+        \assert($managerEntity instanceof User);
+        $managerEntity->setBlocked(true);
+        $this->entityManager()->flush();
+
+        $result = $this->jsonRequest($employeeClient, 'POST', "/api/anketas/{$blockedPairId}/archive", ['swapRolesNext' => true]);
+        self::assertSame(200, $result['status']);
+        self::assertCount(1, $this->jsonRequest($employeeClient, 'GET', '/api/anketas')['json']);
+    }
+
     public function testArchiveRejectsAnInvalidNextTemplateKeyAndChangesNothing(): void
     {
         [$employeeClient, , , $manager] = $this->makePair('next-type-invalid');

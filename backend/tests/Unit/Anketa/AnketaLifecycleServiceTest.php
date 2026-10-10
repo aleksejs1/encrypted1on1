@@ -435,6 +435,65 @@ class AnketaLifecycleServiceTest extends TestCase
     }
 
     /**
+     * GitHub issue #254. The sealed keys are per person, so with the roles swapped
+     * they follow the people: each row is one of the issue's four cases.
+     *
+     * @return array<string, array{bool, bool}>
+     */
+    public static function swapRolesNextProvider(): array
+    {
+        return [
+            'employee archives, no swap' => [true, false],
+            'employee archives, swap' => [true, true],
+            'manager archives, no swap' => [false, false],
+            'manager archives, swap' => [false, true],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('swapRolesNextProvider')]
+    public function testArchiveCreatesTheSuccessorWithRolesSwappedOnlyWhenAsked(bool $actorIsEmployee, bool $swap): void
+    {
+        $anketa = new Anketa(
+            employee: $this->employee,
+            manager: $this->manager,
+            meetingDate: new \DateTimeImmutable('2026-09-01 10:00:00'),
+            employeeSealedKey: 'emp-key',
+            managerSealedKey: 'mgr-key',
+            periodicityDays: 14,
+        );
+        $actor = $actorIsEmployee ? $this->employee : $this->manager;
+        $counterpart = $actorIsEmployee ? $this->manager : $this->employee;
+
+        $goalRepository = self::createStub(GoalRepository::class);
+        $goalRepository->method('findInProgressForAnketa')->willReturn([]);
+        $notifier = $this->createMock(AnketaNotifier::class);
+        // The email goes to the person who didn't archive, whatever their next role.
+        $notifier->expects(self::once())->method('notifyAnketaCreated')->with(self::isInstanceOf(Anketa::class), $counterpart, $actor);
+
+        $nextAnketa = $this->createService(goalRepository: $goalRepository, notifier: $notifier)->archive(
+            anketa: $anketa,
+            actor: $actor,
+            missed: false,
+            skipNextMeeting: false,
+            mySealedKey: 'next-my-key',
+            counterpartSealedKey: 'next-counterpart-key',
+            nextTemplateKey: 'regular',
+            swapRolesNext: $swap,
+        );
+
+        self::assertNotNull($nextAnketa);
+        self::assertSame($swap ? $this->manager : $this->employee, $nextAnketa->getEmployee());
+        self::assertSame($swap ? $this->employee : $this->manager, $nextAnketa->getManager());
+        self::assertSame('next-my-key', $nextAnketa->sealedKeyFor($actor));
+        self::assertSame('next-counterpart-key', $nextAnketa->sealedKeyFor($counterpart));
+        // The archived anketa keeps its own roles and keys.
+        self::assertSame($this->employee, $anketa->getEmployee());
+        self::assertSame($this->manager, $anketa->getManager());
+        self::assertSame('emp-key', $anketa->sealedKeyFor($this->employee));
+        self::assertSame('mgr-key', $anketa->sealedKeyFor($this->manager));
+    }
+
+    /**
      * A missing template key while a successor is due is a programming error (the
      * controller always resolves one), not a fallback: the same defensive 400 as a
      * missing sealed key, thrown before the transaction opens. Not reachable through

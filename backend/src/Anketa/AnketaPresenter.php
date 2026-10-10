@@ -45,7 +45,7 @@ class AnketaPresenter
     public function summarize(Anketa $anketa, User $user): array
     {
         $isEmployee = $anketa->isEmployee($user);
-        $counterpart = $isEmployee ? $anketa->getManager() : $anketa->getEmployee();
+        $counterpart = $anketa->counterpartOf($user);
 
         return [
             'id' => $anketa->getId(),
@@ -104,7 +104,7 @@ class AnketaPresenter
      */
     public function serializeDetail(Anketa $anketa, User $user, array $goals): array
     {
-        $counterpart = $anketa->isEmployee($user) ? $anketa->getManager() : $anketa->getEmployee();
+        $counterpart = $anketa->counterpartOf($user);
         // The archive form's "Next meeting type" default (GitHub issues #140, #144). Null
         // once archived (there's no archive form left) and for a one-off (no successor).
         $nextTemplate = $anketa->isArchived() ? null : $this->lifecycleService->defaultNextTemplate($anketa);

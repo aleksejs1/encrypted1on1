@@ -131,7 +131,7 @@ class AnketaLifecycleService
         $this->entityManager->flush();
 
         if (null !== $creator) {
-            $counterpart = $anketa->isEmployee($creator) ? $anketa->getManager() : $anketa->getEmployee();
+            $counterpart = $anketa->counterpartOf($creator);
             $this->notifier->notifyAnketaCreated($anketa, $counterpart, $creator);
         }
 
@@ -150,6 +150,9 @@ class AnketaLifecycleService
      * ignored otherwise. So is $nextCustomTemplateVersion, the company template's
      * version the caller resolved for a 'custom' key (GitHub issue #144); the
      * successor's constructor refuses a key and version that don't go together.
+     *
+     * $swapRolesNext creates the successor with the two roles swapped (GitHub issue
+     * #254); the anketa being archived keeps its own. Ignored without a successor.
      *
      * The archive itself goes through AnketaRepository::markArchivedIfOpen(), in the same
      * transaction as the successor's insert, so of two concurrent archive requests only
@@ -173,6 +176,7 @@ class AnketaLifecycleService
         ?string $nextTemplateKey = null,
         ?CustomTemplateVersion $nextCustomTemplateVersion = null,
         ?int $expectedTopicsVersion = null,
+        bool $swapRolesNext = false,
     ): ?Anketa {
         $nextPeriodicityDays = $this->nextAnketaPeriodicity($anketa, $skipNextMeeting, $mySealedKey, $counterpartSealedKey);
         // A programming error, not a fallback: AnketaController::archive() always
@@ -185,7 +189,7 @@ class AnketaLifecycleService
         // archived — same reason as InviteController::create(): wrapInTransaction()
         // closes the EntityManager on any exception.
         $nextAnketa = $this->entityManager->wrapInTransaction(function () use (
-            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $topicsBlob, $nextTemplateKey, $nextCustomTemplateVersion, $expectedTopicsVersion,
+            $anketa, $actor, $missed, $nextPeriodicityDays, $nextMeetingDate, $mySealedKey, $counterpartSealedKey, $outcomesBlob, $topicsBlob, $nextTemplateKey, $nextCustomTemplateVersion, $expectedTopicsVersion, $swapRolesNext,
         ): Anketa|false|null {
             $archivedAt = new \DateTimeImmutable();
             // Must stay the transaction's first statement. On SQLite (WAL), a deferred
@@ -219,6 +223,7 @@ class AnketaLifecycleService
                 $topicsBlob,
                 $nextTemplateKey,
                 $nextCustomTemplateVersion,
+                $swapRolesNext,
             );
         });
 
@@ -227,7 +232,7 @@ class AnketaLifecycleService
         }
 
         if (null !== $nextAnketa) {
-            $nextRecipient = $anketa->isEmployee($actor) ? $anketa->getManager() : $anketa->getEmployee();
+            $nextRecipient = $anketa->counterpartOf($actor);
             $this->notifier->notifyAnketaCreated($nextAnketa, $nextRecipient, $actor);
         }
 
@@ -246,7 +251,7 @@ class AnketaLifecycleService
         $anketa->reschedule($meetingDate);
         $this->entityManager->flush();
 
-        $counterpart = $anketa->isEmployee($actor) ? $anketa->getManager() : $anketa->getEmployee();
+        $counterpart = $anketa->counterpartOf($actor);
         if ($previousDate->format('Y-m-d') !== $anketa->getMeetingDate()->format('Y-m-d') && !$counterpart->isBlocked()) {
             $this->notifier->notifyMeetingRescheduled($anketa, $counterpart, $actor, $previousDate);
         }
@@ -359,18 +364,24 @@ class AnketaLifecycleService
         ?string $topicsBlob,
         string $nextTemplateKey,
         ?CustomTemplateVersion $nextCustomTemplateVersion,
+        bool $swapRoles,
     ): Anketa {
-        $isEmployee = $anketa->isEmployee($actor);
+        // With $swapRoles the successor's employee is this anketa's manager and the
+        // other way round (GitHub issue #254). The request's sealed keys are per
+        // person, so they follow the people, not the roles. Nothing else carried
+        // forward depends on a role: goals, outcomes and topics name their author.
+        $counterpart = $anketa->counterpartOf($actor);
+        $actorIsNextEmployee = $anketa->isEmployee($actor) !== $swapRoles;
 
         // Uses only the template key it's given (see archive()), never
         // $anketa->getTemplateKey() — a template choice doesn't blindly carry forward
         // the way periodicity does. The default comes from defaultNextTemplate().
         return $this->createWithCarryForward(
-            employee: $anketa->getEmployee(),
-            manager: $anketa->getManager(),
+            employee: $actorIsNextEmployee ? $actor : $counterpart,
+            manager: $actorIsNextEmployee ? $counterpart : $actor,
             meetingDate: $nextMeetingDate ?? $archivedAt->modify(sprintf('+%d days', $periodicityDays)),
-            employeeSealedKey: $isEmployee ? $mySealedKey : $counterpartSealedKey,
-            managerSealedKey: $isEmployee ? $counterpartSealedKey : $mySealedKey,
+            employeeSealedKey: $actorIsNextEmployee ? $mySealedKey : $counterpartSealedKey,
+            managerSealedKey: $actorIsNextEmployee ? $counterpartSealedKey : $mySealedKey,
             periodicityDays: $periodicityDays,
             outcomesBlob: $outcomesBlob,
             topicsBlob: $topicsBlob,
@@ -389,7 +400,7 @@ class AnketaLifecycleService
      */
     public function reshareKey(Anketa $anketa, User $actor, string $sealedKey): void
     {
-        $counterpart = $anketa->isEmployee($actor) ? $anketa->getManager() : $anketa->getEmployee();
+        $counterpart = $anketa->counterpartOf($actor);
         $anketa->resealKeyFor($counterpart, $sealedKey);
         $this->entityManager->flush();
     }

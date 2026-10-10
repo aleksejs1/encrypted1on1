@@ -284,6 +284,42 @@ class ResetDemoDataCommandTest extends ApiTestCase
     }
 
     /**
+     * A visitor can end up with the pair's roles the other way round: a 1:1 created by
+     * hand that way, or the next one swapped at archive (GitHub issue #254). The reset
+     * removes those too, or they'd stay beside the reseeded chain for good.
+     */
+    public function testResetRemovesAnAnketaWithThePairsRolesSwapped(): void
+    {
+        static::createClient();
+        $this->runResetDemoDataCommand();
+
+        $employee = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        $manager = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employee);
+        self::assertNotNull($manager);
+        $this->entityManager()->persist(new Anketa(
+            employee: $manager,
+            manager: $employee,
+            meetingDate: new \DateTimeImmutable('+7 days'),
+            employeeSealedKey: 'sealed-m',
+            managerSealedKey: 'sealed-e',
+            periodicityDays: 14,
+        ));
+        $this->entityManager()->flush();
+        self::assertCount(1, $this->anketasForPair($manager, $employee));
+        $this->entityManager()->clear();
+
+        $this->runResetDemoDataCommand();
+
+        $employeeAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-employee@example.com']);
+        $managerAfter = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => 'demo-manager@example.com']);
+        self::assertNotNull($employeeAfter);
+        self::assertNotNull($managerAfter);
+        self::assertCount(0, $this->anketasForPair($managerAfter, $employeeAfter));
+        self::assertCount(3, $this->anketasForPair($employeeAfter, $managerAfter));
+    }
+
+    /**
      * A demo visitor's private notes (GitHub issue #132 §5.5) reference the anketas the
      * reset deletes, so they must go first: a real database's foreign key rejects
      * deleting an anketa that still has notes (SQLite here runs without foreign keys, so
