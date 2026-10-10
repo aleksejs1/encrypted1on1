@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { nameWithEmail } from '../userDisplay';
 
   interface UserOption {
@@ -22,6 +23,17 @@
   let query = $state('');
   let open = $state(false);
   let highlightedIndex = $state(0);
+  // Closing waits a moment after blur, so a click on a suggestion lands
+  // first. Focusing the field again within that moment keeps the list open:
+  // without the cancel, the old timer closed the list just reopened.
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  onDestroy(() => clearTimeout(closeTimer));
+
+  function openList(): void {
+    clearTimeout(closeTimer);
+    open = true;
+  }
 
   const filtered = $derived(
     query.trim() === ''
@@ -52,7 +64,7 @@
     // Typing again invalidates any prior selection, so a stale id can never be
     // silently submitted once the visible text no longer matches it.
     if (value !== '') value = '';
-    open = true;
+    openList();
     highlightedIndex = 0;
   }
 
@@ -84,8 +96,8 @@
     autocomplete="off"
     bind:value={query}
     oninput={handleInput}
-    onfocus={() => (open = true)}
-    onblur={() => setTimeout(() => (open = false), 150)}
+    onfocus={openList}
+    onblur={() => (closeTimer = setTimeout(() => (open = false), 150))}
     onkeydown={handleKeydown}
     {placeholder}
   />

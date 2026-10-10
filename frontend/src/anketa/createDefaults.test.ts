@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   clearJustCreated,
   isJustCreated,
-  roleStandsFor,
   setJustCreated,
   startCreateAnother,
   startCreateWith,
@@ -11,20 +10,6 @@ import {
   type CreateSettings,
 } from './createDefaults';
 import { invalidateIdentity } from '../crypto/identity.svelte';
-
-describe('roleStandsFor', () => {
-  it('keeps a role chosen before any colleague', () => {
-    expect(roleStandsFor('', 'bob')).toBe(true);
-  });
-
-  it('keeps a role when the same colleague is chosen again', () => {
-    expect(roleStandsFor('bob', 'bob')).toBe(true);
-  });
-
-  it('drops a role chosen with another colleague selected', () => {
-    expect(roleStandsFor('bob', 'carol')).toBe(false);
-  });
-});
 
 describe('create another', () => {
   const settings: CreateSettings = {

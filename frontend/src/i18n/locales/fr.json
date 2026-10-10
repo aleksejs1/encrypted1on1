@@ -221,6 +221,7 @@
     "counterpartPlaceholder": "Saisissez un nom ou un e-mail pour rechercher…",
     "counterpartNoResults": "Aucune personne correspondante trouvée.",
     "roleLegend": "Menez-vous ce 1:1 en tant que manager ?",
+    "roleNeedsCounterpart": "Choisissez d'abord votre interlocuteur.",
     "roleManagerOption": "Oui, je suis le manager",
     "roleEmployeeOption": "Non, je suis l'employé",
     "templateLegend": "Type de réunion",

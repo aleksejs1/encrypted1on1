@@ -20,7 +20,7 @@ next 1:1 of the pair is created at archive with the roles of the one before.
 ## Decision
 
 The form never carries a role over from another meeting. `myRole` is null until the user clicks
-one, it is dropped when another colleague is chosen, and "Create 1:1" stays disabled until a role
+one, it is cleared whenever the colleague field changes, and "Create 1:1" stays disabled until a role
 is chosen ([GitHub issue #251](https://github.com/aleksejs1/encrypted1on1/issues/251), the first
 part of #250). A role is a statement about one pair, so it is chosen for that pair.
 
@@ -33,16 +33,34 @@ part of #250). A role is a statement about one pair, so it is chosen for that pa
   a different person, and with the history default gone nothing corrected it. Someone who
   created a 1:1 with their manager and then "another" with a direct report got "employee"
   selected (maintainer decision, 2026-10-10).
-- **Choosing another colleague drops the role**, including one clicked by hand a moment ago.
-  Before, a clicked role stayed when the colleague was replaced. The rule is `roleStandsFor()`:
-  a role clicked before any colleague stands for the one chosen next, and typing in the
-  colleague field and choosing the same person again keeps it. The first version cleared the
-  role on every change of the field's value, which also undid a click made before the colleague
-  was chosen, or while the pair link's colleague was still loading.
+- **The role is asked after the colleague, and any change of the colleague field clears it.**
+  The role radios are disabled, with a line saying why, until a colleague is chosen;
+  `setCounterpart()` then clears the role whenever the field's value changes, typing included.
+  Before, a clicked role stayed when the colleague was replaced. Three more forgiving versions
+  were tried in review and dropped, each for a way a role could end up standing for someone it
+  wasn't clicked for: keeping a role clicked before any colleague (a click made while the field
+  was being retyped counted as one), a separate "colleague the role was chosen with" variable
+  ('' couldn't tell "none yet" from "being replaced"), and remembering the role per colleague
+  (going back to the first colleague brought it back checked, unasked). The price of the simple
+  rule: fixing a typo in the colleague's name means clicking the role again.
+- **The button still reads "Create another 1:1 with the same settings".** The settings it keeps
+  are the meeting type and the periodicity. The role is no longer one of them: it belongs to
+  the pair, and the colleague starts empty.
 - **The pair link's "Schedule the next one"** (#203) preselects the colleague and no role.
 - **The old `e1o1:lastRole` key is left in users' browsers, unread.** Removing it would need
   code that runs on every form load forever, to delete a value nothing reads. Don't give a
   later setting that key name: it would read values from before this change.
+
+`handleSubmit()` now reads the whole form before its first await. The form stays editable while
+a submit is in flight, and choosing another colleague then used to send the first colleague's
+role, and possibly their sealed key, for the second. That predates this change, but it would
+have broken the one-role-per-pair rule. Disabling the form while submitting was tried first and
+dropped: it needed a wrapper every future control has to sit inside, and a failed submit lost
+keyboard focus.
+
+`UserTypeahead`'s list closes 150ms after blur, so that a click on a suggestion lands first.
+The timer wasn't cancelled when the field was focused again, so choosing two colleagues in
+quick succession closed the list just reopened. Found by this change's e2e scenario and fixed.
 
 The cost is one more click per 1:1 created by hand, also for a manager setting up a whole team
 through "Create another", and, until #252 shows the pair's last role as a fact, nothing on the
@@ -61,10 +79,11 @@ where the history default would have picked the right one.
 
 ## Verification
 
-`frontend/e2e/dual-actor-anketa.spec.ts`: after the pair's first 1:1 exists, a freshly opened
-form has neither role selected for either participant, before and after choosing the colleague,
-and can't be submitted. Each of the two removed defaults would have selected a role there (the
-device one for the creator, the history one for both). "Create another" opens with no role, a
-clicked role survives choosing the same colleague again and choosing a colleague after it, and
-the pair link's "Schedule the next one" opens with the colleague chosen and no role. Dropping
-the role for another colleague is covered by `roleStandsFor()`'s unit tests, not in a browser.
+`frontend/e2e/dual-actor-anketa.spec.ts` has a scenario for a pair that already has a 1:1: a
+freshly opened form has the role radios disabled, with the "choose the counterpart first" line,
+and neither selected for either participant; after choosing the colleague they are enabled and
+still neither is selected, and the form can't be submitted. Each of the two removed defaults
+would have selected a role there (the device one for the creator, the history one for both). A
+clicked role is gone as soon as the colleague field is typed in, for a third person, and for the
+first colleague chosen again. "Create another" opens with no role, and the pair link's "Schedule
+the next one" opens with the colleague chosen and no role.

@@ -1,25 +1,12 @@
 /**
  * What the create form is handed from another page: the settings of
  * "Create another" (GitHub issue #198) and a pair link's colleague (#203).
+ *
+ * This file used to keep a role default in localStorage, under
+ * `e1o1:lastRole` (removed in GitHub issue #251). The key is still in
+ * users' browsers: don't reuse the name.
  */
 import { getGeneration } from '../crypto/identity.svelte';
-
-/**
- * Whether a role chosen on the create form still stands once `counterpartId`
- * is chosen as the colleague (GitHub issue #251). A role is a statement
- * about one pair: it's dropped when it was chosen with another colleague
- * selected, and kept when it was chosen before any colleague
- * (`chosenWith` is '') or the same colleague is chosen again.
- *
- * The form never preselects a role. It used to, from the localStorage key
- * `e1o1:lastRole`, which is still in users' browsers: don't reuse the name.
- */
-export function roleStandsFor(
-  chosenWith: string,
-  counterpartId: string,
-): boolean {
-  return chosenWith === '' || chosenWith === counterpartId;
-}
 import type { TemplateChoice } from './templateChoice';
 
 /**
