@@ -59,15 +59,52 @@ for the PhpMetrics check. It throws for a user who isn't a participant.
   a pair with a hand-created 1:1 the other way round; a swap makes it routine. Not fixed here
   (backend only); it needs its own change on the list.
 - **The other participant isn't told.** The "new 1:1" email and the archive response are the same
-  with or without the swap; they see it when they open the next 1:1. What the archive form and the
-  next 1:1 say about it is #255's.
+  with or without the swap, and the next 1:1 carries no "roles were swapped" notice; they see the
+  other role's questions when they open it.
+- **The closed 1:1 may hold answers to the wrong role's questions.** Closing publishes my own
+  unpublished answers first (#229), so they end up published there. That is the existing rule.
+- **A swap that didn't happen isn't reported.** If the other participant archives first, the page
+  says the 1:1 was already archived, not that the roles stayed as they were; the same for a blocked
+  pair, where no next 1:1 is created.
 - **The flag is dropped when no successor is created,** silently: the pair's next 1:1 then comes
   from the create form, which asks for the roles anyway. Its "your role in your most recent 1:1"
   line (#252) states the old roles in that case, and also when a one-off with the old roles is
   dated after the swapped 1:1.
 
-Nothing in the UI sends the flag yet; the archive form's checkbox is
-[GitHub issue #255](https://github.com/aleksejs1/encrypted1on1/issues/255).
+## The archive form's checkbox
+
+[GitHub issue #255](https://github.com/aleksejs1/encrypted1on1/issues/255), frontend only:
+"Swap roles in the next 1:1" in `AnketaArchiveSection.svelte`, under the next meeting's date and
+type.
+
+- **The browser sends only the flag,** and only when ticked. `handleArchive()` seals the next key
+  for me and for the counterpart exactly as before; the server puts each copy in its owner's new
+  role. Swapping them in the browser as well would give each person the other's copy, and neither
+  could open the next 1:1.
+- **The line under it names the result,** not who holds which role now: "In the next 1:1 you
+  answer as the manager and {name} answers as the employee." Shown only while ticked, as a live
+  region and not the checkbox's description, since it appears after the checkbox got focus. "You", not my own name, like the create
+  form's options (#252).
+- **Both closing confirmations repeat that line** (`ArchiveConfirm`'s `swapNote`). Closing can't
+  be undone, and the header's "Didn't happen" is at the top of the page while the tick is at the
+  bottom. One derived value in `Anketa.svelte` feeds all three places, and is undefined whenever
+  no swap will be sent.
+- **Hidden where no next 1:1 is offered:** a one-off, and with "Don't create the next meeting"
+  ticked. The page doesn't know that a participant is blocked; then the checkbox shows, no next 1:1
+  is created and the flag is ignored, as with the type picker.
+- **"Didn't happen" sends it too,** since it archives with whatever the form shows. Either closing
+  button fixes a 1:1 right away: the next one exists at once with the right roles. ("Didn't
+  happen" is only offered from the day after the meeting date.)
+- **The tick is page state, never stored,** like the form's other fields. Ticking "Don't create
+  the next meeting" clears it: the checkbox goes out of sight, and a tick nobody can see mustn't
+  come back with it. Nothing resets it when the page moves to another 1:1, because no in-app
+  navigation does that without a page load
+  ([the earlier decision](2026-09-10-comment-thread-reuse-state-deferred.md)); a reset in `load()`
+  was tried in review and removed as a guard for a transition that doesn't exist, and an
+  incomplete one. If that transition is ever added, the archive form's ticks need resetting with
+  everything else that decision lists.
+- **One-sided, by decision.** Either participant can tick it; nothing is destroyed, and the same
+  checkbox swaps back at the next archive.
 
 ## Alternatives considered
 
@@ -79,9 +116,16 @@ Nothing in the UI sends the flag yet; the archive form's checkbox is
 
 ## Tests
 
-Not verified with real crypto yet: the sealed keys in these tests are placeholder strings, which
-show where the server stores each one, not that a browser can open the result. That check, against
-the real stack, comes with #255, when a browser first sends the flag.
+The backend tests use placeholder strings for the sealed keys, which show where the server stores
+each one, not that a browser can open the result. That is checked against the real stack by the
+Playwright scenarios below, with real crypto.
+
+- e2e (`dual-actor-anketa.spec.ts`), two browsers: the employee archives with the checkbox ticked,
+  each side gets the other role's question set in the next 1:1, and each publishes an answer the
+  other decrypts; the closed 1:1 keeps its roles; an untouched form on the next archive sends no
+  flag and the roles stay swapped. The same through "Didn't happen", archived by the manager, so
+  both directions of who seals the keys are covered. Both confirmations name the result. The
+  checkbox is absent with "Don't create the next meeting", which also clears it, and on a one-off.
 
 - Unit (`AnketaLifecycleServiceTest`): the four rows of the table, asserting who is employee and
   manager, `sealedKeyFor()` for each person, who is emailed, and that the archived 1:1 is unchanged.

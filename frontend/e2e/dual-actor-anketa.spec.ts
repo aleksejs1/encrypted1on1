@@ -1652,6 +1652,7 @@ test('an anketa created next to an open one is a one-off: no carry-forward and n
     employee.getByRole('checkbox', { name: "Don't create the next meeting" }),
   ).toHaveCount(0);
   await expect(employee.locator('#next-meeting-date')).toHaveCount(0);
+  await expect(swapRolesCheckbox(employee)).toHaveCount(0);
   await expect(employee.locator('#next-meeting-type')).toHaveCount(0);
 
   await archive(employee);
@@ -1927,6 +1928,199 @@ test('cancel as missed creates the successor with the chosen next meeting type',
 
   await openSuccessor(employee, anketaUrl);
   await expectCareerGrowthOnMySide(employee, 'employee');
+});
+
+/**
+ * The archive form's swap checkbox. Tick it with `{ force: true }`: `.radio`'s
+ * CSS takes pointer events off the native input, as for the skip checkbox.
+ */
+function swapRolesCheckbox(page: Page) {
+  return page.getByRole('checkbox', { name: 'Swap roles in the next 1:1' });
+}
+
+const EMPLOYEE_ONLY_HEADING = 'Feelings';
+const MANAGER_ONLY_HEADING = 'How did the period go since the last meeting';
+
+/** `page`'s own side shows the regular question set of `role`, not the other's. */
+async function expectRegularQuestionsOnMySide(
+  page: Page,
+  role: 'employee' | 'manager',
+): Promise<void> {
+  const mySide = page.locator('.side-card').first();
+  const [mine, theirs] =
+    role === 'employee'
+      ? [EMPLOYEE_ONLY_HEADING, MANAGER_ONLY_HEADING]
+      : [MANAGER_ONLY_HEADING, EMPLOYEE_ONLY_HEADING];
+  await expect(
+    mySide.getByRole('heading', { name: mine, exact: true }),
+  ).toBeVisible();
+  await expect(
+    mySide.getByRole('heading', { name: theirs, exact: true }),
+  ).toHaveCount(0);
+}
+
+/**
+ * Publishes a marker from `author`'s side of the open page and expects
+ * `reader`, on a fresh load of the same 1:1, to decrypt it on the
+ * counterpart side.
+ */
+async function publishAndReadAcross(
+  author: Page,
+  reader: Page,
+  label: string,
+): Promise<void> {
+  const marker = `E2E-${label}-${Date.now()}`;
+  const mySide = author.locator('.side-card').first();
+  await mySide.locator('textarea').first().fill(marker);
+  await mySide.getByRole('button', { name: 'Publish' }).click();
+  await expect(mySide.getByText('Published')).toBeVisible();
+  await reader.goto(author.url());
+  await expect(
+    reader.locator('.side-card').nth(1).getByText(marker),
+  ).toBeVisible();
+}
+
+/**
+ * GitHub issue #255: "Swap roles in the next 1:1" on the archive form. The
+ * browser sends only the flag; the next 1:1's key is sealed per person as
+ * always, and the server puts each sealed copy in its owner's new role
+ * (#254). Real crypto on purpose: a mix-up there would leave a next 1:1
+ * neither side can open, so each side publishes and the other decrypts.
+ */
+test('swapping roles at archive gives each side the other role in the next 1:1', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-swap');
+  const managerEmail = uniqueEmail('manager-swap');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+
+  const anketaUrl = await createAnketa(employee, managerEmail, 3);
+  await expectRegularQuestionsOnMySide(employee, 'employee');
+
+  // Unticked by default, with nothing said about roles.
+  const swap = swapRolesCheckbox(employee);
+  const result = employee.locator('#swap-roles-result');
+  await expect(swap).not.toBeChecked();
+  await expect(result).toBeEmpty();
+  await swap.check({ force: true });
+  await expect(result).toHaveText(
+    /^In the next 1:1 you answer as the manager and .+ answers as the employee\.$/,
+  );
+  // No next 1:1, nothing to swap.
+  const skip = employee.getByRole('checkbox', {
+    name: "Don't create the next meeting",
+  });
+  await skip.check({ force: true });
+  await expect(swap).toHaveCount(0);
+  // And a tick that went out of sight doesn't come back with the checkbox.
+  await skip.uncheck({ force: true });
+  await expect(swap).not.toBeChecked();
+  await expect(result).toBeEmpty();
+  await swap.check({ force: true });
+
+  const archiveRequest = employee.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  // The confirmation says it again: closing can't be undone.
+  await archiveButton(employee).click();
+  await expect(employee.locator('#archive-confirm-text')).toContainText(
+    'In the next 1:1 you answer as the manager',
+  );
+  await confirmArchiveButton(employee).click();
+  expect((await archiveRequest).postDataJSON()).toMatchObject({
+    swapRolesNext: true,
+  });
+  await expectArchived(employee);
+
+  // The next 1:1: the one who was the employee leads it now.
+  const successorUrl = await openSuccessor(employee, anketaUrl);
+  await expectRegularQuestionsOnMySide(employee, 'manager');
+  await manager.goto(successorUrl);
+  await expectRegularQuestionsOnMySide(manager, 'employee');
+  // The closed one keeps its roles.
+  await manager.goto(anketaUrl);
+  await expectRegularQuestionsOnMySide(manager, 'manager');
+
+  // Both sealed copies of the next key open, each in its owner's new role.
+  await manager.goto(successorUrl);
+  await publishAndReadAcross(employee, manager, 'SWAP-FROM-NEW-MANAGER');
+  await publishAndReadAcross(manager, employee, 'SWAP-FROM-NEW-EMPLOYEE');
+
+  // The one who is the employee now is offered the same: to lead the next.
+  const managerSwap = swapRolesCheckbox(manager);
+  await managerSwap.check({ force: true });
+  await expect(manager.locator('#swap-roles-result')).toHaveText(
+    /^In the next 1:1 you answer as the manager and .+ answers as the employee\.$/,
+  );
+  // The tick is never stored: a fresh load of the page has none.
+  await manager.reload();
+  await expect(managerSwap).not.toBeChecked();
+  // An untouched form sends no flag and no swap is announced, so the 1:1
+  // after this one inherits the swapped roles.
+  const secondArchive = manager.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await archive(manager);
+  expect((await secondArchive).postDataJSON()).not.toHaveProperty(
+    'swapRolesNext',
+  );
+  await expectArchived(manager);
+  await manager.goto('/');
+  await manager
+    .locator('.anketa-row')
+    .filter({ hasNot: manager.locator('.tag', { hasText: 'archived' }) })
+    .click();
+  await manager.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  await expectRegularQuestionsOnMySide(manager, 'employee');
+});
+
+/**
+ * The way to fix a 1:1 that was created with the roles the wrong way round
+ * (GitHub issue #255): "Didn't happen" archives with whatever the archive
+ * form shows, the swap included, and the next 1:1 exists at once.
+ */
+test('"Didn\'t happen" with the roles swapped creates the next 1:1 the other way round', async ({
+  browser,
+}) => {
+  const employeeEmail = uniqueEmail('employee-swap-missed');
+  const managerEmail = uniqueEmail('manager-swap-missed');
+  const employee = await activate(browser, createActivationLink(employeeEmail));
+  const manager = await activate(browser, createActivationLink(managerEmail));
+
+  // The manager archives this time: the other row of who sends the keys.
+  const anketaUrl = await createAnketa(employee, managerEmail, -3);
+  await manager.goto(anketaUrl);
+  await expectRegularQuestionsOnMySide(manager, 'manager');
+  await swapRolesCheckbox(manager).check({ force: true });
+  await expect(manager.locator('#swap-roles-result')).toHaveText(
+    /^In the next 1:1 .+ answers as the manager and you answer as the employee\.$/,
+  );
+
+  const archiveRequest = manager.waitForRequest((request) =>
+    request.url().endsWith('/archive'),
+  );
+  await manager.getByRole('button', { name: "Didn't happen" }).click();
+  // This button is at the top of the page, the tick at the bottom.
+  await expect(manager.locator('#cancel-missed-confirm-text')).toContainText(
+    'answers as the manager and you answer as the employee',
+  );
+  await manager
+    .locator('.overdue-card')
+    .getByRole('button', { name: 'Close as missed' })
+    .click();
+  expect((await archiveRequest).postDataJSON()).toMatchObject({
+    missed: true,
+    swapRolesNext: true,
+  });
+  await expect(manager.getByText('missed', { exact: true })).toBeVisible();
+
+  const successorUrl = await openSuccessor(manager, anketaUrl);
+  await expectRegularQuestionsOnMySide(manager, 'employee');
+  await employee.goto(successorUrl);
+  await expectRegularQuestionsOnMySide(employee, 'manager');
+  await publishAndReadAcross(manager, employee, 'MISSED-FROM-NEW-EMPLOYEE');
+  await publishAndReadAcross(employee, manager, 'MISSED-FROM-NEW-MANAGER');
 });
 
 /**

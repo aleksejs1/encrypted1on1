@@ -30,6 +30,7 @@
     publishing,
     answersEditOpen,
     confirmation,
+    swapNote,
     actionError = $bindable<string | null>(),
     onArchive,
     onRescheduled,
@@ -58,6 +59,8 @@
      */
     answersEditOpen: boolean;
     confirmation: ArchiveConfirmation;
+    /** See ArchiveConfirm's `swapNote`. */
+    swapNote: string | undefined;
     actionError: string | null;
     onArchive: (missed: boolean) => Promise<void>;
     onRescheduled: (meetingDate: string) => void;
@@ -279,6 +282,7 @@
       busy={archiving || publishing}
       confirmLabel={$_('anketa.closeAsMissed')}
       note={$_('anketa.closeConfirmMissed')}
+      {swapNote}
       busyLabel={$_('anketa.cancelling')}
       blocked={answersEditOpen}
       describedBy="cancel-missed-after-edit-hint"

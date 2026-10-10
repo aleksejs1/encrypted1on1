@@ -276,6 +276,28 @@
   // skipNextMeeting/nextMeetingDate: handleArchive() reads it for both buttons.
   // Null only when there's no picker (a one-off, or already archived).
   let nextTemplateChoice = $state<TemplateChoice | null>(null);
+  // The archive form's "Swap roles in the next 1:1" (GitHub issue #255).
+  // Page-level like the fields above, and like them never stored.
+  let swapRolesNext = $state(false);
+  const counterpartShortName = $derived(
+    detail
+      ? shortDisplayName(detail.counterpartName, detail.counterpartEmail)
+      : '',
+  );
+  // Who answers as which in the next 1:1 if this one is closed now with the
+  // roles swapped: I get the role I don't have here. Undefined when no swap
+  // will be sent. Shown under the checkbox and in both closing
+  // confirmations, "Didn't happen" included.
+  const swapNote = $derived(
+    detail && swapRolesNext && !skipNextMeeting && !detail.oneOff
+      ? $_(
+          detail.myRole === 'employee'
+            ? 'anketa.swapRolesResultMeManager'
+            : 'anketa.swapRolesResultMeEmployee',
+          { values: { name: counterpartShortName } },
+        )
+      : undefined,
+  );
   /** The picker's default, from the detail: what an untouched form gets. */
   let nextTemplateDefault = $state<TemplateChoice | null>(null);
   /** The picker's company templates (GitHub issue #144); empty if they couldn't be loaded. */
@@ -1756,7 +1778,8 @@
    * whatever's currently set in that form regardless of which button triggered it,
    * matching the behavior before either component existed. The same goes for
    * `nextTemplateChoice` (GitHub issue #140): "cancel as missed" deliberately
-   * creates the successor type the archive form currently shows.
+   * creates the successor type the archive form currently shows, and with
+   * `swapRolesNext` (GitHub issue #255) swaps the roles in it too.
    *
    * A one-off anketa (GitHub issue #111) never gets a successor — the server
    * forces that regardless of the request — so it's sent as an explicit skip,
@@ -1831,6 +1854,11 @@
           // sends exactly the old request and the server applies its own
           // current default.
           ...nextTemplateFields(nextTemplateChoice, nextTemplateDefault),
+          // Only the flag (GitHub issue #255). The two sealed keys below are
+          // per person, and the server puts each in its owner's new role:
+          // swapping them here as well would give each of us the other's key,
+          // and neither could open the next 1:1.
+          ...(swapRolesNext ? { swapRolesNext: true } : {}),
           mySealedKey: mySealedKeyNext,
           counterpartSealedKey: counterpartSealedKeyNext,
           ...(outcomesBlobNext ? { outcomesBlob: outcomesBlobNext } : {}),
@@ -2145,6 +2173,7 @@
         {publishing}
         answersEditOpen={closeBlockedByEdit}
         confirmation={closeConfirmation}
+        {swapNote}
         bind:actionError
         onArchive={closeMeeting}
         onRescheduled={(meetingDate) => {
@@ -2470,14 +2499,13 @@
           {publishing}
           answersEditOpen={closeBlockedByEdit}
           confirmation={closeConfirmation}
-          counterpartName={shortDisplayName(
-            detail.counterpartName,
-            detail.counterpartEmail,
-          )}
+          counterpartName={counterpartShortName}
           oneOff={detail.oneOff}
           bind:skipNextMeeting
           bind:nextMeetingDate
           bind:nextTemplateChoice
+          bind:swapRolesNext
+          {swapNote}
           defaultChoice={nextTemplateDefault}
           {companyTemplates}
           templateRetired={detail.templateKey === 'custom' &&
