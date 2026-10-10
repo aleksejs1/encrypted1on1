@@ -46,13 +46,13 @@ If any of your 1:1s were sealed under a counterpart's now-outdated encryption ke
 
 Either the manager or the employee can start one:
 1. Pick the counterpart by typing their email (a live-filtered list of existing accounts) — people you've already had 1:1s with show up first, so you're not scrolling the full company list every time.
-2. Say whether you're leading this 1:1 as the manager or taking part as the employee. The form preselects the role you had in your last 1:1 with this person, or else the role you last chose on this device; with neither, nothing is preselected and the 1:1 can't be created until you pick. (The app doesn't enforce that the two participants pick complementary roles; it trusts them to coordinate this themselves, the same way it trusts them not to share their own password with each other.)
+2. Say whether you're leading this 1:1 as the manager or taking part as the employee. Nothing is preselected, and the 1:1 can't be created until you pick: a role carried over from another meeting can be the wrong way round for this one, and the next 1:1s of the pair keep the roles of the first. The role is chosen for one colleague: choosing another colleague clears it. (The app doesn't enforce that the two participants pick complementary roles; it trusts them to coordinate this themselves, the same way it trusts them not to share their own password with each other.)
 3. Set a meeting date.
 4. The first time a given pair meets, they also set how often they'll repeat this (weekly / every two weeks / monthly). Every 1:1 after the first for that same pair inherits the periodicity automatically — the form explains this rather than just silently hiding the field.
 
 The form also asks for a meeting type, which decides the questions each side gets. **Regular check-in** is preselected. **Quick check-in** is its short form: mood and one free-text question for the employee, one question for the manager, with the agenda left to the shared topics list. The 1:1 after a Quick check-in is a Quick check-in too, unless someone picks another **Next meeting type** when archiving. The other built-in types (first 1:1, career growth, support & workload) are for one meeting, and the 1:1 after one of them is a Regular check-in, also for a pair that was on Quick check-ins before it: pick Quick check-in again when archiving.
 
-Right after creating a 1:1, its page offers "Create another 1:1 with the same settings": the form reopens with the role, meeting type and periodicity kept, and the counterpart and date empty — for a manager setting up 1:1s with a whole team.
+Right after creating a 1:1, its page offers "Create another 1:1 with the same settings": the form reopens with the meeting type and periodicity kept, and the counterpart, role and date empty — for a manager setting up 1:1s with a whole team.
 
 Creating the 1:1 is also the moment its encryption key is generated and handed to both participants (sealed to each one's public key, as described in encryption.md) — from this point on, both sides can decrypt everything in it, and no one else can.
 

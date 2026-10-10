@@ -31,10 +31,7 @@
   import { PATHS } from '../routes';
   import { pairChainState } from '../anketa/pairChain';
   import {
-    defaultRole,
-    pairRole,
-    readLastRole,
-    rememberLastRole,
+    roleStandsFor,
     setJustCreated,
     takeCreateAnother,
     takeCreateWith,
@@ -53,25 +50,23 @@
   let loadError = $state<string | null>(null);
 
   // Set when this form was opened by "Create another" on a just-created
-  // meeting's page (GitHub issue #198): role, template and periodicity start
-  // as they were there.
+  // meeting's page (GitHub issue #198): template and periodicity start as
+  // they were there.
   const another = takeCreateAnother();
   // Set when a pair's permanent link sent the user here to schedule the
   // pair's next meeting (GitHub issue #203).
   const presetCounterpartId = takeCreateWith();
 
   let counterpartId = $state('');
-  // The role this user last chose: on the form "Create another" came from,
-  // else on this device. Null if never.
-  const lastRole = another?.role ?? readLastRole();
-  // Null until there's a default (see setCounterpart()) or the user picks:
-  // no preselected role, so nobody ends up on the wrong side of their own
-  // 1:1 by not noticing the radio buttons.
-  let myRole = $state<Side | null>(lastRole);
-  // Once the user has clicked a role on this form, it's theirs: choosing a
-  // colleague no longer changes it. Set on click, not change, so clicking
-  // the already-preselected role to confirm it counts too.
-  let rolePicked = false;
+  // Null until the user picks: a role is a statement about this pair, so
+  // none is ever carried over from another meeting, not from the pair's
+  // history, not from the last 1:1 created here and not by "Create another".
+  // Any of them can be the wrong way round, and a preselected radio is easy
+  // not to notice (GitHub issue #251).
+  let myRole = $state<Side | null>(null);
+  // The colleague selected when the role was last clicked ('' for none),
+  // then the colleague it has stood for since: see setCounterpart().
+  let roleChosenWith = '';
   let templateChoice = $state<TemplateChoice>(
     another?.templateChoice ?? 'regular',
   );
@@ -118,13 +113,14 @@
       !submitting,
   );
 
-  // Choosing a colleague sets the role to its default for that pair, the
-  // role from the pair's history first, unless the user already picked one
-  // by hand. The typeahead also calls this with '' when the user types
-  // again, which falls back to the last choice.
+  // Choosing another colleague drops the role chosen for the previous one.
+  // The typeahead also calls this with '' when the user types again, which
+  // changes nothing: the same colleague may be chosen again.
   function setCounterpart(id: string): void {
     counterpartId = id;
-    if (!rolePicked) myRole = defaultRole(pairRole(priorAnketas, id), lastRole);
+    if (id === '') return;
+    if (!roleStandsFor(roleChosenWith, id)) myRole = null;
+    roleChosenWith = id;
   }
 
   // Cancels the two mount-time reads below on unmount — see GitHub issue #66.
@@ -238,7 +234,6 @@
       // What "Create another" keeps, as sent: read here, not after the
       // request, and with the periodicity the pair inherited if it wasn't asked.
       const settings = {
-        role,
         templateChoice,
         periodicityDays: inheritedPeriodicityDays ?? periodicityDays,
       };
@@ -259,7 +254,6 @@
         ...templateFields(templateChoice),
       });
 
-      rememberLastRole(role);
       setJustCreated(result.id, settings);
       navigate(`/anketas/${result.id}`);
     } catch (error) {
@@ -309,7 +303,7 @@
               type="radio"
               bind:group={myRole}
               value="manager"
-              onclick={() => (rolePicked = true)}
+              onchange={() => (roleChosenWith = counterpartId)}
             /><span class="dot"></span>
             {$_('createAnketa.roleManagerOption')}
           </label>
@@ -318,7 +312,7 @@
               type="radio"
               bind:group={myRole}
               value="employee"
-              onclick={() => (rolePicked = true)}
+              onchange={() => (roleChosenWith = counterpartId)}
             /><span class="dot"></span>
             {$_('createAnketa.roleEmployeeOption')}
           </label>
