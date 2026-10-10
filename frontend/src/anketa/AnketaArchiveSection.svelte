@@ -23,6 +23,8 @@
     skipNextMeeting = $bindable<boolean>(),
     nextMeetingDate = $bindable<string>(),
     nextTemplateChoice = $bindable<TemplateChoice | null>(),
+    swapRolesNext = $bindable<boolean>(),
+    swapNote,
     defaultChoice,
     companyTemplates,
     templateRetired,
@@ -46,6 +48,13 @@
     skipNextMeeting: boolean;
     nextMeetingDate: string;
     nextTemplateChoice: TemplateChoice | null;
+    /** Create the next 1:1 with the two roles swapped (GitHub issue #255). */
+    swapRolesNext: boolean;
+    /**
+     * Who answers as which in the next 1:1, while the swap is ticked and
+     * will apply; undefined otherwise.
+     */
+    swapNote: string | undefined;
     /** What the server does if nothing else is picked. */
     defaultChoice: TemplateChoice | null;
     /** The company's active templates (GitHub issue #144); empty if they couldn't be loaded. */
@@ -84,6 +93,11 @@
         type="checkbox"
         class="native-checkbox"
         bind:checked={skipNextMeeting}
+        onchange={(event) => {
+          // The swap checkbox goes out of sight with this ticked; a tick
+          // nobody can see mustn't come back with it.
+          if (event.currentTarget.checked) swapRolesNext = false;
+        }}
         disabled={archiving}
       />
       {$_('anketa.skipNextMeeting')}
@@ -133,6 +147,28 @@
           {$_('anketa.templateRetired')}
         </p>
       {/if}
+      <div class="archive-swap-roles">
+        <label class="radio">
+          <input
+            type="checkbox"
+            class="native-checkbox"
+            bind:checked={swapRolesNext}
+            disabled={archiving}
+          />
+          {$_('anketa.swapRolesNext')}
+        </label>
+        <!-- The result, not who holds which role now. A live region, there
+             whenever the checkbox is, not the checkbox's description: the
+             text appears after the checkbox got focus, when a description
+             is no longer read out. -->
+        <p
+          id="swap-roles-result"
+          class="text-muted swap-roles-result"
+          aria-live="polite"
+        >
+          {swapNote ?? ''}
+        </p>
+      </div>
     {/if}
   {/if}
   {#if answersEditOpen}
@@ -158,6 +194,7 @@
     busyLabel={$_('anketa.archiving')}
     blocked={answersEditOpen}
     describedBy="archive-after-edit-hint"
+    {swapNote}
     onConfirm={() => onArchive(false)}
   />
 </section>
@@ -185,7 +222,13 @@
     margin-bottom: 12px;
   }
 
-  .archive-template-retired {
+  .archive-template-retired,
+  .archive-swap-roles {
     margin-bottom: 12px;
+  }
+
+  .swap-roles-result {
+    font-size: 12px;
+    margin: 4px 0 0;
   }
 </style>

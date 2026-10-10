@@ -12,6 +12,7 @@
     triggerClass,
     confirmLabel,
     note = undefined,
+    swapNote = undefined,
     closing,
     busy,
     busyLabel,
@@ -30,6 +31,12 @@
     confirmLabel: string;
     /** A line about this way of closing, e.g. that the meeting is marked as missed. */
     note?: string;
+    /**
+     * Who answers as which in the next 1:1, when closing swaps the roles
+     * (GitHub issue #255): said here too, since the tick may be far from
+     * this button and closing can't be undone.
+     */
+    swapNote?: string;
     /** The meeting is being closed, from this control or the page's other one. */
     closing: boolean;
     /** That, or a plain publish of my side: nothing here can be pressed meanwhile. */
@@ -104,6 +111,7 @@
     <div id={textId} class="confirm-text">
       <p>{$_('anketa.closeConfirm')}</p>
       {#if note}<p>{note}</p>{/if}
+      {#if swapNote}<p>{swapNote}</p>{/if}
       {#if confirmation.publishFirst}
         <p>
           {$_('anketa.closeConfirmPublishFirst', {
