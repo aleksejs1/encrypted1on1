@@ -246,29 +246,31 @@ Backups and the non-root-container one-time-upgrade note are the same as the dir
 PROD_COMPOSE_FILE=docker-compose.cloud.reverse-proxy.yml ENV_FILE=.env.cloud MIGRATION_CONFIG=--configuration=migrations-mysql.php ./docker/prod/deploy.sh
 ```
 
+**A real, already-flagged future limitation, not a current one**: [ADR 4](adr/0004-session-based-auth.md) already states plainly that scaling to more than one app instance behind a load balancer would need shared session storage, which this app doesn't have. `docker-compose.cloud.yml` runs exactly one `app` container, same as the other topologies — fine for a good while on vertical scaling alone, but a real blocker the moment horizontal scaling is ever needed, flagged now rather than discovered as a surprise outage later.
+
+**What this doesn't cover, deliberately**: choosing and provisioning a real hosting provider/region, and drafting a real Terms of Service and Data Processing Agreement, are both explicitly *not* engineering tasks this repository can complete on its own — see `private/cloud-service-plan.md`'s own "not an engineering decision" framing. A real DPA is a genuine precondition to onboarding paying customers, not optional paperwork: this app being end-to-end encrypted means the operator can't read 1:1 content, but the operator is still the data processor for real metadata (who's registered, which companies exist, who's paired with whom, when) and needs a lawyer-reviewed agreement covering that, not a template generated without legal review.
+
 #### Stripe billing
 
-Optional. With `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ID` set, a company admin can start a Stripe Checkout subscription through `POST /api/billing/checkout-session`, and Stripe reports the result to `POST /api/billing/webhook`. There is no button for it in the app yet: the endpoint has to be called directly.
+Optional. With `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ID` set, a company admin can start a Stripe Checkout subscription through `POST /api/billing/checkout-session`, and Stripe reports the result to `POST /api/billing/webhook`. There is no button for it in the app yet: the endpoint has to be called directly, as a logged-in company admin (the session cookie and the CSRF token, like every other mutating request), and only with `CLOUD_MODE=1`; without it the answer is a 400 that says company sign-up isn't available.
 
 In the Stripe dashboard:
 
 - Create a product with a recurring price. `STRIPE_PRICE_ID` is the price's id (`price_...`), not the product's (`prod_...`).
-- If Managed Payments is on (it is by default on a new account), give the product a tax code, for example `txcd_10103001` (SaaS, business use). Without one Stripe refuses to create the Checkout session: "the product tax code is missing".
+- If Managed Payments is on, give the product a tax code, for example `txcd_10103001` (SaaS, business use). Without one Stripe refuses to create the Checkout session: "the product tax code is missing". It was on by default in the sandbox account used for the run below; whether that holds for every account wasn't checked.
 - Add a webhook endpoint for `https://<your host>/api/billing/webhook` with the events `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Its signing secret is `STRIPE_WEBHOOK_SECRET`.
 
-A paid checkout sets the company's subscription status and stores its Stripe customer and subscription ids. It doesn't change the company's plan tier or seat limit.
+A paid checkout sets the company's subscription status to `active` and stores its Stripe customer and subscription ids. It doesn't change the company's plan tier or seat limit.
 
-**What has been verified** ([GitHub issue #283](https://github.com/aleksejs1/encrypted1on1/issues/283)), by hand against a Stripe sandbox: creating a Checkout session, paying it with a test card, and handling the `checkout.session.completed` delivery that followed. **Not verified**: a real `customer.subscription.updated`/`customer.subscription.deleted` delivery (a cancellation, a failed payment; only a unit test with a hand-signed payload covers them), the checkout-session route over HTTP against Stripe (the provider was called directly), and anything in live mode. Run a test checkout on your own account before relying on it.
+The subscription events also suspend and unsuspend the company. A `past_due` or `canceled` status suspends it, and so does any status the app has no name for (`incomplete`, `unpaid`, `paused`), which it treats as `canceled`: one failed payment locks the whole company out. Any other status, a completed checkout included, lifts the suspension, also one a platform admin set by hand. `checkout.session.completed` is always recorded as `active`, even for a subscription that starts with a trial.
 
-To try it on the dev stack, put sandbox values and `CLOUD_MODE=1` in `backend/.env.local` (gitignored), and let the Stripe CLI forward events to the dev backend. It prints the signing secret to use as `STRIPE_WEBHOOK_SECRET`, and a current CLI needs the event list spelled out:
+**What has been verified** ([GitHub issue #283](https://github.com/aleksejs1/encrypted1on1/issues/283)), by hand against a Stripe sandbox: creating a Checkout session, paying it with a test card, and handling the `checkout.session.completed` delivery that followed. **Not verified**: a real `customer.subscription.updated`/`customer.subscription.deleted` delivery (a cancellation, a failed payment; only a unit test with a hand-signed payload covers them, and the listener received no such event during the run), and so the suspension described above, the checkout-session route over HTTP against Stripe (the provider was called directly), and anything in live mode. Run a test checkout on your own account before relying on it.
+
+To try it on the dev stack, put sandbox values and `CLOUD_MODE=1` in `backend/.env.local` (gitignored), and let the Stripe CLI forward events to the dev backend. It prints the signing secret to use as `STRIPE_WEBHOOK_SECRET`. The `stripe/stripe-cli:latest` image of 2026-10-11 refused to start without an event list ("must specify events to forward using --events, --all-snapshot, or --all-thin"), so the command names the events:
 
 ```sh
 stripe listen --events checkout.session.completed,customer.subscription.updated,customer.subscription.deleted --forward-to http://localhost:8000/api/billing/webhook
 ```
-
-**A real, already-flagged future limitation, not a current one**: [ADR 4](adr/0004-session-based-auth.md) already states plainly that scaling to more than one app instance behind a load balancer would need shared session storage, which this app doesn't have. `docker-compose.cloud.yml` runs exactly one `app` container, same as the other topologies — fine for a good while on vertical scaling alone, but a real blocker the moment horizontal scaling is ever needed, flagged now rather than discovered as a surprise outage later.
-
-**What this doesn't cover, deliberately**: choosing and provisioning a real hosting provider/region, and drafting a real Terms of Service and Data Processing Agreement, are both explicitly *not* engineering tasks this repository can complete on its own — see `private/cloud-service-plan.md`'s own "not an engineering decision" framing. A real DPA is a genuine precondition to onboarding paying customers, not optional paperwork: this app being end-to-end encrypted means the operator can't read 1:1 content, but the operator is still the data processor for real metadata (who's registered, which companies exist, who's paired with whom, when) and needs a lawyer-reviewed agreement covering that, not a template generated without legal review.
 
 ### Redeploying (updating an existing instance)
 

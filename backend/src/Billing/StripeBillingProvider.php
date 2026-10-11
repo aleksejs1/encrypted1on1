@@ -23,6 +23,9 @@ use Stripe\Webhook;
  * - `customer.subscription.updated`/`customer.subscription.deleted` have only that unit
  *   test behind them: no real delivery of either has been handled yet.
  *
+ * A known gap: `checkout.session.completed` is always recorded as 'active', also for a
+ * subscription that starts with a trial (see fromCheckoutSession()).
+ *
  * An account with Managed Payments on refuses to create a session unless the product has
  * a tax code — see docs/deployment.md's "Stripe billing" section.
  */
