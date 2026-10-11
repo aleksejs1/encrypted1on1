@@ -7,8 +7,8 @@ use App\Entity\Company;
 /**
  * Phase D of private/cloud-service-plan.md (not tracked in git). One real implementation
  * exists (StripeBillingProvider) — this interface exists so BillingController's own
- * auth/gating logic can be tested without ever invoking real Stripe SDK code, not because
- * a second provider is planned.
+ * auth/gating logic can be tested without ever invoking real Stripe SDK code (no such
+ * test exists yet), not because a second provider is planned.
  */
 interface BillingProviderInterface
 {
