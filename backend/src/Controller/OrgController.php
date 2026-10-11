@@ -27,7 +27,8 @@ class OrgController
 
     /**
      * Not part of GET /api/me: that one is polled often, and this needs a query for the
-     * reports. Only the create form asks for it.
+     * reports. Two callers: the create form (the role warning, #269), and the account
+     * data export, which reads the manager's email and display name (#270).
      *
      * Blocked and deleted people are left out on both sides (a blocked manager reads as
      * no manager): the form warns about a role that contradicts a reporting line, and a

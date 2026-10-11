@@ -36,6 +36,7 @@
   import { dateFormatState, setDateFormat } from '../datePreference.svelte';
   import type { AnketaTemplateKey, Answers } from '../anketa/questions';
   import { templateExporter } from '../anketa/templateExport';
+  import { managerForExport } from '../anketa/managerExport';
   import { downloadJsonFile } from '../downloadFile';
   import { fetchTemplateVersion } from '../api/templates';
   import { decryptDraft, migrateLegacyDrafts } from '../anketa/drafts';
@@ -285,6 +286,9 @@
       const draftKey = await deriveDraftKey(identity.privateKey);
       const list = await apiGet<AnketaBulkRow[]>('/api/anketas/bulk');
       const notesRows = await apiGet<OwnNotesRow[]>('/api/me/private-notes');
+      // My manager (GitHub issue #270); see managerForExport() for what a
+      // failure of this request does to the export.
+      const manager = await managerForExport(() => apiGet('/api/me/org'));
 
       const exportTemplate = templateExporter((versionId) =>
         fetchTemplateVersion(versionId),
@@ -402,6 +406,7 @@
             exportedAt: new Date().toISOString(),
             email: identity.email,
             displayName: identity.displayName,
+            ...manager,
             anketas: exportedAnketas,
             privateNotes: privateNotesForExport(openedNotes, exportedAnketas),
           },

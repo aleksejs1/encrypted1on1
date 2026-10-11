@@ -140,7 +140,7 @@ what it shows).
 - **One level each way.** Not the manager's manager, not a report's reports, not the manager's
   other reports. Nobody can walk the tree with it.
 - **A separate endpoint, not fields on `GET /api/me`**, which is polled often; this needs a query
-  for the reports, and only the create form asks for it.
+  for the reports. The create form asks for it, and since #270 the data export.
 - **Blocked and deleted people are left out on both sides**, so a blocked manager reads as no
   manager. The endpoint exists for the create form's role warning
   ([#269](https://github.com/aleksejs1/encrypted1on1/issues/269)), and a 1:1 with a blocked
@@ -154,3 +154,17 @@ form reads `GET /api/me/org` once, badges my manager and my direct reports in th
 picker, and warns when the clicked role contradicts the reporting line. It never selects a role
 and never blocks creating a 1:1. The reasoning is in
 [the role-selection record](2026-10-10-explicit-role-selection.md#the-reporting-line-a-badge-and-a-warning-not-a-default).
+
+## The data export
+
+[GitHub issue #270](https://github.com/aleksejs1/encrypted1on1/issues/270), frontend only: the
+account data export gains a top-level `manager` (`email`, `displayName`), or null. Who I report
+to is data about me; my direct reports are data about them and are not exported. It comes from
+`GET /api/me/org`, so a blocked manager reads as null, as everywhere else in the app. If the
+request fails, the export still completes, with `managerUnavailable: true` and no `manager` key
+(null always means "none"). Only a 401 or 403, an ended session, fails the export like its other
+requests (`frontend/src/anketa/managerExport.ts`).
+
+Accepted: a blocked manager is exported as null, although the link is still stored. The
+endpoint was shaped for the create form; an export that names a blocked manager needs the
+endpoint to say so.
