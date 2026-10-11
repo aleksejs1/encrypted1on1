@@ -103,11 +103,15 @@ it. The rules for the options and the filter are `frontend/src/admin/managerColu
   select changes value on each arrow-key press (Chrome and Firefox on Windows and Linux), every
   press would have written an assignment, and a refused option couldn't be arrowed past. It
   also rendered every row's select at once: rows × users option elements.
-- **One thing at a time.** While a row's editor is open or any row action (block, admin, delete)
-  is in flight, every other row action, every "Change" and the filter are disabled: one `busy`
-  flag. So the picked manager can't be blocked or deleted under the editor, a row can't be
-  deleted under its own save, and the filter can't hide a row being edited. Blunt, but there is
-  no second state to reconcile.
+- **One thing at a time.** While a row's editor is open or a row action (block, admin, delete)
+  is in flight, every other row's "Change" and "Actions" and the filters are disabled (`busy`).
+  So the picked manager can't be blocked or deleted under the editor, a row can't be deleted
+  under its own save, and the filter can't hide a row being edited. Blunt, but there is no
+  second state to reconcile. Since [GitHub issue #280](https://github.com/aleksejs1/encrypted1on1/issues/280)
+  the row actions are in a panel under the row, opened by its "Actions" button, and the open
+  row is one `OpenRow` union: a manager editor, or an actions panel with its own `pending` and
+  `error`. A panel that is only open blocks nothing; it closes when anything else opens, when
+  the "no manager" filter takes its row out, and when the import card sends a request.
 - **Save always sends what the select shows**, unchanged or not. The table is loaded once, so
   "unchanged" can't be told from here; after a Save the row shows what the server holds.
 - **The server decides.** The options are everyone who is not blocked or deleted, minus the row's
@@ -116,15 +120,16 @@ it. The rules for the options and the filter are `frontend/src/admin/managerColu
   edit mode with the server's message under the select (`role="alert"`).
 - **A blocked manager is shown as the manager**, marked "(blocked)", and stays an option in
   their own reports' rows. Nobody else is offered them.
-- **A deleted account's row has no "Change".** A link left on one by the deletion race is shown
-  (marked "deleted account" on the other side) but can't be cleared from the panel; the endpoint
-  accepts the clearing.
+- **A deleted account's row has no "Change"**, and since #280 is out of the table unless "Show
+  deleted accounts" is ticked. A link left on one by the deletion race is shown ("Deleted
+  account" on the other side, in place of the placeholder address) but can't be cleared from
+  the panel; the endpoint accepts the clearing.
 - **Deleting an account clears its links in the table at once**, both ways, as the server did.
 - **The filter leaves deleted accounts out**: they aren't people to find a manager for. It does
   list a person whose link still points at a deleted account.
 - **Focus** follows each step through `anketa/keepFocus.ts`, like the meeting page: to the select
   on "Change" and after a refusal, back to the row's button after Save or Cancel, to the filter
-  checkbox when the filter has just removed the saved row, and nowhere if the admin has moved on
+  checkbox when the filter has just removed the saved row or the account was deleted, and nowhere if the admin has moved on
   while the request ran.
 - **Accepted.** The table is loaded once, like the rest of the panel: a manager another admin
   blocked meanwhile is still offered, and the server's refusal is the answer. Blocked accounts

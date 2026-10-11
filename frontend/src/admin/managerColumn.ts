@@ -48,3 +48,20 @@ export function hasNoManager(
   const manager = user.managerId ? usersById.get(user.managerId) : undefined;
   return !manager || manager.deletedAt !== null;
 }
+
+/** The table's rows: deleted accounts only when asked for (GitHub issue #280). */
+export function listedUsers<T extends OrgUser>(
+  users: T[],
+  showDeleted: boolean,
+): T[] {
+  return showDeleted ? users : users.filter((user) => !user.deletedAt);
+}
+
+/**
+ * Deleted first: a deleted account is blocked too, and its name and address are
+ * placeholders. One rule for the status tag, the person cells and the select.
+ */
+export function accountState(user: OrgUser): 'active' | 'blocked' | 'deleted' {
+  if (user.deletedAt) return 'deleted';
+  return user.isBlocked ? 'blocked' : 'active';
+}

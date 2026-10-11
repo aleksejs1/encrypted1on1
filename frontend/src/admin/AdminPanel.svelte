@@ -4,14 +4,22 @@
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { ensureUnlocked, clearIdentity } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
-  import { nameWithEmail } from '../userDisplay';
+  import { fullDisplayName, nameWithEmail } from '../userDisplay';
   import {
     beginAction,
+    fallbackFocusOptions,
     findRow,
     ignoreHeldEnter,
     refocus,
+    type RefocusOptions,
   } from '../anketa/keepFocus';
-  import { hasNoManager, managerChoices, type OrgUser } from './managerColumn';
+  import {
+    accountState,
+    hasNoManager,
+    listedUsers,
+    managerChoices,
+    type OrgUser,
+  } from './managerColumn';
   import InviteForm from './InviteForm.svelte';
   import OrgImportCard from './OrgImportCard.svelte';
   import AdminTabStrip from './AdminTabStrip.svelte';
@@ -40,39 +48,64 @@
   let myUserId = $state<string | null>(null);
   let users = $state<AdminUser[]>([]);
   let panelDataError = $state<string | null>(null);
-  let actionError = $state<string | null>(null);
-  // Block, admin and delete: one at a time, see `busy` below.
-  let rowActionInFlight = $state(false);
+  // Only for reloadUsers(), and cleared only by the next one: until then the table
+  // may be stale. A row action's error is shown in its own panel.
+  let reloadError = $state<string | null>(null);
 
   let onlyNoManager = $state(false);
-  let noManagerFilter = $state<HTMLInputElement | null>(null);
+  // Both filters, found by `data-filter` when one has to take focus.
+  let filters = $state<HTMLElement>();
+  // Deleted accounts are out of the table until asked for (GitHub issue #280):
+  // nothing can be done to one.
+  let showDeleted = $state(false);
   const usersById = $derived(new Map(users.map((u) => [u.id, u])));
   const usersWithoutManager = $derived(
     users.filter((u) => hasNoManager(u, usersById)),
   );
-  const shownUsers = $derived(onlyNoManager ? usersWithoutManager : users);
-  let tableBody = $state<HTMLElement>();
+  const deletedCount = $derived(users.filter((u) => u.deletedAt).length);
+  const shownUsers = $derived(
+    onlyNoManager ? usersWithoutManager : listedUsers(users, showDeleted),
+  );
+  let table = $state<HTMLElement>();
 
-  // One row's manager is edited at a time, with an explicit Save: a select that
-  // saved on change would write on every arrow-key press where a closed select
-  // changes value per keystroke.
+  // At most one row is open, in one mode (GitHub issue #280): its manager editor,
+  // or its actions panel (block, admin, delete, under the row).
+  //
+  // The manager is edited with an explicit Save: a select that saved on change
+  // would write on every arrow-key press where a closed select changes value per
+  // keystroke.
   //
   // One thing at a time, so nothing has to be reconciled: while an editor is open
-  // or a row action is in flight, every other row action, every "Change" and the filter
-  // are disabled (`busy` below). The picked manager can't be
-  // blocked or deleted under the editor, the edited row can't be deleted under its
-  // own save, and the filter can't hide a row that is being edited.
-  let managerEdit = $state<{
-    userId: string;
-    managerId: string;
-    saving: boolean;
-    error: string | null;
-  } | null>(null);
-  const editorOpen = $derived(managerEdit !== null);
+  // or a panel's request is in flight, every other row's "Change" and "Actions" and
+  // both filters are disabled (`busy` below). The picked manager can't be blocked
+  // or deleted under the editor, the edited row can't be deleted under its own
+  // save, and a filter can't hide a row that is being edited. A panel that is
+  // only open blocks nothing in the table, and closes when anything else opens.
+  type OpenRow =
+    | {
+        kind: 'manager';
+        userId: string;
+        managerId: string;
+        saving: boolean;
+        error: string | null;
+      }
+    | {
+        kind: 'actions';
+        userId: string;
+        pending: boolean;
+        error: string | null;
+      }
+    | null;
+  let openRow = $state<OpenRow>(null);
+  // An open editor, or a panel's request in flight.
+  const rowBusy = $derived(
+    openRow !== null && (openRow.kind === 'manager' || openRow.pending),
+  );
   // The import card's request, which may rewrite any row's manager.
   let importInFlight = $state(false);
-  // What every row action, every "Change" and the filter are disabled by.
-  const busy = $derived(editorOpen || rowActionInFlight || importInFlight);
+  // What every "Change", every "Actions", every panel button and the filters are
+  // disabled by. The import card in turn is disabled by `rowBusy`.
+  const busy = $derived(rowBusy || importInFlight);
 
   let registrationMode = $state<RegistrationMode>('invite');
   let allowedEmailDomain = $state('');
@@ -109,10 +142,11 @@
    * abort signal: the import was a write the admin started.
    */
   async function reloadUsers(): Promise<void> {
+    reloadError = null;
     try {
       users = await apiGet<AdminUser[]>('/api/admin/users');
     } catch (error) {
-      actionError =
+      reloadError =
         error instanceof ApiError ? error.message : $_('admin.errorLoad');
     }
   }
@@ -144,63 +178,119 @@
     }
   }
 
-  async function toggleBlocked(user: AdminUser): Promise<void> {
-    rowActionInFlight = true;
-    actionError = null;
+  /**
+   * One request of the open actions panel; `request` puts the answer into `users`.
+   * An error stays in the panel, next to the button that caused it. Focus returns
+   * to that button (its label may have changed) only if the admin hasn't gone
+   * elsewhere meanwhile (keepFocus.ts).
+   */
+  async function runRowAction(
+    user: AdminUser,
+    action: 'blocked' | 'admin' | 'delete',
+    request: () => Promise<void>,
+    focusOptions?: FocusOptions,
+  ): Promise<void> {
+    if (busy || openRow?.kind !== 'actions' || openRow.userId !== user.id) {
+      return;
+    }
+    const row = userRow(user.id);
+    const startedOn = beginAction();
+    openRow = { kind: 'actions', userId: user.id, pending: true, error: null };
+    let error: string | null = null;
     try {
+      await request();
+    } catch (caught) {
+      error =
+        caught instanceof ApiError
+          ? caught.message
+          : $_(action === 'delete' ? 'admin.errorDelete' : 'admin.errorUpdate');
+    }
+    if (action === 'delete' && error === null) {
+      // A deleted account has no panel and no buttons, whether its row is still
+      // shown or not, so focus goes to the filter that decides that.
+      openRow = null;
+      focusFilter(onlyNoManager ? 'noManager' : 'deleted', {
+        startedOn,
+        focusOptions,
+      });
+      return;
+    }
+    openRow = { kind: 'actions', userId: user.id, pending: false, error };
+    void refocus(row, `[data-row-action="${action}"]`, { startedOn });
+  }
+
+  function toggleBlocked(user: AdminUser): Promise<void> {
+    return runRowAction(user, 'blocked', async () => {
       const result = await apiPut<{ isBlocked: boolean }>(
         `/api/admin/users/${user.id}/blocked`,
-        {
-          blocked: !user.isBlocked,
-        },
+        { blocked: !user.isBlocked },
       );
       users = users.map((u) =>
         u.id === user.id ? { ...u, isBlocked: result.isBlocked } : u,
       );
-    } catch (error) {
-      actionError =
-        error instanceof ApiError ? error.message : $_('admin.errorUpdate');
-    } finally {
-      rowActionInFlight = false;
-    }
+    });
   }
 
-  async function toggleAdmin(user: AdminUser): Promise<void> {
-    rowActionInFlight = true;
-    actionError = null;
-    try {
+  function toggleAdmin(user: AdminUser): Promise<void> {
+    return runRowAction(user, 'admin', async () => {
       const result = await apiPut<{ isAdmin: boolean }>(
         `/api/admin/users/${user.id}/admin`,
-        {
-          isAdmin: !user.isAdmin,
-        },
+        { isAdmin: !user.isAdmin },
       );
       users = users.map((u) =>
         u.id === user.id ? { ...u, isAdmin: result.isAdmin } : u,
       );
-    } catch (error) {
-      actionError =
-        error instanceof ApiError ? error.message : $_('admin.errorUpdate');
-    } finally {
-      rowActionInFlight = false;
-    }
+    });
   }
 
+  /** One line, for the select's options; the cells use the `person` snippet. */
   function managerLabel(manager: OrgUser): string {
+    const state = accountState(manager);
+    // Its name and address are placeholders.
+    if (state === 'deleted') return $_('admin.deletedAccount');
     const name = nameWithEmail(manager.displayName, manager.email);
-    // Deleted first: a deleted account is blocked too.
-    if (manager.deletedAt)
-      return $_('admin.managerDeleted', { values: { name } });
-    return manager.isBlocked
+    return state === 'blocked'
       ? $_('admin.managerBlocked', { values: { name } })
       : name;
   }
 
-  const userRow = (userId: string) =>
-    findRow(tableBody, 'data-user-id', userId);
+  /** Focus for a row that has left the table, or has nothing left to focus. */
+  function focusFilter(
+    name: 'noManager' | 'deleted',
+    options?: RefocusOptions,
+  ): void {
+    void refocus(filters, `[data-filter="${name}"]`, options);
+  }
+
+  /** A person's <tbody>: their row and, when open, their actions panel under it. */
+  const userRow = (userId: string) => findRow(table, 'data-user-id', userId);
+
+  /** Opens the row's actions panel, or closes it if it's the open one. */
+  function toggleActions(user: AdminUser): void {
+    if (busy) return;
+    if (openRow?.userId === user.id) {
+      openRow = null;
+      void refocus(userRow(user.id), '[data-actions-toggle]');
+      return;
+    }
+    // Focus stays on the toggle: the panel's first button acts at once, with no
+    // confirmation, so a second Enter must not reach it.
+    openRow = { kind: 'actions', userId: user.id, pending: false, error: null };
+  }
+
+  /**
+   * Closes an actions panel that is only open. Also when the import card sends a
+   * request: the admin has moved on to the card, and the panel's buttons are
+   * disabled for as long as the request runs.
+   */
+  function closeActions(): void {
+    if (openRow?.kind === 'actions' && !openRow.pending) openRow = null;
+  }
 
   function startManagerEdit(user: AdminUser): void {
-    managerEdit = {
+    if (busy) return;
+    openRow = {
+      kind: 'manager',
       userId: user.id,
       managerId: user.managerId ?? '',
       saving: false,
@@ -210,9 +300,9 @@
   }
 
   function cancelManagerEdit(): void {
-    if (!managerEdit) return;
-    const { userId } = managerEdit;
-    managerEdit = null;
+    if (openRow?.kind !== 'manager' || openRow.saving) return;
+    const { userId } = openRow;
+    openRow = null;
     void refocus(userRow(userId), '[data-manager-change]');
   }
 
@@ -222,13 +312,12 @@
    * Focus follows only if the admin hasn't gone elsewhere meanwhile (keepFocus.ts).
    */
   async function saveManagerEdit(): Promise<void> {
-    if (!managerEdit || managerEdit.saving) return;
-    const edit = managerEdit;
+    if (openRow?.kind !== 'manager' || openRow.saving) return;
+    const edit = openRow;
     const row = userRow(edit.userId);
     const managerId = edit.managerId === '' ? null : edit.managerId;
     const startedOn = beginAction();
-    managerEdit = { ...edit, saving: true, error: null };
-    actionError = null;
+    openRow = { ...edit, saving: true, error: null };
     try {
       const result = await apiPut<{ managerId: string | null }>(
         `/api/admin/users/${edit.userId}/manager`,
@@ -237,14 +326,14 @@
       users = users.map((u) =>
         u.id === edit.userId ? { ...u, managerId: result.managerId } : u,
       );
-      managerEdit = null;
+      openRow = null;
       // With the filter on, a row that got a manager is gone: the filter takes focus.
       void refocus(row, '[data-manager-change]', {
         startedOn,
-        onRootGone: () => noManagerFilter?.focus(),
+        onRootGone: () => focusFilter('noManager'),
       });
     } catch (error) {
-      managerEdit = {
+      openRow = {
         ...edit,
         saving: false,
         error:
@@ -261,52 +350,67 @@
    * available to an admin acting on someone else's account, so this asks the admin to
    * type the target's email instead as an equivalent-friction stand-in.
    */
-  async function deletePermanently(user: AdminUser): Promise<void> {
+  async function deletePermanently(
+    user: AdminUser,
+    click: MouseEvent,
+  ): Promise<void> {
     const typed = prompt(
       $_('admin.deleteConfirmPrompt', { values: { email: user.email } }),
     );
     if (typed !== user.email) return;
 
-    const row = userRow(user.id);
-    const startedOn = beginAction();
-    rowActionInFlight = true;
-    actionError = null;
-    try {
-      const result = await apiDelete<{
-        email: string;
-        displayName: string;
-        deletedAt: string;
-      }>(`/api/admin/users/${user.id}`, null);
-      // The server cleared the deleted account's reporting lines both ways
-      // (AccountDeleter); the same here, so the column and the filter are right
-      // without a reload.
-      users = users.map((u) =>
-        u.id === user.id
-          ? {
-              ...u,
-              email: result.email,
-              displayName: result.displayName,
-              deletedAt: result.deletedAt,
-              managerId: null,
-            }
-          : u.managerId === user.id
-            ? { ...u, managerId: null }
-            : u,
-      );
-      // A deleted row has nothing left to focus; one the filter has just dropped
-      // (a deleted account is never "without a manager") hands focus to the filter.
-      void refocus(row, '[data-manager-change]', {
-        startedOn,
-        onRootGone: () => noManagerFilter?.focus(),
-      });
-    } catch (error) {
-      actionError =
-        error instanceof ApiError ? error.message : $_('admin.errorDelete');
-    } finally {
-      rowActionInFlight = false;
-    }
+    await runRowAction(
+      user,
+      'delete',
+      async () => {
+        const result = await apiDelete<{
+          email: string;
+          displayName: string;
+          deletedAt: string;
+        }>(`/api/admin/users/${user.id}`, null);
+        // The server cleared the deleted account's reporting lines both ways
+        // (AccountDeleter); the same here, so the column and the filter are right
+        // without a reload.
+        users = users.map((u) =>
+          u.id === user.id
+            ? {
+                ...u,
+                email: result.email,
+                displayName: result.displayName,
+                deletedAt: result.deletedAt,
+                managerId: null,
+              }
+            : u.managerId === user.id
+              ? { ...u, managerId: null }
+              : u,
+        );
+      },
+      // The filter that takes focus may be far above a row deleted with the mouse.
+      fallbackFocusOptions(click),
+    );
   }
 </script>
+
+<!-- A name with the email under it; the email alone when no name is set. A
+     deleted account's name and address are placeholders, and aren't shown. -->
+{#snippet person(account: OrgUser, markBlocked = false)}
+  {@const state = accountState(account)}
+  {#if state === 'deleted'}
+    <span class="text-muted">{$_('admin.deletedAccount')}</span>
+  {:else}
+    {@const name = fullDisplayName(account.displayName, account.email)}
+    <div class="person">
+      <span
+        >{markBlocked && state === 'blocked'
+          ? $_('admin.managerBlocked', { values: { name } })
+          : name}</span
+      >
+      {#if name !== account.email}
+        <span class="text-muted person-email">{account.email}</span>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
 <main>
   <h1>{$_('admin.title')}</h1>
@@ -387,68 +491,101 @@
 
       <OrgImportCard
         {users}
-        disabled={editorOpen || rowActionInFlight || users.length === 0}
+        disabled={rowBusy || users.length === 0}
         bind:inFlight={importInFlight}
+        onStart={closeActions}
         onApplied={reloadUsers}
       />
 
-      {#if actionError}
+      {#if reloadError}
         <p class="banner-error" role="alert">
-          {actionError}
+          {reloadError}
         </p>
       {/if}
 
-      <label class="no-manager-filter">
-        <input
-          type="checkbox"
-          bind:checked={onlyNoManager}
-          bind:this={noManagerFilter}
-          disabled={busy}
-        />
-        {$_('admin.noManagerFilter', {
-          values: { count: usersWithoutManager.length },
-        })}
-      </label>
+      <div class="filters" bind:this={filters}>
+        <label class="filter">
+          <input
+            type="checkbox"
+            bind:checked={onlyNoManager}
+            data-filter="noManager"
+            onchange={() => {
+              if (!onlyNoManager) return;
+              // No panel stays open on a row the filter has just taken out.
+              if (!usersWithoutManager.some((u) => u.id === openRow?.userId)) {
+                closeActions();
+              }
+              // It never lists a deleted account: the other filter is off under it.
+              showDeleted = false;
+            }}
+            disabled={busy}
+          />
+          {$_('admin.noManagerFilter', {
+            values: { count: usersWithoutManager.length },
+          })}
+        </label>
+        {#if deletedCount > 0}
+          <label class="filter">
+            <input
+              type="checkbox"
+              bind:checked={showDeleted}
+              data-filter="deleted"
+              disabled={busy || onlyNoManager}
+            />
+            {$_('admin.showDeleted', { values: { count: deletedCount } })}
+          </label>
+        {/if}
+      </div>
 
       <div class="table-wrap">
-        <table class="table">
+        <table
+          class="table users"
+          bind:this={table}
+          onkeydowncapture={ignoreHeldEnter}
+        >
           <thead>
             <tr>
-              <th>{$_('admin.nameHeader')}</th>
-              <th>{$_('admin.emailHeader')}</th>
+              <th>{$_('admin.personHeader')}</th>
               <th>{$_('admin.statusHeader')}</th>
-              <th>{$_('admin.roleHeader')}</th>
               <th>{$_('admin.managerHeader')}</th>
-              <th>{$_('admin.createdHeader')}</th>
-              <th></th>
+              <th><span class="sr-only">{$_('admin.actions')}</span></th>
             </tr>
           </thead>
-          <tbody bind:this={tableBody} onkeydowncapture={ignoreHeldEnter}>
-            {#each shownUsers as user (user.id)}
-              <tr data-user-id={user.id}>
-                <td>{user.displayName || '—'}</td>
-                <td>{user.email}</td>
+          {#each shownUsers as user (user.id)}
+            {@const label = nameWithEmail(user.displayName, user.email)}
+            {@const state = accountState(user)}
+            {@const actions =
+              openRow?.kind === 'actions' && openRow.userId === user.id
+                ? openRow
+                : null}
+            <!-- One <tbody> per person, so the row and its panel are one root for
+                 refocus() (keepFocus.ts). -->
+            <tbody data-user-id={user.id} class:open={actions !== null}>
+              <tr>
+                <td>{@render person(user)}</td>
                 <td>
-                  <span
-                    class="tag {user.isBlocked
-                      ? 'tag-neutral'
-                      : 'tag-accent-2'}"
-                  >
-                    {user.deletedAt
-                      ? $_('admin.statusDeleted')
-                      : user.isBlocked
-                        ? $_('admin.statusBlocked')
-                        : $_('admin.statusActive')}
-                  </span>
+                  <div class="tags">
+                    <span
+                      class="tag {state === 'active'
+                        ? 'tag-accent-2'
+                        : 'tag-neutral'}"
+                    >
+                      {state === 'deleted'
+                        ? $_('admin.statusDeleted')
+                        : state === 'blocked'
+                          ? $_('admin.statusBlocked')
+                          : $_('admin.statusActive')}
+                    </span>
+                    {#if user.isAdmin && state !== 'deleted'}
+                      <span class="tag tag-outline"
+                        >{$_('admin.roleAdmin')}</span
+                      >
+                    {/if}
+                  </div>
                 </td>
-                <td
-                  >{user.isAdmin
-                    ? $_('admin.roleAdmin')
-                    : $_('admin.roleUser')}</td
-                >
                 <td>
-                  {#if managerEdit?.userId === user.id}
-                    {@const edit = managerEdit}
+                  {#if openRow?.kind === 'manager' && openRow.userId === user.id}
+                    {@const edit = openRow}
                     <div class="manager-edit">
                       <!-- Not narrowed to "who wouldn't make a cycle": the server
                            answers for that (see saveManagerEdit()). -->
@@ -456,14 +593,12 @@
                         class="input manager-select"
                         data-manager-select
                         aria-label={$_('admin.managerSelectLabel', {
-                          values: {
-                            name: nameWithEmail(user.displayName, user.email),
-                          },
+                          values: { name: label },
                         })}
-                        bind:value={managerEdit.managerId}
+                        bind:value={openRow.managerId}
                         onchange={() => {
                           // The refusal was about the option picked before.
-                          if (managerEdit) managerEdit.error = null;
+                          if (openRow?.kind === 'manager') openRow.error = null;
                         }}
                         disabled={edit.saving}
                       >
@@ -492,7 +627,7 @@
                       </button>
                     </div>
                     {#if edit.error}
-                      <p class="banner-error manager-error" role="alert">
+                      <p class="banner-error row-error" role="alert">
                         {edit.error}
                       </p>
                     {/if}
@@ -501,16 +636,18 @@
                       ? usersById.get(user.managerId)
                       : undefined}
                     <div class="manager-shown">
-                      <span>{manager ? managerLabel(manager) : '—'}</span>
+                      {#if manager}
+                        {@render person(manager, true)}
+                      {:else}
+                        <span>—</span>
+                      {/if}
                       {#if !user.deletedAt}
                         <button
                           type="button"
                           class="btn btn-secondary btn-small"
                           data-manager-change
                           aria-label={$_('admin.managerChangeLabel', {
-                            values: {
-                              name: nameWithEmail(user.displayName, user.email),
-                            },
+                            values: { name: label },
                           })}
                           onclick={() => startManagerEdit(user)}
                           disabled={busy}
@@ -521,49 +658,95 @@
                     </div>
                   {/if}
                 </td>
-                <td>{formatDisplayDate(user.createdAt)}</td>
-                <td class="actions">
+                <td class="actions-cell">
                   {#if !user.deletedAt}
                     <button
                       type="button"
                       class="btn btn-secondary btn-small"
-                      onclick={() => toggleBlocked(user)}
-                      disabled={busy || user.id === myUserId}
-                    >
-                      {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-small"
-                      onclick={() => toggleAdmin(user)}
+                      data-actions-toggle
+                      aria-expanded={actions !== null}
+                      aria-controls={actions ? `actions-${user.id}` : undefined}
+                      aria-label={$_('admin.actionsLabel', {
+                        values: { name: label },
+                      })}
+                      onclick={() => toggleActions(user)}
                       disabled={busy}
                     >
-                      {user.isAdmin
-                        ? $_('admin.revokeAdmin')
-                        : $_('admin.makeAdmin')}
+                      {$_('admin.actions')}
+                      <span aria-hidden="true">{actions ? '▴' : '▾'}</span>
                     </button>
-                    {#if user.isBlocked}
-                      <button
-                        type="button"
-                        class="btn btn-secondary btn-small"
-                        onclick={() => deletePermanently(user)}
-                        disabled={busy || user.id === myUserId}
-                      >
-                        {$_('admin.deletePermanently')}
-                      </button>
-                    {/if}
                   {/if}
                 </td>
               </tr>
-            {/each}
-            {#if onlyNoManager && shownUsers.length === 0}
+              {#if actions}
+                <tr>
+                  <td colspan="4">
+                    <div
+                      class="actions-panel"
+                      id="actions-{user.id}"
+                      role="group"
+                      aria-label={$_('admin.actionsLabel', {
+                        values: { name: label },
+                      })}
+                    >
+                      <span class="text-muted">
+                        {$_('admin.createdOn', {
+                          values: { date: formatDisplayDate(user.createdAt) },
+                        })}
+                      </span>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        data-row-action="blocked"
+                        onclick={() => toggleBlocked(user)}
+                        disabled={busy || user.id === myUserId}
+                      >
+                        {user.isBlocked
+                          ? $_('admin.unblock')
+                          : $_('admin.block')}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        data-row-action="admin"
+                        onclick={() => toggleAdmin(user)}
+                        disabled={busy}
+                      >
+                        {user.isAdmin
+                          ? $_('admin.revokeAdmin')
+                          : $_('admin.makeAdmin')}
+                      </button>
+                      {#if user.isBlocked}
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-small"
+                          data-row-action="delete"
+                          onclick={(click) => deletePermanently(user, click)}
+                          disabled={busy || user.id === myUserId}
+                        >
+                          {$_('admin.deletePermanently')}
+                        </button>
+                      {/if}
+                    </div>
+                    {#if actions.error}
+                      <p class="banner-error row-error" role="alert">
+                        {actions.error}
+                      </p>
+                    {/if}
+                  </td>
+                </tr>
+              {/if}
+            </tbody>
+          {/each}
+          {#if onlyNoManager && shownUsers.length === 0}
+            <tbody>
               <tr>
-                <td colspan="7" class="text-muted">
+                <td colspan="4" class="text-muted">
                   {$_('admin.noManagerEmpty')}
                 </td>
               </tr>
-            {/if}
-          </tbody>
+            </tbody>
+          {/if}
         </table>
       </div>
     {/if}
@@ -596,11 +779,51 @@
     overflow-x: auto;
   }
 
-  .no-manager-filter {
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin-bottom: 12px;
+  }
+
+  .filter {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+  }
+
+  /* A person's row and their actions panel are one <tbody>, highlighted together. */
+  .users tbody tr:hover {
+    background: none;
+  }
+
+  .users tbody[data-user-id]:hover {
+    background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  }
+
+  .users tbody.open tr:first-child td {
+    border-bottom: none;
+  }
+
+  .users td {
+    vertical-align: middle;
+  }
+
+  .person {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .person-email {
+    font-size: 13px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   .manager-shown,
@@ -610,25 +833,42 @@
     gap: 8px;
   }
 
+  .manager-shown {
+    justify-content: space-between;
+  }
+
+  /* The select on one line, Save and Cancel under it: the editor stays inside its column. */
+  .manager-edit {
+    flex-wrap: wrap;
+  }
+
   .manager-select {
+    flex: 1 1 100%;
     min-width: 10rem;
     max-width: 16rem;
     padding: 4px 8px;
     font-size: 13px;
   }
 
-  .manager-error {
+  .row-error {
     margin: 8px 0 0;
   }
 
-  .actions {
+  .actions-cell {
+    text-align: right;
+  }
+
+  .actions-panel {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-    white-space: nowrap;
+    padding-bottom: 4px;
   }
 
   .btn-small {
     padding: 4px 12px;
     font-size: 12px;
+    white-space: nowrap;
   }
 </style>
