@@ -18,7 +18,7 @@ export interface Identity {
   isAdmin: boolean;
   /** "invite" | "admin_only" | "domain" (Phase 6g) — every authenticated user needs this to decide whether to show the general "Invite" UI. */
   registrationMode: string;
-  /** Empty string = unrestricted. Non-sensitive; used by AdminPanel.svelte's invite-settings card. */
+  /** Empty string = unrestricted. Non-sensitive; used by InviteSettings.svelte, the admin panel's invite-settings card. */
   allowedEmailDomain: string;
   /** True only for the fixed, publicly-known demo account — drives a persistent "shared demo" banner. See private/demo-mode-plan.md (not tracked in git). */
   isDemo: boolean;
@@ -214,7 +214,7 @@ export async function ensureUnlocked(
 /**
  * Clears the cached identity so the next ensureUnlocked() call re-fetches
  * from /api/me — used for routine "this cached data is now stale" refreshes
- * (e.g. AdminPanel.svelte's saveInviteSettings(), after a self-service
+ * (e.g. InviteSettings.svelte's saveInviteSettings(), after a self-service
  * change to registrationMode/allowedEmailDomain). Deliberately does NOT
  * bump `generation`: this isn't a logout, so it must not poison an
  * unrelated concurrent ensureUnlocked() call that's still legitimately in

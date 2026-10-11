@@ -607,6 +607,7 @@
     "noManagerFilter": "Tikai bez vadītāja ({count})",
     "noManagerEmpty": "Visiem ir vadītājs.",
     "showDeleted": "Rādīt dzēstos kontus ({count})",
+    "inviteLink": "Uzaicināt kolēģi",
     "orgImport": {
       "title": "Pakļautības imports",
       "hint": "CSV fails ar virsrakstu rindu un vienu rindu katram cilvēkam: kolonna ar darbinieka e-pastu un kolonna ar viņa vadītāju. Vadītāju var norādīt ar e-pastu vai ar vārdu, ja failā ir arī kolonna ar katra darbinieka vārdu. Tukša vadītāja šūna nozīmē “nav vadītāja”. Tiem, kuru failā nav, vadītājs nemainās.",

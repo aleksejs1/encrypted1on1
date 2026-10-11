@@ -4,7 +4,14 @@
 
   // Prefilled from the "requested a new invitation" email's link (GitHub
   // issue #169), so re-inviting is one click on Send.
-  const { initialEmail = '' }: { initialEmail?: string } = $props();
+  const {
+    initialEmail = '',
+    onSent,
+  }: {
+    initialEmail?: string;
+    /** An invite went out: a list of invites on the same page reloads. */
+    onSent?: () => void;
+  } = $props();
 
   // svelte-ignore state_referenced_locally
   let email = $state(initialEmail);
@@ -25,13 +32,15 @@
       email = '';
     } catch (err) {
       error = err instanceof ApiError ? err.message : $_('inviteForm.error');
+      return;
     } finally {
       submitting = false;
     }
+    onSent?.();
   }
 </script>
 
-<form class="card" onsubmit={handleSubmit}>
+<form class="card elev-md" onsubmit={handleSubmit}>
   <div class="field">
     <label for="invite-email">{$_('inviteForm.label')}</label>
     <div class="row">
@@ -53,18 +62,14 @@
     </div>
   </div>
   {#if error}
-    <p class="banner-error">{error}</p>
+    <p class="banner-error" role="alert">{error}</p>
   {/if}
   {#if sent}
-    <p class="banner-success">{$_('inviteForm.sent')}</p>
+    <p class="banner-success" role="status">{$_('inviteForm.sent')}</p>
   {/if}
 </form>
 
 <style>
-  form {
-    max-width: 26rem;
-  }
-
   .row {
     display: flex;
     gap: 8px;

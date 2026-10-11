@@ -613,6 +613,7 @@
     "noManagerFilter": "Nur Personen ohne Führungskraft ({count})",
     "noManagerEmpty": "Alle haben eine Führungskraft.",
     "showDeleted": "Gelöschte Konten anzeigen ({count})",
+    "inviteLink": "Kollegen einladen",
     "orgImport": {
       "title": "Berichtslinien importieren",
       "hint": "Eine CSV-Datei mit einer Kopfzeile und einer Zeile pro Person: eine Spalte mit der E-Mail-Adresse der Person und eine Spalte mit ihrer Führungskraft. Die Führungskraft kann als E-Mail-Adresse angegeben sein oder als Name, wenn die Datei auch eine Spalte mit dem Namen jeder Person enthält. Eine leere Führungskraft-Zelle bedeutet „keine Führungskraft“. Wer in der Datei nicht vorkommt, behält seine Führungskraft.",
