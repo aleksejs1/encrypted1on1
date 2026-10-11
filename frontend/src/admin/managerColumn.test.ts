@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hasNoManager, managerChoices, type OrgUser } from './managerColumn';
+import {
+  accountState,
+  hasNoManager,
+  listedUsers,
+  managerChoices,
+  type OrgUser,
+} from './managerColumn';
 
 function user(id: string, overrides: Partial<OrgUser> = {}): OrgUser {
   return {
@@ -123,5 +129,42 @@ describe('hasNoManager', () => {
         byId([]),
       ),
     ).toBe(false);
+  });
+});
+
+describe('listedUsers', () => {
+  const users = [
+    user('anna'),
+    user('boris', { isBlocked: true }),
+    user('clara', { isBlocked: true, deletedAt: '2026-10-01T00:00:00+00:00' }),
+  ];
+
+  it('leaves deleted accounts out, and keeps blocked ones', () => {
+    expect(ids(listedUsers(users, false))).toEqual(['anna', 'boris']);
+  });
+
+  it('keeps everyone, in the given order, when deleted accounts are asked for', () => {
+    expect(ids(listedUsers(users, true))).toEqual(['anna', 'boris', 'clara']);
+  });
+});
+
+describe('accountState', () => {
+  it('is active for a live account', () => {
+    expect(accountState(user('anna'))).toBe('active');
+  });
+
+  it('is blocked for a blocked account', () => {
+    expect(accountState(user('anna', { isBlocked: true }))).toBe('blocked');
+  });
+
+  it('is deleted for a deleted account, which is blocked too', () => {
+    expect(
+      accountState(
+        user('anna', {
+          isBlocked: true,
+          deletedAt: '2026-10-01T00:00:00+00:00',
+        }),
+      ),
+    ).toBe('deleted');
   });
 });

@@ -6,6 +6,7 @@ import {
   type Page,
 } from '@playwright/test';
 import { createActivationLink, uniqueEmail } from './helpers/provision.js';
+import { actionsButton, managerCell, userRow } from './helpers/adminTable.js';
 
 const PASSWORD = 'correct horse battery staple 123';
 
@@ -26,15 +27,6 @@ async function activate(
   await page.getByRole('button', { name: 'Activate' }).click();
   await page.waitForURL('/');
   return page;
-}
-
-/** The "Manager" cell of the row with this email (the second column). */
-function managerCell(admin: Page, email: string): Locator {
-  return admin
-    .locator('tr', {
-      has: admin.locator('td:nth-child(2)', { hasText: email }),
-    })
-    .locator('td:nth-child(5)');
 }
 
 function changeButton(admin: Page, email: string): Locator {
@@ -173,10 +165,9 @@ test('a blocked manager stays the manager, marked, and is not offered to others;
   await setManager(admin, annaEmail, borisEmail);
   await expectManager(admin, annaEmail, borisEmail);
 
-  const borisRow = admin.locator('tr', {
-    has: admin.locator('td:nth-child(2)', { hasText: borisEmail }),
-  });
-  await borisRow.getByRole('button', { name: 'Block' }).click();
+  const borisRow = userRow(admin, borisEmail);
+  await actionsButton(admin, borisEmail).click();
+  await borisRow.getByRole('button', { name: 'Block', exact: true }).click();
 
   await expectManager(admin, annaEmail, `${borisEmail} (blocked)`);
   await changeButton(admin, claraEmail).click();
@@ -188,8 +179,157 @@ test('a blocked manager stays the manager, marked, and is not offered to others;
   await cancelEdit(admin, claraEmail);
 
   // Deleting the manager's account leaves Anna with none, without a reload.
+  await actionsButton(admin, borisEmail).click();
   admin.once('dialog', (dialog) => dialog.accept(borisEmail));
   await borisRow.getByRole('button', { name: 'Delete permanently' }).click();
   await expectManager(admin, annaEmail, '—');
   await expect(managerCell(admin, annaEmail)).not.toContainText('blocked');
+});
+
+/**
+ * GitHub issue #280: block, admin and delete are in a panel under the row, opened
+ * by the row's "Actions" button, and a deleted account leaves the table.
+ */
+test("a row's actions open in a panel under it; a deleted account leaves the table", async ({
+  browser,
+}) => {
+  const annaEmail = uniqueEmail('act-anna');
+  const borisEmail = uniqueEmail('act-boris');
+  await (await activate(browser, annaEmail)).context().close();
+  await (await activate(browser, borisEmail)).context().close();
+  const adminEmail = uniqueEmail('act-admin');
+  const admin = await activate(browser, adminEmail, true);
+
+  await admin.goto('/admin');
+  const annaRow = userRow(admin, annaEmail);
+  const annaActions = actionsButton(admin, annaEmail);
+  const block = annaRow.getByRole('button', { name: 'Block', exact: true });
+  const unblock = annaRow.getByRole('button', { name: 'Unblock' });
+
+  // Closed: no action button is in the table, and the toggle says so.
+  await expect(annaActions).toHaveAttribute('aria-expanded', 'false');
+  await expect(block).toHaveCount(0);
+
+  // Open: focus stays on the toggle, so a second Enter closes the panel and
+  // never reaches "Block". The panel also has the creation date.
+  await annaActions.click();
+  await expect(annaActions).toHaveAttribute('aria-expanded', 'true');
+  await expect(annaActions).toBeFocused();
+  await expect(block).toBeVisible();
+  await admin.keyboard.press('Enter');
+  await expect(block).toHaveCount(0);
+  await expect(annaRow).toContainText('Active');
+  await admin.keyboard.press('Enter');
+  await expect(block).toBeVisible();
+  await expect(annaRow).toContainText('Created ');
+
+  // One panel at a time, and an open panel blocks nothing in the table.
+  await actionsButton(admin, borisEmail).click();
+  await expect(block).toHaveCount(0);
+  await expect(
+    userRow(admin, borisEmail).getByRole('button', {
+      name: 'Block',
+      exact: true,
+    }),
+  ).toBeVisible();
+  // "Change" closes the panel and opens the editor instead.
+  await changeButton(admin, annaEmail).click();
+  await expect(managerSelect(admin, annaEmail)).toBeFocused();
+  await expect(
+    userRow(admin, borisEmail).getByRole('button', {
+      name: 'Block',
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  // While the editor is open, no panel can be opened.
+  await expect(annaActions).toBeDisabled();
+  await expect(actionsButton(admin, borisEmail)).toBeDisabled();
+  await cancelEdit(admin, annaEmail);
+
+  // Closing by the toggle returns focus to it.
+  await annaActions.click();
+  await annaActions.click();
+  await expect(block).toHaveCount(0);
+  await expect(annaActions).toBeFocused();
+
+  // My own row: I can't block myself.
+  await actionsButton(admin, adminEmail).click();
+  await expect(
+    userRow(admin, adminEmail).getByRole('button', {
+      name: 'Block',
+      exact: true,
+    }),
+  ).toBeDisabled();
+
+  // A refused action: the message is in the panel, which stays open.
+  await annaActions.click();
+  await admin.route(
+    '**/api/admin/users/*/blocked',
+    (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Refused for the test.' }),
+      }),
+    { times: 1 },
+  );
+  await block.click();
+  await expect(annaRow.getByRole('alert')).toHaveText('Refused for the test.');
+  await expect(block).toBeFocused();
+
+  // Block: the panel stays, with its buttons changed, and the error is gone.
+  await block.click();
+  await expect(unblock).toBeFocused();
+  await expect(annaRow.getByRole('alert')).toHaveCount(0);
+  await expect(annaRow).toContainText('Blocked');
+  const deleteButton = annaRow.getByRole('button', {
+    name: 'Delete permanently',
+  });
+  await expect(deleteButton).toBeVisible();
+
+  // Make admin and back, in the same panel.
+  await annaRow.getByRole('button', { name: 'Make admin' }).click();
+  await expect(
+    annaRow.getByRole('button', { name: 'Revoke admin' }),
+  ).toBeFocused();
+  await annaRow.getByRole('button', { name: 'Revoke admin' }).click();
+  await expect(
+    annaRow.getByRole('button', { name: 'Make admin' }),
+  ).toBeFocused();
+
+  // A mistyped email deletes nothing and leaves the panel as it was.
+  admin.once('dialog', (dialog) => dialog.accept('not the email'));
+  await deleteButton.click();
+  await expect(deleteButton).toBeVisible();
+
+  // Delete: the row leaves the table, and focus goes to the filter that hides it.
+  const showDeleted = admin.getByRole('checkbox', {
+    name: /Show deleted accounts/,
+  });
+  admin.once('dialog', (dialog) => dialog.accept(annaEmail));
+  await deleteButton.click();
+  await expect(annaActions).toHaveCount(0);
+  await expect(showDeleted).toBeFocused();
+  await expect(admin.getByRole('table').first()).not.toContainText(annaEmail);
+
+  // Deleted accounts are shown on request, without their placeholder address.
+  // By the status tag: "Deleted account" can also be a live person's manager.
+  const deletedRows = admin.locator('tbody', {
+    has: admin.locator('.tag', { hasText: /^\s*Deleted\s*$/ }),
+  });
+  await expect(deletedRows).toHaveCount(0);
+  await showDeleted.check();
+  await expect(deletedRows.first()).toBeVisible();
+  await expect(admin.getByRole('table').first()).not.toContainText(
+    '@deleted.invalid',
+  );
+  await expect(deletedRows.first()).toContainText('Deleted account');
+  await expect(deletedRows.first().getByRole('button')).toHaveCount(0);
+
+  // The "no manager" filter never lists a deleted account, so the other is off.
+  await admin
+    .getByRole('checkbox', { name: /Only people without a manager/ })
+    .check();
+  await expect(showDeleted).toBeDisabled();
+  await expect(showDeleted).not.toBeChecked();
 });

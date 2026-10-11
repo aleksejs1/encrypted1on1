@@ -29,6 +29,7 @@
     users,
     disabled,
     inFlight = $bindable(false),
+    onStart,
     onApplied,
   }: {
     users: OrgUser[];
@@ -36,6 +37,8 @@
     disabled: boolean;
     /** A request of this card's is on its way: the user table waits. */
     inFlight?: boolean;
+    /** A request of this card's, a preview included, is about to be sent. */
+    onStart: () => void;
     /** Managers were written: the user table reloads. */
     onApplied: () => Promise<void>;
   } = $props();
@@ -155,6 +158,7 @@
       await showResult();
       return;
     }
+    onStart();
     inFlight = true;
     applying = !dryRun;
     try {

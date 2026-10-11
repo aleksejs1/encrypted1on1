@@ -6,6 +6,7 @@ import {
   type Page,
 } from '@playwright/test';
 import { createActivationLink, uniqueEmail } from './helpers/provision.js';
+import { actionsButton, managerCell } from './helpers/adminTable.js';
 
 const PASSWORD = 'correct horse battery staple 123';
 
@@ -46,15 +47,6 @@ async function company(
 
 const card = (admin: Page): Locator => admin.locator('.org-import');
 
-/** The "Manager" cell of the user table's row with this email. */
-function managerCell(admin: Page, email: string): Locator {
-  return admin
-    .locator('tr', {
-      has: admin.locator('td:nth-child(2)', { hasText: email }),
-    })
-    .locator('td:nth-child(5)');
-}
-
 /** Picks a CSV file with this content and asks for the preview. */
 async function check(admin: Page, csv: string): Promise<void> {
   await card(admin)
@@ -80,11 +72,21 @@ test('a file is previewed, then applied; a row about an unknown email is left ou
 }) => {
   const { admin, anna, boris, clara } = await company(browser, 'imp');
 
+  // An import that starts closes a row's actions panel that was left open.
+  await actionsButton(admin, anna).click();
+  await expect(actionsButton(admin, anna)).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
   await check(
     admin,
     `employee_email,manager_email\n${anna},${boris}\nghost-${anna},${boris}\n\n${clara},\n`,
   );
   await expect(card(admin)).toContainText('nothing has been changed yet');
+  await expect(actionsButton(admin, anna)).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
   await expect(card(admin)).toContainText('manager will change: 1');
   await expect(card(admin)).toContainText('Already as in the file: 1');
   await expect(card(admin)).toContainText('Rows left out: 1');
