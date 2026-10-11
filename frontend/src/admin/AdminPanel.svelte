@@ -4,6 +4,14 @@
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { ensureUnlocked, clearIdentity } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
+  import { nameWithEmail } from '../userDisplay';
+  import {
+    beginAction,
+    findRow,
+    ignoreHeldEnter,
+    refocus,
+  } from '../anketa/keepFocus';
+  import { hasNoManager, managerChoices, type OrgUser } from './managerColumn';
   import InviteForm from './InviteForm.svelte';
   import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
@@ -23,21 +31,45 @@
   // correctly if the admin doesn't touch the select, not validate it client-side.
   type RegistrationMode = string;
 
-  interface AdminUser {
-    id: string;
-    email: string;
-    displayName: string;
+  interface AdminUser extends OrgUser {
     isAdmin: boolean;
-    isBlocked: boolean;
     createdAt: string;
-    deletedAt: string | null;
   }
 
   let myUserId = $state<string | null>(null);
   let users = $state<AdminUser[]>([]);
   let panelDataError = $state<string | null>(null);
   let actionError = $state<string | null>(null);
-  let pending = $state<Record<string, boolean>>({});
+  // Block, admin and delete: one at a time, see `busy` below.
+  let rowActionInFlight = $state(false);
+
+  let onlyNoManager = $state(false);
+  let noManagerFilter = $state<HTMLInputElement | null>(null);
+  const usersById = $derived(new Map(users.map((u) => [u.id, u])));
+  const usersWithoutManager = $derived(
+    users.filter((u) => hasNoManager(u, usersById)),
+  );
+  const shownUsers = $derived(onlyNoManager ? usersWithoutManager : users);
+  let tableBody = $state<HTMLElement>();
+
+  // One row's manager is edited at a time, with an explicit Save: a select that
+  // saved on change would write on every arrow-key press where a closed select
+  // changes value per keystroke.
+  //
+  // One thing at a time, so nothing has to be reconciled: while an editor is open
+  // or a row action is in flight, every other row action, every "Change" and the filter
+  // are disabled (`busy` below). The picked manager can't be
+  // blocked or deleted under the editor, the edited row can't be deleted under its
+  // own save, and the filter can't hide a row that is being edited.
+  let managerEdit = $state<{
+    userId: string;
+    managerId: string;
+    saving: boolean;
+    error: string | null;
+  } | null>(null);
+  const editorOpen = $derived(managerEdit !== null);
+  // What every row action, every "Change" and the filter are disabled by.
+  const busy = $derived(editorOpen || rowActionInFlight);
 
   let registrationMode = $state<RegistrationMode>('invite');
   let allowedEmailDomain = $state('');
@@ -97,7 +129,7 @@
   }
 
   async function toggleBlocked(user: AdminUser): Promise<void> {
-    pending = { ...pending, [user.id]: true };
+    rowActionInFlight = true;
     actionError = null;
     try {
       const result = await apiPut<{ isBlocked: boolean }>(
@@ -113,12 +145,12 @@
       actionError =
         error instanceof ApiError ? error.message : $_('admin.errorUpdate');
     } finally {
-      pending = { ...pending, [user.id]: false };
+      rowActionInFlight = false;
     }
   }
 
   async function toggleAdmin(user: AdminUser): Promise<void> {
-    pending = { ...pending, [user.id]: true };
+    rowActionInFlight = true;
     actionError = null;
     try {
       const result = await apiPut<{ isAdmin: boolean }>(
@@ -134,7 +166,75 @@
       actionError =
         error instanceof ApiError ? error.message : $_('admin.errorUpdate');
     } finally {
-      pending = { ...pending, [user.id]: false };
+      rowActionInFlight = false;
+    }
+  }
+
+  function managerLabel(manager: OrgUser): string {
+    const name = nameWithEmail(manager.displayName, manager.email);
+    // Deleted first: a deleted account is blocked too.
+    if (manager.deletedAt)
+      return $_('admin.managerDeleted', { values: { name } });
+    return manager.isBlocked
+      ? $_('admin.managerBlocked', { values: { name } })
+      : name;
+  }
+
+  const userRow = (userId: string) =>
+    findRow(tableBody, 'data-user-id', userId);
+
+  function startManagerEdit(user: AdminUser): void {
+    managerEdit = {
+      userId: user.id,
+      managerId: user.managerId ?? '',
+      saving: false,
+      error: null,
+    };
+    void refocus(userRow(user.id), '[data-manager-select]');
+  }
+
+  function cancelManagerEdit(): void {
+    if (!managerEdit) return;
+    const { userId } = managerEdit;
+    managerEdit = null;
+    void refocus(userRow(userId), '[data-manager-change]');
+  }
+
+  /**
+   * The server decides (GitHub issue #267): a refused assignment, a cycle for one,
+   * leaves the row in edit mode with the server's message under the select.
+   * Focus follows only if the admin hasn't gone elsewhere meanwhile (keepFocus.ts).
+   */
+  async function saveManagerEdit(): Promise<void> {
+    if (!managerEdit || managerEdit.saving) return;
+    const edit = managerEdit;
+    const row = userRow(edit.userId);
+    const managerId = edit.managerId === '' ? null : edit.managerId;
+    const startedOn = beginAction();
+    managerEdit = { ...edit, saving: true, error: null };
+    actionError = null;
+    try {
+      const result = await apiPut<{ managerId: string | null }>(
+        `/api/admin/users/${edit.userId}/manager`,
+        { managerId },
+      );
+      users = users.map((u) =>
+        u.id === edit.userId ? { ...u, managerId: result.managerId } : u,
+      );
+      managerEdit = null;
+      // With the filter on, a row that got a manager is gone: the filter takes focus.
+      void refocus(row, '[data-manager-change]', {
+        startedOn,
+        onRootGone: () => noManagerFilter?.focus(),
+      });
+    } catch (error) {
+      managerEdit = {
+        ...edit,
+        saving: false,
+        error:
+          error instanceof ApiError ? error.message : $_('admin.errorUpdate'),
+      };
+      void refocus(row, '[data-manager-select]', { startedOn });
     }
   }
 
@@ -151,7 +251,9 @@
     );
     if (typed !== user.email) return;
 
-    pending = { ...pending, [user.id]: true };
+    const row = userRow(user.id);
+    const startedOn = beginAction();
+    rowActionInFlight = true;
     actionError = null;
     try {
       const result = await apiDelete<{
@@ -159,6 +261,9 @@
         displayName: string;
         deletedAt: string;
       }>(`/api/admin/users/${user.id}`, null);
+      // The server cleared the deleted account's reporting lines both ways
+      // (AccountDeleter); the same here, so the column and the filter are right
+      // without a reload.
       users = users.map((u) =>
         u.id === user.id
           ? {
@@ -166,14 +271,23 @@
               email: result.email,
               displayName: result.displayName,
               deletedAt: result.deletedAt,
+              managerId: null,
             }
-          : u,
+          : u.managerId === user.id
+            ? { ...u, managerId: null }
+            : u,
       );
+      // A deleted row has nothing left to focus; one the filter has just dropped
+      // (a deleted account is never "without a manager") hands focus to the filter.
+      void refocus(row, '[data-manager-change]', {
+        startedOn,
+        onRootGone: () => noManagerFilter?.focus(),
+      });
     } catch (error) {
       actionError =
         error instanceof ApiError ? error.message : $_('admin.errorDelete');
     } finally {
-      pending = { ...pending, [user.id]: false };
+      rowActionInFlight = false;
     }
   }
 </script>
@@ -256,8 +370,22 @@
       </div>
 
       {#if actionError}
-        <p class="banner-error">{actionError}</p>
+        <p class="banner-error" role="alert">
+          {actionError}
+        </p>
       {/if}
+
+      <label class="no-manager-filter">
+        <input
+          type="checkbox"
+          bind:checked={onlyNoManager}
+          bind:this={noManagerFilter}
+          disabled={busy}
+        />
+        {$_('admin.noManagerFilter', {
+          values: { count: usersWithoutManager.length },
+        })}
+      </label>
 
       <div class="table-wrap">
         <table class="table">
@@ -267,13 +395,14 @@
               <th>{$_('admin.emailHeader')}</th>
               <th>{$_('admin.statusHeader')}</th>
               <th>{$_('admin.roleHeader')}</th>
+              <th>{$_('admin.managerHeader')}</th>
               <th>{$_('admin.createdHeader')}</th>
               <th></th>
             </tr>
           </thead>
-          <tbody>
-            {#each users as user (user.id)}
-              <tr>
+          <tbody bind:this={tableBody} onkeydowncapture={ignoreHeldEnter}>
+            {#each shownUsers as user (user.id)}
+              <tr data-user-id={user.id}>
                 <td>{user.displayName || '—'}</td>
                 <td>{user.email}</td>
                 <td>
@@ -294,6 +423,81 @@
                     ? $_('admin.roleAdmin')
                     : $_('admin.roleUser')}</td
                 >
+                <td>
+                  {#if managerEdit?.userId === user.id}
+                    {@const edit = managerEdit}
+                    <div class="manager-edit">
+                      <!-- Not narrowed to "who wouldn't make a cycle": the server
+                           answers for that (see saveManagerEdit()). -->
+                      <select
+                        class="input manager-select"
+                        data-manager-select
+                        aria-label={$_('admin.managerSelectLabel', {
+                          values: {
+                            name: nameWithEmail(user.displayName, user.email),
+                          },
+                        })}
+                        bind:value={managerEdit.managerId}
+                        onchange={() => {
+                          // The refusal was about the option picked before.
+                          if (managerEdit) managerEdit.error = null;
+                        }}
+                        disabled={edit.saving}
+                      >
+                        <option value="">{$_('admin.managerNone')}</option>
+                        {#each managerChoices(users, user) as choice (choice.id)}
+                          <option value={choice.id}
+                            >{managerLabel(choice)}</option
+                          >
+                        {/each}
+                      </select>
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-small"
+                        onclick={saveManagerEdit}
+                        disabled={edit.saving}
+                      >
+                        {edit.saving ? $_('common.saving') : $_('common.save')}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        onclick={cancelManagerEdit}
+                        disabled={edit.saving}
+                      >
+                        {$_('common.cancel')}
+                      </button>
+                    </div>
+                    {#if edit.error}
+                      <p class="banner-error manager-error" role="alert">
+                        {edit.error}
+                      </p>
+                    {/if}
+                  {:else}
+                    {@const manager = user.managerId
+                      ? usersById.get(user.managerId)
+                      : undefined}
+                    <div class="manager-shown">
+                      <span>{manager ? managerLabel(manager) : '—'}</span>
+                      {#if !user.deletedAt}
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-small"
+                          data-manager-change
+                          aria-label={$_('admin.managerChangeLabel', {
+                            values: {
+                              name: nameWithEmail(user.displayName, user.email),
+                            },
+                          })}
+                          onclick={() => startManagerEdit(user)}
+                          disabled={busy}
+                        >
+                          {$_('admin.managerChange')}
+                        </button>
+                      {/if}
+                    </div>
+                  {/if}
+                </td>
                 <td>{formatDisplayDate(user.createdAt)}</td>
                 <td class="actions">
                   {#if !user.deletedAt}
@@ -301,7 +505,7 @@
                       type="button"
                       class="btn btn-secondary btn-small"
                       onclick={() => toggleBlocked(user)}
-                      disabled={pending[user.id] || user.id === myUserId}
+                      disabled={busy || user.id === myUserId}
                     >
                       {user.isBlocked ? $_('admin.unblock') : $_('admin.block')}
                     </button>
@@ -309,7 +513,7 @@
                       type="button"
                       class="btn btn-secondary btn-small"
                       onclick={() => toggleAdmin(user)}
-                      disabled={pending[user.id]}
+                      disabled={busy}
                     >
                       {user.isAdmin
                         ? $_('admin.revokeAdmin')
@@ -320,7 +524,7 @@
                         type="button"
                         class="btn btn-secondary btn-small"
                         onclick={() => deletePermanently(user)}
-                        disabled={pending[user.id] || user.id === myUserId}
+                        disabled={busy || user.id === myUserId}
                       >
                         {$_('admin.deletePermanently')}
                       </button>
@@ -329,6 +533,13 @@
                 </td>
               </tr>
             {/each}
+            {#if onlyNoManager && shownUsers.length === 0}
+              <tr>
+                <td colspan="7" class="text-muted">
+                  {$_('admin.noManagerEmpty')}
+                </td>
+              </tr>
+            {/if}
           </tbody>
         </table>
       </div>
@@ -360,6 +571,31 @@
 
   .table-wrap {
     overflow-x: auto;
+  }
+
+  .no-manager-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .manager-shown,
+  .manager-edit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .manager-select {
+    min-width: 10rem;
+    max-width: 16rem;
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+
+  .manager-error {
+    margin: 8px 0 0;
   }
 
   .actions {
