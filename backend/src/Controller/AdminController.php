@@ -3,13 +3,17 @@
 namespace App\Controller;
 
 use App\Account\AccountDeleter;
+use App\Dto\SetUserManagerRequest;
 use App\Entity\Company;
 use App\Entity\User;
+use App\Org\OrgStructure;
+use App\Org\OrgStructureException;
 use App\Security\AuthSession;
 use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -37,6 +41,7 @@ class AdminController
         private readonly TranslatorInterface $translator,
         private readonly bool $cloudMode,
         private readonly AccountDeleter $accountDeleter,
+        private readonly OrgStructure $orgStructure,
     ) {
     }
 
@@ -63,6 +68,8 @@ class AdminController
             // visibility, not a toggle — deleted rows still show up here on purpose,
             // unlike GET /api/users (see ExcludeDeletedUsersExtension).
             'deletedAt' => $user->getDeletedAt()?->format(\DATE_ATOM),
+            // Only here, for admins: GET /api/users must never carry it (see User::$manager).
+            'managerId' => $user->getManager()?->getId(),
         ], $users));
     }
 
@@ -103,6 +110,34 @@ class AdminController
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $target->getId(), 'isAdmin' => $target->isAdmin()]);
+    }
+
+    /**
+     * Sets or clears (`managerId: null`) who a person reports to (GitHub issue #265).
+     * The only way a reporting line is ever written: nobody can name their own manager
+     * or claim a report. The rules are OrgStructure's.
+     */
+    #[Route('/api/admin/users/{id}/manager', name: 'admin_user_set_manager', methods: ['PUT'])]
+    public function setManager(
+        string $id,
+        #[MapRequestPayload] SetUserManagerRequest $payload,
+        Request $request,
+    ): JsonResponse {
+        $admin = $this->requireAdmin($request);
+
+        // Not findUser(), for either of them: what a deleted account may and may not get
+        // is OrgStructure's to decide (its link can still be cleared).
+        $target = $this->findCompanyUser($id, $admin);
+        $manager = \is_string($payload->managerId) ? $this->findCompanyUser($payload->managerId, $admin) : null;
+
+        try {
+            $this->orgStructure->assign($target, $manager);
+        } catch (OrgStructureException $e) {
+            return new JsonResponse(['error' => $this->translator->trans($e->reason->value)], 400);
+        }
+        $this->entityManager->flush();
+
+        return new JsonResponse(['id' => $target->getId(), 'managerId' => $target->getManager()?->getId()]);
     }
 
     /**
@@ -203,12 +238,20 @@ class AdminController
      */
     private function findUser(string $id, User $admin): User
     {
+        $user = $this->findCompanyUser($id, $admin);
+        if (null !== $user->getDeletedAt()) {
+            throw new BadRequestHttpException($this->translator->trans('errors.user_already_deleted'));
+        }
+
+        return $user;
+    }
+
+    /** The lookup half of findUser(): the same 404 for another company's user as for no user. */
+    private function findCompanyUser(string $id, User $admin): User
+    {
         $user = $this->entityManager->find(User::class, $id);
         if (null === $user || $user->getCompany() !== $admin->getCompany()) {
             throw new NotFoundHttpException($this->translator->trans('errors.user_not_found'));
-        }
-        if (null !== $user->getDeletedAt()) {
-            throw new BadRequestHttpException($this->translator->trans('errors.user_already_deleted'));
         }
 
         return $user;

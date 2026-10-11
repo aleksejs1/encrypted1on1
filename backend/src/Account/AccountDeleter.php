@@ -113,6 +113,13 @@ final class AccountDeleter
             $this->entityManager->remove($activationToken);
         }
 
+        // Reporting lines (GitHub issue #265), both ways: this row stays, so the foreign
+        // key's ON DELETE SET NULL never fires. Through the entities, for the same flush.
+        foreach ($this->entityManager->getRepository(User::class)->findBy(['manager' => $user]) as $report) {
+            $report->setManager(null);
+        }
+        $user->setManager(null);
+
         $user->delete();
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Company;
+use App\Entity\User;
 use App\Tests\Support\ApiTestCase;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 /**
  * CLOUD_MODE in .env is "0" (off), inherited unchanged by the test environment — same
@@ -350,6 +352,171 @@ class AdminControllerTest extends ApiTestCase
 
     /** @var list<string> */
     private array $createdCompanyIds = [];
+
+    /**
+     * An admin plus two more users of the admin's company, each activated through the
+     * one spare client (only the admin's session is used afterwards).
+     *
+     * @return array{0: KernelBrowser, 1: array{id: string, email: string, isAdmin: bool}, 2: array{id: string, email: string, isAdmin: bool}}
+     */
+    private function adminAndTwoUsers(string $label): array
+    {
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail("{$label}-admin"), admin: true);
+        $spare = $this->secondClient();
+
+        return [
+            $client,
+            $this->activateUser($spare, $this->uniqueEmail("{$label}-a")),
+            $this->activateUser($spare, $this->uniqueEmail("{$label}-b")),
+        ];
+    }
+
+    public function testSetManagerSetsAndClearsTheManager(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('manager-set');
+
+        $set = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $boris['id']]);
+        self::assertSame(200, $set['status']);
+        self::assertSame(['id' => $anna['id'], 'managerId' => $boris['id']], $set['json']);
+
+        $rows = array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+        self::assertSame($boris['id'], $rows[$anna['id']]);
+        self::assertNull($rows[$boris['id']]);
+
+        $clear = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => null]);
+        self::assertSame(200, $clear['status']);
+        self::assertNull($clear['json']['managerId']);
+
+        $rows = array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+        self::assertNull($rows[$anna['id']]);
+    }
+
+    public function testSetManagerRequires403ForANonAdmin(): void
+    {
+        $client = static::createClient();
+        $me = $this->activateUser($client, $this->uniqueEmail('manager-non-admin'));
+        $other = $this->activateUser($this->secondClient(), $this->uniqueEmail('manager-non-admin-other'));
+
+        // Naming yourself someone's manager, or picking your own, is exactly what must not work.
+        $claim = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$other['id']}/manager", ['managerId' => $me['id']]);
+        $pick = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$me['id']}/manager", ['managerId' => $other['id']]);
+
+        self::assertSame(403, $claim['status']);
+        self::assertSame(403, $pick['status']);
+        $entity = $this->entityManager()->find(User::class, $other['id']);
+        \assert($entity instanceof User);
+        self::assertNull($entity->getManager());
+    }
+
+    public function testSetManagerRequiresTheManagerIdField(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('manager-missing');
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $boris['id']]);
+
+        // A body without the field must not read as "clear the manager".
+        $missing = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", []);
+        $wrongType = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => 5]);
+
+        self::assertSame(400, $missing['status']);
+        self::assertSame('Missing or invalid "managerId".', $missing['json']['violations'][0]['message']);
+        self::assertSame(400, $wrongType['status']);
+        $rows = array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+        self::assertSame($boris['id'], $rows[$anna['id']]);
+    }
+
+    public function testSetManagerRejectsAManagerFromAnotherCompanyAsNotFound(): void
+    {
+        [$client, $anna] = $this->adminAndTwoUsers('manager-cross');
+        $outsider = $this->activateUser($this->secondClient(), $this->uniqueEmail('manager-outsider'), company: $this->makeCompany('Manager Other Co'));
+
+        $crossManager = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $outsider['id']]);
+        $crossTarget = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$outsider['id']}/manager", ['managerId' => $anna['id']]);
+        $unknown = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => 'no-such-user']);
+
+        // Indistinguishable from an id that doesn't exist.
+        self::assertSame(404, $crossManager['status']);
+        self::assertSame(404, $crossTarget['status']);
+        self::assertSame(404, $unknown['status']);
+        self::assertSame($unknown['json'], $crossManager['json']);
+    }
+
+    public function testSetManagerRejectsACycleWithTheTranslatedMessage(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('manager-cycle');
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $boris['id']]);
+
+        $english = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$boris['id']}/manager", ['managerId' => $anna['id']]);
+        $russian = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$boris['id']}/manager", ['managerId' => $anna['id']], ['HTTP_X_LOCALE' => 'ru']);
+
+        self::assertSame(400, $english['status']);
+        self::assertStringStartsWith('This would make a loop', $english['json']['error']);
+        self::assertSame(400, $russian['status']);
+        self::assertStringStartsWith('Получился бы замкнутый круг', $russian['json']['error']);
+        $rows = array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+        self::assertNull($rows[$boris['id']]);
+    }
+
+    public function testSetManagerRejectsThePersonThemselves(): void
+    {
+        [$client, $anna] = $this->adminAndTwoUsers('manager-self');
+
+        $result = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $anna['id']]);
+
+        self::assertSame(400, $result['status']);
+        self::assertSame("You can't make a person their own manager.", $result['json']['error']);
+    }
+
+    public function testSetManagerRejectsABlockedManagerButBlockingKeepsExistingReports(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('manager-blocked');
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $boris['id']]);
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$boris['id']}/blocked", ['blocked' => true]);
+
+        // Blocking is reversible, so it clears nothing.
+        $rows = array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+        self::assertSame($boris['id'], $rows[$anna['id']]);
+
+        $admin = $this->jsonRequest($client, 'GET', '/api/me')['json'];
+        $result = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$admin['id']}/manager", ['managerId' => $boris['id']]);
+        self::assertSame(400, $result['status']);
+        self::assertStringStartsWith("This person can't be set as a manager", $result['json']['error']);
+    }
+
+    /** A link an assignment racing the deletion left on a deleted account: clearable, not settable. */
+    public function testSetManagerOnADeletedAccountOnlyClears(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('manager-of-deleted');
+        $em = $this->entityManager();
+        $annaEntity = $em->find(User::class, $anna['id']);
+        $borisEntity = $em->find(User::class, $boris['id']);
+        \assert($annaEntity instanceof User && $borisEntity instanceof User);
+        $annaEntity->delete();
+        $annaEntity->setManager($borisEntity);
+        $em->flush();
+
+        $admin = $this->jsonRequest($client, 'GET', '/api/me')['json'];
+        $set = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $admin['id']]);
+        self::assertSame(400, $set['status']);
+        self::assertSame('This account has already been deleted.', $set['json']['error']);
+
+        $clear = $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => null]);
+        self::assertSame(200, $clear['status']);
+        self::assertNull($clear['json']['managerId']);
+    }
+
+    public function testDeletingAManagerThroughTheAdminPanelClearsTheirReports(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('manager-deleted');
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $boris['id']]);
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$boris['id']}/blocked", ['blocked' => true]);
+
+        $delete = $this->jsonRequest($client, 'DELETE', "/api/admin/users/{$boris['id']}");
+
+        self::assertSame(200, $delete['status']);
+        $rows = array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+        self::assertNull($rows[$anna['id']]);
+    }
 
     protected function tearDown(): void
     {
