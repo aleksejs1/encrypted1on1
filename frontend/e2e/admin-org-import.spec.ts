@@ -49,6 +49,13 @@ const card = (admin: Page): Locator => admin.locator('.org-import');
 
 /** Picks a CSV file with this content and asks for the preview. */
 async function check(admin: Page, csv: string): Promise<void> {
+  // The card is collapsed until opened, after every page load.
+  const toggle = card(admin).getByRole('button', {
+    name: 'Import reporting lines',
+  });
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') {
+    await toggle.click();
+  }
   await card(admin)
     .locator('input[type="file"]')
     .setInputFiles({
@@ -71,6 +78,12 @@ test('a file is previewed, then applied; a row about an unknown email is left ou
   browser,
 }) => {
   const { admin, anna, boris, clara } = await company(browser, 'imp');
+
+  // Collapsed until opened.
+  await expect(
+    card(admin).getByRole('button', { name: 'Import reporting lines' }),
+  ).toHaveAttribute('aria-expanded', 'false');
+  await expect(admin.locator('#org-import-body')).toBeHidden();
 
   // An import that starts closes a row's actions panel that was left open.
   await actionsButton(admin, anna).click();

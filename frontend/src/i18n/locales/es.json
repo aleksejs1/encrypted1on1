@@ -609,6 +609,7 @@
     "noManagerFilter": "Solo personas sin responsable ({count})",
     "noManagerEmpty": "Todas las personas tienen responsable.",
     "showDeleted": "Mostrar cuentas eliminadas ({count})",
+    "inviteLink": "Invitar a un compañero",
     "orgImport": {
       "title": "Importar líneas de reporte",
       "hint": "Un archivo CSV con una fila de encabezados y una fila por persona: una columna con el correo de la persona y otra con su responsable. El responsable puede indicarse con un correo, o con un nombre si el archivo también tiene una columna con el nombre de cada persona. Una celda de responsable vacía significa «sin responsable». Quienes no aparecen en el archivo conservan su responsable.",

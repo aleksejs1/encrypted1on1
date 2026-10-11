@@ -603,6 +603,7 @@
     "noManagerFilter": "Only people without a manager ({count})",
     "noManagerEmpty": "Everyone has a manager.",
     "showDeleted": "Show deleted accounts ({count})",
+    "inviteLink": "Invite a colleague",
     "orgImport": {
       "title": "Import reporting lines",
       "hint": "A CSV file with a header row and one row per person: a column with the person's email and a column with their manager. The manager can be an email, or a name if the file also has a column with each person's own name. An empty manager cell means \"no manager\". People the file doesn't mention keep their manager.",

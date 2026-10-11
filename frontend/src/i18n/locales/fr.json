@@ -622,6 +622,7 @@
     "noManagerFilter": "Uniquement les personnes sans responsable ({count})",
     "noManagerEmpty": "Tout le monde a un responsable.",
     "showDeleted": "Afficher les comptes supprimés ({count})",
+    "inviteLink": "Inviter un collègue",
     "orgImport": {
       "title": "Importer les liens hiérarchiques",
       "hint": "Un fichier CSV avec une ligne d'en-tête et une ligne par personne : une colonne avec l'e-mail de la personne et une colonne avec son responsable. Le responsable peut être indiqué par un e-mail, ou par un nom si le fichier contient aussi une colonne avec le nom de chaque personne. Une cellule de responsable vide signifie « aucun responsable ». Les personnes absentes du fichier gardent leur responsable.",

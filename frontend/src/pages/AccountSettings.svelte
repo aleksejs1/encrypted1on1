@@ -81,7 +81,7 @@
 
   // Same condition AnketaList.svelte's home-page invite block used to check —
   // moved here so the home page stays focused on anketas. Admins always see
-  // an invite form on AdminPanel.svelte regardless of this flag.
+  // an invite form on AdminInvites.svelte regardless of this flag.
   let showInvite = $state(false);
 
   // onMount (unlike an $effect) doesn't track reactive reads inside it, so

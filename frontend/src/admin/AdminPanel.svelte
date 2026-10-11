@@ -2,7 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPut, apiDelete, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
-  import { ensureUnlocked, clearIdentity } from '../crypto/identity.svelte';
+  import { ensureUnlocked } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { fullDisplayName, nameWithEmail } from '../userDisplay';
   import {
@@ -20,25 +20,10 @@
     managerChoices,
     type OrgUser,
   } from './managerColumn';
-  import InviteForm from './InviteForm.svelte';
+  import { PATHS } from '../routes';
   import OrgImportCard from './OrgImportCard.svelte';
   import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
-
-  // Deliberately just these two — not the full Company.REGISTRATION_MODES set. `domain`
-  // (open self-registration) is a separate, orthogonal feature (whether people can join
-  // without an invite at all, not "who can invite") and is unavailable on a multi-company
-  // instance anyway (SignupController refuses it globally once CLOUD_MODE is on,
-  // regardless of what any one company's registrationMode says) — offering it here would
-  // let an admin pick a setting that silently does nothing. Self-hosted operators who
-  // want it can still set it directly (bin/console dbal:run-sql), same as before this
-  // panel existed.
-  const REGISTRATION_MODES = ['admin_only', 'invite'] as const;
-  // Plain string, not a literal union of REGISTRATION_MODES: a company's actual
-  // registrationMode can still be 'domain' (set outside this panel, e.g. by a
-  // self-hosted operator via SQL) — this only needs to round-trip that value
-  // correctly if the admin doesn't touch the select, not validate it client-side.
-  type RegistrationMode = string;
 
   interface AdminUser extends OrgUser {
     isAdmin: boolean;
@@ -107,15 +92,9 @@
   // disabled by. The import card in turn is disabled by `rowBusy`.
   const busy = $derived(rowBusy || importInFlight);
 
-  let registrationMode = $state<RegistrationMode>('invite');
-  let allowedEmailDomain = $state('');
-  let settingsSaving = $state(false);
-  let settingsSaved = $state(false);
-  let settingsError = $state<string | null>(null);
-
   // Cancels loadPanelData()'s user-list fetch below on unmount — see GitHub
-  // issue #95. Not extended to toggleBlocked/toggleAdmin/deletePermanently/
-  // saveInviteSettings below: those are writes a user explicitly started via
+  // issue #95. Not extended to toggleBlocked/toggleAdmin/deletePermanently
+  // below: those are writes a user explicitly started via
   // a button click, which should finish regardless of navigation, same as
   // AnketaList.svelte's reshareAll (see abortOnDestroy's own docblock).
   const readAbort = abortOnDestroy();
@@ -125,8 +104,6 @@
     try {
       const identity = await ensureUnlocked();
       myUserId = identity.userId;
-      registrationMode = identity.registrationMode;
-      allowedEmailDomain = identity.allowedEmailDomain;
       users = await apiGet<AdminUser[]>('/api/admin/users', {
         signal: readAbort,
       });
@@ -148,33 +125,6 @@
     } catch (error) {
       reloadError =
         error instanceof ApiError ? error.message : $_('admin.errorLoad');
-    }
-  }
-
-  async function saveInviteSettings(): Promise<void> {
-    settingsSaving = true;
-    settingsSaved = false;
-    settingsError = null;
-    try {
-      const result = await apiPut<{
-        registrationMode: RegistrationMode;
-        allowedEmailDomain: string;
-      }>('/api/admin/company-settings', {
-        registrationMode,
-        allowedEmailDomain,
-      });
-      registrationMode = result.registrationMode;
-      allowedEmailDomain = result.allowedEmailDomain;
-      settingsSaved = true;
-      // The cached identity (used elsewhere to decide whether to show the
-      // general "Invite" UI, e.g. AccountSettings.svelte) is now stale —
-      // clear it so the next ensureUnlocked() call re-fetches from /api/me.
-      clearIdentity();
-    } catch (error) {
-      settingsError =
-        error instanceof ApiError ? error.message : $_('admin.errorUpdate');
-    } finally {
-      settingsSaving = false;
     }
   }
 
@@ -421,74 +371,6 @@
     {#if panelDataError}
       <p class="banner-error">{panelDataError}</p>
     {:else}
-      <div class="card elev-md invite-settings">
-        <h2>{$_('admin.inviteSettingsTitle')}</h2>
-        <p class="text-muted hint">{$_('admin.inviteSettingsHint')}</p>
-
-        <div class="field">
-          <label for="registration-mode"
-            >{$_('admin.registrationModeLabel')}</label
-          >
-          <select
-            id="registration-mode"
-            class="input"
-            bind:value={registrationMode}
-          >
-            {#each REGISTRATION_MODES as mode (mode)}
-              <option value={mode}
-                >{$_(`admin.registrationMode.${mode}`)}</option
-              >
-            {/each}
-            {#if !REGISTRATION_MODES.includes(registrationMode as 'admin_only' | 'invite')}
-              <!-- Not offered as a normal choice (see the REGISTRATION_MODES comment
-                 above), but a company already in this state — set outside this panel,
-                 e.g. a self-hosted operator's own SQL — needs a matching <option> so
-                 selecting anything else here is a deliberate choice, not a silent
-                 downgrade from an unmatched <select> defaulting to the first option. -->
-              <option value={registrationMode}
-                >{$_('admin.registrationModeOther', {
-                  values: { mode: registrationMode },
-                })}</option
-              >
-            {/if}
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="allowed-email-domain"
-            >{$_('admin.allowedEmailDomainLabel')}</label
-          >
-          <input
-            id="allowed-email-domain"
-            class="input"
-            type="text"
-            placeholder="company.com"
-            bind:value={allowedEmailDomain}
-          />
-          <p class="text-muted hint">{$_('admin.allowedEmailDomainHint')}</p>
-        </div>
-
-        {#if settingsSaved}
-          <p class="banner-success">{$_('admin.inviteSettingsSaved')}</p>
-        {/if}
-        {#if settingsError}
-          <p class="banner-error">{settingsError}</p>
-        {/if}
-
-        <button
-          type="button"
-          class="btn btn-primary"
-          onclick={saveInviteSettings}
-          disabled={settingsSaving}
-        >
-          {settingsSaving ? $_('common.saving') : $_('common.save')}
-        </button>
-      </div>
-
-      <div class="invite-wrap">
-        <InviteForm />
-      </div>
-
       <OrgImportCard
         {users}
         disabled={rowBusy || users.length === 0}
@@ -535,6 +417,10 @@
             {$_('admin.showDeleted', { values: { count: deletedCount } })}
           </label>
         {/if}
+        <!-- The invite form and its settings are on the Invites tab (GitHub issue #280). -->
+        <a class="invite-link" href={PATHS.adminInvites}
+          >{$_('admin.inviteLink')}</a
+        >
       </div>
 
       <div class="table-wrap">
@@ -765,16 +651,6 @@
     margin-bottom: 20px;
   }
 
-  .invite-settings {
-    margin-bottom: 24px;
-    max-width: 26rem;
-  }
-
-  .invite-wrap {
-    margin-bottom: 24px;
-    max-width: 26rem;
-  }
-
   .table-wrap {
     overflow-x: auto;
   }
@@ -784,6 +660,10 @@
     flex-wrap: wrap;
     gap: 8px 24px;
     margin-bottom: 12px;
+  }
+
+  .invite-link {
+    margin-left: auto;
   }
 
   .filter {
