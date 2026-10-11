@@ -35,8 +35,8 @@ open to every user of the company, must never carry it, or any employee could re
 tree. So the property and its getter have no serialization group, which
 `SerializationBoundaryTest` checks, and `UserResourceTest` pins the exact fields of a
 `GET /api/users` row. A person's own manager and direct
-reports get their own endpoint in
-[#268](https://github.com/aleksejs1/encrypted1on1/issues/268).
+reports have their own endpoint, `GET /api/me/org`
+([#268](https://github.com/aleksejs1/encrypted1on1/issues/268), below).
 
 ## The rules
 
@@ -129,3 +129,20 @@ it. The rules for the options and the filter are `frontend/src/admin/managerColu
 - **Accepted.** The table is loaded once, like the rest of the panel: a manager another admin
   blocked meanwhile is still offered, and the server's refusal is the answer. Blocked accounts
   with no manager are listed by the filter, since blocking is reversible.
+
+## My own links: `GET /api/me/org`
+
+[GitHub issue #268](https://github.com/aleksejs1/encrypted1on1/issues/268), backend only
+(`OrgController`). It answers with the caller's `manager` (or null) and `directReports`, each as
+id, display name and email, the reports in email order (only so the answer is stable; a caller that shows them sorts by
+what it shows).
+
+- **One level each way.** Not the manager's manager, not a report's reports, not the manager's
+  other reports. Nobody can walk the tree with it.
+- **A separate endpoint, not fields on `GET /api/me`**, which is polled often; this needs a query
+  for the reports, and only the create form asks for it.
+- **Blocked and deleted people are left out on both sides**, so a blocked manager reads as no
+  manager. The endpoint exists for the create form's role warning
+  ([#269](https://github.com/aleksejs1/encrypted1on1/issues/269)), and a 1:1 with a blocked
+  person can't be created at all, so there is nothing to warn about. The stored link is
+  untouched.
