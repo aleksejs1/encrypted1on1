@@ -518,6 +518,180 @@ class AdminControllerTest extends ApiTestCase
         self::assertNull($rows[$anna['id']]);
     }
 
+    /**
+     * @param list<array{0: string, 1: ?string}> $rows each an employee email and a manager email
+     *
+     * @return array{status: int, json: mixed}
+     */
+    private function import(KernelBrowser $client, array $rows, bool $dryRun): array
+    {
+        return $this->jsonRequest($client, 'POST', '/api/admin/org-structure/import', [
+            'dryRun' => $dryRun,
+            'assignments' => array_map(static fn (array $row): array => ['employeeEmail' => $row[0], 'managerEmail' => $row[1]], $rows),
+        ]);
+    }
+
+    /** @return array<string, ?string> manager id by user id, as the admin list has it */
+    private function managerIds(KernelBrowser $client): array
+    {
+        return array_column($this->jsonRequest($client, 'GET', '/api/admin/users')['json'], 'managerId', 'id');
+    }
+
+    public function testImportDryRunAnswersWhatWouldHappenAndChangesNothing(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('import-dry');
+
+        $result = $this->import($client, [
+            [strtoupper($anna['email']), $boris['email']],
+            ['nobody-'.$anna['email'], $boris['email']],
+        ], dryRun: true);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame([
+            'dryRun' => true,
+            'applied' => false,
+            'blocked' => false,
+            'counts' => ['rows' => 2, 'changes' => 1, 'unchanged' => 0, 'warnings' => 1, 'errors' => 0, 'blocking' => 0],
+            'problems' => [['row' => 1, 'severity' => 'warning', 'reason' => 'employee_not_found']],
+        ], $result['json']);
+        self::assertNull($this->managerIds($client)[$anna['id']]);
+    }
+
+    public function testImportAppliesExactlyTheValidRows(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('import-apply');
+        $admin = $this->jsonRequest($client, 'GET', '/api/me')['json'];
+
+        $result = $this->import($client, [
+            [$anna['email'], $boris['email']],
+            [$boris['email'], $boris['email']],
+            [$admin['email'], 'ghost-'.$boris['email']],
+        ], dryRun: false);
+
+        self::assertSame(200, $result['status']);
+        self::assertTrue($result['json']['applied']);
+        self::assertSame(['rows' => 3, 'changes' => 1, 'unchanged' => 0, 'warnings' => 1, 'errors' => 1, 'blocking' => 0], $result['json']['counts']);
+        self::assertSame([
+            ['row' => 1, 'severity' => 'error', 'reason' => 'own_manager'],
+            ['row' => 2, 'severity' => 'warning', 'reason' => 'manager_not_found'],
+        ], $result['json']['problems']);
+        $managers = $this->managerIds($client);
+        self::assertSame($boris['id'], $managers[$anna['id']]);
+        self::assertNull($managers[$boris['id']]);
+        self::assertNull($managers[$admin['id']]);
+
+        // The same file again: nothing left to change, and a null clears.
+        $again = $this->import($client, [[$anna['email'], $boris['email']]], dryRun: false);
+        self::assertSame(['rows' => 1, 'changes' => 0, 'unchanged' => 1, 'warnings' => 0, 'errors' => 0, 'blocking' => 0], $again['json']['counts']);
+        $this->import($client, [[$anna['email'], null]], dryRun: false);
+        self::assertNull($this->managerIds($client)[$anna['id']]);
+    }
+
+    public function testImportWithACycleAppliesNothingAndAnswers400WithTheSameBody(): void
+    {
+        [$client, $anna, $boris] = $this->adminAndTwoUsers('import-cycle');
+        $admin = $this->jsonRequest($client, 'GET', '/api/me')['json'];
+        // Anna already reports to Boris; Boris under Anna closes the loop through a stored link.
+        $this->jsonRequest($client, 'PUT', "/api/admin/users/{$anna['id']}/manager", ['managerId' => $boris['id']]);
+        $rows = [[$boris['email'], $anna['email']], [$admin['email'], $boris['email']]];
+
+        $dry = $this->import($client, $rows, dryRun: true);
+        $real = $this->import($client, $rows, dryRun: false);
+
+        foreach ([$dry, $real] as $result) {
+            self::assertSame(400, $result['status']);
+            self::assertTrue($result['json']['blocked']);
+            self::assertFalse($result['json']['applied']);
+            self::assertSame([['row' => 0, 'severity' => 'blocking', 'reason' => 'cycle']], $result['json']['problems']);
+            self::assertStringStartsWith('These rows would make a loop', $result['json']['error']);
+        }
+        $managers = $this->managerIds($client);
+        self::assertNull($managers[$boris['id']]);
+        // The valid row was not applied either.
+        self::assertNull($managers[$admin['id']]);
+    }
+
+    public function testImportRequires403ForANonAdminAnd401LoggedOut(): void
+    {
+        $client = static::createClient();
+        self::assertSame(401, $this->import($client, [], dryRun: true)['status']);
+
+        $me = $this->activateUser($client, $this->uniqueEmail('import-non-admin'));
+        $other = $this->activateUser($this->secondClient(), $this->uniqueEmail('import-non-admin-other'));
+
+        $result = $this->import($client, [[$other['email'], $me['email']]], dryRun: false);
+
+        self::assertSame(403, $result['status']);
+        $entity = $this->entityManager()->find(User::class, $other['id']);
+        \assert($entity instanceof User);
+        self::assertNull($entity->getManager());
+    }
+
+    public function testImportTreatsAnotherCompanysEmailsAsUnknown(): void
+    {
+        [$client, $anna] = $this->adminAndTwoUsers('import-cross');
+        $outsider = $this->activateUser($this->secondClient(), $this->uniqueEmail('import-outsider'), company: $this->makeCompany('Import Other Co'));
+
+        $result = $this->import($client, [[$anna['email'], $outsider['email']], [$outsider['email'], $anna['email']]], dryRun: false);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(['manager_not_found', 'employee_not_found'], array_column($result['json']['problems'], 'reason'));
+        self::assertNull($this->managerIds($client)[$anna['id']]);
+        // Read straight from the table: the tenant filter hides the other company's row.
+        self::assertNull($this->entityManager()->getConnection()->fetchOne('SELECT manager_id FROM users WHERE id = ?', [$outsider['id']]));
+    }
+
+    public function testImportRejectsAMalformedBody(): void
+    {
+        [$client, $anna] = $this->adminAndTwoUsers('import-malformed');
+        $post = fn (array $body): array => $this->jsonRequest($client, 'POST', '/api/admin/org-structure/import', $body);
+        $row = ['employeeEmail' => $anna['email'], 'managerEmail' => null];
+
+        // A missing or non-boolean dryRun must never read as "apply".
+        self::assertSame(400, $post(['assignments' => [$row]])['status']);
+        self::assertSame(400, $post(['dryRun' => 'false', 'assignments' => [$row]])['status']);
+        self::assertSame(400, $post(['dryRun' => true])['status']);
+        self::assertSame(400, $post(['dryRun' => true, 'assignments' => ['a' => $row]])['status']);
+        self::assertSame(400, $post(['dryRun' => true, 'assignments' => [['managerEmail' => 'x@example.com']]])['status']);
+        self::assertSame(400, $post(['dryRun' => true, 'assignments' => [['employeeEmail' => ' ']]])['status']);
+        $badManager = $post(['dryRun' => true, 'assignments' => [$row, ['employeeEmail' => $anna['email'], 'managerEmail' => 5]]]);
+        self::assertSame(400, $badManager['status']);
+        self::assertSame('assignments[1]', $badManager['json']['violations'][0]['property']);
+        // A missing managerEmail is not "clear the manager": a misnamed column would clear everyone's.
+        self::assertSame(400, $post(['dryRun' => true, 'assignments' => [['employeeEmail' => $anna['email']]]])['status']);
+        self::assertSame(400, $post(['dryRun' => true, 'assignments' => [['employeeEmail' => $anna['email'], 'manager_email' => null]]])['status']);
+        self::assertSame(400, $post(['dryRun' => true, 'assignments' => [['employeeEmail' => str_repeat('a', 321), 'managerEmail' => null]]])['status']);
+        self::assertSame(200, $post(['dryRun' => true, 'assignments' => [$row]])['status']);
+    }
+
+    public function testImportRejectsMoreRowsThanTheLimit(): void
+    {
+        [$client, $anna] = $this->adminAndTwoUsers('import-limit');
+        $rows = array_fill(0, 1000, [$anna['email'], null]);
+
+        self::assertSame(200, $this->import($client, $rows, dryRun: true)['status']);
+        $over = $this->import($client, [...$rows, [$anna['email'], null]], dryRun: true);
+
+        self::assertSame(400, $over['status']);
+        self::assertSame('At most 1000 rows per import.', $over['json']['violations'][0]['message']);
+    }
+
+    public function testImportIsRateLimitedPerAdminDryRunsIncluded(): void
+    {
+        $client = static::createClient();
+        // A company of its own: each call loads every user of the company.
+        $this->activateUser($client, $this->uniqueEmail('import-rate-admin'), admin: true, company: $this->makeCompany('Import Rate Co'));
+        $limit = (int) $_ENV['ORG_IMPORT_RATE_LIMIT'];
+        for ($call = 0; $call < $limit; ++$call) {
+            self::assertSame(200, $this->import($client, [], dryRun: 0 === $call % 2)['status'], "call {$call}");
+        }
+
+        $result = $this->import($client, [], dryRun: true);
+
+        self::assertSame(429, $result['status']);
+        self::assertSame('Too many requests. Please try again later.', $result['json']['error']);
+    }
+
     protected function tearDown(): void
     {
         if ([] !== $this->createdCompanyIds) {

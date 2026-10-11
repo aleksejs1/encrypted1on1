@@ -74,6 +74,7 @@ Each named limiter (`config/packages/rate_limiter.php`) reads its request count 
 | `signup` | `REGISTRATION_MODE=domain` self-signup | `SIGNUP_RATE_LIMIT` / `SIGNUP_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
 | `create_company` | `CLOUD_MODE=1` self-service company creation | `CREATE_COMPANY_RATE_LIMIT` / `CREATE_COMPANY_RATE_LIMIT_INTERVAL` | 5 / 1 hour |
 | `template_save` | A company admin creating or editing a company template (per admin); only saves that get as far as writing a new version count (a save rejected as invalid or unchanged doesn't) | `TEMPLATE_SAVE_RATE_LIMIT` / `TEMPLATE_SAVE_RATE_LIMIT_INTERVAL` | 60 / 1 hour |
+| `org_import` | A company admin importing reporting lines, each dry run and each apply (per admin) | `ORG_IMPORT_RATE_LIMIT` / `ORG_IMPORT_RATE_LIMIT_INTERVAL` | 60 / 1 hour |
 | `invite_renewal_request` | `POST /api/activation-tokens/{token}/request-renewal` ("Request new invitation" on an expired link) — IP-keyed, so set high enough for a whole office of new hires behind one address; each invitee address also has its own 24-hour cooldown | `INVITE_RENEWAL_REQUEST_RATE_LIMIT` / `INVITE_RENEWAL_REQUEST_RATE_LIMIT_INTERVAL` | 30 / 1 hour |
 
 ### Frontend build-time (baked into the static bundle)

@@ -168,3 +168,73 @@ requests (`frontend/src/anketa/managerExport.ts`).
 Accepted: a blocked manager is exported as null, although the link is still stored. The
 endpoint was shaped for the create form; an export that names a blocked manager needs the
 endpoint to say so.
+
+## The import
+
+[GitHub issue #271](https://github.com/aleksejs1/encrypted1on1/issues/271), backend only:
+`POST /api/admin/org-structure/import` takes `{"dryRun": bool, "assignments": [{"employeeEmail",
+"managerEmail"}]}` and sets many reporting lines at once, for a company that keeps its structure
+in an HR system.
+
+- **JSON rows, not a file.** The admin panel reads the CSV in the browser
+  ([#272](https://github.com/aleksejs1/encrypted1on1/issues/272)), as it does for template
+  files. The backend has no upload handling and gets none.
+- **A partial update.** People the rows don't name keep their manager. A null or empty
+  `managerEmail` clears it. The key itself is required in every row: a misnamed or unmapped
+  manager column would otherwise clear everyone's manager without a word.
+- **Emails are matched on the server, ignoring case.** Stored emails keep the case they were
+  typed in. An address that matches two accounts differing only by case (possible on SQLite) is
+  reported as ambiguous, not guessed.
+- **One endpoint, two calls, nothing kept between them.** `dryRun: true` answers what would
+  happen. `dryRun: false` works it all out again and applies it in one flush. If the company
+  changed in between, the second answer is the true one, in the same shape. A missing or
+  non-boolean `dryRun` is a 400: it must never read as "apply".
+- **The plan is a pure function** (`App\Org\OrgStructureImport::plan()`): the company's users
+  and the rows in, the changes and the problems out. The dry run and the real import share all
+  of it, and it runs every assignment through `OrgStructure::violations()`, the same check as
+  the admin panel's single assignment.
+
+Each problem has the row's index and a reason code; the admin panel translates the codes.
+
+| Row | Reason | Severity |
+| --- | --- | --- |
+| `employeeEmail` names nobody in the company | `employee_not_found` | warning |
+| `managerEmail` names nobody in the company | `manager_not_found` | warning |
+| an address matches two accounts | `ambiguous_email` | warning |
+| the manager is blocked | `manager_unavailable` | warning |
+| a person as their own manager | `own_manager` | error |
+| the same person twice, with different manager addresses | `conflicting_rows` | error, on each such row |
+| the row closes a cycle in the resulting tree | `cycle` | blocking |
+
+A warning is a row about someone the company doesn't have, which is expected of an HR system's
+file; an error is a row that contradicts itself or another row. Both are skipped and the rest
+applied. A cycle stops the whole import with a 400 and the same body, plus the usual `error`
+message: the rows of a cycle can't
+be told apart from the rows that lean on them, so applying "the rest" could still store one. The
+same row twice counts once as a change, and a problem with it is reported for each of its rows.
+Rows disagree by the addresses as written, before any is looked up: a row naming an unknown
+manager still contradicts a row naming a known one. A deleted account's address names nobody. Another company's
+addresses are unknown, like any other.
+
+At most 1000 rows per request, each address at most 320 bytes, and 60 calls an hour per admin, dry runs included
+(`ORG_IMPORT_RATE_LIMIT`): each call loads every user of the company.
+
+Addresses are trimmed of what a spreadsheet leaves around a cell (a no-break space, a zero-width
+space, a byte-order mark) before they are matched.
+
+Accepted:
+
+- **A skipped row can still block the import.** A person whose row is skipped keeps their stored
+  manager, and another row can close a loop through that stored link although the file has none
+  (Y moves under someone not yet in the company, X moves under Y, and Y still reports to X). The
+  admin clears or fixes Y's link first.
+- **A blank manager cell clears the manager**, like null. A file with blanks for people the HR
+  system knows nothing about clears managers set by hand; the dry run shows those as changes.
+- **`changes` and `unchanged` count people, the other counts rows**, so they add up to `rows`
+  only when nobody is named twice.
+- **`applied` means the valid rows were written**, which may be none.
+- Not locked, like a single assignment: an import racing another admin's change can store a
+  cycle.
+
+The import writes through `OrgStructure::assignAll()`, which checks the batch once more: the
+class stays the only writer of reporting lines besides `AccountDeleter`.

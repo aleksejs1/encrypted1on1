@@ -3,19 +3,25 @@
 namespace App\Controller;
 
 use App\Account\AccountDeleter;
+use App\Dto\ImportOrgStructureRequest;
 use App\Dto\SetUserManagerRequest;
 use App\Entity\Company;
 use App\Entity\User;
+use App\Http\RateLimitResponse;
+use App\Org\OrgImportPlan;
 use App\Org\OrgStructure;
 use App\Org\OrgStructureException;
+use App\Org\OrgStructureImport;
 use App\Security\AuthSession;
 use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -42,6 +48,9 @@ class AdminController
         private readonly bool $cloudMode,
         private readonly AccountDeleter $accountDeleter,
         private readonly OrgStructure $orgStructure,
+        private readonly OrgStructureImport $orgStructureImport,
+        #[Autowire(service: 'limiter.org_import')]
+        private readonly RateLimiterFactory $orgImportLimiter,
     ) {
     }
 
@@ -114,8 +123,9 @@ class AdminController
 
     /**
      * Sets or clears (`managerId: null`) who a person reports to (GitHub issue #265).
-     * The only way a reporting line is ever written: nobody can name their own manager
-     * or claim a report. The rules are OrgStructure's.
+     * Admins only, like the import below, the one other place a reporting line is
+     * written: nobody can name their own manager or claim a report. The rules are
+     * OrgStructure's.
      */
     #[Route('/api/admin/users/{id}/manager', name: 'admin_user_set_manager', methods: ['PUT'])]
     public function setManager(
@@ -138,6 +148,73 @@ class AdminController
         $this->entityManager->flush();
 
         return new JsonResponse(['id' => $target->getId(), 'managerId' => $target->getManager()?->getId()]);
+    }
+
+    /**
+     * Sets many reporting lines at once, from rows of emails (GitHub issue #271): a
+     * company that keeps its structure in an HR system has it as a file, which the
+     * admin panel reads in the browser (#272). No file reaches the server.
+     *
+     * `dryRun: true` answers what would happen and changes nothing. `dryRun: false`
+     * works the whole thing out again and applies it; nothing is kept between the two
+     * calls, so if the company changed in between, the second answer is the true one.
+     * Rows with a problem are skipped and the rest applied, except that a cycle stops
+     * the whole import: a 400, with the same body.
+     */
+    #[Route('/api/admin/org-structure/import', name: 'admin_org_structure_import', methods: ['POST'])]
+    public function importOrgStructure(
+        #[MapRequestPayload] ImportOrgStructureRequest $payload,
+        Request $request,
+    ): JsonResponse {
+        $admin = $this->requireAdmin($request);
+
+        // Per admin, dry runs included: each call loads the whole company.
+        $limit = $this->orgImportLimiter->create($admin->getId())->consume();
+        if (!$limit->isAccepted()) {
+            return RateLimitResponse::create($limit, $this->translator);
+        }
+
+        $dryRun = true === $payload->dryRun;
+        if ($dryRun) {
+            // Read-only from here on — see AuthSession::closeForReading()'s docblock.
+            $this->authSession->closeForReading($request);
+        }
+        $plan = $this->orgStructureImport->plan(
+            $this->entityManager->getRepository(User::class)->findBy(['company' => $admin->getCompany()]),
+            $payload->rows(),
+        );
+        // "Applied" is "the valid rows were written", which may be none of them.
+        $applied = !$dryRun && !$plan->isBlocked();
+        if ($applied) {
+            // Checked once more as it is written; the plan has already left out
+            // everything this could refuse.
+            $this->orgStructure->assignAll($plan->changes);
+            // One flush, so one transaction: all of it or none.
+            $this->entityManager->flush();
+        }
+
+        $answer = self::importAnswer($plan, $dryRun, $applied);
+        if ($plan->isBlocked()) {
+            // With an `error`, like every other 400, beside the usual body.
+            return new JsonResponse(['error' => $this->translator->trans('errors.org_import_blocked')] + $answer, 400);
+        }
+
+        return new JsonResponse($answer);
+    }
+
+    /** @return array<string, mixed> */
+    private static function importAnswer(OrgImportPlan $plan, bool $dryRun, bool $applied): array
+    {
+        return [
+            'dryRun' => $dryRun,
+            'applied' => $applied,
+            'blocked' => $plan->isBlocked(),
+            'counts' => $plan->counts(),
+            'problems' => array_map(
+                static fn (array $p): array => ['row' => $p['row'], 'severity' => $p['problem']->severity(), 'reason' => $p['problem']->value],
+                $plan->problems,
+            ),
+        ];
     }
 
     /**

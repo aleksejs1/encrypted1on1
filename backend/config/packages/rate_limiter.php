@@ -7,7 +7,8 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
  * the in-app change-password flow, one more for account deletion, one more for
  * REGISTRATION_MODE=domain self-signup, one more for Phase B's cloud-mode
  * self-service company creation, one more for company template saves, one more for
- * invite-renewal requests on expired activation links) — see
+ * invite-renewal requests on expired activation links, one more for org structure
+ * imports) — see
  * docs/history.md for why the original three endpoints specifically, and why
  * neither GET /api/activation-tokens/{token} nor
  * GET /api/password-reset-tokens/{token} is limited (read-only, side-effect-free,
@@ -82,6 +83,13 @@ return static function (ContainerConfigurator $container): void {
                 'policy' => 'sliding_window',
                 'limit' => '%env(int:TEMPLATE_SAVE_RATE_LIMIT)%',
                 'interval' => '%env(TEMPLATE_SAVE_RATE_LIMIT_INTERVAL)%',
+            ],
+            // Org structure imports, dry runs included (GitHub issue #271), keyed by the
+            // admin's user id: each call loads every user of the company.
+            'org_import' => [
+                'policy' => 'sliding_window',
+                'limit' => '%env(int:ORG_IMPORT_RATE_LIMIT)%',
+                'interval' => '%env(ORG_IMPORT_RATE_LIMIT_INTERVAL)%',
             ],
             // "Request new invitation" on an expired activation link (GitHub issue
             // #169), IP-keyed: the caller has no account. The per-address 24h cooldown

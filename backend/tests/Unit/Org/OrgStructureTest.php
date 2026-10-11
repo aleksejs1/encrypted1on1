@@ -263,4 +263,29 @@ class OrgStructureTest extends TestCase
             (new OrgStructure())->violations([[$anna, $boris], [$boris, $anna]]),
         );
     }
+
+    public function testAssignAllWritesAValidBatchASwapIncluded(): void
+    {
+        [$head, $anna, $boris] = [$this->user('head'), $this->user('anna'), $this->user('boris')];
+        $anna->setManager($head);
+        $boris->setManager($anna);
+
+        (new OrgStructure())->assignAll([[$anna, $boris], [$boris, $head]]);
+
+        self::assertSame($boris, $anna->getManager());
+        self::assertSame($head, $boris->getManager());
+    }
+
+    public function testAssignAllWritesNothingIfAnyAssignmentIsRefused(): void
+    {
+        [$anna, $boris, $clara] = [$this->user('anna'), $this->user('boris'), $this->user('clara')];
+
+        try {
+            (new OrgStructure())->assignAll([[$clara, $anna], [$boris, $boris]]);
+            self::fail('Expected the batch to be refused.');
+        } catch (OrgStructureException $e) {
+            self::assertSame(OrgStructureError::OwnManager, $e->reason);
+        }
+        self::assertNull($clara->getManager());
+    }
 }

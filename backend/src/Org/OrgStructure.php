@@ -30,6 +30,25 @@ final class OrgStructure
     }
 
     /**
+     * Writes a batch that violations() has nothing against, all of it or none: the
+     * import's way in, so that this class stays the only writer of reporting lines
+     * besides AccountDeleter.
+     *
+     * @param list<array{User, ?User}> $assignments
+     *
+     * @throws OrgStructureException for the first assignment that can't be applied; nothing is changed then
+     */
+    public function assignAll(array $assignments): void
+    {
+        foreach ($this->violations($assignments) as $violation) {
+            throw new OrgStructureException($violation);
+        }
+        foreach ($assignments as [$user, $manager]) {
+            $user->setManager($manager);
+        }
+    }
+
+    /**
      * Checks a batch of assignments against the tree as it would be with all the valid
      * ones applied, so a swap (A under B, B under A's old manager) in one batch is not a
      * false cycle, and a cycle made only by two rows together is still found. A row
