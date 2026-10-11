@@ -91,8 +91,8 @@ class PlatformAdminController
     }
 
     /**
-     * The manual stand-in for what a real Stripe webhook (BillingController) will
-     * eventually automate — lets a platform admin suspend/unsuspend a company directly,
+     * The manual counterpart of what a Stripe webhook (BillingController) does from a
+     * subscription's status — lets a platform admin suspend/unsuspend a company directly,
      * independent of subscriptionStatus (see Company::suspend()'s own docblock for why
      * that's deliberate: this is also the right tool for a non-billing reason, like abuse).
      */
