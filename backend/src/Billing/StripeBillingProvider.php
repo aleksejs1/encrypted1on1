@@ -12,8 +12,10 @@ use Stripe\Webhook;
 
 /**
  * Phase D of private/cloud-service-plan.md (not tracked in git) — the official
- * `stripe/stripe-php` SDK. Verified once by hand against a Stripe sandbox (GitHub issue
- * #283), not by any automated test, and never against a live-mode account:
+ * `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as proven: one
+ * manual run against a Stripe sandbox (GitHub issue #283) covered the first two points
+ * below, nothing has run against a live-mode account, and BillingController's routes
+ * weren't part of that run.
  *
  * - createCheckoutSession() created a real Checkout session, which was then paid with a
  *   Stripe test card.
