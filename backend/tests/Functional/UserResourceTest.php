@@ -59,6 +59,45 @@ class UserResourceTest extends ApiTestCase
     }
 
     /**
+     * The reporting line is for admins (GET /api/admin/users) and for the two people in
+     * it. On this list, open to the whole company, it would hand anyone the whole tree.
+     */
+    public function testListNeverCarriesAUsersManager(): void
+    {
+        $client = static::createClient();
+        $manager = $this->activateUser($client, $this->uniqueEmail('users-resource-manager'));
+        $report = $this->activateUser($client, $this->uniqueEmail('users-resource-report'));
+
+        $em = $this->entityManager();
+        $reportEntity = $em->find(User::class, $report['id']);
+        $managerEntity = $em->find(User::class, $manager['id']);
+        \assert($reportEntity instanceof User && $managerEntity instanceof User);
+        $reportEntity->setManager($managerEntity);
+        $em->flush();
+
+        $row = null;
+        for ($page = 1; null === $row; ++$page) {
+            $rows = $this->jsonRequest($client, 'GET', "/api/users?page={$page}")['json'];
+            self::assertNotSame([], $rows, 'The report should be on some page of the list.');
+            foreach ($rows as $candidate) {
+                if ($candidate['id'] === $report['id']) {
+                    $row = $candidate;
+                }
+            }
+        }
+        // The exact fields, so the link can't come back under another name (a
+        // getManagerId() with a group, say) without this test being changed on purpose.
+        $keys = array_keys($row);
+        sort($keys);
+        self::assertSame(['createdAt', 'displayName', 'email', 'id', 'publicKey'], $keys);
+        self::assertStringNotContainsString($manager['id'], (string) json_encode($row));
+
+        $single = $this->jsonRequest($client, 'GET', "/api/users/{$report['id']}");
+        self::assertSame(200, $single['status']);
+        self::assertStringNotContainsString($manager['id'], (string) json_encode($single['json']));
+    }
+
+    /**
      * The default 30-item page size (this app doesn't configure client-controllable
      * pagination) means a single request can't be trusted to contain any specific
      * user once the shared test DB has accumulated more than 30 rows from earlier

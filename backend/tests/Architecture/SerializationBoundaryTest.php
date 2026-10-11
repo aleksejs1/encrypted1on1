@@ -36,6 +36,18 @@ class SerializationBoundaryTest extends TestCase
         self::assertPropertyHasNoGroupsAttribute(User::class, 'encryptedPrivateKey');
     }
 
+    /**
+     * Not a secret like the two above, but GET /api/users is open to every user of the
+     * company: a manager on each row would give any employee the whole org tree
+     * (GitHub issue #265). The getter is checked too, since a group there serializes it
+     * just the same.
+     */
+    public function testManagerCarriesNoSerializationGroup(): void
+    {
+        self::assertPropertyHasNoGroupsAttribute(User::class, 'manager');
+        self::assertSame([], (new \ReflectionMethod(User::class, 'getManager'))->getAttributes(Groups::class));
+    }
+
     /** @return array<string, array{string}> */
     public static function ciphertextBearingAnketaProperties(): array
     {

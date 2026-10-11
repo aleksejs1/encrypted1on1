@@ -328,4 +328,37 @@ class AccountDeleterTest extends ApiTestCase
         self::assertSame(sprintf('deleted-%s@deleted.invalid', $freshUser->getId()), $freshUser->getEmail());
         self::assertSame('', $freshUser->getDisplayName());
     }
+
+    public function testDeleteClearsReportingLinesInBothDirectionsAndNoOthers(): void
+    {
+        $client = static::createClient();
+        $ids = [];
+        foreach (['head', 'middle', 'report-a', 'report-b', 'bystander'] as $label) {
+            $ids[$label] = $this->activateUser($client, $this->uniqueEmail("deleter-org-{$label}"))['id'];
+        }
+
+        $em = $this->entityManager();
+        $users = array_map(function (string $id) use ($em): User {
+            $user = $em->find(User::class, $id);
+            \assert($user instanceof User);
+
+            return $user;
+        }, $ids);
+        // head <- middle <- report-a, report-b; head <- bystander.
+        $users['middle']->setManager($users['head']);
+        $users['report-a']->setManager($users['middle']);
+        $users['report-b']->setManager($users['middle']);
+        $users['bystander']->setManager($users['head']);
+        $em->flush();
+
+        $this->accountDeleter()->delete($users['middle']);
+        $em->flush();
+        $em->clear();
+
+        $managerIdOf = fn (string $label): mixed => $em->getConnection()->fetchOne('SELECT manager_id FROM users WHERE id = ?', [$ids[$label]]);
+        self::assertNull($managerIdOf('middle'));
+        self::assertNull($managerIdOf('report-a'));
+        self::assertNull($managerIdOf('report-b'));
+        self::assertSame($ids['head'], $managerIdOf('bystander'));
+    }
 }

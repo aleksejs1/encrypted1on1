@@ -172,6 +172,24 @@ class User
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
 
+    /**
+     * Who this person reports to (GitHub issue #265): at most one, optional, and set only
+     * by a company admin through App\Org\OrgStructure, which holds the rules (same
+     * company, no cycles). Plaintext metadata the server stores, like the display name.
+     *
+     * Deliberately no serialization group, and no getter may carry one either:
+     * GET /api/users is open to every user of the company, and a manager id on each row
+     * there would hand any employee the company's whole tree.
+     *
+     * Blocking a manager leaves this in place (blocking is reversible); deleting one
+     * clears it, in AccountDeleter, since deletion is an anonymization, not a removed
+     * row. ON DELETE SET NULL is only for a row removed by hand, and only where the
+     * database enforces foreign keys (MySQL; this app's SQLite connection doesn't).
+     */
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\JoinColumn(name: 'manager_id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $manager = null;
+
     public function __construct(
         string $email,
         string $authHash,
@@ -372,6 +390,17 @@ class User
     public function getDeletedAt(): ?\DateTimeImmutable
     {
         return $this->deletedAt;
+    }
+
+    public function getManager(): ?User
+    {
+        return $this->manager;
+    }
+
+    /** No checks here: every caller but AccountDeleter goes through App\Org\OrgStructure. */
+    public function setManager(?User $manager): void
+    {
+        $this->manager = $manager;
     }
 
     /**

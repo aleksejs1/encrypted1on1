@@ -144,6 +144,7 @@ Assume the worst case: an attacker has read access to the entire database, every
 - That a 1:1's shared topics list was changed, when, and its ciphertext size ([GitHub issue #206](https://github.com/aleksejs1/encrypted1on1/issues/206)). Topics are added during the week, not only at the meeting, so the server sees when someone in the pair touched the list and roughly how much text it holds, though not who or what. It isn't padded, like outcomes and comments: free text has no fixed set of values for its size to give away.
 - That a user has private notes on a 1:1, their ciphertext size, and when they were saved. Notes autosave about a second after typing stops, so the server sees a **typing-activity timeline and a close estimate of the notes' length over time**: finer-grained than for any other encrypted field.
 - Which admin invited whom, account creation dates, blocked/admin flags.
+- Who reports to whom, where a company admin has recorded it ([GitHub issue #265](https://github.com/aleksejs1/encrypted1on1/issues/265)): each account's one optional manager. Company metadata an admin enters, not anything a participant wrote, and much of it already follows from who meets whom in which role. Inside the company only admins can see it; the list of colleagues every user gets (`GET /api/users`) never carries it.
 
 **Not visible, under any circumstance short of a stolen password:**
 - 1:1 question answers, from either side, published or draft.
