@@ -11,22 +11,27 @@ use Stripe\Subscription;
 use Stripe\Webhook;
 
 /**
- * Phase D of private/cloud-service-plan.md (not tracked in git) — real usage of the
- * official `stripe/stripe-php` SDK, written correctly per Stripe's documented API shape,
- * but **never run against a real Stripe account** (no test-mode keys were available
- * while building this — see docs/history.md's own Phase D entry). Unlike everything else in
- * this codebase, this class does not carry the "verified for real" guarantee the rest of
- * the project holds itself to. Two things are structurally different in how much
- * confidence to place in each:
+ * Phase D of private/cloud-service-plan.md (not tracked in git) — the official
+ * `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as proven: one
+ * manual run against a Stripe sandbox (GitHub issue #283) covered the first two points
+ * below, nothing has run against a live-mode account, and BillingController's
+ * checkout-session route wasn't part of that run (its webhook route was).
  *
- * - constructWebhookEvent() is pure local cryptography (HMAC-SHA256 signature
- *   verification, JSON parsing) with no network call — genuinely covered by a real test
- *   (StripeBillingProviderTest) using a correctly-signed payload built by hand with the
- *   same algorithm Stripe documents, not a live API call. This part can be trusted.
- * - createCheckoutSession() makes a real network call to Stripe's API
- *   (`$stripe->checkout->sessions->create()`) — this cannot be exercised at all without
- *   live credentials, and must be verified for real (a genuine test-mode checkout, a
- *   genuine webhook delivery) before this is ever relied on for real billing.
+ * - createCheckoutSession() created a real Checkout session, which was then paid with a
+ *   Stripe test card.
+ * - constructWebhookEvent() accepted the real `checkout.session.completed` delivery that
+ *   followed. Its signature check is also covered by StripeBillingProviderTest, with a
+ *   payload signed by hand using the algorithm Stripe documents.
+ * - `customer.subscription.updated`/`customer.subscription.deleted`: this class's
+ *   parsing of them is covered by that unit test only. No real delivery of either has
+ *   been handled yet.
+ *
+ * A known gap: `checkout.session.completed` is always recorded as 'active', also for a
+ * subscription that starts with a trial and for a delayed payment method (a bank debit)
+ * that hasn't paid yet (see fromCheckoutSession()).
+ *
+ * An account with Managed Payments on refuses to create a session unless the product has
+ * a tax code — see docs/deployment.md's "Stripe billing" section.
  */
 class StripeBillingProvider implements BillingProviderInterface
 {
@@ -100,10 +105,11 @@ class StripeBillingProvider implements BillingProviderInterface
             companyId: $session->client_reference_id,
             stripeCustomerId: \is_string($customerId) ? $customerId : null,
             stripeSubscriptionId: \is_string($subscriptionId) ? $subscriptionId : null,
-            // Stripe only sends this event once checkout genuinely succeeded — 'active'
-            // here reflects that fact, not a guess (a possible trial is a real gap, see
-            // this class's own docblock: mapStripeStatus() below is never consulted for
-            // this specific event, only for later customer.subscription.* events).
+            // Stripe sends this event once the customer completed checkout, so it is
+            // recorded as 'active'. A trial or a delayed payment method that hasn't paid
+            // yet is a real gap, see this class's own docblock: mapStripeStatus() below
+            // is never consulted for this event, only for later customer.subscription.*
+            // events.
             subscriptionStatus: 'active',
         );
     }

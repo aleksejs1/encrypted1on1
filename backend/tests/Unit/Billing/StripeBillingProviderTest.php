@@ -8,9 +8,10 @@ use App\Entity\Company;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The one part of StripeBillingProvider that genuinely can be tested for real without a
- * live Stripe account (see that class's own docblock): webhook signature verification is
- * pure local HMAC-SHA256 cryptography, no network call. signPayload() below implements
+ * The part of StripeBillingProvider that can be tested without a Stripe account (see
+ * that class's own docblock): webhook signature verification, the parsing of the three
+ * event types, and the not-configured refusal. Signature verification is pure local
+ * HMAC-SHA256 cryptography, no network call. signPayload() below implements
  * exactly the scheme Stripe documents (https://stripe.com/docs/webhooks#verify-manually):
  * `t={timestamp},v1=hmac_sha256(secret, "{timestamp}.{payload}")` — the same algorithm
  * \Stripe\Webhook::constructEvent() verifies against, so a payload signed this way is

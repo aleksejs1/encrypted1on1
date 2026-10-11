@@ -53,8 +53,8 @@ services:
       # Same trust decision, told to Caddy itself (Caddyfile.reverse-proxy).
       CADDY_TRUSTED_PROXIES: "${CADDY_TRUSTED_PROXIES:-127.0.0.1 ::1}"
       DEFAULT_SEAT_LIMIT: "${DEFAULT_SEAT_LIMIT:-5}"
-      # Empty by default — see docker-compose.cloud.yml's own comment: real Stripe SDK
-      # code, structurally correct, but never verified against a live Stripe account.
+      # Empty by default — see docker-compose.cloud.yml's own comment: verified against
+      # a Stripe sandbox only, never against a live-mode account.
       STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
       STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
