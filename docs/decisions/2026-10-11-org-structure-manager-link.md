@@ -146,3 +146,11 @@ what it shows).
   ([#269](https://github.com/aleksejs1/encrypted1on1/issues/269)), and a 1:1 with a blocked
   person can't be created at all, so there is nothing to warn about. The stored link is
   untouched.
+
+## The create form
+
+[GitHub issue #269](https://github.com/aleksejs1/encrypted1on1/issues/269), frontend only: the
+form reads `GET /api/me/org` once, badges my manager and my direct reports in the colleague
+picker, and warns when the clicked role contradicts the reporting line. It never selects a role
+and never blocks creating a 1:1. The reasoning is in
+[the role-selection record](2026-10-10-explicit-role-selection.md#the-reporting-line-a-badge-and-a-warning-not-a-default).

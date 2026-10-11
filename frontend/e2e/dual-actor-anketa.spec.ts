@@ -1287,7 +1287,7 @@ test('the create form never preselects a role, and changing the colleague clears
     await expect(
       page.getByRole('radio', { name: 'The counterpart leads this 1:1' }),
     ).toBeDisabled();
-    await expect(page.locator('form [role="status"]')).toBeEmpty();
+    await expect(page.locator('form .submit [role="status"]')).toBeEmpty();
     await expectNoRole(page);
     // A colleague this user has met before: still nothing selected.
     await pickColleague(page, colleagueEmail);
@@ -1320,7 +1320,7 @@ test('the create form never preselects a role, and changing the colleague clears
     await expect(
       page.getByText(/^Your role in your most recent 1:1/),
     ).toHaveCount(1);
-    await expect(page.locator('form [role="status"]')).toHaveText(
+    await expect(page.locator('form .submit [role="status"]')).toHaveText(
       'Choose who leads this 1:1.',
     );
     await expectNoRole(page);
@@ -1330,7 +1330,7 @@ test('the create form never preselects a role, and changing the colleague clears
   // of the colleague field clears it.
   await manager.locator('label.radio', { hasText: 'I lead this 1:1' }).click();
   await expect(roles(manager).manager).toBeChecked();
-  await expect(manager.locator('form [role="status"]')).toHaveText(
+  await expect(manager.locator('form .submit [role="status"]')).toHaveText(
     'Choose the meeting date.',
   );
   // Typing in the field: nobody is chosen, so no role can be.
@@ -1352,6 +1352,107 @@ test('the create form never preselects a role, and changing the colleague clears
   // The first colleague again: it isn't brought back unasked either.
   await pickColleague(manager, employeeEmail);
   await expectNoRole(manager);
+});
+
+/**
+ * GitHub issue #269 (part of #265): the create form knows the company's reporting
+ * line between me and the chosen colleague. It shows it as a badge in the picker and
+ * warns when the clicked role says the opposite; it never selects a role and never
+ * stops the 1:1 from being created.
+ */
+test('the create form warns when the chosen role contradicts the reporting line, and still creates the 1:1', async ({
+  browser,
+}) => {
+  const reportEmail = uniqueEmail('org-report');
+  const managerEmail = uniqueEmail('org-manager');
+  const report = await activate(browser, createActivationLink(reportEmail));
+  // An admin, so that this account can also record the reporting line.
+  const manager = await activate(
+    browser,
+    createActivationLink(managerEmail, true),
+  );
+  const idOf = async (page: Page): Promise<string> =>
+    ((await (await page.request.get('/api/me')).json()) as { id: string }).id;
+  await sessionRequest(
+    manager,
+    'PUT',
+    `/api/admin/users/${await idOf(report)}/manager`,
+    { managerId: await idOf(manager) },
+  );
+
+  const warning = (page: Page) => page.locator('form .role-warning');
+  const lead = (page: Page) =>
+    page.locator('label.radio', { hasText: 'I lead this 1:1' });
+  const theyLead = (page: Page) =>
+    page.locator('label.radio', { hasText: 'leads this 1:1' });
+  const expectNoRole = async (page: Page) => {
+    await expect(
+      page.getByRole('radio', { name: 'I lead this 1:1' }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByRole('radio', { name: 'leads this 1:1' }),
+    ).not.toBeChecked();
+  };
+
+  // The report's side: the manager is badged in the picker, and nothing is selected.
+  await report.goto('/anketas/new');
+  await report
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(managerEmail);
+  await expect(
+    report.getByRole('button', { name: managerEmail }),
+  ).toContainText('Your manager');
+  await report.getByRole('button', { name: managerEmail }).click();
+  // The list is closed now; the fact stays under the field.
+  await expect(report.locator('.counterpart-fact')).toHaveText('Your manager');
+  await expectNoRole(report);
+  await expect(warning(report)).toHaveAttribute('role', 'status');
+  await expect(warning(report)).toBeEmpty();
+
+  // Leading a 1:1 with my own manager: warned.
+  await lead(report).click();
+  await expect(warning(report)).toHaveText(
+    `In your company, ${managerEmail} is your manager. Are you sure you lead this 1:1?`,
+  );
+  // The matching role: nothing to say.
+  await theyLead(report).click();
+  await expect(warning(report)).toBeEmpty();
+
+  // The manager's side is the mirror.
+  await manager.goto('/anketas/new');
+  await manager
+    .getByPlaceholder('Type a name or email to search…')
+    .fill(reportEmail);
+  await expect(
+    manager.getByRole('button', { name: reportEmail }),
+  ).toContainText('Reports to you');
+  await manager.getByRole('button', { name: reportEmail }).click();
+  await expect(manager.locator('.counterpart-fact')).toHaveText(
+    'Reports to you',
+  );
+  await expectNoRole(manager);
+  await expect(warning(manager)).toBeEmpty();
+  await theyLead(manager).click();
+  await expect(warning(manager)).toHaveText(
+    `In your company, ${reportEmail} reports to you. Are you sure ${reportEmail} leads this 1:1?`,
+  );
+  await lead(manager).click();
+  await expect(warning(manager)).toBeEmpty();
+
+  // A warning, not a rule: the report creates the 1:1 the other way round anyway.
+  await lead(report).click();
+  await expect(warning(report)).not.toBeEmpty();
+  await fillMeetingDate(report, 3);
+  await expect(
+    report.getByRole('button', { name: 'Create 1:1' }),
+  ).toBeEnabled();
+  await report.getByRole('button', { name: 'Create 1:1' }).click();
+  await report.waitForURL(/\/anketas\/[0-9a-f-]+$/);
+  // With the role that was clicked: the warning changed nothing.
+  const created = (await (
+    await report.request.get(`/api${new URL(report.url()).pathname}`)
+  ).json()) as { myRole: string };
+  expect(created.myRole).toBe('manager');
 });
 
 /**
@@ -1378,6 +1479,17 @@ async function pickColleague(page: Page, email: string): Promise<void> {
   await page.getByRole('button', { name: email }).click();
 }
 
+/** Fills the create form's meeting date, `daysAhead` days from today. */
+async function fillMeetingDate(page: Page, daysAhead: number): Promise<void> {
+  const meetingDate = new Date();
+  meetingDate.setDate(meetingDate.getDate() + daysAhead);
+  const dd = String(meetingDate.getDate()).padStart(2, '0');
+  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
+  const meetingDateInput = page.locator('#meeting-date');
+  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
+  await meetingDateInput.blur();
+}
+
 async function createAnketa(
   creator: Page,
   counterpartEmail: string,
@@ -1397,15 +1509,9 @@ async function createAnketa(
     ).toBeChecked();
   }
 
-  const meetingDate = new Date();
-  meetingDate.setDate(meetingDate.getDate() + daysAhead);
-  const dd = String(meetingDate.getDate()).padStart(2, '0');
-  const mm = String(meetingDate.getMonth() + 1).padStart(2, '0');
-  const meetingDateInput = creator.locator('#meeting-date');
-  await meetingDateInput.fill(`${dd}.${mm}.${meetingDate.getFullYear()}`);
-  await meetingDateInput.blur();
+  await fillMeetingDate(creator, daysAhead);
   // Nothing is missing any more, and the line under the button says so.
-  await expect(creator.locator('form [role="status"]')).toBeEmpty();
+  await expect(creator.locator('form .submit [role="status"]')).toBeEmpty();
   await creator.getByRole('button', { name: 'Create 1:1' }).click();
   await creator.waitForURL(/\/anketas\/[0-9a-f-]+$/);
   return creator.url();

@@ -113,6 +113,35 @@ A `code-review` pass over #251 after its merge found one regression in it, fixed
 kept without checking it against the reloaded list (`isOffered()` in `CreateAnketa.svelte` now
 serves both that path and the mount-time one).
 
+## The reporting line: a badge and a warning, not a default
+
+Since [GitHub issue #269](https://github.com/aleksejs1/encrypted1on1/issues/269) the form knows
+the company's reporting line between me and the chosen colleague, where an admin has recorded
+one ([the org-structure record](2026-10-11-org-structure-manager-link.md)). It uses it in two
+ways, and neither is a role default:
+
+- **A badge in the colleague picker**: "Your manager" beside my manager, "Reports to you"
+  beside my direct reports. A fact about the person, like the "most recent 1:1" line above. The
+  same badge stays under the field once the colleague is chosen: the list is closed by then, and
+  never opens for a colleague preselected by a pair link.
+- **A warning under the role options** when the clicked role is the opposite of the reporting
+  line: I lead a 1:1 with my own manager, or my own report leads one with me. It appears only
+  after the click, and only then.
+
+The role still starts empty, is still cleared when the colleague changes, and the warning never
+disables "Create 1:1". The reporting line could have preselected the role, and for most pairs it
+would be right. It isn't used that way for the reason the rest of this record gives: a
+preselected radio is easy not to notice, a reporting line can be out of date or simply wrong,
+and a 1:1 the other way round (a skip-level, a mentoring pair, a peer review) is legitimate. A
+wrong fact shown as a warning costs one glance; a wrong fact turned into a default repeats in
+every 1:1 of the pair.
+
+The rule is `frontend/src/anketa/reportingLine.ts`, two pure functions with unit tests. Someone
+stored as both my manager and my report (two admins at once can store such a loop) gets no badge
+and no warning. `GET /api/me/org` is loaded apart from the rest of the form's data, so a slow or
+failed answer leaves the form as it was before #269 and never blocks creating a 1:1. A company
+with no reporting lines sees no change.
+
 ## Alternatives considered
 
 - **Keep the pair-history default and drop only the device one**: rejected. It is the default

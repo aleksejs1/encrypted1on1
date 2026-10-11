@@ -13,11 +13,14 @@
     value = $bindable(''),
     placeholder,
     noResultsText,
+    badgeFor,
   }: {
     users: UserOption[];
     value?: string;
     placeholder: string;
     noResultsText: string;
+    /** A short fact shown beside a person in the list, e.g. "Your manager". */
+    badgeFor?: (userId: string) => string | null;
   } = $props();
 
   let query = $state('');
@@ -107,6 +110,7 @@
         <li class="empty text-muted">{noResultsText}</li>
       {:else}
         {#each filtered as user, i (user.id)}
+          {@const badge = badgeFor?.(user.id) ?? null}
           <li>
             <button
               type="button"
@@ -114,6 +118,9 @@
               onmousedown={() => selectUser(user)}
             >
               {nameWithEmail(user.displayName, user.email)}
+              {#if badge !== null}
+                <span class="tag tag-neutral badge">{badge}</span>
+              {/if}
             </button>
           </li>
         {/each}
@@ -163,6 +170,10 @@
   .results button.highlighted,
   .results button:hover {
     background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  }
+
+  .badge {
+    margin-left: 6px;
   }
 
   .results .empty {

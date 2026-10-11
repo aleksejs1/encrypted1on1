@@ -32,6 +32,12 @@
   import { PATHS } from '../routes';
   import { pairChainState, pairRole } from '../anketa/pairChain';
   import {
+    reportingLine,
+    roleContradiction,
+    type MyOrg,
+    type ReportingLine,
+  } from '../anketa/reportingLine';
+  import {
     setJustCreated,
     takeCreateAnother,
     takeCreateWith,
@@ -49,6 +55,10 @@
   let users = $state<UserSummary[]>([]);
   let priorAnketas = $state<AnketaSummary[]>([]);
   let loadError = $state<string | null>(null);
+  // My manager and my direct reports (GitHub issue #269). Null if it couldn't be
+  // loaded: the form then works with no badges and no warning, as it does in a
+  // company that has set no reporting lines.
+  let myOrg = $state<MyOrg | null>(null);
 
   // Set when this form was opened by "Create another" on a just-created
   // meeting's page (GitHub issue #198): template and periodicity start as
@@ -114,6 +124,35 @@
   // for a pair whose roles are the wrong way round, "same as last time"
   // would repeat the mistake.
   const lastRole = $derived(pairRole(priorAnketas, counterpartId));
+  // Said only when the clicked role is the opposite of the company's reporting
+  // line. Like lastRole, it never selects a role, and it never disables "Create
+  // 1:1": a 1:1 the other way round is allowed.
+  const counterpartLine = $derived(reportingLine(myOrg, counterpartId));
+  const roleWarning = $derived.by(() => {
+    if (counterpartName === null) return null;
+    const values = { name: counterpartName };
+    switch (roleContradiction(counterpartLine, myRole)) {
+      case 'leadingMyManager':
+        return $_('createAnketa.roleWarningLeadingMyManager', { values });
+      case 'ledByMyReport':
+        return $_('createAnketa.roleWarningLedByMyReport', { values });
+      default:
+        return null;
+    }
+  });
+
+  function badge(line: ReportingLine): string | null {
+    switch (line) {
+      case 'manager':
+        return $_('createAnketa.badgeManager');
+      case 'directReport':
+        return $_('createAnketa.badgeDirectReport');
+      default:
+        return null;
+    }
+  }
+  const badgeFor = (userId: string) => badge(reportingLine(myOrg, userId));
+  const counterpartBadge = $derived(badge(counterpartLine));
 
   // Recent counterparts (from this user's own anketa history) surface at the top of the
   // typeahead's suggestion list, per the spec — no full-company-list scrolling every time.
@@ -150,6 +189,8 @@
   // this when an unrelated 401 elsewhere bumps the identity generation —
   // see App.svelte's own checkAuth() mount check and GitHub issue #62/#94.
   onMount(() => {
+    // By itself, not in the Promise.all below: the form must not wait for it.
+    void loadMyOrg().then((org) => (myOrg = org));
     Promise.all([
       ensureUnlocked(),
       apiGetAllPages<UserSummary>('/api/users', { signal: readAbort }),
@@ -197,6 +238,21 @@
   /** The company templates, or null (never a rejection) if they can't be loaded. */
   function loadCompanyTemplates(): Promise<CompanyTemplate[] | null> {
     return fetchCompanyTemplates(readAbort).catch(() => null);
+  }
+
+  /**
+   * My reporting lines, or null (never a rejection, and never an answer of another
+   * shape): they must not block creating a 1:1.
+   */
+  function loadMyOrg(): Promise<MyOrg | null> {
+    return apiGet<MyOrg>('/api/me/org', { signal: readAbort })
+      .then((org) =>
+        Array.isArray(org?.directReports) &&
+        org.directReports.every((r) => typeof r?.id === 'string')
+          ? org
+          : null,
+      )
+      .catch(() => null);
   }
 
   async function handleSubmit(event: SubmitEvent) {
@@ -336,7 +392,15 @@
           bind:value={() => counterpartId, setCounterpart}
           placeholder={$_('createAnketa.counterpartPlaceholder')}
           noResultsText={$_('createAnketa.counterpartNoResults')}
+          {badgeFor}
         />
+        <!-- The same fact as in the list, which is closed once someone is
+             picked, and never opens for a colleague preselected by a link. -->
+        {#if counterpartBadge !== null}
+          <p class="counterpart-fact">
+            <span class="tag tag-neutral">{counterpartBadge}</span>
+          </p>
+        {/if}
       </div>
 
       <fieldset
@@ -352,7 +416,9 @@
                 type="radio"
                 bind:group={myRole}
                 value="manager"
-                aria-describedby="role-manager-about"
+                aria-describedby={myRole === 'manager'
+                  ? 'role-manager-about role-warning'
+                  : 'role-manager-about'}
               /><span class="dot"></span>
               {$_('createAnketa.roleManagerOption')}
             </label>
@@ -377,7 +443,9 @@
                 type="radio"
                 bind:group={myRole}
                 value="employee"
-                aria-describedby="role-employee-about"
+                aria-describedby={myRole === 'employee'
+                  ? 'role-employee-about role-warning'
+                  : 'role-employee-about'}
               /><span class="dot"></span>
               <span class="option-name">
                 {counterpartName === null
@@ -403,6 +471,16 @@
             </div>
           </div>
         </div>
+        <!-- Always in the DOM, like the "missing" line below, so that it is
+             announced when it appears. -->
+        <p
+          class="role-warning"
+          class:shown={roleWarning !== null}
+          id="role-warning"
+          role="status"
+        >
+          {roleWarning ?? ''}
+        </p>
         {#if counterpartId === ''}
           <p class="text-muted role-hint" id="role-needs-colleague">
             {$_('createAnketa.roleNeedsCounterpart')}
@@ -566,6 +644,23 @@
   .role-hint {
     margin: 8px 0 0;
     font-size: 13px;
+  }
+
+  .counterpart-fact {
+    margin: 6px 0 0;
+  }
+
+  .role-warning {
+    margin: 0;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .role-warning.shown {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   }
 
   main {
