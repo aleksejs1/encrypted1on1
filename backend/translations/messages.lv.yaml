@@ -69,6 +69,8 @@ errors:
     org_manager_is_self: "Cilvēku nevar iecelt par vadītāju pašam sev."
     org_manager_unavailable: "Šo cilvēku nevar iecelt par vadītāju: konts ir bloķēts vai dzēsts."
     org_manager_cycle: "Veidotos cilpa: izvēlētais vadītājs jau ir pakļauts šim cilvēkam, tieši vai caur citiem."
+    org_import_too_many_rows: "Ne vairāk kā %max% rindas vienā importā."
+    org_import_blocked: "Šīs rindas pakļautībā izveidotu cilpu. Nekas netika mainīts."
     company_not_found: 'Uzņēmums nav atrasts.'
     missing_suspended: 'Trūkst "suspended".'
     admin_only_invite: 'Kamēr reģistrācija ir pieejama tikai ar administratora ielūgumu, jaunus lietotājus var uzaicināt tikai administratori.'
