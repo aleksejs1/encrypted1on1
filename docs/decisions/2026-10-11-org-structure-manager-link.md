@@ -238,3 +238,75 @@ Accepted:
 
 The import writes through `OrgStructure::assignAll()`, which checks the batch once more: the
 class stays the only writer of reporting lines besides `AccountDeleter`.
+
+## The import card
+
+GitHub issue #272, frontend only: `admin/OrgImportCard.svelte` on the admin panel's Users page,
+with the rules in `admin/orgImport.ts`. The browser reads the CSV file and sends rows of emails to
+the import endpoint, first as a dry run shown as a preview, then for real; the second answer is
+shown the same way, since it can differ from the preview. No file reaches the server.
+
+The issue asked to look at a real HR export first. None was available, but the HR system's own
+screens name a person's manager by name, with no email, so its export most likely does too. Three
+things differ from the issue because of that:
+
+- **The admin chooses the columns.** The issue fixed the header at `employee_email,manager_email`.
+  Real headers aren't known, so the card offers the file's own header in a select for each
+  column, pre-filled by `guessColumns()` from common English header names. The guess is a
+  convenience only: nothing is sent before the admin presses "Check the file".
+- **A manager cell that isn't an email is looked up by name in the same file.** The manager is an
+  employee too, so their own row has their email. The server still gets emails only, and #271 is
+  unchanged. Compared ignoring case, commas and extra spaces, and with two name columns in
+  either order; nothing fuzzier. A name no row has, or that two different emails share, leaves its
+  row out, shown in the preview with its line number, and the other rows go.
+  The preview lists each name that was found with the email it was taken for: a manager who
+  isn't in the file but has a namesake who is would otherwise be replaced by the namesake unseen.
+- **Names are never matched against display names in this app.** They are optional free text and
+  two people can share one, so a wrong link would be made silently.
+
+Rows the browser leaves out (no usable employee email, an unresolved manager name) are listed
+with the server's problems in one table, by line of the file. The server's `row` is an index into
+what was sent, which the card maps back to the file's line.
+
+**Whose manager a blank cell clears** is in the preview by name (`clearedManagers()`), from the
+user list the page already has: the endpoint answers with counts only, and a blank is the one
+kind of row that can undo work done by hand.
+
+The parser is hand-written (`readCsv()`): `,` or `;` by whichever the header line has more of,
+quoted fields, a byte-order mark, an Excel `sep=` first line, trimmed cells, empty lines skipped. Refused before anything is
+sent: bytes that aren't UTF-8, a quote never closed (the rest of the file would become one cell),
+fewer than two columns, no rows, more than 1000 rows.
+
+A preview is dropped as soon as the user table changes (a row edited, blocked or deleted): it
+was of the table as it was, and its list of cleared managers could be wrong. The file stays
+chosen. The card waits for the user list to load, for the same list's sake.
+
+A row that ends before the manager column is left out, not read as an empty cell: empty means
+"remove the manager", and a cut-off line must not. A row with more cells than the header (a
+separator inside an unquoted cell) is left out as well, since its columns are shifted. An address over 320 bytes is left out in the
+browser, since the server would refuse the whole request for it.
+
+A real import that gets no answer (a timeout, a proxy's error page) may have been written. The
+card then drops the preview, says so, and tries to reload the user table. The message asks the
+admin to reload the page: the table's own reload can fail too, or run before a slow write lands.
+A refusal (any 4xx) is shown as it is; nothing was written. Anything else counts as unanswered,
+also a request that never left the browser or a 500 that wrote nothing: the card can't tell, and
+"may or may not" is true of all of them.
+
+While the card's request is in flight the user table's actions wait, and the card waits while a
+row is being edited: the page does one thing at a time, as before.
+
+A person with one row left out by the browser has their other rows left out too
+(`conflicting_rows`): the server drops every row of a person the file gives two managers, but it
+only sees what is sent.
+
+Accepted:
+
+- A row with a separator after its last cell has one cell more than the header and is left out.
+  Ignoring empty cells at the end would let a shifted row with an empty tail through.
+- The header guess knows English names only. Other files need the columns picked by hand.
+- "Apply changes" is disabled when the preview has no changes, although the endpoint would
+  accept the call.
+- A separator other than `,` or `;` (a tab) isn't read.
+- A person skipped by the browser can't be told apart, in the counts, from one skipped by the
+  server: "Rows left out" is both.
