@@ -13,6 +13,7 @@
   } from '../anketa/keepFocus';
   import { hasNoManager, managerChoices, type OrgUser } from './managerColumn';
   import InviteForm from './InviteForm.svelte';
+  import OrgImportCard from './OrgImportCard.svelte';
   import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
 
@@ -68,8 +69,10 @@
     error: string | null;
   } | null>(null);
   const editorOpen = $derived(managerEdit !== null);
+  // The import card's request, which may rewrite any row's manager.
+  let importInFlight = $state(false);
   // What every row action, every "Change" and the filter are disabled by.
-  const busy = $derived(editorOpen || rowActionInFlight);
+  const busy = $derived(editorOpen || rowActionInFlight || importInFlight);
 
   let registrationMode = $state<RegistrationMode>('invite');
   let allowedEmailDomain = $state('');
@@ -97,6 +100,19 @@
     } catch (error) {
       if (isAbortError(error)) return;
       panelDataError =
+        error instanceof ApiError ? error.message : $_('admin.errorLoad');
+    }
+  }
+
+  /**
+   * After an import, which answers with counts, not with the rows it changed. No
+   * abort signal: the import was a write the admin started.
+   */
+  async function reloadUsers(): Promise<void> {
+    try {
+      users = await apiGet<AdminUser[]>('/api/admin/users');
+    } catch (error) {
+      actionError =
         error instanceof ApiError ? error.message : $_('admin.errorLoad');
     }
   }
@@ -368,6 +384,13 @@
       <div class="invite-wrap">
         <InviteForm />
       </div>
+
+      <OrgImportCard
+        {users}
+        disabled={editorOpen || rowActionInFlight || users.length === 0}
+        bind:inFlight={importInFlight}
+        onApplied={reloadUsers}
+      />
 
       {#if actionError}
         <p class="banner-error" role="alert">
