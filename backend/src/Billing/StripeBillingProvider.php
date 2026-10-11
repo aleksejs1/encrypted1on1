@@ -14,19 +14,21 @@ use Stripe\Webhook;
  * Phase D of private/cloud-service-plan.md (not tracked in git) — the official
  * `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as proven: one
  * manual run against a Stripe sandbox (GitHub issue #283) covered the first two points
- * below, nothing has run against a live-mode account, and BillingController's routes
- * weren't part of that run.
+ * below, nothing has run against a live-mode account, and BillingController's
+ * checkout-session route wasn't part of that run (its webhook route was).
  *
  * - createCheckoutSession() created a real Checkout session, which was then paid with a
  *   Stripe test card.
  * - constructWebhookEvent() accepted the real `checkout.session.completed` delivery that
  *   followed. Its signature check is also covered by StripeBillingProviderTest, with a
  *   payload signed by hand using the algorithm Stripe documents.
- * - `customer.subscription.updated`/`customer.subscription.deleted` have only that unit
- *   test behind them: no real delivery of either has been handled yet.
+ * - `customer.subscription.updated`/`customer.subscription.deleted`: this class's
+ *   parsing of them is covered by that unit test only. No real delivery of either has
+ *   been handled yet.
  *
  * A known gap: `checkout.session.completed` is always recorded as 'active', also for a
- * subscription that starts with a trial (see fromCheckoutSession()).
+ * subscription that starts with a trial and for a delayed payment method (a bank debit)
+ * that hasn't paid yet (see fromCheckoutSession()).
  *
  * An account with Managed Payments on refuses to create a session unless the product has
  * a tax code — see docs/deployment.md's "Stripe billing" section.
@@ -103,10 +105,11 @@ class StripeBillingProvider implements BillingProviderInterface
             companyId: $session->client_reference_id,
             stripeCustomerId: \is_string($customerId) ? $customerId : null,
             stripeSubscriptionId: \is_string($subscriptionId) ? $subscriptionId : null,
-            // Stripe only sends this event once checkout genuinely succeeded — 'active'
-            // here reflects that fact, not a guess (a possible trial is a real gap, see
-            // this class's own docblock: mapStripeStatus() below is never consulted for
-            // this specific event, only for later customer.subscription.* events).
+            // Stripe sends this event once the customer completed checkout, so it is
+            // recorded as 'active'. A trial or a delayed payment method that hasn't paid
+            // yet is a real gap, see this class's own docblock: mapStripeStatus() below
+            // is never consulted for this event, only for later customer.subscription.*
+            // events.
             subscriptionStatus: 'active',
         );
     }
