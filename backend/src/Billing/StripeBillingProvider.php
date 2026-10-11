@@ -11,22 +11,20 @@ use Stripe\Subscription;
 use Stripe\Webhook;
 
 /**
- * Phase D of private/cloud-service-plan.md (not tracked in git) — real usage of the
- * official `stripe/stripe-php` SDK, written correctly per Stripe's documented API shape,
- * but **never run against a real Stripe account** (no test-mode keys were available
- * while building this — see docs/history.md's own Phase D entry). Unlike everything else in
- * this codebase, this class does not carry the "verified for real" guarantee the rest of
- * the project holds itself to. Two things are structurally different in how much
- * confidence to place in each:
+ * Phase D of private/cloud-service-plan.md (not tracked in git) — the official
+ * `stripe/stripe-php` SDK. Verified once by hand against a Stripe sandbox (GitHub issue
+ * #283), not by any automated test, and never against a live-mode account:
  *
- * - constructWebhookEvent() is pure local cryptography (HMAC-SHA256 signature
- *   verification, JSON parsing) with no network call — genuinely covered by a real test
- *   (StripeBillingProviderTest) using a correctly-signed payload built by hand with the
- *   same algorithm Stripe documents, not a live API call. This part can be trusted.
- * - createCheckoutSession() makes a real network call to Stripe's API
- *   (`$stripe->checkout->sessions->create()`) — this cannot be exercised at all without
- *   live credentials, and must be verified for real (a genuine test-mode checkout, a
- *   genuine webhook delivery) before this is ever relied on for real billing.
+ * - createCheckoutSession() created a real Checkout session, which was then paid with a
+ *   Stripe test card.
+ * - constructWebhookEvent() accepted the real `checkout.session.completed` delivery that
+ *   followed. Its signature check is also covered by StripeBillingProviderTest, with a
+ *   payload signed by hand using the algorithm Stripe documents.
+ * - `customer.subscription.updated`/`customer.subscription.deleted` have only that unit
+ *   test behind them: no real delivery of either has been handled yet.
+ *
+ * An account with Managed Payments on refuses to create a session unless the product has
+ * a tax code — see docs/deployment.md's "Stripe billing" section.
  */
 class StripeBillingProvider implements BillingProviderInterface
 {

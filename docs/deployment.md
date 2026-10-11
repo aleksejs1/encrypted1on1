@@ -217,7 +217,7 @@ Use this if this host already runs its own nginx (or similar) that owns ports 80
 
 ### Cloud deployment (multi-tenant)
 
-A third topology, alongside direct and reverse-proxy above — for running the self-service, multi-company cloud offering (`private/cloud-service-plan.md`, not tracked in git) instead of a single self-hosted company. **Still Phases A–E of that plan, not a finished, generally-available SaaS** — read [`docs/history.md`](history.md)'s own Phase D entry before relying on this for real: the Stripe checkout flow specifically has never been exercised against a live Stripe account, and there is no Terms of Service/Data Processing Agreement bundled with this repository (see "What this doesn't cover" below).
+A third topology, alongside direct and reverse-proxy above — for running the self-service, multi-company cloud offering (`private/cloud-service-plan.md`, not tracked in git) instead of a single self-hosted company. **Still Phases A–E of that plan, not a finished, generally-available SaaS** — read "Stripe billing" below before relying on this for real: the Stripe checkout flow has been verified against a Stripe sandbox only, never against a live-mode account, and there is no Terms of Service/Data Processing Agreement bundled with this repository (see "What this doesn't cover" below).
 
 Like the direct/reverse-proxy split above, this topology also has two variants — `docker-compose.cloud.yml` (this app owns 80/443, Caddy provisions its own TLS certificate) and `docker-compose.cloud.reverse-proxy.yml` (an existing reverse proxy on this host — already fronting, say, a landing page and/or a self-hosted/demo instance — owns those ports instead). The reverse-proxy variant is the one to use if you're running a cloud instance *alongside* an already-deployed landing page and demo on the same host, which is a completely normal thing to do — they're independent Compose projects with independent volumes/databases, and nothing about `CLOUD_MODE` requires exclusive use of the host.
 
@@ -244,6 +244,26 @@ Backups and the non-root-container one-time-upgrade note are the same as the dir
 
 ```sh
 PROD_COMPOSE_FILE=docker-compose.cloud.reverse-proxy.yml ENV_FILE=.env.cloud MIGRATION_CONFIG=--configuration=migrations-mysql.php ./docker/prod/deploy.sh
+```
+
+#### Stripe billing
+
+Optional. With `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ID` set, a company admin can start a Stripe Checkout subscription through `POST /api/billing/checkout-session`, and Stripe reports the result to `POST /api/billing/webhook`. There is no button for it in the app yet: the endpoint has to be called directly.
+
+In the Stripe dashboard:
+
+- Create a product with a recurring price. `STRIPE_PRICE_ID` is the price's id (`price_...`), not the product's (`prod_...`).
+- If Managed Payments is on (it is by default on a new account), give the product a tax code, for example `txcd_10103001` (SaaS, business use). Without one Stripe refuses to create the Checkout session: "the product tax code is missing".
+- Add a webhook endpoint for `https://<your host>/api/billing/webhook` with the events `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Its signing secret is `STRIPE_WEBHOOK_SECRET`.
+
+A paid checkout sets the company's subscription status and stores its Stripe customer and subscription ids. It doesn't change the company's plan tier or seat limit.
+
+**What has been verified** ([GitHub issue #283](https://github.com/aleksejs1/encrypted1on1/issues/283)), by hand against a Stripe sandbox: creating a Checkout session, paying it with a test card, and handling the `checkout.session.completed` delivery that followed. **Not verified**: a real `customer.subscription.updated`/`customer.subscription.deleted` delivery (a cancellation, a failed payment; only a unit test with a hand-signed payload covers them), the checkout-session route over HTTP against Stripe (the provider was called directly), and anything in live mode. Run a test checkout on your own account before relying on it.
+
+To try it on the dev stack, put sandbox values and `CLOUD_MODE=1` in `backend/.env.local` (gitignored), and let the Stripe CLI forward events to the dev backend. It prints the signing secret to use as `STRIPE_WEBHOOK_SECRET`, and a current CLI needs the event list spelled out:
+
+```sh
+stripe listen --events checkout.session.completed,customer.subscription.updated,customer.subscription.deleted --forward-to http://localhost:8000/api/billing/webhook
 ```
 
 **A real, already-flagged future limitation, not a current one**: [ADR 4](adr/0004-session-based-auth.md) already states plainly that scaling to more than one app instance behind a load balancer would need shared session storage, which this app doesn't have. `docker-compose.cloud.yml` runs exactly one `app` container, same as the other topologies — fine for a good while on vertical scaling alone, but a real blocker the moment horizontal scaling is ever needed, flagged now rather than discovered as a surprise outage later.
