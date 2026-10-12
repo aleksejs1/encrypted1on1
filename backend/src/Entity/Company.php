@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Billing\Plan;
+use App\Billing\SubscriptionOutcome;
 use App\Billing\SubscriptionSnapshot;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
@@ -39,11 +40,11 @@ class Company
     public const REGISTRATION_MODES = ['invite', 'domain', 'admin_only'];
 
     /**
-     * Mirrors Stripe's own subscription status vocabulary (trialing is unused so far —
-     * this build has no trial period, see private/cloud-service-plan.md's own "no
-     * trial" decision — but kept here since a future Stripe subscription can genuinely
-     * report it). 'active' is also this app's own placeholder default absent any real
-     * subscription at all, not just Stripe's post-trial state.
+     * The four values `subscriptionStatus` holds. Three are Stripe's own words for a
+     * subscription that keeps the plan; `canceled` stands for every other Stripe status
+     * (applySubscription()). `active` is also the placeholder of a company that never had
+     * a subscription: stripeSubscriptionId tells the two apart. `trialing` is unused so
+     * far (no trial period), but a Stripe subscription can report it.
      */
     public const SUBSCRIPTION_STATUSES = ['trialing', 'active', 'past_due', 'canceled'];
 
@@ -76,8 +77,9 @@ class Company
     private string $allowedEmailDomain;
 
     /**
-     * Plan::FREE, Plan::PLUS, or any other name for a plan set by hand. Nothing reads it
-     * to enforce anything: the enforced number is seatLimit.
+     * Plan::FREE, Plan::PLUS, or any other name for a plan set by hand. No access check
+     * reads it (the enforced number is seatLimit); applySubscription() reads it to tell
+     * a plan it may change from one it must leave alone.
      */
     #[ORM\Column(type: 'string', length: 40)]
     #[AllowPlaintext(reason: 'Billing plan label, not content.')]
@@ -120,7 +122,7 @@ class Company
     /**
      * The end of the period the subscription is paid for, as Stripe last reported it:
      * the next payment date, or the last paid day once payments stop. Stored so the Plan
-     * page doesn't depend on Stripe being reachable. Null without a subscription.
+     * page doesn't depend on Stripe being reachable. Null without a running subscription.
      */
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $subscriptionPeriodEndsAt = null;
@@ -128,7 +130,7 @@ class Company
     /**
      * When a cancellation already scheduled takes effect (Stripe's `cancel_at`, which it
      * also fills for a cancellation at period end, so no separate flag). Null while the
-     * subscription renews.
+     * subscription renews, and once it has ended.
      */
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $subscriptionCancelsAt = null;
@@ -265,8 +267,16 @@ class Company
     }
 
     /**
-     * Brings the company in line with its subscription as Stripe reports it now. The one
-     * place that says what a subscription means for a company:
+     * Brings the company in line with a subscription as Stripe reports it now. The one
+     * place that says what a subscription means for a company.
+     *
+     * Whose subscription it is comes first. The company's own is the one stored on it. A
+     * paying one replaces an own one that no longer pays (the company subscribed again).
+     * One that isn't paying and isn't the company's own changes nothing: it never
+     * started, or it is an old one reported late. A second paying one, while the
+     * company's own pays too, changes nothing either; the caller reports it.
+     *
+     * Then, for a subscription that is applied:
      *
      * - A plan managed by payment (Plan::FREE, Plan::PLUS) follows the subscription: Plus
      *   while it is paying, Free otherwise. A plan with any other name was set by hand
@@ -279,22 +289,34 @@ class Company
      * - Suspension is not touched in either direction. Not paying costs the plan, never
      *   the access to one's own 1:1s; suspend()/unsuspend() stay a platform admin's.
      */
-    public function applySubscription(SubscriptionSnapshot $subscription, Plan $plan): void
+    public function applySubscription(SubscriptionSnapshot $subscription, Plan $plan): SubscriptionOutcome
     {
         $paying = \in_array($subscription->status, self::PAYING_SUBSCRIPTION_STATUSES, true);
+
+        if ($subscription->id !== $this->stripeSubscriptionId) {
+            if (!$paying) {
+                return SubscriptionOutcome::IgnoredNotOurs;
+            }
+            if ($this->hasPayingSubscription()) {
+                return SubscriptionOutcome::IgnoredSecondPaying;
+            }
+        }
 
         $this->subscriptionStatus = $paying ? $subscription->status : 'canceled';
         $this->stripeSubscriptionId = $subscription->id;
         $this->stripeCustomerId = $subscription->customerId ?? $this->stripeCustomerId;
-        $this->subscriptionPeriodEndsAt = $subscription->periodEndsAt;
-        $this->subscriptionCancelsAt = $subscription->cancelsAt;
+        // The dates describe a subscription that is running; an ended one has none.
+        $this->subscriptionPeriodEndsAt = $paying ? $subscription->periodEndsAt : null;
+        $this->subscriptionCancelsAt = $paying ? $subscription->cancelsAt : null;
 
-        if (!Plan::isManagedByPayment($this->planTier)) {
-            return;
-        }
+        $this->followPlan($paying ? Plan::PLUS : Plan::FREE, $plan);
 
-        $planTier = $paying ? Plan::PLUS : Plan::FREE;
-        if ($planTier === $this->planTier) {
+        return SubscriptionOutcome::Applied;
+    }
+
+    private function followPlan(string $planTier, Plan $plan): void
+    {
+        if (!Plan::isManagedByPayment($this->planTier) || $planTier === $this->planTier) {
             return;
         }
 
@@ -302,6 +324,13 @@ class Company
         if (null !== $this->seatLimit) {
             $this->seatLimit = $plan->seatLimit($planTier);
         }
+    }
+
+    /** By what is stored here; `subscriptionStatus` alone is `active` for a company that never subscribed. */
+    private function hasPayingSubscription(): bool
+    {
+        return null !== $this->stripeSubscriptionId
+            && \in_array($this->subscriptionStatus, self::PAYING_SUBSCRIPTION_STATUSES, true);
     }
 
     /**
