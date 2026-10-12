@@ -51,10 +51,15 @@ final class RecordingLogger extends AbstractLogger
     private function recordsAtLeast(string $level): array
     {
         $min = array_search($level, self::LEVELS, true);
+        if (false === $min) {
+            throw new \InvalidArgumentException(\sprintf('"%s" is not a log level.', $level));
+        }
 
-        return array_values(array_filter(
-            $this->records,
-            static fn (array $record): bool => array_search($record['level'], self::LEVELS, true) >= $min,
-        ));
+        return array_values(array_filter($this->records, static function (array $record) use ($min): bool {
+            $index = array_search($record['level'], self::LEVELS, true);
+
+            // A record whose level isn't one of LEVELS is kept: better seen than lost.
+            return false === $index || $index >= $min;
+        }));
     }
 }

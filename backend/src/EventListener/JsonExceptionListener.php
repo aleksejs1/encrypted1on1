@@ -146,7 +146,10 @@ class JsonExceptionListener
     /** A string, never the exception itself: a logger given the object may print its trace. */
     private function describe(\Throwable $exception): string
     {
-        $message = mb_strimwidth((string) preg_replace('/[\x00-\x1F\x7F]+/', ' ', $exception->getMessage()), 0, self::MESSAGE_LIMIT, '…');
+        $message = $exception->getMessage();
+        if (mb_strlen($message) > self::MESSAGE_LIMIT) {
+            $message = mb_substr($message, 0, self::MESSAGE_LIMIT).'…';
+        }
         $origin = $exception->getFile().':'.$exception->getLine();
 
         if (!str_starts_with($exception->getFile(), $this->appSourceDir)) {
@@ -158,6 +161,12 @@ class JsonExceptionListener
             }
         }
 
-        return \sprintf('%s: %s at %s', $exception::class, $message, $origin);
+        // One line, nothing a terminal would act on. The class name is covered too: an
+        // anonymous class has a NUL byte in its name. The second pattern is for text
+        // that isn't valid UTF-8, which the first one refuses.
+        $line = \sprintf('%s: %s at %s', $exception::class, $message, $origin);
+
+        return preg_replace('/[\p{Cc}\x{2028}\x{2029}]+/u', ' ', $line)
+            ?? (string) preg_replace('/[\x00-\x1F\x7F-\x9F]+/', ' ', $line);
     }
 }

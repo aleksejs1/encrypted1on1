@@ -311,23 +311,52 @@ class JsonExceptionListenerTest extends TestCase
     public function testLogsAnUnhandledExceptionWithWhereItWasThrown(): void
     {
         $logger = new RecordingLogger();
-        $exception = new \RuntimeException("first line\nsecond\x1b[31m line");
+        $exception = new \RuntimeException("first line\nsecond\x1b[31m line\u{9b}\u{2028}end");
 
         $this->handle($logger, $exception, 'anketa_list');
 
         self::assertSame(
-            [\sprintf('API error 500 on GET anketa_list: RuntimeException: first line second [31m line at %s:%d', __FILE__, $exception->getLine())],
+            [\sprintf('API error 500 on GET anketa_list: RuntimeException: first line second [31m line end at %s:%d', __FILE__, $exception->getLine())],
             $logger->atLeast('debug'),
         );
     }
 
-    public function testCutsALongMessage(): void
+    public function testKeepsTheLineWholeForAnAnonymousExceptionClass(): void
     {
         $logger = new RecordingLogger();
 
-        $this->handle($logger, new \RuntimeException(str_repeat('é', 2000)), 'anketa_list');
+        $this->handle($logger, new class('Crash') extends \RuntimeException {}, 'anketa_list');
 
-        self::assertStringContainsString(': '.str_repeat('é', 499).'… at ', $logger->atLeast('error')[0]);
+        $line = $logger->atLeast('error')[0];
+        self::assertStringNotContainsString("\0", $line);
+        self::assertStringContainsString(': Crash at '.__FILE__, $line);
+    }
+
+    public function testStripsControlBytesFromAMessageThatIsNotUtf8(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new \RuntimeException("bad \xff byte\nnext"), 'anketa_list');
+
+        self::assertStringContainsString("RuntimeException: bad \xff byte next at ", $logger->atLeast('error')[0]);
+    }
+
+    public function testCutsALongMessageByCharacters(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new \RuntimeException(str_repeat('日', 2000)), 'anketa_list');
+
+        self::assertStringContainsString(': '.str_repeat('日', 500).'… at ', $logger->atLeast('error')[0]);
+    }
+
+    public function testDoesNotCutAMessageOfExactlyTheLimit(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new \RuntimeException(str_repeat('a', 500)), 'anketa_list');
+
+        self::assertStringContainsString(': '.str_repeat('a', 500).' at ', $logger->atLeast('error')[0]);
     }
 
     public function testLogsTheAppLineThatCalledCodeOutsideTheAppSource(): void
