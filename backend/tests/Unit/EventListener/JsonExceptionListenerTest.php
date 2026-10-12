@@ -311,7 +311,7 @@ class JsonExceptionListenerTest extends TestCase
     public function testLogsAnUnhandledExceptionWithWhereItWasThrown(): void
     {
         $logger = new RecordingLogger();
-        $exception = new \RuntimeException("first line\nsecond\x1b[31m line\u{9b}\u{2028}end");
+        $exception = new \RuntimeException("first line\nsecond\x1b[31m line\u{9b}\u{2028}\u{202e}end");
 
         $this->handle($logger, $exception, 'anketa_list');
 
@@ -332,13 +332,13 @@ class JsonExceptionListenerTest extends TestCase
         self::assertStringContainsString(': Crash at '.__FILE__, $line);
     }
 
-    public function testStripsControlBytesFromAMessageThatIsNotUtf8(): void
+    public function testKeepsTheTextAroundAByteThatIsNotUtf8(): void
     {
         $logger = new RecordingLogger();
 
-        $this->handle($logger, new \RuntimeException("bad \xff byte\nnext"), 'anketa_list');
+        $this->handle($logger, new \RuntimeException("bad \xff value 'Привет 日本'\nnext"), 'anketa_list');
 
-        self::assertStringContainsString("RuntimeException: bad \xff byte next at ", $logger->atLeast('error')[0]);
+        self::assertStringContainsString("RuntimeException: bad ? value 'Привет 日本' next at ", $logger->atLeast('error')[0]);
     }
 
     public function testCutsALongMessageByCharacters(): void

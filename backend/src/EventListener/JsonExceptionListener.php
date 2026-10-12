@@ -161,12 +161,11 @@ class JsonExceptionListener
             }
         }
 
-        // One line, nothing a terminal would act on. The class name is covered too: an
-        // anonymous class has a NUL byte in its name. The second pattern is for text
-        // that isn't valid UTF-8, which the first one refuses.
-        $line = \sprintf('%s: %s at %s', $exception::class, $message, $origin);
+        // One line, without control or formatting characters (a bidi override would
+        // reorder it on screen). The class name is covered too: an anonymous class has
+        // a NUL byte in its name. mb_scrub() first, since /u refuses invalid UTF-8.
+        $line = mb_scrub(\sprintf('%s: %s at %s', $exception::class, $message, $origin));
 
-        return preg_replace('/[\p{Cc}\x{2028}\x{2029}]+/u', ' ', $line)
-            ?? (string) preg_replace('/[\x00-\x1F\x7F-\x9F]+/', ' ', $line);
+        return (string) preg_replace('/[\p{Cc}\p{Cf}\x{2028}\x{2029}]+/u', ' ', $line);
     }
 }
