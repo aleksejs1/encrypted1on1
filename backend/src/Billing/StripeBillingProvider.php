@@ -5,7 +5,6 @@ namespace App\Billing;
 use App\Entity\Company;
 use Stripe\ApiRequestor;
 use Stripe\Checkout\Session;
-use Stripe\Event;
 use Stripe\Exception\ExceptionInterface as StripeException;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\HttpClient\ClientInterface;
@@ -15,40 +14,28 @@ use Stripe\Subscription;
 use Stripe\Webhook;
 
 /**
- * Phase D of private/cloud-service-plan.md (not tracked in git) — the official
- * `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as proven: one
- * manual run against a Stripe sandbox (GitHub issue #283) covered the first two points
- * below, nothing has run against a live-mode account, and BillingController's
- * checkout-session route wasn't part of that run (its webhook route was).
+ * The official `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as
+ * proven: nothing has run against a live-mode account. Against a Stripe sandbox, by hand
+ * (GitHub issues #283, #287, #293):
  *
  * - createCheckoutSession() created a real Checkout session, which was then paid with a
- *   Stripe test card.
+ *   Stripe test card. BillingController's checkout-session route wasn't part of that run.
  * - constructWebhookEvent() accepted the real `checkout.session.completed` delivery that
- *   followed. Its signature check is also covered by StripeBillingProviderTest, with a
- *   payload signed by hand using the algorithm Stripe documents.
- * - `customer.subscription.updated`/`customer.subscription.deleted`: this class's
- *   parsing of them is covered by that unit test only. No real delivery of either has
- *   been handled yet.
- * - retrieveSubscription() was called against the sandbox for a real subscription and for
- *   an unknown id (GitHub issue #293). The company tag it reads is written by no
- *   checkout yet.
+ *   followed, and later real `customer.subscription.*` deliveries. Its signature check is
+ *   also covered by StripeBillingProviderTest, with a payload signed by hand using the
+ *   algorithm Stripe documents.
+ * - retrieveSubscription() was called for a real subscription and for an unknown id.
+ *   The company tag it reads is written by no checkout yet.
  *
- * A known gap: `checkout.session.completed` is always recorded as 'active', also for a
- * subscription that starts with a trial and for a delayed payment method (a bank debit)
- * that hasn't paid yet (see fromCheckoutSession()).
+ * An event says only which subscription it is about; what the subscription means for a
+ * company is Company::applySubscription()'s business, not this class's.
  *
  * An account with Managed Payments on refuses to create a session unless the product has
  * a tax code — see docs/deployment.md's "Stripe billing" section.
  */
 class StripeBillingProvider implements BillingProviderInterface
 {
-    /**
-     * Statuses this app doesn't have its own name for (incomplete, incomplete_expired,
-     * unpaid, paused, and any future addition to Stripe's own vocabulary) all map to
-     * 'canceled' — erring toward suspending an uncertain status is the safe direction,
-     * not leaving a non-paying company active on an unrecognized status.
-     */
-    private const array KNOWN_SUBSCRIPTION_STATUSES = ['trialing', 'active', 'past_due'];
+    private const array SUBSCRIPTION_EVENTS = ['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted'];
 
     private const int TIMEOUT_SECONDS = 10;
     private const int CONNECT_TIMEOUT_SECONDS = 5;
@@ -73,8 +60,8 @@ class StripeBillingProvider implements BillingProviderInterface
             'line_items' => [['price' => $this->stripePriceId, 'quantity' => 1]],
             'success_url' => $successUrl,
             'cancel_url' => $cancelUrl,
-            // The one field that ties a real Stripe checkout back to a Company —
-            // read again in checkout.session.completed, see fromCheckoutSession() below.
+            // Ties the checkout back to a Company: read again from
+            // checkout.session.completed, see constructWebhookEvent() below.
             'client_reference_id' => $company->getId(),
         ]);
 
@@ -154,59 +141,27 @@ class StripeBillingProvider implements BillingProviderInterface
 
     public function constructWebhookEvent(string $payload, string $signatureHeader): WebhookEvent
     {
+        // Without a secret anybody could sign a payload: nothing is verifiable then.
+        if ('' === $this->stripeWebhookSecret) {
+            throw new \RuntimeException('STRIPE_WEBHOOK_SECRET is not set.');
+        }
+
         try {
             $event = Webhook::constructEvent($payload, $signatureHeader, $this->stripeWebhookSecret);
         } catch (SignatureVerificationException|\UnexpectedValueException $e) {
             throw new \RuntimeException('Invalid Stripe webhook payload/signature.', 0, $e);
         }
 
-        return match ($event->type) {
-            'checkout.session.completed' => $this->fromCheckoutSession($event),
-            'customer.subscription.updated', 'customer.subscription.deleted' => $this->fromSubscription($event),
-            default => new WebhookEvent($event->type, null, null, null, null),
+        $object = $event->data->object;
+
+        return match (true) {
+            'checkout.session.completed' === $event->type && $object instanceof Session => new WebhookEvent(
+                $event->type,
+                \is_string($object->subscription) ? $object->subscription : null,
+                $object->client_reference_id,
+            ),
+            \in_array($event->type, self::SUBSCRIPTION_EVENTS, true) && $object instanceof Subscription => new WebhookEvent($event->type, $object->id),
+            default => new WebhookEvent($event->type, null),
         };
-    }
-
-    private function fromCheckoutSession(Event $event): WebhookEvent
-    {
-        $session = $event->data->object;
-        \assert($session instanceof Session);
-
-        $customerId = $session->customer;
-        $subscriptionId = $session->subscription;
-
-        return new WebhookEvent(
-            type: $event->type,
-            companyId: $session->client_reference_id,
-            stripeCustomerId: \is_string($customerId) ? $customerId : null,
-            stripeSubscriptionId: \is_string($subscriptionId) ? $subscriptionId : null,
-            // Stripe sends this event once the customer completed checkout, so it is
-            // recorded as 'active'. A trial or a delayed payment method that hasn't paid
-            // yet is a real gap, see this class's own docblock: mapStripeStatus() below
-            // is never consulted for this event, only for later customer.subscription.*
-            // events.
-            subscriptionStatus: 'active',
-        );
-    }
-
-    private function fromSubscription(Event $event): WebhookEvent
-    {
-        $subscription = $event->data->object;
-        \assert($subscription instanceof Subscription);
-
-        $customerId = $subscription->customer;
-
-        return new WebhookEvent(
-            type: $event->type,
-            companyId: null,
-            stripeCustomerId: \is_string($customerId) ? $customerId : null,
-            stripeSubscriptionId: $subscription->id,
-            subscriptionStatus: $this->mapStripeStatus($subscription->status),
-        );
-    }
-
-    private function mapStripeStatus(string $stripeStatus): string
-    {
-        return \in_array($stripeStatus, self::KNOWN_SUBSCRIPTION_STATUSES, true) ? $stripeStatus : 'canceled';
     }
 }

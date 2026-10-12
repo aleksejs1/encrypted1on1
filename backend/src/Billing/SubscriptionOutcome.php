@@ -2,7 +2,7 @@
 
 namespace App\Billing;
 
-/** What Company::applySubscription() did with a subscription's current state. */
+/** What became of a subscription's current state: Company::applySubscription()'s answer, or SubscriptionSync's when there was no company to ask. */
 enum SubscriptionOutcome
 {
     /** The company's own subscription, or one it now takes as its own: stored. */
@@ -21,4 +21,7 @@ enum SubscriptionOutcome
      * the company on Free until the other's next event (its renewal).
      */
     case IgnoredSecondPaying;
+
+    /** No company has this subscription, and nothing on it names one. */
+    case NoCompany;
 }

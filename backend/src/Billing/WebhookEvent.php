@@ -3,19 +3,22 @@
 namespace App\Billing;
 
 /**
- * A normalized, already-verified Stripe webhook event — everything BillingController
- * needs, nothing it has to know about Stripe's own object shapes for. $subscriptionStatus
- * is already mapped to Company::SUBSCRIPTION_STATUSES; null on event types this app
- * doesn't act on (BillingController just acknowledges those with 200 and does nothing).
+ * An already-verified Stripe webhook event, reduced to what BillingController takes from
+ * it: which subscription it is about. Nothing else in an event is trusted to be current
+ * (it may arrive late or out of order), so the subscription's state is read from Stripe
+ * afterwards (SubscriptionSync).
  */
-final class WebhookEvent
+final readonly class WebhookEvent
 {
     public function __construct(
-        public readonly string $type,
-        public readonly ?string $companyId,
-        public readonly ?string $stripeCustomerId,
-        public readonly ?string $stripeSubscriptionId,
-        public readonly ?string $subscriptionStatus,
+        public string $type,
+        /** Null for an event type this app doesn't act on: acknowledged and nothing done. */
+        public ?string $subscriptionId,
+        /**
+         * The company a checkout was started for (the session's `client_reference_id`),
+         * on `checkout.session.completed` only. The last resort for finding the company.
+         */
+        public ?string $checkoutCompanyId = null,
     ) {
     }
 }

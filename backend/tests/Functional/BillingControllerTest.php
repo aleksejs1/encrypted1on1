@@ -2,23 +2,34 @@
 
 namespace App\Tests\Functional;
 
+use App\Billing\Plan;
 use App\Billing\StripeBillingProvider;
+use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
+use App\Tests\Support\CleansUpCompanies;
 use App\Tests\Support\FakeBillingProvider;
+use App\Tests\Support\RecordingLogger;
 use App\Tests\Support\StripeSignature;
+use App\Tests\Support\StubStripeHttpClient;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 /**
- * What both billing routes do before any Stripe call, and around it: who may ask for a
- * checkout session, and what the webhook accepts. How a webhook event changes a company
- * is deliberately not covered here: that logic is being replaced (GitHub issue #286,
- * step B3), and gets its tests there.
+ * Both billing routes: who may ask for a checkout session, what the webhook accepts,
+ * and what a subscription event does to a company. Which subscription means what is
+ * Company::applySubscription()'s rule, tested in CompanyTest; here it is the route,
+ * finding the company, and Stripe not answering.
  *
- * The tests run against the real StripeBillingProvider, except the two that need to see
- * whether the provider was called: FakeBillingProvider answers and records there.
+ * The tests run against the real StripeBillingProvider. Where Stripe has to answer,
+ * StubStripeHttpClient does (the webhook tests), or FakeBillingProvider stands in for
+ * the whole provider (the checkout tests that need to see whether it was called).
  */
 class BillingControllerTest extends ApiTestCase
 {
+    use CleansUpCompanies;
+
+    /** The companies made here have no rows of their own; the trait wants at least one table. */
+    private const array COMPANY_TABLES = ['activation_tokens'];
+
     private const string WEBHOOK_SECRET = 'whsec_test_secret';
 
     public function testCheckoutSessionRequiresALogin(): void
@@ -112,6 +123,17 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
 
+    public function testWebhookRejectsEverythingWhenNoWebhookSecretIsConfigured(): void
+    {
+        $this->withEnv('STRIPE_WEBHOOK_SECRET', '');
+        $client = static::createClient();
+        $payload = $this->eventPayload();
+
+        $this->postWebhook($client, $payload, StripeSignature::header($payload, ''));
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
     public function testWebhookRejectsARequestWithoutASignature(): void
     {
         $this->withEnv('STRIPE_WEBHOOK_SECRET', self::WEBHOOK_SECRET);
@@ -136,6 +158,276 @@ class BillingControllerTest extends ApiTestCase
 
         self::assertSame(200, $client->getResponse()->getStatusCode());
         self::assertSame('{"received":true}', $client->getResponse()->getContent());
+    }
+
+    public function testAPaidCheckoutMovesTheCompanyItWasStartedForToPlus(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $company = $this->makeCompany('Checkout Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_new', 'active'));
+
+        $this->deliver($client, $this->checkoutEvent('sub_new', $company->getId()));
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        $company = $this->reload($company);
+        self::assertSame(Plan::PLUS, $company->getPlanTier());
+        self::assertSame(1000, $company->getSeatLimit());
+        self::assertSame('active', $company->getSubscriptionStatus());
+        self::assertSame('sub_new', $company->getStripeSubscriptionId());
+        self::assertSame('cus_fixture1', $company->getStripeCustomerId());
+        self::assertNotNull($company->getSubscriptionPeriodEndsAt());
+        self::assertSame('https://api.stripe.com/v1/subscriptions/sub_new', $stripe->requests[0]['url']);
+    }
+
+    /** The first event of a new subscription is `customer.subscription.created`, before the checkout's own. */
+    public function testASubscriptionIsMatchedByItsCompanyTag(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $company = $this->makeCompany('Tagged Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_tagged', 'active', companyId: $company->getId()));
+
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_tagged'));
+
+        self::assertSame(Plan::PLUS, $this->reload($company)->getPlanTier());
+    }
+
+    /**
+     * The event says `active`; Stripe, asked now, says the subscription has ended. And
+     * the other way round. What Stripe says now is what counts, so the order events
+     * arrive in doesn't matter.
+     */
+    public function testTheSubscriptionsCurrentStateWinsOverTheEvent(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $company = $this->makeCompany('Late Events Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_own'));
+
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'canceled', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.updated', 'sub_own', statusInEvent: 'active'));
+        self::assertSame(Plan::FREE, $this->reload($company)->getPlanTier());
+        self::assertSame('canceled', $this->reload($company)->getSubscriptionStatus());
+
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.deleted', 'sub_own', statusInEvent: 'canceled'));
+        self::assertSame(Plan::PLUS, $this->reload($company)->getPlanTier());
+    }
+
+    public function testAStoredSubscriptionKeepsItsCompanyWhenItsTagIsChanged(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $company = $this->makeCompany('Owner Co');
+        $other = $this->makeCompany('Other Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_own'));
+
+        // Somebody edited the tag in the Stripe dashboard.
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'past_due', companyId: $other->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.updated', 'sub_own'));
+
+        self::assertSame('past_due', $this->reload($company)->getSubscriptionStatus());
+        self::assertNull($this->reload($other)->getStripeSubscriptionId());
+        self::assertSame(Plan::FREE, $this->reload($other)->getPlanTier());
+    }
+
+    /** #285, item 2: the customer id used to be enough to take over a company's subscription. */
+    public function testAnotherSubscriptionOfTheSameCustomerDoesNotChangeTheCompany(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->makeCompany('Same Customer Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_own'));
+
+        // Same customer (cus_fixture1), no tag: made by hand in the dashboard.
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_by_hand', 'canceled'));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.deleted', 'sub_by_hand'));
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        $company = $this->reload($company);
+        self::assertSame('sub_own', $company->getStripeSubscriptionId());
+        self::assertSame(Plan::PLUS, $company->getPlanTier());
+        $errors = $logger->atLeast('error');
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('sub_by_hand', $errors[0]);
+        self::assertStringContainsString('belongs to no company', $errors[0]);
+        self::assertStringContainsString('(canceled)', $errors[0]);
+        self::assertStringNotContainsString('{', $errors[0]);
+    }
+
+    public function testALateEventOfAnOldSubscriptionIsIgnored(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->makeCompany('Resubscribed Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_own'));
+
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_old', 'canceled', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.deleted', 'sub_old'));
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('sub_own', $this->reload($company)->getStripeSubscriptionId());
+        self::assertSame(Plan::PLUS, $this->reload($company)->getPlanTier());
+        self::assertSame([], $logger->atLeast('error'));
+        self::assertCount(1, $logger->atLeast('warning'));
+        self::assertStringContainsString('sub_old (canceled) for company '.$company->getId(), $logger->atLeast('warning')[0]);
+        self::assertStringContainsString('(sub_own)', $logger->atLeast('warning')[0]);
+    }
+
+    public function testASecondPayingSubscriptionIsLoggedAsAnErrorAndChangesNothing(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->makeCompany('Paid Twice Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_own'));
+
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_second', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->checkoutEvent('sub_second', $company->getId()));
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('sub_own', $this->reload($company)->getStripeSubscriptionId());
+        $errors = $logger->atLeast('error');
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('two paying Stripe subscriptions', $errors[0]);
+        self::assertStringContainsString('sub_own', $errors[0]);
+        self::assertStringContainsString('sub_second', $errors[0]);
+        self::assertStringContainsString($company->getId(), $errors[0]);
+        self::assertStringNotContainsString('{', $errors[0]);
+    }
+
+    public function testNotPayingNeverSuspendsAndPayingNeverLiftsASuspension(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $company = $this->makeCompany('Suspension Co');
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.created', 'sub_own'));
+
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'unpaid', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.updated', 'sub_own'));
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('canceled', $this->reload($company)->getSubscriptionStatus());
+        self::assertFalse($this->reload($company)->isSuspended());
+
+        $suspended = $this->reload($company);
+        $suspended->suspend();
+        $this->entityManager()->flush();
+        $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
+        $this->deliver($client, $this->subscriptionEvent('customer.subscription.updated', 'sub_own'));
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('active', $this->reload($company)->getSubscriptionStatus());
+        self::assertTrue($this->reload($company)->isSuspended());
+    }
+
+    /** Stripe delivers the event again later; nothing was changed in between. */
+    public function testWebhookAnswers500WhenStripeDoesNotReturnTheSubscription(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->makeCompany('Outage Co');
+        $stripe->willAnswer(502, '<html>Bad Gateway</html>');
+
+        $this->deliver($client, $this->checkoutEvent('sub_new', $company->getId()));
+
+        self::assertSame(500, $client->getResponse()->getStatusCode());
+        self::assertSame(Plan::FREE, $this->reload($company)->getPlanTier());
+        self::assertNull($this->reload($company)->getStripeSubscriptionId());
+        self::assertCount(1, $logger->atLeast('error'));
+    }
+
+    public function testAnEventTheAppDoesNotActOnAsksStripeNothing(): void
+    {
+        [$client, $stripe] = $this->webhookClient();
+
+        $this->deliver($client, $this->eventPayload());
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame([], $stripe->requests);
+    }
+
+    /**
+     * A client whose provider is the real one, with StubStripeHttpClient answering in
+     * Stripe's place. The kernel is not rebooted between requests, or the next one would
+     * get a provider of its own.
+     *
+     * @return array{KernelBrowser, StubStripeHttpClient}
+     */
+    private function webhookClient(): array
+    {
+        $this->withEnv('DEFAULT_SEAT_LIMIT', '100');
+        $this->withEnv('PLUS_SEAT_LIMIT', '1000');
+        $client = static::createClient();
+        $client->disableReboot();
+        $stripe = new StubStripeHttpClient();
+        static::getContainer()->set(StripeBillingProvider::class, new StripeBillingProvider('sk_test_whatever', self::WEBHOOK_SECRET, 'price_whatever', $stripe));
+
+        return [$client, $stripe];
+    }
+
+    private function recordLogs(): RecordingLogger
+    {
+        $logger = new RecordingLogger();
+        static::getContainer()->set('logger', $logger);
+
+        return $logger;
+    }
+
+    private function makeCompany(string $name): Company
+    {
+        $company = new Company($name, seatLimit: 100);
+        $this->entityManager()->persist($company);
+        $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
+
+        return $company;
+    }
+
+    /** The kernel is not rebooted, so the entity manager still holds what it loaded: read the row again. */
+    private function reload(Company $company): Company
+    {
+        $this->entityManager()->clear();
+        $reloaded = $this->entityManager()->find(Company::class, $company->getId());
+        self::assertNotNull($reloaded);
+
+        return $reloaded;
+    }
+
+    private function deliver(KernelBrowser $client, string $payload): void
+    {
+        $this->postWebhook($client, $payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
+    }
+
+    private function checkoutEvent(string $subscriptionId, string $companyId): string
+    {
+        return $this->event('checkout.session.completed', ['id' => 'cs_test', 'object' => 'checkout.session', 'subscription' => $subscriptionId, 'client_reference_id' => $companyId]);
+    }
+
+    private function subscriptionEvent(string $type, string $subscriptionId, string $statusInEvent = 'active'): string
+    {
+        return $this->event($type, ['id' => $subscriptionId, 'object' => 'subscription', 'status' => $statusInEvent, 'customer' => 'cus_fixture1']);
+    }
+
+    /**
+     * @param array<string, mixed> $object
+     */
+    private function event(string $type, array $object): string
+    {
+        return json_encode(['id' => 'evt_test', 'object' => 'event', 'api_version' => '2024-06-20', 'created' => time(), 'type' => $type, 'data' => ['object' => $object]], \JSON_THROW_ON_ERROR);
+    }
+
+    /** What Stripe answers to a retrieve: a subscription saved from the sandbox, with these three fields set. */
+    private function subscriptionJson(string $id, string $status, ?string $companyId = null): string
+    {
+        $json = file_get_contents(__DIR__.'/../Fixtures/stripe/subscription-active-untagged.json');
+        self::assertIsString($json);
+        $subscription = json_decode($json, true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($subscription);
+        $subscription['id'] = $id;
+        $subscription['status'] = $status;
+        $subscription['metadata'] = null === $companyId ? [] : ['company_id' => $companyId];
+
+        return json_encode($subscription, \JSON_THROW_ON_ERROR);
     }
 
     /**
