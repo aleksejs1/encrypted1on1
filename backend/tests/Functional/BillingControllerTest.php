@@ -123,6 +123,17 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
 
+    public function testWebhookRejectsEverythingWhenNoWebhookSecretIsConfigured(): void
+    {
+        $this->withEnv('STRIPE_WEBHOOK_SECRET', '');
+        $client = static::createClient();
+        $payload = $this->eventPayload();
+
+        $this->postWebhook($client, $payload, StripeSignature::header($payload, ''));
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
     public function testWebhookRejectsARequestWithoutASignature(): void
     {
         $this->withEnv('STRIPE_WEBHOOK_SECRET', self::WEBHOOK_SECRET);
@@ -240,6 +251,8 @@ class BillingControllerTest extends ApiTestCase
         self::assertCount(1, $errors);
         self::assertStringContainsString('sub_by_hand', $errors[0]);
         self::assertStringContainsString('belongs to no company', $errors[0]);
+        self::assertStringContainsString('(canceled)', $errors[0]);
+        self::assertStringNotContainsString('{', $errors[0]);
     }
 
     public function testALateEventOfAnOldSubscriptionIsIgnored(): void
@@ -258,6 +271,8 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(Plan::PLUS, $this->reload($company)->getPlanTier());
         self::assertSame([], $logger->atLeast('error'));
         self::assertCount(1, $logger->atLeast('warning'));
+        self::assertStringContainsString('sub_old (canceled) for company '.$company->getId(), $logger->atLeast('warning')[0]);
+        self::assertStringContainsString('(sub_own)', $logger->atLeast('warning')[0]);
     }
 
     public function testASecondPayingSubscriptionIsLoggedAsAnErrorAndChangesNothing(): void
@@ -278,6 +293,8 @@ class BillingControllerTest extends ApiTestCase
         self::assertStringContainsString('two paying Stripe subscriptions', $errors[0]);
         self::assertStringContainsString('sub_own', $errors[0]);
         self::assertStringContainsString('sub_second', $errors[0]);
+        self::assertStringContainsString($company->getId(), $errors[0]);
+        self::assertStringNotContainsString('{', $errors[0]);
     }
 
     public function testNotPayingNeverSuspendsAndPayingNeverLiftsASuspension(): void

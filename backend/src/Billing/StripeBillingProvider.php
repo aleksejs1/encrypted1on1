@@ -141,6 +141,11 @@ class StripeBillingProvider implements BillingProviderInterface
 
     public function constructWebhookEvent(string $payload, string $signatureHeader): WebhookEvent
     {
+        // Without a secret anybody could sign a payload: nothing is verifiable then.
+        if ('' === $this->stripeWebhookSecret) {
+            throw new \RuntimeException('STRIPE_WEBHOOK_SECRET is not set.');
+        }
+
         try {
             $event = Webhook::constructEvent($payload, $signatureHeader, $this->stripeWebhookSecret);
         } catch (SignatureVerificationException|\UnexpectedValueException $e) {

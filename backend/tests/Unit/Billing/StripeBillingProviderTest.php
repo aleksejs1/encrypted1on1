@@ -56,6 +56,15 @@ class StripeBillingProviderTest extends TestCase
         $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, 'wrong-secret'));
     }
 
+    public function testRejectsEveryPayloadWhenNoWebhookSecretIsConfigured(): void
+    {
+        $payload = $this->subscriptionEventPayload('customer.subscription.updated', 'active');
+
+        $this->expectException(\RuntimeException::class);
+        // Signed with the empty secret, which is what an unconfigured instance has.
+        (new StripeBillingProvider('', '', ''))->constructWebhookEvent($payload, StripeSignature::header($payload, ''));
+    }
+
     public function testRejectsATamperedPayload(): void
     {
         $payload = json_encode(['id' => 'evt_1', 'object' => 'event', 'type' => 'ping', 'data' => ['object' => []]], \JSON_THROW_ON_ERROR);
