@@ -53,6 +53,7 @@ beforeEach(async () => {
     allowedEmailDomain: '',
     isDemo: false,
     isPlatformAdmin: false,
+    cloudMode: true,
     publicKey: await toBase64(keyPair.publicKey),
     encryptedPrivateKey: await packWrappedPrivateKey(
       await wrapPrivateKey(keyPair.privateKey, rightKey),
@@ -85,6 +86,7 @@ describe('ensureUnlocked: where the master key comes from', () => {
     const identity = await ensureUnlocked();
 
     expect(identity.privateKey).toEqual(privateKey);
+    expect(identity.cloudMode).toBe(true);
     expect(loadRememberedMasterKey).not.toHaveBeenCalled();
   });
 

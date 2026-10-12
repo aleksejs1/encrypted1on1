@@ -38,6 +38,7 @@ class AuthController
         #[Autowire(service: 'limiter.delete_account')]
         private readonly RateLimiterFactory $deleteAccountLimiter,
         private readonly AccountDeleter $accountDeleter,
+        private readonly bool $cloudMode,
     ) {
     }
 
@@ -144,6 +145,10 @@ class AuthController
             // /platform-admin (Phase C, private/cloud-service-plan.md, not tracked in
             // git) — never drives any navigation link, unlike isAdmin.
             'isPlatformAdmin' => $user->isPlatformAdmin(),
+            // Whether this is the multi-tenant Cloud deployment (public too, in
+            // GET /api/registration-info). Here so the admin panel can show its "Plan"
+            // tab from the identity it already has, with no extra request.
+            'cloudMode' => $this->cloudMode,
         ]);
     }
 

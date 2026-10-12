@@ -39,6 +39,19 @@ class AuthControllerTest extends ApiTestCase
         self::assertArrayHasKey('publicKey', $result['json']);
         self::assertArrayHasKey('encryptedPrivateKey', $result['json']);
         self::assertFalse($result['json']['isDemo']);
+        self::assertFalse($result['json']['cloudMode']);
+    }
+
+    public function testMeSaysWhenTheDeploymentIsInCloudMode(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('auth-me-cloud'));
+
+        $result = $this->jsonRequest($client, 'GET', '/api/me');
+
+        self::assertSame(200, $result['status']);
+        self::assertTrue($result['json']['cloudMode']);
     }
 
     public function testLoginSucceedsWithTheCredentialsSetAtActivation(): void
