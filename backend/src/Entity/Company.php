@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Billing\Plan;
+use App\Billing\SubscriptionSnapshot;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -45,6 +46,14 @@ class Company
      * subscription at all, not just Stripe's post-trial state.
      */
     public const SUBSCRIPTION_STATUSES = ['trialing', 'active', 'past_due', 'canceled'];
+
+    /**
+     * A subscription in one of these keeps the company on Plus. `past_due` is among them
+     * on purpose: Stripe retries a failed payment for about two weeks, and the company
+     * keeps what it had while it does. Any other status, Stripe's `unpaid`, `incomplete`
+     * and `paused` included, is stored as `canceled` and means Free.
+     */
+    private const PAYING_SUBSCRIPTION_STATUSES = ['trialing', 'active', 'past_due'];
 
     /** Statuses under which a company is suspended when applyStripeSubscriptionUpdate() applies them — non-payment suspends, it never deletes. */
     private const SUSPENDING_SUBSCRIPTION_STATUSES = ['past_due', 'canceled'];
@@ -253,6 +262,46 @@ class Company
     public function unsuspend(): void
     {
         $this->suspendedAt = null;
+    }
+
+    /**
+     * Brings the company in line with its subscription as Stripe reports it now. The one
+     * place that says what a subscription means for a company:
+     *
+     * - A plan managed by payment (Plan::FREE, Plan::PLUS) follows the subscription: Plus
+     *   while it is paying, Free otherwise. A plan with any other name was set by hand
+     *   and stays, with its seat limit.
+     * - The seat limit changes only together with the plan, so a limit a platform admin
+     *   set by hand survives every event that keeps the plan. A company without a limit
+     *   never gets one here.
+     * - Going back to Free removes nobody: a company over the Free limit only can't
+     *   invite (SeatLimitChecker).
+     * - Suspension is not touched in either direction. Not paying costs the plan, never
+     *   the access to one's own 1:1s; suspend()/unsuspend() stay a platform admin's.
+     */
+    public function applySubscription(SubscriptionSnapshot $subscription, Plan $plan): void
+    {
+        $paying = \in_array($subscription->status, self::PAYING_SUBSCRIPTION_STATUSES, true);
+
+        $this->subscriptionStatus = $paying ? $subscription->status : 'canceled';
+        $this->stripeSubscriptionId = $subscription->id;
+        $this->stripeCustomerId = $subscription->customerId ?? $this->stripeCustomerId;
+        $this->subscriptionPeriodEndsAt = $subscription->periodEndsAt;
+        $this->subscriptionCancelsAt = $subscription->cancelsAt;
+
+        if (!Plan::isManagedByPayment($this->planTier)) {
+            return;
+        }
+
+        $planTier = $paying ? Plan::PLUS : Plan::FREE;
+        if ($planTier === $this->planTier) {
+            return;
+        }
+
+        $this->planTier = $planTier;
+        if (null !== $this->seatLimit) {
+            $this->seatLimit = $plan->seatLimit($planTier);
+        }
     }
 
     /**
