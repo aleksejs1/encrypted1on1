@@ -29,7 +29,7 @@ abstract class ApiTestCase extends WebTestCase
      */
     private string $clientIp;
 
-    /** @var array<string, array{mixed, mixed}> what withEnv() replaced in and, restored by tearDown() */
+    /** @var array<string, array{mixed, mixed}> per variable, the value withEnv() replaced in the ENV superglobal and the one in SERVER; tearDown() puts both back */
     private array $replacedEnv = [];
 
     protected function setUp(): void

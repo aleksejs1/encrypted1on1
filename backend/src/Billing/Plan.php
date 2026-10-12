@@ -12,8 +12,9 @@ namespace App\Billing;
  *
  * The seat limits are environment variables, not constants: another operator may run
  * cloud mode with their own numbers, as they set their own price in Stripe.
- * DEFAULT_SEAT_LIMIT is the Free limit; its name predates the plans. Self-hosted
- * deployments have no seat limit at all and never read these.
+ * DEFAULT_SEAT_LIMIT is the Free limit; its name predates the plans. A self-hosted
+ * deployment's one company has no seat limit and never gets one from here, but both
+ * values must still be valid there: the service is built wherever it is injected.
  */
 class Plan
 {
