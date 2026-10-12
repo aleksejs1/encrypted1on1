@@ -24,7 +24,10 @@ final readonly class SubscriptionSnapshot
          * a cancellation made in the customer portal leaves it false.
          */
         public ?\DateTimeImmutable $cancelsAt,
-        /** The company the checkout tagged the subscription with (`metadata.company_id`). */
+        /**
+         * The company the checkout tagged the subscription with (`metadata.company_id`).
+         * Null for a subscription from before checkouts wrote the tag.
+         */
         public ?string $companyId,
     ) {
     }

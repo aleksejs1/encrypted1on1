@@ -30,6 +30,7 @@ interface BillingProviderInterface
      * older than the state it arrives in.
      *
      * @throws BillingNotConfiguredException
+     * @throws BillingProviderException      an unknown id, a refusal, or no answer in time
      */
     public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot;
 }
