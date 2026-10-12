@@ -6,7 +6,7 @@ use App\Entity\Company;
 use Stripe\ApiRequestor;
 use Stripe\Checkout\Session;
 use Stripe\Event;
-use Stripe\Exception\ApiErrorException;
+use Stripe\Exception\ExceptionInterface as StripeException;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\HttpClient\ClientInterface;
 use Stripe\HttpClient\CurlClient;
@@ -96,7 +96,9 @@ class StripeBillingProvider implements BillingProviderInterface
 
         try {
             return self::snapshotOf($this->client()->subscriptions->retrieve($subscriptionId));
-        } catch (ApiErrorException $e) {
+        } catch (StripeException $e) {
+            // Every exception of the SDK: a refusal, no answer in time, and also an
+            // answer that isn't Stripe's JSON (a proxy's error page during an outage).
             throw new BillingProviderException('Stripe did not return the subscription: '.$e->getMessage(), 0, $e);
         }
     }

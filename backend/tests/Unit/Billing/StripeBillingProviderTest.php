@@ -15,10 +15,11 @@ use Stripe\HttpClient\CurlClient;
 use Stripe\Subscription;
 
 /**
- * The part of StripeBillingProvider that can be tested without a Stripe account (see
- * that class's own docblock): webhook signature verification, the parsing of the three
- * event types, and the not-configured refusal. Signature verification is pure local
- * HMAC-SHA256 cryptography, no network call: see StripeSignature for the scheme.
+ * StripeBillingProvider without a Stripe account and without the network: webhook
+ * signature verification (local HMAC, see StripeSignature) and the parsing of the three
+ * event types; the not-configured refusals; reading a subscription, with
+ * StubStripeHttpClient answering in Stripe's place and with subscription objects saved
+ * from the sandbox; the limits given to the SDK's HTTP client.
  */
 class StripeBillingProviderTest extends TestCase
 {
@@ -185,6 +186,15 @@ class StripeBillingProviderTest extends TestCase
             self::assertStringContainsString('No such subscription', $e->getMessage());
             self::assertInstanceOf(ApiErrorException::class, $e->getPrevious());
         }
+    }
+
+    public function testRetrieveSubscriptionWrapsAnAnswerThatIsNotStripes(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(502, '<html><body>Bad Gateway</body></html>');
+
+        $this->expectException(BillingProviderException::class);
+        $this->providerWith($http)->retrieveSubscription('sub_fixture1');
     }
 
     public function testSnapshotOfAnActiveSubscriptionWithoutACompanyTag(): void
