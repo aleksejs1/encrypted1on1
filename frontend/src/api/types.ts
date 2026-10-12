@@ -19,6 +19,8 @@ export interface MeResponse {
   allowedEmailDomain: string;
   isDemo: boolean;
   isPlatformAdmin: boolean;
+  /** The multi-tenant Cloud deployment, where a company has a plan. */
+  cloudMode: boolean;
   publicKey: string;
   encryptedPrivateKey: string;
 }

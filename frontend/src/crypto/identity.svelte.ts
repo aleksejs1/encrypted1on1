@@ -24,6 +24,7 @@ export interface Identity {
   isDemo: boolean;
   /** The SaaS operator's own cross-company role (Phase C, private/cloud-service-plan.md, not tracked in git) — completely separate from isAdmin. Never drives a navigation link, only gates /platform-admin's own content. */
   isPlatformAdmin: boolean;
+  cloudMode: boolean;
   publicKey: Uint8Array;
   privateKey: Uint8Array;
 }
@@ -171,6 +172,7 @@ export async function ensureUnlocked(
       allowedEmailDomain: me.allowedEmailDomain,
       isDemo: me.isDemo,
       isPlatformAdmin: me.isPlatformAdmin,
+      cloudMode: me.cloudMode,
       publicKey: await fromBase64(me.publicKey),
       privateKey,
     };

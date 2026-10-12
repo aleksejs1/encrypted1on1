@@ -57,6 +57,7 @@ const me: MeResponse = {
   allowedEmailDomain: '',
   isDemo: false,
   isPlatformAdmin: false,
+  cloudMode: false,
   publicKey: '',
   encryptedPrivateKey: '',
 };
