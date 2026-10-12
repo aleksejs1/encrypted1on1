@@ -289,6 +289,8 @@ class BillingControllerTest extends ApiTestCase
 
         $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'unpaid', companyId: $company->getId()));
         $this->deliver($client, $this->subscriptionEvent('customer.subscription.updated', 'sub_own'));
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('canceled', $this->reload($company)->getSubscriptionStatus());
         self::assertFalse($this->reload($company)->isSuspended());
 
         $suspended = $this->reload($company);
@@ -296,6 +298,8 @@ class BillingControllerTest extends ApiTestCase
         $this->entityManager()->flush();
         $stripe->willAnswer(200, $this->subscriptionJson('sub_own', 'active', companyId: $company->getId()));
         $this->deliver($client, $this->subscriptionEvent('customer.subscription.updated', 'sub_own'));
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('active', $this->reload($company)->getSubscriptionStatus());
         self::assertTrue($this->reload($company)->isSuspended());
     }
 

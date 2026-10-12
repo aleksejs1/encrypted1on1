@@ -82,8 +82,8 @@ class BillingController
         }
 
         if (null !== $event->subscriptionId) {
-            // A BillingProviderException (Stripe didn't return the subscription) is left
-            // to become a 500: Stripe then delivers the event again later.
+            // An exception here (Stripe didn't return the subscription, or its secret key
+            // isn't set) is left to become a 500: Stripe then delivers the event again.
             $this->subscriptionSync->sync($event->subscriptionId, $event->checkoutCompanyId);
         }
 
