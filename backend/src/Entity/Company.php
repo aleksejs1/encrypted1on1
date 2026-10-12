@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Billing\Plan;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -21,9 +22,8 @@ use Symfony\Component\Uid\Uuid;
  * without needing raw SQL, closing the gap this class's docblock used to flag as
  * out of scope.
  *
- * Billing fields (Phase D) are real, but deliberately minimal — this app has no chosen
- * pricing tiers yet (see private/cloud-service-plan.md's own "not an engineering
- * decision" note), so planTier/seatLimit exist as mechanism, not as decided numbers.
+ * Billing fields: planTier names the plan and seatLimit is the limit that plan gave the
+ * company when it was set (App\Billing\Plan has the names and the numbers).
  * seatLimit is nullable = unlimited, which is what the single self-hosted company (and
  * every company that existed before this migration) gets — self-hosted deployments never
  * had a seat concept and this change must not silently start capping them.
@@ -65,8 +65,8 @@ class Company
     private string $allowedEmailDomain;
 
     /**
-     * Free-text label, not yet tied to any enforced behavior beyond seatLimit — no
-     * pricing tiers are decided yet. Purely informational until they are.
+     * Plan::FREE, Plan::PLUS, or any other name for a plan set by hand. Nothing reads it
+     * to enforce anything: the enforced number is seatLimit.
      */
     #[ORM\Column(type: 'string', length: 40)]
     #[AllowPlaintext(reason: 'Billing plan label, not content.')]
@@ -74,8 +74,8 @@ class Company
 
     /**
      * Null = unlimited (self-hosted's own company, and every company that predates this
-     * column). CompanyController sets a real number on every newly self-service-created
-     * company — see its own constant for why that number is a placeholder.
+     * column). CompanyController gives every self-service-created company the Free
+     * plan's limit.
      */
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $seatLimit;
@@ -114,7 +114,7 @@ class Company
         string $registrationMode = 'invite',
         string $allowedEmailDomain = '',
         ?int $seatLimit = null,
-        string $planTier = 'free',
+        string $planTier = Plan::FREE,
     ) {
         if (!\in_array($registrationMode, self::REGISTRATION_MODES, true)) {
             throw new \InvalidArgumentException(sprintf('Unsupported registration mode "%s".', $registrationMode));

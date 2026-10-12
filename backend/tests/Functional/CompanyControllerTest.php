@@ -2,21 +2,21 @@
 
 namespace App\Tests\Functional;
 
+use App\Billing\Plan;
+use App\Entity\ActivationToken;
 use App\Tests\Support\ApiTestCase;
+use App\Tests\Support\CleansUpCompanies;
 
 /**
- * CLOUD_MODE in .env is "0" (off), inherited unchanged by the test environment
- * (.env.test doesn't override it) — same situation InviteControllerTest already
- * documents for its own "admin_only" gap. That means the happy path (a real company +
- * admin activation token being created), the missing-field validation, and the
- * enumeration-safety branch (an already-registered email still returning {"ok": true}
- * without a second company/token) are all unreachable here — POST /api/companies
- * 400s on the CLOUD_MODE check before any of that code runs. Deliberately deferred,
- * not silently skipped — verified manually against a real rebuilt container with
- * CLOUD_MODE=1 instead (see private/cloud-service-plan.md, not tracked in git).
+ * CLOUD_MODE is off in .env and so in the test environment; a test that needs the
+ * route open turns it on for itself with withEnv().
  */
 class CompanyControllerTest extends ApiTestCase
 {
+    use CleansUpCompanies;
+
+    private const array COMPANY_TABLES = ['activation_tokens'];
+
     public function testCreateCompanyIsRejectedWhenCloudModeIsDisabled(): void
     {
         $client = static::createClient();
@@ -28,6 +28,28 @@ class CompanyControllerTest extends ApiTestCase
 
         self::assertSame(400, $result['status']);
         self::assertSame('Company sign-up is not available on this instance.', $result['json']['error']);
+    }
+
+    public function testCreateCompanyStartsOnTheFreePlanWithItsSeatLimit(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->withEnv('DEFAULT_SEAT_LIMIT', '42');
+        $client = static::createClient();
+        $email = $this->uniqueEmail('company-create-cloud');
+
+        $result = $this->jsonRequest($client, 'POST', '/api/companies', [
+            'name' => 'Acme Inc',
+            'adminEmail' => $email,
+        ]);
+
+        self::assertSame(200, $result['status']);
+        $token = $this->entityManager()->getRepository(ActivationToken::class)->findOneBy(['email' => $email]);
+        self::assertNotNull($token);
+        $company = $token->getCompany();
+        $this->createdCompanyIds[] = $company->getId();
+        self::assertSame('Acme Inc', $company->getName());
+        self::assertSame(Plan::FREE, $company->getPlanTier());
+        self::assertSame(42, $company->getSeatLimit());
     }
 
     public function testCreateCompanyRejectsBlankName(): void

@@ -29,12 +29,43 @@ abstract class ApiTestCase extends WebTestCase
      */
     private string $clientIp;
 
+    /** @var array<string, string|null> what withEnv() replaced, restored by tearDown() */
+    private array $replacedEnv = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         // 3 random octets (~16.7M combinations) — a single-octet range (254 values)
         // would make collisions likely across ~90 tests by the birthday paradox.
         $this->clientIp = \sprintf('203.%d.%d.%d', random_int(0, 255), random_int(0, 255), random_int(0, 255));
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->replacedEnv as $name => $previous) {
+            if (null === $previous) {
+                unset($_ENV[$name], $_SERVER[$name]);
+            } else {
+                $_ENV[$name] = $_SERVER[$name] = $previous;
+            }
+        }
+        $this->replacedEnv = [];
+
+        parent::tearDown();
+    }
+
+    /**
+     * Sets an environment variable for this test method only. Call it before
+     * createClient(): the container reads `%env()%` values when a service is first built.
+     * This is how a test runs with CLOUD_MODE=1, which .env keeps off.
+     */
+    protected function withEnv(string $name, string $value): void
+    {
+        if (!\array_key_exists($name, $this->replacedEnv)) {
+            $previous = $_ENV[$name] ?? null;
+            $this->replacedEnv[$name] = \is_string($previous) ? $previous : null;
+        }
+        $_ENV[$name] = $_SERVER[$name] = $value;
     }
 
     /**
