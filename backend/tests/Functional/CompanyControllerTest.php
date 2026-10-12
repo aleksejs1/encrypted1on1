@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Billing\Plan;
 use App\Entity\ActivationToken;
+use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
 use App\Tests\Support\CleansUpCompanies;
 
@@ -42,14 +43,62 @@ class CompanyControllerTest extends ApiTestCase
             'adminEmail' => $email,
         ]);
 
+        $token = $this->createdCompanyToken($email);
         self::assertSame(200, $result['status']);
-        $token = $this->entityManager()->getRepository(ActivationToken::class)->findOneBy(['email' => $email]);
+        self::assertSame(['ok' => true], $result['json']);
         self::assertNotNull($token);
+        self::assertTrue($token->grantsAdmin());
         $company = $token->getCompany();
-        $this->createdCompanyIds[] = $company->getId();
         self::assertSame('Acme Inc', $company->getName());
         self::assertSame(Plan::FREE, $company->getPlanTier());
         self::assertSame(42, $company->getSeatLimit());
+    }
+
+    /** The answer is the same, so it doesn't reveal the account; no second company or token appears. */
+    public function testCreateCompanyForAnAlreadyRegisteredEmailCreatesNothing(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $email = $this->uniqueEmail('company-create-existing');
+        $this->activateUser($client, $email);
+        $companiesBefore = $this->entityManager()->getRepository(Company::class)->count([]);
+
+        $result = $this->jsonRequest($this->secondClient(), 'POST', '/api/companies', [
+            'name' => 'Acme Inc',
+            'adminEmail' => $email,
+        ]);
+
+        $token = $this->createdCompanyToken($email);
+        self::assertSame(200, $result['status']);
+        self::assertSame(['ok' => true], $result['json']);
+        self::assertNull($token);
+        self::assertSame($companiesBefore, $this->entityManager()->getRepository(Company::class)->count([]));
+    }
+
+    public function testThePlanSeatLimitsComeFromTheEnvironment(): void
+    {
+        $this->withEnv('DEFAULT_SEAT_LIMIT', '7');
+        $this->withEnv('PLUS_SEAT_LIMIT', '77');
+        static::createClient();
+
+        $plan = static::getContainer()->get(Plan::class);
+        self::assertInstanceOf(Plan::class, $plan);
+        self::assertSame(7, $plan->seatLimit(Plan::FREE));
+        self::assertSame(77, $plan->seatLimit(Plan::PLUS));
+    }
+
+    /**
+     * The unused token POST /api/companies issued to `$email`, if it did, with its
+     * company registered for cleanup before the caller asserts anything.
+     */
+    private function createdCompanyToken(string $email): ?ActivationToken
+    {
+        $token = $this->entityManager()->getRepository(ActivationToken::class)->findOneBy(['email' => $email, 'usedAt' => null]);
+        if (null !== $token) {
+            $this->createdCompanyIds[] = $token->getCompany()->getId();
+        }
+
+        return $token;
     }
 
     public function testCreateCompanyRejectsBlankName(): void

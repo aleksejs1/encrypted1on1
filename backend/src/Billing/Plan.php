@@ -24,6 +24,9 @@ class Plan
         private readonly int $defaultSeatLimit,
         private readonly int $plusSeatLimit,
     ) {
+        if ($defaultSeatLimit < 1 || $plusSeatLimit < 1) {
+            throw new \InvalidArgumentException('DEFAULT_SEAT_LIMIT and PLUS_SEAT_LIMIT must be positive numbers.');
+        }
     }
 
     public static function isManagedByPayment(string $plan): bool

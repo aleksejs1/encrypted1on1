@@ -29,7 +29,7 @@ abstract class ApiTestCase extends WebTestCase
      */
     private string $clientIp;
 
-    /** @var array<string, string|null> what withEnv() replaced, restored by tearDown() */
+    /** @var array<string, array{mixed, mixed}> what withEnv() replaced in and, restored by tearDown() */
     private array $replacedEnv = [];
 
     protected function setUp(): void
@@ -42,11 +42,13 @@ abstract class ApiTestCase extends WebTestCase
 
     protected function tearDown(): void
     {
-        foreach ($this->replacedEnv as $name => $previous) {
-            if (null === $previous) {
-                unset($_ENV[$name], $_SERVER[$name]);
-            } else {
-                $_ENV[$name] = $_SERVER[$name] = $previous;
+        foreach ($this->replacedEnv as $name => [$env, $server]) {
+            unset($_ENV[$name], $_SERVER[$name]);
+            if (null !== $env) {
+                $_ENV[$name] = $env;
+            }
+            if (null !== $server) {
+                $_SERVER[$name] = $server;
             }
         }
         $this->replacedEnv = [];
@@ -55,16 +57,16 @@ abstract class ApiTestCase extends WebTestCase
     }
 
     /**
-     * Sets an environment variable for this test method only. Call it before
-     * createClient(): the container reads `%env()%` values when a service is first built.
+     * Sets an environment variable for this test method only. It must come before
+     * createClient(): a service reads its `%env()%` values when it is first built, and
+     * a value changed later would reach only the services built after it.
      * This is how a test runs with CLOUD_MODE=1, which .env keeps off.
      */
     protected function withEnv(string $name, string $value): void
     {
-        if (!\array_key_exists($name, $this->replacedEnv)) {
-            $previous = $_ENV[$name] ?? null;
-            $this->replacedEnv[$name] = \is_string($previous) ? $previous : null;
-        }
+        self::assertFalse(static::$booted, 'withEnv() must be called before createClient().');
+
+        $this->replacedEnv[$name] ??= [$_ENV[$name] ?? null, $_SERVER[$name] ?? null];
         $_ENV[$name] = $_SERVER[$name] = $value;
     }
 

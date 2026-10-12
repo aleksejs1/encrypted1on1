@@ -52,8 +52,8 @@ services:
       MAILER_DSN: "${MAILER_DSN:?set a real SMTP DSN, e.g. smtp://user:pass@smtp.example.com:587}"
       MAILER_FROM: "${MAILER_FROM:?e.g. noreply@example.com}"
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
-      # Seat limits of the Free and Plus plans (see .env.cloud.example). They apply to
-      # companies created or paid for from here on; an existing company keeps the
+      # Seat limits of the Free and Plus plans (see .env.cloud.example). A company
+      # created from here on starts with the Free one; an existing company keeps the
       # limit stored on it.
       DEFAULT_SEAT_LIMIT: "${DEFAULT_SEAT_LIMIT:-100}"
       PLUS_SEAT_LIMIT: "${PLUS_SEAT_LIMIT:-1000}"

@@ -22,8 +22,10 @@ use Symfony\Component\Uid\Uuid;
  * without needing raw SQL, closing the gap this class's docblock used to flag as
  * out of scope.
  *
- * Billing fields: planTier names the plan and seatLimit is the limit that plan gave the
- * company when it was set (App\Billing\Plan has the names and the numbers).
+ * Billing fields: planTier names the plan (App\Billing\Plan has the names and each
+ * plan's seat limit) and seatLimit is the number actually enforced. The two are stored
+ * separately and can differ: a platform admin can change a company's limit by hand, and
+ * a company keeps the limit it was given when the plan's number later changes.
  * seatLimit is nullable = unlimited, which is what the single self-hosted company (and
  * every company that existed before this migration) gets — self-hosted deployments never
  * had a seat concept and this change must not silently start capping them.

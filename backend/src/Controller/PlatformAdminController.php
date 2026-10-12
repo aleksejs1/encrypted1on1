@@ -117,10 +117,8 @@ class PlatformAdminController
     }
 
     /**
-     * No pricing tiers are decided yet (see Company's own docblock) — this just lets a
-     * platform admin correct/raise a company's seat count directly (e.g. a customer
-     * upgraded outside Stripe, or self-service's own default placeholder needs a manual
-     * override), independent of BillingController's not-yet-built plan-tier automation.
+     * Lets a platform admin set a company's seat count directly (e.g. a customer who
+     * upgraded outside Stripe). It changes the number only, not Company::$planTier.
      * `null` means unlimited, same convention as everywhere else this field is read.
      */
     #[Route('/api/platform-admin/companies/{id}/seat-limit', name: 'platform_admin_company_set_seat_limit', methods: ['PUT'])]

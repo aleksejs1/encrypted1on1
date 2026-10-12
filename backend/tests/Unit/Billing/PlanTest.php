@@ -3,6 +3,7 @@
 namespace App\Tests\Unit\Billing;
 
 use App\Billing\Plan;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 class PlanTest extends TestCase
@@ -21,6 +22,15 @@ class PlanTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $plan->seatLimit('enterprise');
+    }
+
+    #[TestWith([0, 1000])]
+    #[TestWith([100, 0])]
+    #[TestWith([-1, 1000])]
+    public function testRefusesASeatLimitThatIsNotPositive(int $defaultSeatLimit, int $plusSeatLimit): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Plan($defaultSeatLimit, $plusSeatLimit);
     }
 
     public function testOnlyFreeAndPlusAreManagedByPayment(): void
