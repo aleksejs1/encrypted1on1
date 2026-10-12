@@ -120,8 +120,9 @@ class Company
     private ?string $stripeSubscriptionId = null;
 
     /**
-     * The end of the period the subscription is paid for, as Stripe last reported it:
-     * the next payment date, or the last paid day once payments stop. Stored so the Plan
+     * The end of the subscription's current period, as Stripe last reported it: the next
+     * payment date of one that is paid, and for a `past_due` one the end of a period
+     * nobody paid for yet, which is no "next payment". Stored so the Plan
      * page doesn't depend on Stripe being reachable. Null without a running subscription.
      */
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
@@ -275,6 +276,9 @@ class Company
      * One that isn't paying and isn't the company's own changes nothing: it never
      * started, or it is an old one reported late. A second paying one, while the
      * company's own pays too, changes nothing either; the caller reports it.
+     *
+     * Which company a subscription belongs to is the caller's question, answered before
+     * this is called (the snapshot's own company tag is not checked here).
      *
      * Then, for a subscription that is applied:
      *

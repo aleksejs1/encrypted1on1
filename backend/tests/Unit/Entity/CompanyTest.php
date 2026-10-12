@@ -352,6 +352,25 @@ class CompanyTest extends TestCase
         self::assertFalse($open->isSuspended(), 'not paying does not suspend');
     }
 
+    /**
+     * Known and accepted (decision 11 of GitHub issue #286): the second subscription is
+     * not remembered, so the company is on Free until that one's next event.
+     */
+    public function testTheOwnSubscriptionEndingAfterASecondOneWasIgnoredLeavesFree(): void
+    {
+        $company = new Company('Acme', seatLimit: 100);
+        $company->applySubscription($this->subscription('past_due', id: 'sub_own'), $this->plan());
+        $company->applySubscription($this->subscription('active', id: 'sub_second'), $this->plan());
+
+        $company->applySubscription($this->subscription('canceled', id: 'sub_own'), $this->plan());
+        self::assertSame(Plan::FREE, $company->getPlanTier());
+
+        // The second one's next event (its renewal) is then taken as the company's own.
+        self::assertSame(SubscriptionOutcome::Applied, $company->applySubscription($this->subscription('active', id: 'sub_second'), $this->plan()));
+        self::assertSame(Plan::PLUS, $company->getPlanTier());
+        self::assertSame('sub_second', $company->getStripeSubscriptionId());
+    }
+
     public function testAStoredCustomerIdSurvivesASnapshotWithoutOne(): void
     {
         $company = new Company('Acme', seatLimit: 100);

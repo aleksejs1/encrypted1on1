@@ -16,7 +16,9 @@ enum SubscriptionOutcome
 
     /**
      * A second paying subscription while the company's own is paying too. Nothing
-     * changed; somebody has to cancel and refund one of them by hand.
+     * changed, and nothing remembers the second one: somebody has to cancel and refund
+     * it, the one that is not stored, by hand. Cancelling the stored one instead leaves
+     * the company on Free until the other's next event (its renewal).
      */
     case IgnoredSecondPaying;
 }
