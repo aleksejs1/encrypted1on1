@@ -5,17 +5,14 @@ namespace App\Tests\Unit\Billing;
 use App\Billing\BillingNotConfiguredException;
 use App\Billing\StripeBillingProvider;
 use App\Entity\Company;
+use App\Tests\Support\StripeSignature;
 use PHPUnit\Framework\TestCase;
 
 /**
  * The part of StripeBillingProvider that can be tested without a Stripe account (see
  * that class's own docblock): webhook signature verification, the parsing of the three
  * event types, and the not-configured refusal. Signature verification is pure local
- * HMAC-SHA256 cryptography, no network call. signPayload() below implements
- * exactly the scheme Stripe documents (https://stripe.com/docs/webhooks#verify-manually):
- * `t={timestamp},v1=hmac_sha256(secret, "{timestamp}.{payload}")` — the same algorithm
- * \Stripe\Webhook::constructEvent() verifies against, so a payload signed this way is
- * indistinguishable to that code from a genuine Stripe delivery.
+ * HMAC-SHA256 cryptography, no network call: see StripeSignature for the scheme.
  */
 class StripeBillingProviderTest extends TestCase
 {
@@ -26,26 +23,18 @@ class StripeBillingProviderTest extends TestCase
         return new StripeBillingProvider('sk_test_whatever', self::WEBHOOK_SECRET, 'price_whatever');
     }
 
-    private function signPayload(string $payload, string $secret): string
-    {
-        $timestamp = time();
-        $signature = hash_hmac('sha256', "{$timestamp}.{$payload}", $secret);
-
-        return "t={$timestamp},v1={$signature}";
-    }
-
     public function testRejectsAnInvalidSignature(): void
     {
         $payload = json_encode(['id' => 'evt_1', 'object' => 'event', 'type' => 'ping', 'data' => ['object' => []]], \JSON_THROW_ON_ERROR);
 
         $this->expectException(\RuntimeException::class);
-        $this->provider()->constructWebhookEvent($payload, $this->signPayload($payload, 'wrong-secret'));
+        $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, 'wrong-secret'));
     }
 
     public function testRejectsATamperedPayload(): void
     {
         $payload = json_encode(['id' => 'evt_1', 'object' => 'event', 'type' => 'ping', 'data' => ['object' => []]], \JSON_THROW_ON_ERROR);
-        $signature = $this->signPayload($payload, self::WEBHOOK_SECRET);
+        $signature = StripeSignature::header($payload, self::WEBHOOK_SECRET);
 
         $this->expectException(\RuntimeException::class);
         // Same valid signature, different payload — must not verify.
@@ -56,7 +45,7 @@ class StripeBillingProviderTest extends TestCase
     {
         $payload = $this->subscriptionEventPayload('customer.subscription.updated', 'active');
 
-        $event = $this->provider()->constructWebhookEvent($payload, $this->signPayload($payload, self::WEBHOOK_SECRET));
+        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('customer.subscription.updated', $event->type);
         self::assertNull($event->companyId);
@@ -71,7 +60,7 @@ class StripeBillingProviderTest extends TestCase
         // for — see StripeBillingProvider's own docblock for why it maps to 'canceled'.
         $payload = $this->subscriptionEventPayload('customer.subscription.updated', 'unpaid');
 
-        $event = $this->provider()->constructWebhookEvent($payload, $this->signPayload($payload, self::WEBHOOK_SECRET));
+        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('canceled', $event->subscriptionStatus);
     }
@@ -80,7 +69,7 @@ class StripeBillingProviderTest extends TestCase
     {
         $payload = $this->subscriptionEventPayload('customer.subscription.deleted', 'canceled');
 
-        $event = $this->provider()->constructWebhookEvent($payload, $this->signPayload($payload, self::WEBHOOK_SECRET));
+        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('customer.subscription.deleted', $event->type);
         self::assertSame('canceled', $event->subscriptionStatus);
@@ -105,7 +94,7 @@ class StripeBillingProviderTest extends TestCase
             ],
         ], \JSON_THROW_ON_ERROR);
 
-        $event = $this->provider()->constructWebhookEvent($payload, $this->signPayload($payload, self::WEBHOOK_SECRET));
+        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('checkout.session.completed', $event->type);
         self::assertSame('company-uuid-here', $event->companyId);
@@ -125,7 +114,7 @@ class StripeBillingProviderTest extends TestCase
             'data' => ['object' => ['id' => 'in_test123', 'object' => 'invoice']],
         ], \JSON_THROW_ON_ERROR);
 
-        $event = $this->provider()->constructWebhookEvent($payload, $this->signPayload($payload, self::WEBHOOK_SECRET));
+        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('invoice.paid', $event->type);
         self::assertNull($event->companyId);

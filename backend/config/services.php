@@ -32,10 +32,9 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../src/PHPStan',
         ]);
 
-    // One real implementation for now (Phase D of private/cloud-service-plan.md, not
-    // tracked in git) — the interface exists so BillingController's auth/gating logic
-    // can be tested without ever invoking real Stripe SDK code (no such test exists
-    // yet), not because a second implementation is planned.
+    // One real implementation. The interface exists so BillingController's auth/gating
+    // logic can be tested without real Stripe SDK calls (BillingControllerTest), not
+    // because a second implementation is planned.
     $services->alias(BillingProviderInterface::class, StripeBillingProvider::class);
 
     // Bounds AnketaNotifier's synchronous SMTP send to a real socket timeout instead of
