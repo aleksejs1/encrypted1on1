@@ -56,9 +56,6 @@ class Company
      */
     private const PAYING_SUBSCRIPTION_STATUSES = ['trialing', 'active', 'past_due'];
 
-    /** Statuses under which a company is suspended when applyStripeSubscriptionUpdate() applies them — non-payment suspends, it never deletes. */
-    private const SUSPENDING_SUBSCRIPTION_STATUSES = ['past_due', 'canceled'];
-
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 36)]
     private string $id;
@@ -102,11 +99,10 @@ class Company
     private ?\DateTimeImmutable $trialEndsAt = null;
 
     /**
-     * The actual enforcement gate (checked at login, mirroring User::$isBlocked) — kept
-     * independent of subscriptionStatus rather than derived from it on every read, since
-     * a platform admin can suspend a company for reasons that have nothing to do with
-     * billing (see suspend()/unsuspend()) — applyStripeSubscriptionUpdate() is the one
-     * path that changes both together, for the specific "non-payment suspends" case.
+     * The actual enforcement gate (checked at login, mirroring User::$isBlocked). Set
+     * and lifted by a platform admin only (suspend()/unsuspend()). It has nothing to do
+     * with subscriptionStatus: not paying never suspends a company, see
+     * applySubscription().
      */
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $suspendedAt = null;
@@ -335,28 +331,5 @@ class Company
     {
         return null !== $this->stripeSubscriptionId
             && \in_array($this->subscriptionStatus, self::PAYING_SUBSCRIPTION_STATUSES, true);
-    }
-
-    /**
-     * The webhook-driven path (BillingController) — a real Stripe subscription event
-     * updates the raw status/ids Stripe reports, and this decides suspension from that
-     * status in the same place, so "which statuses mean suspended" lives in exactly one
-     * spot rather than being duplicated in the webhook handler.
-     */
-    public function applyStripeSubscriptionUpdate(string $subscriptionStatus, ?string $stripeCustomerId, ?string $stripeSubscriptionId): void
-    {
-        if (!\in_array($subscriptionStatus, self::SUBSCRIPTION_STATUSES, true)) {
-            throw new \InvalidArgumentException(sprintf('Unsupported subscription status "%s".', $subscriptionStatus));
-        }
-
-        $this->subscriptionStatus = $subscriptionStatus;
-        $this->stripeCustomerId = $stripeCustomerId;
-        $this->stripeSubscriptionId = $stripeSubscriptionId;
-
-        if (\in_array($subscriptionStatus, self::SUSPENDING_SUBSCRIPTION_STATUSES, true)) {
-            $this->suspend();
-        } else {
-            $this->unsuspend();
-        }
     }
 }

@@ -8,6 +8,7 @@ use App\Billing\StripeBillingProvider;
 use App\Entity\Company;
 use App\Tests\Support\StripeSignature;
 use App\Tests\Support\StubStripeHttpClient;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Stripe\ApiRequestor;
 use Stripe\Exception\ApiErrorException;
@@ -65,69 +66,42 @@ class StripeBillingProviderTest extends TestCase
         $this->provider()->constructWebhookEvent($payload.' ', $signature);
     }
 
-    public function testParsesASubscriptionUpdatedEventWithAKnownStatus(): void
+    #[TestWith(['customer.subscription.created'])]
+    #[TestWith(['customer.subscription.updated'])]
+    #[TestWith(['customer.subscription.deleted'])]
+    public function testASubscriptionEventNamesItsSubscriptionAndNothingElse(string $type): void
     {
-        $payload = $this->subscriptionEventPayload('customer.subscription.updated', 'active');
+        $payload = $this->subscriptionEventPayload($type, 'past_due');
 
         $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
-        self::assertSame('customer.subscription.updated', $event->type);
-        self::assertNull($event->companyId);
-        self::assertSame('cus_test123', $event->stripeCustomerId);
-        self::assertSame('sub_test123', $event->stripeSubscriptionId);
-        self::assertSame('active', $event->subscriptionStatus);
+        self::assertSame($type, $event->type);
+        self::assertSame('sub_test123', $event->subscriptionId);
+        self::assertNull($event->checkoutCompanyId);
     }
 
-    public function testMapsAnUnrecognizedStripeStatusToCanceled(): void
+    public function testACompletedCheckoutNamesItsSubscriptionAndTheCompanyItWasStartedFor(): void
     {
-        // 'unpaid' is a real Stripe subscription status this app has no dedicated name
-        // for — see StripeBillingProvider's own docblock for why it maps to 'canceled'.
-        $payload = $this->subscriptionEventPayload('customer.subscription.updated', 'unpaid');
-
-        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
-
-        self::assertSame('canceled', $event->subscriptionStatus);
-    }
-
-    public function testParsesASubscriptionDeletedEvent(): void
-    {
-        $payload = $this->subscriptionEventPayload('customer.subscription.deleted', 'canceled');
-
-        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
-
-        self::assertSame('customer.subscription.deleted', $event->type);
-        self::assertSame('canceled', $event->subscriptionStatus);
-    }
-
-    public function testParsesACheckoutSessionCompletedEventWithTheCompanyIdAndActiveStatus(): void
-    {
-        $payload = json_encode([
-            'id' => 'evt_2',
-            'object' => 'event',
-            'api_version' => '2024-06-20',
-            'created' => time(),
-            'type' => 'checkout.session.completed',
-            'data' => [
-                'object' => [
-                    'id' => 'cs_test123',
-                    'object' => 'checkout.session',
-                    'client_reference_id' => 'company-uuid-here',
-                    'customer' => 'cus_test123',
-                    'subscription' => 'sub_test123',
-                ],
-            ],
-        ], \JSON_THROW_ON_ERROR);
+        $payload = $this->checkoutEventPayload(['subscription' => 'sub_test123', 'client_reference_id' => 'company-uuid-here']);
 
         $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('checkout.session.completed', $event->type);
-        self::assertSame('company-uuid-here', $event->companyId);
-        self::assertSame('cus_test123', $event->stripeCustomerId);
-        self::assertSame('sub_test123', $event->stripeSubscriptionId);
-        self::assertSame('active', $event->subscriptionStatus);
+        self::assertSame('sub_test123', $event->subscriptionId);
+        self::assertSame('company-uuid-here', $event->checkoutCompanyId);
     }
 
-    public function testIgnoresAnUnrecognizedEventTypeWithoutThrowing(): void
+    public function testACompletedCheckoutWithoutASubscriptionIsNotActedOn(): void
+    {
+        // A one-time payment session, which this app never creates.
+        $payload = $this->checkoutEventPayload(['subscription' => null, 'client_reference_id' => 'company-uuid-here']);
+
+        $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
+
+        self::assertNull($event->subscriptionId);
+    }
+
+    public function testAnEventTypeTheAppDoesNotActOnNamesNoSubscription(): void
     {
         $payload = json_encode([
             'id' => 'evt_3',
@@ -135,14 +109,14 @@ class StripeBillingProviderTest extends TestCase
             'api_version' => '2024-06-20',
             'created' => time(),
             'type' => 'invoice.paid',
-            'data' => ['object' => ['id' => 'in_test123', 'object' => 'invoice']],
+            'data' => ['object' => ['id' => 'in_test123', 'object' => 'invoice', 'subscription' => 'sub_test123']],
         ], \JSON_THROW_ON_ERROR);
 
         $event = $this->provider()->constructWebhookEvent($payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame('invoice.paid', $event->type);
-        self::assertNull($event->companyId);
-        self::assertNull($event->subscriptionStatus);
+        self::assertNull($event->subscriptionId);
+        self::assertNull($event->checkoutCompanyId);
     }
 
     public function testCreateCheckoutSessionThrowsWhenNotConfigured(): void
@@ -286,6 +260,21 @@ class StripeBillingProviderTest extends TestCase
         self::assertIsString($json);
 
         return $json;
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function checkoutEventPayload(array $session): string
+    {
+        return json_encode([
+            'id' => 'evt_2',
+            'object' => 'event',
+            'api_version' => '2024-06-20',
+            'created' => time(),
+            'type' => 'checkout.session.completed',
+            'data' => ['object' => ['id' => 'cs_test123', 'object' => 'checkout.session', 'customer' => 'cus_test123'] + $session],
+        ], \JSON_THROW_ON_ERROR);
     }
 
     private function subscriptionEventPayload(string $type, string $status): string

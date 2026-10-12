@@ -4,9 +4,8 @@ namespace App\Controller;
 
 use App\Billing\BillingNotConfiguredException;
 use App\Billing\BillingProviderInterface;
-use App\Entity\Company;
+use App\Billing\SubscriptionSync;
 use App\Security\AuthSession;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -23,10 +22,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 class BillingController
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
         private readonly AuthSession $authSession,
         private readonly TranslatorInterface $translator,
         private readonly BillingProviderInterface $billingProvider,
+        private readonly SubscriptionSync $subscriptionSync,
         private readonly string $frontendBaseUrl,
         private readonly bool $cloudMode,
     ) {
@@ -82,32 +81,12 @@ class BillingController
             return new JsonResponse(['error' => 'invalid signature'], 400);
         }
 
-        $company = $this->resolveCompany($event->companyId, $event->stripeSubscriptionId, $event->stripeCustomerId);
-        if (null !== $company && null !== $event->subscriptionStatus) {
-            // Naturally idempotent — reapplying the same status update twice has the
-            // same effect as once, so no separate event-id deduplication is needed.
-            $company->applyStripeSubscriptionUpdate($event->subscriptionStatus, $event->stripeCustomerId, $event->stripeSubscriptionId);
-            $this->entityManager->flush();
+        if (null !== $event->subscriptionId) {
+            // A BillingProviderException (Stripe didn't return the subscription) is left
+            // to become a 500: Stripe then delivers the event again later.
+            $this->subscriptionSync->sync($event->subscriptionId, $event->checkoutCompanyId);
         }
 
         return new JsonResponse(['received' => true]);
-    }
-
-    private function resolveCompany(?string $companyId, ?string $stripeSubscriptionId, ?string $stripeCustomerId): ?Company
-    {
-        if (null !== $companyId) {
-            return $this->entityManager->find(Company::class, $companyId);
-        }
-        if (null !== $stripeSubscriptionId) {
-            $company = $this->entityManager->getRepository(Company::class)->findOneBy(['stripeSubscriptionId' => $stripeSubscriptionId]);
-            if (null !== $company) {
-                return $company;
-            }
-        }
-        if (null !== $stripeCustomerId) {
-            return $this->entityManager->getRepository(Company::class)->findOneBy(['stripeCustomerId' => $stripeCustomerId]);
-        }
-
-        return null;
     }
 }
