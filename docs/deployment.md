@@ -258,22 +258,35 @@ In the Stripe dashboard:
 
 - Create a product with a recurring price. `STRIPE_PRICE_ID` is the price's id (`price_...`), not the product's (`prod_...`).
 - If Managed Payments is on, give the product a tax code, for example `txcd_10103001` (SaaS, business use). Without one Stripe refuses to create the Checkout session ("the product tax code is missing"). The endpoint answers any such refusal by Stripe, a product id in `STRIPE_PRICE_ID` included, with a generic 500 that doesn't carry Stripe's message; the message is in the container log (and in Sentry, if `SENTRY_DSN` is set). It was on by default in the sandbox account used for the run below; whether that holds for every account wasn't checked.
-- Add a webhook endpoint for `https://<your host>/api/billing/webhook` with the events `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Its signing secret is `STRIPE_WEBHOOK_SECRET`.
+- Add a webhook endpoint for `https://<your host>/api/billing/webhook` with the events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated` and `customer.subscription.deleted`. Its signing secret is `STRIPE_WEBHOOK_SECRET`.
 
-A completed checkout sets the company's subscription status to `active` and stores its Stripe customer and subscription ids. That is always `active`, even for a subscription that starts with a trial, or one paid by a delayed method (a bank debit) whose payment hasn't arrived yet. It doesn't change the company's plan tier or seat limit.
+A subscription event (`checkout.session.completed`, `customer.subscription.created`, `.updated`, `.deleted`) tells the app only which subscription changed. The app then asks Stripe for that subscription's current state and applies it, so events arriving late or out of order do no harm. If Stripe doesn't answer, the webhook answers 500 and Stripe delivers the event again later.
 
-The subscription events also suspend and unsuspend the company. A `past_due` or `canceled` status suspends it, and so does any status the app has no name for (`incomplete`, `unpaid`, `paused`), which it treats as `canceled`: one failed payment locks the whole company out, at once, since suspension is checked on every request. Any other status, a completed checkout included, lifts the suspension, also one a platform admin set by hand. A suspended company's admin can't log in, though, so can't start a new checkout: a platform admin has to lift the suspension first. A subscription event is matched to a company only by the ids a completed checkout stored: one that arrives before them, or for a checkout whose own event never arrived, is answered with 200 and dropped, with nothing logged. The other known gaps in how events are handled (events arriving out of order, an event for another subscription of the same Stripe customer) are listed in [GitHub issue #285](https://github.com/aleksejs1/encrypted1on1/issues/285); read it before switching billing on for real.
+What the state means for the company:
+
+- While the subscription is `active`, `trialing` or `past_due`, the company is on Plus with `PLUS_SEAT_LIMIT` seats. `past_due` keeps Plus on purpose: Stripe retries a failed payment for a while (about two weeks with the settings of the sandbox account used for the checks) before it cancels the subscription.
+- In any other state the company is on Free with `DEFAULT_SEAT_LIMIT` seats. Nobody is removed: a company over that limit only can't invite.
+- The seat limit changes only when the plan does, so a limit set by hand in the platform-admin panel survives until then. A plan with any other name than `free` or `plus` (set in the database, for a custom agreement) is left alone, with its limit.
+- **Not paying never suspends a company, and paying never lifts a suspension.** Suspension is a platform admin's tool only.
+
+A subscription is matched to its company by the subscription id the company already has stored, else by the `company_id` the checkout puts into the subscription's metadata, else (for a completed checkout) by the checkout's own reference. Never by the Stripe customer. Three cases are worth knowing, and all three answer Stripe with 200:
+
+- A subscription that matches no company (made by hand in the dashboard, say) is logged as an error and ignored: somebody may have paid for nothing.
+- A second paying subscription for a company whose own is still paying is logged as an error and ignored. Cancel and refund that second one, the one named last in the log line, by hand. If you cancel the company's own instead, the company is on Free until the other one's next event.
+- A subscription that isn't paying and isn't the company's own (a checkout whose first payment failed, an old subscription reported late) is ignored.
+
+The log lines are in the container log, see "Server errors" below.
 
 **What has been verified** ([GitHub issue #283](https://github.com/aleksejs1/encrypted1on1/issues/283)), by hand against a Stripe sandbox: creating a Checkout session, paying it with a test card, and handling the `checkout.session.completed` delivery that followed. Run a test checkout on your own account before relying on it. **Not verified**:
 
-- A real `customer.subscription.updated`/`customer.subscription.deleted` delivery (a cancellation, a failed payment); the listener received no such event during the run. Behind the suspension described above are unit tests of the provider's parsing and of `Company`, and no automated test of the webhook route itself.
+- A real subscription event applied to a company it belongs to. Real `customer.subscription.updated`/`.deleted` deliveries reached the dev stack ([GitHub issue #287](https://github.com/aleksejs1/encrypted1on1/issues/287)), but for subscriptions of no company. What an event does to a company is covered by automated tests of the webhook route, with Stripe's answer stubbed.
 - The checkout-session route over HTTP against Stripe: the provider was called directly.
 - Anything in live mode.
 
 To try it on the dev stack, put sandbox values and `CLOUD_MODE=1` in `backend/.env.dev.local` (gitignored). Not `backend/.env.local`: the e2e stack mounts the same directory and reads that file too, so the Playwright runs would silently be in cloud mode. Delete the file when done: cloud mode changes the dev stack for everything else as well (company sign-up on the login page, a seat limit for new companies), including the demo-fixture and screenshot scripts, which run against the dev stack. Then let the Stripe CLI (logged in with `stripe login`, or given the sandbox key as `STRIPE_API_KEY`) forward events to the dev backend. It prints the signing secret to use as `STRIPE_WEBHOOK_SECRET`. Stripe CLI 1.53.1 refused to start without an event list ("must specify events to forward using --events, --all-snapshot, or --all-thin"), so the command names the events:
 
 ```sh
-stripe listen --events checkout.session.completed,customer.subscription.updated,customer.subscription.deleted --forward-to http://localhost:8000/api/billing/webhook
+stripe listen --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted --forward-to http://localhost:8000/api/billing/webhook
 ```
 
 Run from the `stripe/stripe-cli` Docker image instead of an installed CLI, `localhost` is the CLI's own container: attach it to the dev stack's network (`--network encrypted1on1_default` for a checkout in a directory named `encrypted1on1`) and forward to `http://backend:80/api/billing/webhook`.
