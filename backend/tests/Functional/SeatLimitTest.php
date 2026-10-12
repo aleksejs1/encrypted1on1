@@ -226,7 +226,7 @@ class SeatLimitTest extends ApiTestCase
 
         $company = $this->entityManager()->find(Company::class, $company->getId());
         self::assertNotNull($company);
-        // One expired, and the three used ones the activations above left behind.
+        // One expired, next to the used ones the activations above left behind.
         $this->entityManager()->persist(new ActivationToken(
             bin2hex(random_bytes(32)),
             $this->uniqueEmail('seat-usage-expired'),
