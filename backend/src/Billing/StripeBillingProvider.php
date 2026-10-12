@@ -3,9 +3,13 @@
 namespace App\Billing;
 
 use App\Entity\Company;
+use Stripe\ApiRequestor;
 use Stripe\Checkout\Session;
 use Stripe\Event;
+use Stripe\Exception\ExceptionInterface as StripeException;
 use Stripe\Exception\SignatureVerificationException;
+use Stripe\HttpClient\ClientInterface;
+use Stripe\HttpClient\CurlClient;
 use Stripe\StripeClient;
 use Stripe\Subscription;
 use Stripe\Webhook;
@@ -25,6 +29,9 @@ use Stripe\Webhook;
  * - `customer.subscription.updated`/`customer.subscription.deleted`: this class's
  *   parsing of them is covered by that unit test only. No real delivery of either has
  *   been handled yet.
+ * - retrieveSubscription() was called against the sandbox for a real subscription and for
+ *   an unknown id (GitHub issue #293). The company tag it reads is written by no
+ *   checkout yet.
  *
  * A known gap: `checkout.session.completed` is always recorded as 'active', also for a
  * subscription that starts with a trial and for a delayed payment method (a bank debit)
@@ -43,10 +50,15 @@ class StripeBillingProvider implements BillingProviderInterface
      */
     private const array KNOWN_SUBSCRIPTION_STATUSES = ['trialing', 'active', 'past_due'];
 
+    private const int TIMEOUT_SECONDS = 10;
+    private const int CONNECT_TIMEOUT_SECONDS = 5;
+
     public function __construct(
         private readonly string $stripeSecretKey,
         private readonly string $stripeWebhookSecret,
         private readonly string $stripePriceId,
+        /** For tests: an HTTP client that answers in Stripe's place. */
+        private readonly ?ClientInterface $httpClient = null,
     ) {
     }
 
@@ -56,8 +68,7 @@ class StripeBillingProvider implements BillingProviderInterface
             throw new BillingNotConfiguredException('STRIPE_SECRET_KEY/STRIPE_PRICE_ID are not set.');
         }
 
-        $stripe = new StripeClient($this->stripeSecretKey);
-        $session = $stripe->checkout->sessions->create([
+        $session = $this->client()->checkout->sessions->create([
             'mode' => 'subscription',
             'line_items' => [['price' => $this->stripePriceId, 'quantity' => 1]],
             'success_url' => $successUrl,
@@ -75,6 +86,70 @@ class StripeBillingProvider implements BillingProviderInterface
         }
 
         return $url;
+    }
+
+    public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot
+    {
+        if ('' === $this->stripeSecretKey) {
+            throw new BillingNotConfiguredException('STRIPE_SECRET_KEY is not set.');
+        }
+
+        try {
+            return self::snapshotOf($this->client()->subscriptions->retrieve($subscriptionId));
+        } catch (StripeException $e) {
+            // Every exception of the SDK: a refusal, no answer in time, and also an
+            // answer that isn't Stripe's JSON (a proxy's error page during an outage).
+            throw new BillingProviderException('Stripe did not return the subscription: '.$e->getMessage(), 0, $e);
+        }
+    }
+
+    /** Public for its test, which feeds it subscription objects saved from the sandbox. */
+    public static function snapshotOf(Subscription $subscription): SubscriptionSnapshot
+    {
+        $customerId = $subscription->customer;
+        // Since API version 2025-03-31 the period is on the subscription's items, not on
+        // the subscription. This app sells one price, so there is one item.
+        $periodEnd = $subscription->items->data[0]->current_period_end ?? null;
+        $companyId = $subscription->metadata['company_id'] ?? null;
+
+        return new SubscriptionSnapshot(
+            id: $subscription->id,
+            customerId: \is_string($customerId) ? $customerId : null,
+            status: $subscription->status,
+            periodEndsAt: self::dateOf($periodEnd),
+            cancelsAt: self::dateOf($subscription->cancel_at),
+            companyId: \is_string($companyId) && '' !== $companyId ? $companyId : null,
+        );
+    }
+
+    private static function dateOf(mixed $timestamp): ?\DateTimeImmutable
+    {
+        if (!\is_int($timestamp)) {
+            return null;
+        }
+
+        // In PHP's default timezone, like every other date this app stores.
+        return (new \DateTimeImmutable('@'.$timestamp))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+    }
+
+    /**
+     * The SDK's own limits are 80 seconds for an answer and 30 for a connection, which
+     * would hold a worker, and Stripe's webhook delivery, for that long. Its HTTP client
+     * is one per process and keeps its connection between requests, so the limits are
+     * set on that shared client every time, not on a new one.
+     */
+    private function client(): StripeClient
+    {
+        $http = $this->httpClient;
+        if (null === $http) {
+            $http = CurlClient::instance();
+            \assert($http instanceof CurlClient);
+            $http->setTimeout(self::TIMEOUT_SECONDS);
+            $http->setConnectTimeout(self::CONNECT_TIMEOUT_SECONDS);
+        }
+        ApiRequestor::setHttpClient($http);
+
+        return new StripeClient($this->stripeSecretKey);
     }
 
     public function constructWebhookEvent(string $payload, string $signatureHeader): WebhookEvent

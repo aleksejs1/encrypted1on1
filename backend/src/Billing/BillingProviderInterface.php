@@ -24,4 +24,13 @@ interface BillingProviderInterface
      *                           as "reject the request" (400), never as "no such event happened"
      */
     public function constructWebhookEvent(string $payload, string $signatureHeader): WebhookEvent;
+
+    /**
+     * The subscription's current state, read from Stripe: an event's own payload can be
+     * older than the state it arrives in.
+     *
+     * @throws BillingNotConfiguredException
+     * @throws BillingProviderException      an unknown id, a refusal, or no answer in time
+     */
+    public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot;
 }
