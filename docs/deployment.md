@@ -257,7 +257,7 @@ Optional. With `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ID
 In the Stripe dashboard:
 
 - Create a product with a recurring price. `STRIPE_PRICE_ID` is the price's id (`price_...`), not the product's (`prod_...`).
-- If Managed Payments is on, give the product a tax code, for example `txcd_10103001` (SaaS, business use). Without one Stripe refuses to create the Checkout session ("the product tax code is missing"). The endpoint answers any such refusal by Stripe, a product id in `STRIPE_PRICE_ID` included, with a generic 500 that doesn't carry Stripe's message, and the message isn't logged either (it reaches Sentry, if `SENTRY_DSN` is set). It was on by default in the sandbox account used for the run below; whether that holds for every account wasn't checked.
+- If Managed Payments is on, give the product a tax code, for example `txcd_10103001` (SaaS, business use). Without one Stripe refuses to create the Checkout session ("the product tax code is missing"). The endpoint answers any such refusal by Stripe, a product id in `STRIPE_PRICE_ID` included, with a generic 500 that doesn't carry Stripe's message; the message is in the container log (and in Sentry, if `SENTRY_DSN` is set). It was on by default in the sandbox account used for the run below; whether that holds for every account wasn't checked.
 - Add a webhook endpoint for `https://<your host>/api/billing/webhook` with the events `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Its signing secret is `STRIPE_WEBHOOK_SECRET`.
 
 A completed checkout sets the company's subscription status to `active` and stores its Stripe customer and subscription ids. That is always `active`, even for a subscription that starts with a trial, or one paid by a delayed method (a bank debit) whose payment hasn't arrived yet. It doesn't change the company's plan tier or seat limit.
@@ -306,6 +306,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod restart app
 ```
 
 (`-f docker-compose.prod.reverse-proxy.yml` instead, for that topology.) `-u root` works even though the image's *default* user is now `app` — root was never removed from the image, only stopped being the default. Every redeploy *after* this one-time fix is back to just the cache-clear step above — the volume stays correctly owned by `app` from here on.
+
+### Server errors
+
+A request to `/api/*` that fails with an exception answers with a 5xx and writes one line to the container log (`docker compose ... logs app`), with or without Sentry:
+
+```
+[error] API error 500 on POST billing_checkout_session: Stripe\Exception\InvalidRequestException: ... at /app/vendor/..., called from /app/src/Billing/StripeBillingProvider.php:NN
+```
+
+It names the route, not the URL, and carries no request body and no stack trace. The exception's message is logged as it is (up to 500 characters), and a database or mail error can quote an email address in it, so treat this log like the database: it is not content, but it is not public either. 4xx answers are not logged. Neither is a 5xx the code answers on purpose without an exception (a 503 when billing isn't configured, or when an invitation email couldn't be sent), nor a PHP fatal error such as running out of memory, which PHP reports to the same log in its own words.
 
 ### Backups
 
