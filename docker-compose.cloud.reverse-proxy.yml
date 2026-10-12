@@ -52,7 +52,9 @@ services:
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.1,::1}"
       # Same trust decision, told to Caddy itself (Caddyfile.reverse-proxy).
       CADDY_TRUSTED_PROXIES: "${CADDY_TRUSTED_PROXIES:-127.0.0.1 ::1}"
-      DEFAULT_SEAT_LIMIT: "${DEFAULT_SEAT_LIMIT:-5}"
+      # Seat limits of the Free and Plus plans — see docker-compose.cloud.yml's own comment.
+      DEFAULT_SEAT_LIMIT: "${DEFAULT_SEAT_LIMIT:-100}"
+      PLUS_SEAT_LIMIT: "${PLUS_SEAT_LIMIT:-1000}"
       # Empty by default — see docker-compose.cloud.yml's own comment: verified against
       # a Stripe sandbox only, never against a live-mode account.
       STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"

@@ -29,12 +29,45 @@ abstract class ApiTestCase extends WebTestCase
      */
     private string $clientIp;
 
+    /** @var array<string, array{mixed, mixed}> per variable, the value withEnv() replaced in the ENV superglobal and the one in SERVER; tearDown() puts both back */
+    private array $replacedEnv = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         // 3 random octets (~16.7M combinations) — a single-octet range (254 values)
         // would make collisions likely across ~90 tests by the birthday paradox.
         $this->clientIp = \sprintf('203.%d.%d.%d', random_int(0, 255), random_int(0, 255), random_int(0, 255));
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->replacedEnv as $name => [$env, $server]) {
+            unset($_ENV[$name], $_SERVER[$name]);
+            if (null !== $env) {
+                $_ENV[$name] = $env;
+            }
+            if (null !== $server) {
+                $_SERVER[$name] = $server;
+            }
+        }
+        $this->replacedEnv = [];
+
+        parent::tearDown();
+    }
+
+    /**
+     * Sets an environment variable for this test method only. It must come before
+     * createClient(): a service reads its `%env()%` values when it is first built, and
+     * a value changed later would reach only the services built after it.
+     * This is how a test runs with CLOUD_MODE=1, which .env keeps off.
+     */
+    protected function withEnv(string $name, string $value): void
+    {
+        self::assertFalse(static::$booted, 'withEnv() must be called before createClient().');
+
+        $this->replacedEnv[$name] ??= [$_ENV[$name] ?? null, $_SERVER[$name] ?? null];
+        $_ENV[$name] = $_SERVER[$name] = $value;
     }
 
     /**
