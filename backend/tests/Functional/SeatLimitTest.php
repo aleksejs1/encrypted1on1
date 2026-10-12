@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Billing\SeatLimitChecker;
 use App\Entity\ActivationToken;
 use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
@@ -206,6 +207,65 @@ class SeatLimitTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-expired-pending-invitee-2')]);
 
         self::assertSame(201, $result['status'], 'an expired pending invite must not occupy a seat');
+    }
+
+    public function testUsageCountsWhatTheLimitIsEnforcedAgainst(): void
+    {
+        $adminClient = static::createClient();
+        $company = $this->makeCompany(seatLimit: 10);
+        $this->activateUser($adminClient, $this->uniqueEmail('seat-usage-admin'), admin: true, company: $company);
+        $blocked = $this->activateUser($this->secondClient(), $this->uniqueEmail('seat-usage-blocked'), company: $company);
+        $deleted = $this->activateUser($this->secondClient(), $this->uniqueEmail('seat-usage-deleted'), company: $company);
+        foreach ([$blocked, $deleted] as $user) {
+            self::assertSame(200, $this->jsonRequest($adminClient, 'PUT', "/api/admin/users/{$user['id']}/blocked", ['blocked' => true])['status']);
+        }
+        // Only a blocked user can be deleted.
+        self::assertSame(200, $this->jsonRequest($adminClient, 'DELETE', "/api/admin/users/{$deleted['id']}")['status']);
+        // One invitation that can still be accepted.
+        self::assertSame(201, $this->jsonRequest($adminClient, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-usage-pending')])['status']);
+
+        $company = $this->entityManager()->find(Company::class, $company->getId());
+        self::assertNotNull($company);
+        // One expired, next to the used ones the activations above left behind.
+        $this->entityManager()->persist(new ActivationToken(
+            bin2hex(random_bytes(32)),
+            $this->uniqueEmail('seat-usage-expired'),
+            $company,
+            false,
+            new \DateTimeImmutable('-1 minute'),
+        ));
+        $this->entityManager()->flush();
+
+        $usage = $this->seatLimitChecker()->usage($company);
+
+        self::assertSame(2, $usage->people, 'the admin and the blocked user; not the deleted one');
+        self::assertSame(1, $usage->pendingInvites, 'not the expired invitation, not the used ones');
+        self::assertSame(10, $usage->limit);
+        self::assertSame(3, $usage->used());
+        self::assertFalse($usage->isFull());
+    }
+
+    public function testUsageOfAnUnlimitedCompanyStillCounts(): void
+    {
+        $client = static::createClient();
+        $company = $this->makeCompany(seatLimit: null);
+        $this->activateUser($client, $this->uniqueEmail('seat-usage-unlimited'), company: $company);
+        $company = $this->entityManager()->find(Company::class, $company->getId());
+        self::assertNotNull($company);
+
+        $usage = $this->seatLimitChecker()->usage($company);
+
+        self::assertSame(1, $usage->people);
+        self::assertNull($usage->limit);
+        self::assertFalse($this->seatLimitChecker()->hasReachedLimit($company));
+    }
+
+    private function seatLimitChecker(): SeatLimitChecker
+    {
+        $checker = self::getContainer()->get(SeatLimitChecker::class);
+        \assert($checker instanceof SeatLimitChecker);
+
+        return $checker;
     }
 
     private function makeCompany(?int $seatLimit): Company

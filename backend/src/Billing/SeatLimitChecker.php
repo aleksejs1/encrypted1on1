@@ -26,8 +26,8 @@ use Doctrine\ORM\EntityManagerInterface;
  * issued back-to-back (each individually checked against the *current*, not-yet-grown
  * headcount) could land a company far past its seat limit the moment they all activate.
  * A used or expired token frees the "seat" it provisionally held, same reasoning as a
- * deleted user freeing theirs. Both counters read together, not as two separate
- * hasReachedLimit() calls, since a caller (InviteController/SignupController) wraps this
+ * deleted user freeing theirs. Both counters read together, in usage(), not as two
+ * separate hasReachedLimit() calls, since a caller (InviteController/SignupController) wraps this
  * in the same transaction as the token it's about to issue — see those controllers' own
  * comments for why that matters.
  */
@@ -41,12 +41,23 @@ class SeatLimitChecker
 
     public function hasReachedLimit(Company $company): bool
     {
-        $seatLimit = $company->getSeatLimit();
-        if (null === $seatLimit) {
+        // An unlimited company (every self-hosted one) is never counted at all.
+        if (null === $company->getSeatLimit()) {
             return false;
         }
 
-        $activeUsers = (int) $this->entityManager->createQueryBuilder()
+        return $this->usage($company)->isFull();
+    }
+
+    /**
+     * Also what a page showing "40 of 100 seats used" reads, so that it shows the
+     * numbers an invitation is refused on. The two counts are two queries: outside a
+     * transaction an activation landing between them can make the total one short for
+     * that one request, which a display can live with.
+     */
+    public function usage(Company $company): SeatUsage
+    {
+        $people = (int) $this->entityManager->createQueryBuilder()
             ->select('COUNT(u.id)')
             ->from(User::class, 'u')
             ->where('u.company = :company')
@@ -57,6 +68,6 @@ class SeatLimitChecker
 
         $pendingInvites = $this->activationTokenRepository->countUsable($company, new \DateTimeImmutable());
 
-        return ($activeUsers + $pendingInvites) >= $seatLimit;
+        return new SeatUsage($people, $pendingInvites, $company->getSeatLimit());
     }
 }
