@@ -7,6 +7,9 @@ use App\Billing\StripeBillingProvider;
 use App\Entity\Company;
 use App\Tests\Support\StripeSignature;
 use PHPUnit\Framework\TestCase;
+use Stripe\ApiRequestor;
+use Stripe\HttpClient\CurlClient;
+use Stripe\Subscription;
 
 /**
  * The part of StripeBillingProvider that can be tested without a Stripe account (see
@@ -127,6 +130,101 @@ class StripeBillingProviderTest extends TestCase
 
         $this->expectException(BillingNotConfiguredException::class);
         $provider->createCheckoutSession(new Company('Acme'), 'https://example.com/ok', 'https://example.com/cancel');
+    }
+
+    public function testRetrieveSubscriptionThrowsWhenNotConfigured(): void
+    {
+        $this->expectException(BillingNotConfiguredException::class);
+        (new StripeBillingProvider('', '', ''))->retrieveSubscription('sub_test123');
+    }
+
+    public function testSnapshotOfAnActiveSubscriptionWithoutACompanyTag(): void
+    {
+        $snapshot = StripeBillingProvider::snapshotOf($this->subscriptionFixture('subscription-active-untagged'));
+
+        self::assertSame('sub_fixture1', $snapshot->id);
+        self::assertSame('cus_fixture1', $snapshot->customerId);
+        self::assertSame('active', $snapshot->status);
+        // The period end is on the subscription item; the subscription has no such field.
+        self::assertSame(1794412367, $snapshot->periodEndsAt?->getTimestamp());
+        self::assertNull($snapshot->cancelsAt);
+        self::assertNull($snapshot->companyId);
+    }
+
+    public function testSnapshotOfASubscriptionWithAScheduledCancellation(): void
+    {
+        $snapshot = StripeBillingProvider::snapshotOf($this->subscriptionFixture('subscription-cancellation-scheduled'));
+
+        self::assertSame('active', $snapshot->status);
+        self::assertSame(1794412367, $snapshot->cancelsAt?->getTimestamp());
+        self::assertSame(1794412367, $snapshot->periodEndsAt?->getTimestamp());
+    }
+
+    public function testSnapshotOfAnEndedSubscriptionKeepsItsCompanyTag(): void
+    {
+        $snapshot = StripeBillingProvider::snapshotOf($this->subscriptionFixture('subscription-canceled-tagged'));
+
+        self::assertSame('canceled', $snapshot->status);
+        self::assertSame('0199d3a0-0000-7000-8000-000000000001', $snapshot->companyId);
+        self::assertNull($snapshot->cancelsAt);
+    }
+
+    public function testSnapshotDatesAreInTheDefaultTimezone(): void
+    {
+        $snapshot = StripeBillingProvider::snapshotOf($this->subscriptionFixture('subscription-cancellation-scheduled'));
+
+        self::assertSame(date_default_timezone_get(), $snapshot->cancelsAt?->getTimezone()->getName());
+        self::assertSame(date_default_timezone_get(), $snapshot->periodEndsAt?->getTimezone()->getName());
+    }
+
+    public function testSnapshotOfASubscriptionWithoutItemsOrACustomerId(): void
+    {
+        $subscription = Subscription::constructFrom([
+            'id' => 'sub_bare',
+            'object' => 'subscription',
+            'status' => 'incomplete',
+            'customer' => ['id' => 'cus_expanded', 'object' => 'customer'],
+            'cancel_at' => null,
+            'items' => ['object' => 'list', 'data' => []],
+            'metadata' => ['company_id' => ''],
+        ]);
+
+        $snapshot = StripeBillingProvider::snapshotOf($subscription);
+
+        self::assertSame('incomplete', $snapshot->status);
+        self::assertNull($snapshot->customerId);
+        self::assertNull($snapshot->periodEndsAt);
+        self::assertNull($snapshot->companyId);
+    }
+
+    /**
+     * The SDK's HTTP client is one per process, so what client() sets is what the next
+     * request uses.
+     */
+    public function testTheStripeClientGetsShortTimeouts(): void
+    {
+        $before = ApiRequestor::httpClient();
+        try {
+            (new \ReflectionMethod(StripeBillingProvider::class, 'client'))->invoke($this->provider());
+
+            $http = ApiRequestor::httpClient();
+            self::assertInstanceOf(CurlClient::class, $http);
+            self::assertSame(10, $http->getTimeout());
+            self::assertSame(5, $http->getConnectTimeout());
+        } finally {
+            ApiRequestor::setHttpClient($before);
+        }
+    }
+
+    /** A subscription object saved from the Stripe sandbox, ids replaced (tests/Fixtures/stripe). */
+    private function subscriptionFixture(string $name): Subscription
+    {
+        $json = file_get_contents(__DIR__.'/../../Fixtures/stripe/'.$name.'.json');
+        self::assertIsString($json);
+        $data = json_decode($json, true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($data);
+
+        return Subscription::constructFrom($data);
     }
 
     private function subscriptionEventPayload(string $type, string $status): string

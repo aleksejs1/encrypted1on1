@@ -3,6 +3,7 @@
 namespace App\Tests\Support;
 
 use App\Billing\BillingProviderInterface;
+use App\Billing\SubscriptionSnapshot;
 use App\Billing\WebhookEvent;
 use App\Entity\Company;
 
@@ -27,5 +28,10 @@ final class FakeBillingProvider implements BillingProviderInterface
     public function constructWebhookEvent(string $payload, string $signatureHeader): WebhookEvent
     {
         throw new \LogicException('No test sends a webhook through the fake provider.');
+    }
+
+    public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot
+    {
+        throw new \LogicException('No test reads a subscription through the fake provider yet.');
     }
 }
