@@ -5,6 +5,7 @@ namespace App\Tests\Functional;
 use App\Billing\StripeBillingProvider;
 use App\Tests\Support\ApiTestCase;
 use App\Tests\Support\FakeBillingProvider;
+use App\Tests\Support\StripeSignature;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 /**
@@ -13,8 +14,8 @@ use Symfony\Bundle\FrameworkBundle\KernelBrowser;
  * is deliberately not covered here: that logic is being replaced (GitHub issue #286,
  * step B3), and gets its tests there.
  *
- * Everything runs against the real StripeBillingProvider except the one test that needs
- * Stripe to answer.
+ * The tests run against the real StripeBillingProvider, except the two that need to see
+ * whether the provider was called: FakeBillingProvider answers and records there.
  */
 class BillingControllerTest extends ApiTestCase
 {
@@ -39,6 +40,7 @@ class BillingControllerTest extends ApiTestCase
         $client->request('POST', '/api/billing/checkout-session');
 
         self::assertSame(403, $client->getResponse()->getStatusCode());
+        self::assertSame('{"error":"Invalid CSRF token."}', $client->getResponse()->getContent());
     }
 
     public function testCheckoutSessionIsForCompanyAdminsOnly(): void
@@ -63,6 +65,7 @@ class BillingControllerTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'POST', '/api/billing/checkout-session');
 
         self::assertSame(400, $result['status']);
+        self::assertSame('Company sign-up is not available on this instance.', $result['json']['error']);
         self::assertSame([], $fake->checkoutSessions);
     }
 
@@ -92,8 +95,10 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(['url' => FakeBillingProvider::CHECKOUT_URL], $result['json']);
         self::assertCount(1, $fake->checkoutSessions);
         self::assertSame($this->singleCompanyProvider()->get()->getId(), $fake->checkoutSessions[0]['companyId']);
+        // Both lead back to the app (FRONTEND_URL), to two different places.
         self::assertStringStartsWith('http://localhost:5173/', $fake->checkoutSessions[0]['successUrl']);
         self::assertStringStartsWith('http://localhost:5173/', $fake->checkoutSessions[0]['cancelUrl']);
+        self::assertNotSame($fake->checkoutSessions[0]['successUrl'], $fake->checkoutSessions[0]['cancelUrl']);
     }
 
     public function testWebhookRejectsABadSignature(): void
@@ -102,7 +107,7 @@ class BillingControllerTest extends ApiTestCase
         $client = static::createClient();
         $payload = $this->eventPayload();
 
-        $this->postWebhook($client, $payload, $this->sign($payload, 'another-secret'));
+        $this->postWebhook($client, $payload, StripeSignature::header($payload, 'another-secret'));
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
@@ -127,7 +132,7 @@ class BillingControllerTest extends ApiTestCase
         $client = static::createClient();
         $payload = $this->eventPayload();
 
-        $this->postWebhook($client, $payload, $this->sign($payload, self::WEBHOOK_SECRET));
+        $this->postWebhook($client, $payload, StripeSignature::header($payload, self::WEBHOOK_SECRET));
 
         self::assertSame(200, $client->getResponse()->getStatusCode());
         self::assertSame('{"received":true}', $client->getResponse()->getContent());
@@ -167,13 +172,5 @@ class BillingControllerTest extends ApiTestCase
             'type' => 'invoice.paid',
             'data' => ['object' => ['id' => 'in_test', 'object' => 'invoice']],
         ], \JSON_THROW_ON_ERROR);
-    }
-
-    /** The scheme Stripe documents, as in StripeBillingProviderTest::signPayload(). */
-    private function sign(string $payload, string $secret): string
-    {
-        $timestamp = time();
-
-        return \sprintf('t=%d,v1=%s', $timestamp, hash_hmac('sha256', "{$timestamp}.{$payload}", $secret));
     }
 }
