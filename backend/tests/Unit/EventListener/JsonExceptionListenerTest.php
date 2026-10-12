@@ -4,6 +4,7 @@ namespace App\Tests\Unit\EventListener;
 
 use App\EventListener\JsonExceptionListener;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -32,7 +33,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testIgnoresNonApiRequests(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/health');
         $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new AccessDeniedHttpException('Forbidden'));
@@ -44,7 +45,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testIgnoresNonApiNonHttpExceptions(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/health');
         $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('Database unreachable'));
@@ -56,7 +57,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testHandlesStandardHttpException(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $exception = new AccessDeniedHttpException('Access denied.');
@@ -72,7 +73,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testEmptyHttpExceptionMessageFallsBackToDefault(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $exception = new AccessDeniedHttpException('');
@@ -94,7 +95,7 @@ class JsonExceptionListenerTest extends TestCase
             ->with('errors.internal_server_error', [], null, 'en')
             ->willReturn('Internal server error.');
 
-        $listener = new JsonExceptionListener($translator);
+        $listener = new JsonExceptionListener($translator, new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $request->setLocale('en');
@@ -121,7 +122,7 @@ class JsonExceptionListenerTest extends TestCase
             ->with('errors.internal_server_error', [], null, 'en')
             ->willReturn('Internal server error.');
 
-        $listener = new JsonExceptionListener($translator);
+        $listener = new JsonExceptionListener($translator, new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $request->setLocale('en');
@@ -147,7 +148,7 @@ class JsonExceptionListenerTest extends TestCase
             ->with('errors.internal_server_error', [], null, 'de')
             ->willReturn('Interner Serverfehler.');
 
-        $listener = new JsonExceptionListener($translator);
+        $listener = new JsonExceptionListener($translator, new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $request->setLocale('de');
@@ -163,7 +164,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testMaps422WithoutValidationExceptionTo400(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $httpException = new UnprocessableEntityHttpException('Cannot process entity');
@@ -180,7 +181,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testMaps422To400WithViolations(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -210,7 +211,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testFindsNestedValidationFailedExceptionInDeepChain(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -238,7 +239,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testStopsAtFirstValidationFailedExceptionInChain(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -273,7 +274,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testStringableViolationMessageIsCastedToString(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
