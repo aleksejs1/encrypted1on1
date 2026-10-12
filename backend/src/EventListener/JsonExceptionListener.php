@@ -3,6 +3,7 @@
 namespace App\EventListener;
 
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -37,17 +38,22 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  *
  * What the line carries: the route name and not the URL (activation and password-reset
  * tokens are path segments); never the request body; no stack trace, only where the
- * exception was thrown and, when that is library code, the nearest line of this app
- * that called it. The exception's own message is logged as it is. A database driver or
- * a mail transport can put an email address into its message, so the log can contain
- * one; Sentry, where it is on, gets the same message.
+ * exception was thrown and, when that is outside src/, the nearest line of src/ that
+ * led there. The exception's own message, and that of the exception it wraps, is logged
+ * as it is, cut to MESSAGE_LIMIT and without control characters. A database driver or a
+ * mail transport can put an email address into its message, so the log can contain one;
+ * Sentry, where it is on, gets the same message.
  */
 #[AsEventListener(event: KernelEvents::EXCEPTION, priority: 1)]
 class JsonExceptionListener
 {
+    private const int MESSAGE_LIMIT = 500;
+
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly LoggerInterface $logger,
+        #[Autowire('%kernel.project_dir%/src/')]
+        private readonly string $appSourceDir,
     ) {
     }
 
@@ -67,7 +73,7 @@ class JsonExceptionListener
             }
 
             if ($statusCode >= Response::HTTP_INTERNAL_SERVER_ERROR) {
-                $this->log($event);
+                $this->log($event, $statusCode);
             }
 
             $message = '' !== $exception->getMessage() ? $exception->getMessage() : 'An error occurred.';
@@ -93,7 +99,7 @@ class JsonExceptionListener
             return;
         }
 
-        $this->log($event);
+        $this->log($event, Response::HTTP_INTERNAL_SERVER_ERROR);
 
         $message = $this->translator->trans(
             'errors.internal_server_error',
@@ -117,35 +123,41 @@ class JsonExceptionListener
         return null;
     }
 
-    private function log(ExceptionEvent $event): void
+    private function log(ExceptionEvent $event, int $statusCode): void
     {
         $request = $event->getRequest();
         $exception = $event->getThrowable();
         $route = $request->attributes->get('_route');
 
-        $this->logger->error('Unhandled exception on {method} {route}: {class}: {message} at {origin}', [
+        $cause = $exception;
+        while (null !== $cause->getPrevious()) {
+            $cause = $cause->getPrevious();
+        }
+
+        $this->logger->error('API error {status} on {method} {route}: {exception}'.($cause === $exception ? '' : '; caused by {cause}'), [
+            'status' => $statusCode,
             'method' => $request->getMethod(),
             'route' => \is_string($route) ? $route : '(no route)',
-            'class' => $exception::class,
-            // One line per exception: a driver message can span several.
-            'message' => preg_replace('/\s+/', ' ', $exception->getMessage()),
-            'origin' => $this->origin($exception),
+            'exception' => $this->describe($exception),
+            ...($cause === $exception ? [] : ['cause' => $this->describe($cause)]),
         ]);
     }
 
-    private function origin(\Throwable $exception): string
+    /** A string, never the exception itself: a logger given the object may print its trace. */
+    private function describe(\Throwable $exception): string
     {
+        $message = mb_strimwidth((string) preg_replace('/[\x00-\x1F\x7F]+/', ' ', $exception->getMessage()), 0, self::MESSAGE_LIMIT, '…');
         $origin = $exception->getFile().':'.$exception->getLine();
-        if (!str_contains($exception->getFile(), '/vendor/')) {
-            return $origin;
-        }
 
-        foreach ($exception->getTrace() as $frame) {
-            if (isset($frame['file'], $frame['line']) && !str_contains($frame['file'], '/vendor/')) {
-                return $origin.', called from '.$frame['file'].':'.$frame['line'];
+        if (!str_starts_with($exception->getFile(), $this->appSourceDir)) {
+            foreach ($exception->getTrace() as $frame) {
+                if (isset($frame['file'], $frame['line']) && str_starts_with($frame['file'], $this->appSourceDir)) {
+                    $origin .= ', called from '.$frame['file'].':'.$frame['line'];
+                    break;
+                }
             }
         }
 
-        return $origin;
+        return \sprintf('%s: %s at %s', $exception::class, $message, $origin);
     }
 }

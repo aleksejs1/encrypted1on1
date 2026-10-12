@@ -36,7 +36,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testIgnoresNonApiRequests(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/health');
         $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new AccessDeniedHttpException('Forbidden'));
@@ -48,7 +48,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testIgnoresNonApiNonHttpExceptions(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/health');
         $event = new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('Database unreachable'));
@@ -60,7 +60,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testHandlesStandardHttpException(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $exception = new AccessDeniedHttpException('Access denied.');
@@ -76,7 +76,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testEmptyHttpExceptionMessageFallsBackToDefault(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $exception = new AccessDeniedHttpException('');
@@ -98,7 +98,7 @@ class JsonExceptionListenerTest extends TestCase
             ->with('errors.internal_server_error', [], null, 'en')
             ->willReturn('Internal server error.');
 
-        $listener = new JsonExceptionListener($translator, new NullLogger());
+        $listener = new JsonExceptionListener($translator, new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $request->setLocale('en');
@@ -125,7 +125,7 @@ class JsonExceptionListenerTest extends TestCase
             ->with('errors.internal_server_error', [], null, 'en')
             ->willReturn('Internal server error.');
 
-        $listener = new JsonExceptionListener($translator, new NullLogger());
+        $listener = new JsonExceptionListener($translator, new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $request->setLocale('en');
@@ -151,7 +151,7 @@ class JsonExceptionListenerTest extends TestCase
             ->with('errors.internal_server_error', [], null, 'de')
             ->willReturn('Interner Serverfehler.');
 
-        $listener = new JsonExceptionListener($translator, new NullLogger());
+        $listener = new JsonExceptionListener($translator, new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $request->setLocale('de');
@@ -167,7 +167,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testMaps422WithoutValidationExceptionTo400(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
         $httpException = new UnprocessableEntityHttpException('Cannot process entity');
@@ -184,7 +184,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testMaps422To400WithViolations(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -214,7 +214,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testFindsNestedValidationFailedExceptionInDeepChain(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -242,7 +242,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testStopsAtFirstValidationFailedExceptionInChain(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -277,7 +277,7 @@ class JsonExceptionListenerTest extends TestCase
 
     public function testStringableViolationMessageIsCastedToString(): void
     {
-        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger());
+        $listener = new JsonExceptionListener($this->createTranslator(), new NullLogger(), '/app/src/');
         $kernel = self::createStub(HttpKernelInterface::class);
         $request = Request::create('/api/test');
 
@@ -311,17 +311,26 @@ class JsonExceptionListenerTest extends TestCase
     public function testLogsAnUnhandledExceptionWithWhereItWasThrown(): void
     {
         $logger = new RecordingLogger();
-        $exception = new \RuntimeException("first line\nsecond line");
+        $exception = new \RuntimeException("first line\nsecond\x1b[31m line");
 
         $this->handle($logger, $exception, 'anketa_list');
 
         self::assertSame(
-            [\sprintf('Unhandled exception on GET anketa_list: RuntimeException: first line second line at %s:%d', __FILE__, $exception->getLine())],
+            [\sprintf('API error 500 on GET anketa_list: RuntimeException: first line second [31m line at %s:%d', __FILE__, $exception->getLine())],
             $logger->atLeast('debug'),
         );
     }
 
-    public function testLogsTheAppLineThatCalledIntoALibrary(): void
+    public function testCutsALongMessage(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new \RuntimeException(str_repeat('é', 2000)), 'anketa_list');
+
+        self::assertStringContainsString(': '.str_repeat('é', 499).'… at ', $logger->atLeast('error')[0]);
+    }
+
+    public function testLogsTheAppLineThatCalledCodeOutsideTheAppSource(): void
     {
         $logger = new RecordingLogger();
         $callLine = 0;
@@ -329,7 +338,8 @@ class JsonExceptionListenerTest extends TestCase
             $callLine = __LINE__ + 1;
             Uuid::fromString('not-a-uuid');
         } catch (\InvalidArgumentException $exception) {
-            $this->handle($logger, $exception, 'anketa_list');
+            // This directory stands in for src/.
+            $this->handle($logger, $exception, 'anketa_list', __DIR__.'/');
         }
 
         $lines = $logger->atLeast('error');
@@ -338,13 +348,50 @@ class JsonExceptionListenerTest extends TestCase
         self::assertStringEndsWith(\sprintf(', called from %s:%d', __FILE__, $callLine), $lines[0]);
     }
 
+    public function testNamesNoCallerWhenNoFrameIsInTheAppSource(): void
+    {
+        $logger = new RecordingLogger();
+        try {
+            Uuid::fromString('not-a-uuid');
+        } catch (\InvalidArgumentException $exception) {
+            $this->handle($logger, $exception, 'anketa_list', '/nowhere/src/');
+        }
+
+        self::assertStringNotContainsString('called from', $logger->atLeast('error')[0]);
+    }
+
+    public function testLogsTheInnermostCauseOfAWrappedException(): void
+    {
+        $logger = new RecordingLogger();
+        $cause = new \LogicException('The product tax code is missing.');
+        $exception = new HttpException(503, 'Checkout failed.', new \RuntimeException('Middle.', 0, $cause));
+
+        $this->handle($logger, $exception, 'billing_checkout_session');
+
+        self::assertSame(
+            [\sprintf(
+                'API error 503 on GET billing_checkout_session: %s: Checkout failed. at %s:%d; caused by LogicException: The product tax code is missing. at %s:%d',
+                HttpException::class,
+                __FILE__,
+                $exception->getLine(),
+                __FILE__,
+                $cause->getLine(),
+            )],
+            $logger->atLeast('debug'),
+        );
+        self::assertSame(['status', 'method', 'route', 'exception', 'cause'], array_keys($logger->contextsAtLeast('error')[0]));
+        foreach ($logger->contextsAtLeast('error')[0] as $value) {
+            self::assertIsScalar($value);
+        }
+    }
+
     public function testLogsARequestWithoutARoute(): void
     {
         $logger = new RecordingLogger();
 
         $this->handle($logger, new \RuntimeException('Crash'), null);
 
-        self::assertStringStartsWith('Unhandled exception on GET (no route): ', $logger->atLeast('error')[0]);
+        self::assertStringStartsWith('API error 500 on GET (no route): ', $logger->atLeast('error')[0]);
     }
 
     public function testLogsAnHttpExceptionFrom500Up(): void
@@ -367,7 +414,7 @@ class JsonExceptionListenerTest extends TestCase
         self::assertSame([], $logger->atLeast('debug'));
     }
 
-    private function handle(RecordingLogger $logger, \Throwable $exception, ?string $route): void
+    private function handle(RecordingLogger $logger, \Throwable $exception, ?string $route, string $appSourceDir = '/app/src/'): void
     {
         $request = Request::create('/api/test');
         if (null !== $route) {
@@ -375,6 +422,6 @@ class JsonExceptionListenerTest extends TestCase
         }
         $event = new ExceptionEvent(self::createStub(HttpKernelInterface::class), $request, HttpKernelInterface::MAIN_REQUEST, $exception);
 
-        (new JsonExceptionListener($this->createTranslator(), $logger))($event);
+        (new JsonExceptionListener($this->createTranslator(), $logger, $appSourceDir))($event);
     }
 }

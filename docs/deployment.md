@@ -309,13 +309,13 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod restart app
 
 ### Server errors
 
-Every request to `/api/*` that ends in a 5xx writes one line to the container log (`docker compose ... logs app`), with or without Sentry:
+A request to `/api/*` that fails with an exception answers with a 5xx and writes one line to the container log (`docker compose ... logs app`), with or without Sentry:
 
 ```
-[error] Unhandled exception on POST billing_checkout_session: Stripe\Exception\InvalidRequestException: ... at /app/vendor/..., called from /app/src/Billing/StripeBillingProvider.php:NN
+[error] API error 500 on POST billing_checkout_session: Stripe\Exception\InvalidRequestException: ... at /app/vendor/..., called from /app/src/Billing/StripeBillingProvider.php:NN
 ```
 
-It names the route, not the URL, and carries no request body and no stack trace. The exception's message is logged as it is, and a database or mail error can quote an email address in it, so treat this log like the database: it is not content, but it is not public either. 4xx answers are not logged.
+It names the route, not the URL, and carries no request body and no stack trace. The exception's message is logged as it is (up to 500 characters), and a database or mail error can quote an email address in it, so treat this log like the database: it is not content, but it is not public either. 4xx answers are not logged. Neither is a 5xx the code answers on purpose without an exception (a 503 when billing isn't configured, or when an invitation email couldn't be sent), nor a PHP fatal error such as running out of memory, which PHP reports to the same log in its own words.
 
 ### Backups
 

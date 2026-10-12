@@ -114,7 +114,7 @@ class JsonExceptionListenerFunctionalTest extends ApiTestCase
         self::assertSame(500, $client->getResponse()->getStatusCode());
         $errors = $logger->atLeast('error');
         self::assertCount(1, $errors);
-        self::assertStringStartsWith('Unhandled exception on POST login: RuntimeException: Database deadlock on connection at ', $errors[0]);
+        self::assertStringStartsWith('API error 500 on POST login: RuntimeException: Database deadlock on connection at ', $errors[0]);
         $this->assertNothingOfTheRequestIsLogged($logger, 'hunter2-secret');
     }
 
@@ -143,6 +143,7 @@ class JsonExceptionListenerFunctionalTest extends ApiTestCase
         self::assertSame(503, $client->getResponse()->getStatusCode());
         $errors = $logger->atLeast('error');
         self::assertCount(1, $errors);
+        self::assertStringStartsWith('API error 503 on POST login: ', $errors[0]);
         self::assertStringContainsString('Billing is down.', $errors[0]);
     }
 
@@ -227,7 +228,7 @@ class JsonExceptionListenerFunctionalTest extends ApiTestCase
     {
         $contexts = $logger->contextsAtLeast('warning');
         self::assertCount(1, $contexts);
-        self::assertSame(['method', 'route', 'class', 'message', 'origin'], array_keys($contexts[0]));
+        self::assertSame(['status', 'method', 'route', 'exception'], array_keys($contexts[0]));
         self::assertStringNotContainsString($secret, serialize($contexts[0]));
         self::assertStringNotContainsString($secret, $logger->atLeast('warning')[0]);
     }
