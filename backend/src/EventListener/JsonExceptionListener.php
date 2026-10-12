@@ -31,13 +31,18 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  *   internal stack traces or database queries in production.
  *
  * It also logs every 5xx it answers. Symfony's own ErrorListener::logKernelException()
- * has the same priority and is registered after this one, and setResponse() stops the
- * event, so without this an unhandled exception left no log line at all unless Sentry
- * was on. The line carries the route name, not the URL (activation and password-reset
- * tokens are path segments), and never the request body or a stack trace (a trace
- * can print argument values).
+ * would, but this listener's setResponse() stops the event before it runs (priority 1
+ * here makes that order explicit, so a 5xx is logged once, by this class), and without
+ * this an unhandled exception left no log line at all unless Sentry was on.
+ *
+ * What the line carries: the route name and not the URL (activation and password-reset
+ * tokens are path segments); never the request body; no stack trace, only where the
+ * exception was thrown and, when that is library code, the nearest line of this app
+ * that called it. The exception's own message is logged as it is. A database driver or
+ * a mail transport can put an email address into its message, so the log can contain
+ * one; Sentry, where it is on, gets the same message.
  */
-#[AsEventListener(event: KernelEvents::EXCEPTION)]
+#[AsEventListener(event: KernelEvents::EXCEPTION, priority: 1)]
 class JsonExceptionListener
 {
     public function __construct(
@@ -118,14 +123,29 @@ class JsonExceptionListener
         $exception = $event->getThrowable();
         $route = $request->attributes->get('_route');
 
-        $this->logger->error('Unhandled exception on {method} {route}: {class}: {message} at {file}:{line}', [
+        $this->logger->error('Unhandled exception on {method} {route}: {class}: {message} at {origin}', [
             'method' => $request->getMethod(),
             'route' => \is_string($route) ? $route : '(no route)',
             'class' => $exception::class,
-            'message' => $exception->getMessage(),
-            'file' => $exception->getFile(),
-            'line' => $exception->getLine(),
-            'exception' => $exception,
+            // One line per exception: a driver message can span several.
+            'message' => preg_replace('/\s+/', ' ', $exception->getMessage()),
+            'origin' => $this->origin($exception),
         ]);
+    }
+
+    private function origin(\Throwable $exception): string
+    {
+        $origin = $exception->getFile().':'.$exception->getLine();
+        if (!str_contains($exception->getFile(), '/vendor/')) {
+            return $origin;
+        }
+
+        foreach ($exception->getTrace() as $frame) {
+            if (isset($frame['file'], $frame['line']) && !str_contains($frame['file'], '/vendor/')) {
+                return $origin.', called from '.$frame['file'].':'.$frame['line'];
+            }
+        }
+
+        return $origin;
     }
 }

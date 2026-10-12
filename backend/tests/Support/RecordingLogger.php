@@ -12,7 +12,7 @@ final class RecordingLogger extends AbstractLogger
 {
     private const array LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
 
-    /** @var list<array{level: string, line: string}> */
+    /** @var list<array{level: string, line: string, context: mixed[]}> */
     private array $records = [];
 
     /**
@@ -26,7 +26,7 @@ final class RecordingLogger extends AbstractLogger
                 $replacements['{'.$key.'}'] = (string) $value;
             }
         }
-        $this->records[] = ['level' => \is_string($level) ? $level : '', 'line' => strtr((string) $message, $replacements)];
+        $this->records[] = ['level' => \is_string($level) ? $level : '', 'line' => strtr((string) $message, $replacements), 'context' => $context];
     }
 
     /**
@@ -34,14 +34,27 @@ final class RecordingLogger extends AbstractLogger
      */
     public function atLeast(string $level): array
     {
-        $min = array_search($level, self::LEVELS, true);
-        $lines = [];
-        foreach ($this->records as $record) {
-            if (array_search($record['level'], self::LEVELS, true) >= $min) {
-                $lines[] = $record['line'];
-            }
-        }
+        return array_column($this->recordsAtLeast($level), 'line');
+    }
 
-        return $lines;
+    /**
+     * @return list<mixed[]> the context of each line atLeast() returns, in the same order
+     */
+    public function contextsAtLeast(string $level): array
+    {
+        return array_column($this->recordsAtLeast($level), 'context');
+    }
+
+    /**
+     * @return list<array{level: string, line: string, context: mixed[]}>
+     */
+    private function recordsAtLeast(string $level): array
+    {
+        $min = array_search($level, self::LEVELS, true);
+
+        return array_values(array_filter(
+            $this->records,
+            static fn (array $record): bool => array_search($record['level'], self::LEVELS, true) >= $min,
+        ));
     }
 }

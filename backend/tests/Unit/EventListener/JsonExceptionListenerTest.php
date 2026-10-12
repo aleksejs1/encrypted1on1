@@ -3,14 +3,17 @@
 namespace App\Tests\Unit\EventListener;
 
 use App\EventListener\JsonExceptionListener;
+use App\Tests\Support\RecordingLogger;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
@@ -303,5 +306,75 @@ class JsonExceptionListenerTest extends TestCase
         self::assertSame('field', $data['violations'][0]['property']);
         self::assertSame('Stringable violation message', $data['violations'][0]['message']);
         self::assertIsString($data['violations'][0]['message']);
+    }
+
+    public function testLogsAnUnhandledExceptionWithWhereItWasThrown(): void
+    {
+        $logger = new RecordingLogger();
+        $exception = new \RuntimeException("first line\nsecond line");
+
+        $this->handle($logger, $exception, 'anketa_list');
+
+        self::assertSame(
+            [\sprintf('Unhandled exception on GET anketa_list: RuntimeException: first line second line at %s:%d', __FILE__, $exception->getLine())],
+            $logger->atLeast('debug'),
+        );
+    }
+
+    public function testLogsTheAppLineThatCalledIntoALibrary(): void
+    {
+        $logger = new RecordingLogger();
+        $callLine = 0;
+        try {
+            $callLine = __LINE__ + 1;
+            Uuid::fromString('not-a-uuid');
+        } catch (\InvalidArgumentException $exception) {
+            $this->handle($logger, $exception, 'anketa_list');
+        }
+
+        $lines = $logger->atLeast('error');
+        self::assertCount(1, $lines);
+        self::assertStringContainsString('/vendor/symfony/uid/', $lines[0]);
+        self::assertStringEndsWith(\sprintf(', called from %s:%d', __FILE__, $callLine), $lines[0]);
+    }
+
+    public function testLogsARequestWithoutARoute(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new \RuntimeException('Crash'), null);
+
+        self::assertStringStartsWith('Unhandled exception on GET (no route): ', $logger->atLeast('error')[0]);
+    }
+
+    public function testLogsAnHttpExceptionFrom500Up(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new HttpException(500, 'Broken.'), 'anketa_list');
+        $this->handle($logger, new HttpException(503, 'Unavailable.'), 'anketa_list');
+
+        self::assertCount(2, $logger->atLeast('error'));
+    }
+
+    public function testDoesNotLogAnHttpExceptionBelow500(): void
+    {
+        $logger = new RecordingLogger();
+
+        $this->handle($logger, new HttpException(499, 'Client closed.'), 'anketa_list');
+        $this->handle($logger, new UnprocessableEntityHttpException('Invalid.'), 'anketa_list');
+
+        self::assertSame([], $logger->atLeast('debug'));
+    }
+
+    private function handle(RecordingLogger $logger, \Throwable $exception, ?string $route): void
+    {
+        $request = Request::create('/api/test');
+        if (null !== $route) {
+            $request->attributes->set('_route', $route);
+        }
+        $event = new ExceptionEvent(self::createStub(HttpKernelInterface::class), $request, HttpKernelInterface::MAIN_REQUEST, $exception);
+
+        (new JsonExceptionListener($this->createTranslator(), $logger))($event);
     }
 }
