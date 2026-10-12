@@ -46,6 +46,8 @@ class CompanyTest extends TestCase
         self::assertSame('free', $company->getPlanTier());
         self::assertSame('active', $company->getSubscriptionStatus());
         self::assertFalse($company->isSuspended());
+        self::assertNull($company->getSubscriptionPeriodEndsAt());
+        self::assertNull($company->getSubscriptionCancelsAt());
     }
 
     public function testConstructorAcceptsAnExplicitSeatLimitAndPlanTier(): void

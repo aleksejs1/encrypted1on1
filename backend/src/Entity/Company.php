@@ -108,6 +108,22 @@ class Company
     #[AllowPlaintext(reason: 'A Stripe-issued identifier, not content.')]
     private ?string $stripeSubscriptionId = null;
 
+    /**
+     * The end of the period the subscription is paid for, as Stripe last reported it:
+     * the next payment date, or the last paid day once payments stop. Stored so the Plan
+     * page doesn't depend on Stripe being reachable. Null without a subscription.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $subscriptionPeriodEndsAt = null;
+
+    /**
+     * When a cancellation already scheduled takes effect (Stripe's `cancel_at`, which it
+     * also fills for a cancellation at period end, so no separate flag). Null while the
+     * subscription renews.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $subscriptionCancelsAt = null;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -191,6 +207,16 @@ class Company
     public function getTrialEndsAt(): ?\DateTimeImmutable
     {
         return $this->trialEndsAt;
+    }
+
+    public function getSubscriptionPeriodEndsAt(): ?\DateTimeImmutable
+    {
+        return $this->subscriptionPeriodEndsAt;
+    }
+
+    public function getSubscriptionCancelsAt(): ?\DateTimeImmutable
+    {
+        return $this->subscriptionCancelsAt;
     }
 
     public function getStripeCustomerId(): ?string
