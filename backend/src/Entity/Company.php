@@ -197,7 +197,10 @@ class Company
         return $this->seatLimit;
     }
 
-    /** Platform-admin only (PlatformAdminController) — self-service company creation (CompanyController) is the only other place this is set. Null = unlimited. */
+    /**
+     * Called by the platform admin's action (PlatformAdminController) and by the
+     * constructor. A change of plan sets the limit too (followPlan()). Null = unlimited.
+     */
     public function setSeatLimit(?int $seatLimit): void
     {
         if (null !== $seatLimit && $seatLimit < 1) {
@@ -258,7 +261,7 @@ class Company
         return $this->suspendedAt;
     }
 
-    /** The manual, billing-independent path — a platform admin acting directly (PlatformAdminController). */
+    /** A platform admin acting directly (PlatformAdminController); see $suspendedAt. */
     public function suspend(): void
     {
         $this->suspendedAt = new \DateTimeImmutable();

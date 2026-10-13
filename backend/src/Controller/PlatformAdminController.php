@@ -91,10 +91,13 @@ class PlatformAdminController
     }
 
     /**
-     * The manual counterpart of what a Stripe webhook (BillingController) does from a
-     * subscription's status — lets a platform admin suspend/unsuspend a company directly,
-     * independent of subscriptionStatus (see Company::suspend()'s own docblock for why
-     * that's deliberate: this is also the right tool for a non-billing reason, like abuse).
+     * Suspends or unsuspends a company. A platform admin's tool only: no payment, and no
+     * missing payment, ever does either (Company::applySubscription()).
+     *
+     * Suspending doesn't touch the company's Stripe subscription, and a suspended
+     * company's people are refused at login and logged out: a subscription that pays
+     * goes on charging until the operator cancels that subscription in Stripe. See "Operator rules" in
+     * docs/deployment.md's "Stripe billing" section.
      */
     #[Route('/api/platform-admin/companies/{id}/suspended', name: 'platform_admin_company_set_suspended', methods: ['PUT'])]
     public function setCompanySuspended(
@@ -117,8 +120,10 @@ class PlatformAdminController
     }
 
     /**
-     * Lets a platform admin set a company's seat count directly (e.g. a customer who
-     * upgraded outside Stripe). It changes the number only, not Company::$planTier.
+     * Lets a platform admin set a company's seat count directly. It changes the number
+     * only, not Company::$planTier, so a change of plan can replace it: see
+     * Company::applySubscription() for the rule and docs/deployment.md's "Operator
+     * rules" for what that means for a limit set here.
      * `null` means unlimited, same convention as everywhere else this field is read.
      */
     #[Route('/api/platform-admin/companies/{id}/seat-limit', name: 'platform_admin_company_set_seat_limit', methods: ['PUT'])]
