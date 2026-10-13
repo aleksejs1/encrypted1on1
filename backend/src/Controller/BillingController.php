@@ -3,13 +3,16 @@
 namespace App\Controller;
 
 use App\Billing\BillingNotConfiguredException;
+use App\Billing\BillingProviderException;
 use App\Billing\BillingProviderInterface;
+use App\Billing\Plan;
 use App\Billing\SubscriptionSync;
 use App\Security\AuthSession;
+use App\Security\RequiresCompanyAdmin;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -21,6 +24,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  */
 class BillingController
 {
+    use RequiresCompanyAdmin;
+
     public function __construct(
         private readonly AuthSession $authSession,
         private readonly TranslatorInterface $translator,
@@ -31,31 +36,45 @@ class BillingController
     ) {
     }
 
-    /** Company-admin only — the same "who may act on behalf of a company" boundary AdminController already draws. */
-    #[Route('/api/billing/checkout-session', name: 'billing_checkout_session', methods: ['POST'])]
+    /**
+     * Starts the purchase of Plus for the admin's own company. Refused when there is
+     * nothing to buy: the company already has a subscription that pays (a second one
+     * would bill as well), or its plan was set by hand, which the webhook leaves alone
+     * (Company::applySubscription()), so the payment would change nothing.
+     */
+    #[Route('/api/admin/billing/checkout-session', name: 'billing_checkout_session', methods: ['POST'])]
     public function createCheckoutSession(Request $request): JsonResponse
     {
-        $user = $this->authSession->getCurrentUser($request);
-        if (null === $user) {
-            throw new UnauthorizedHttpException('', $this->translator->trans('errors.not_authenticated'));
-        }
+        // A self-hosted instance sells nothing: to it the route is as good as absent.
         if (!$this->cloudMode) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.cloud_signup_not_open')], 400);
+            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
         }
-        if (!$user->isAdmin()) {
-            throw new AccessDeniedHttpException($this->translator->trans('errors.admin_only'));
+        $company = $this->requireAdmin($request)->getCompany();
+
+        if ($company->hasPayingSubscription()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.billing_already_subscribed')], 409);
+        }
+        // No seat limit is by hand too: Plus would add nothing to it.
+        if (Plan::FREE !== $company->getPlanTier() || null === $company->getSeatLimit()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.billing_plan_not_purchasable')], 409);
         }
 
         $base = rtrim($this->frontendBaseUrl, '/');
 
         try {
             $url = $this->billingProvider->createCheckoutSession(
-                $user->getCompany(),
+                $company,
                 successUrl: $base.'/account?billing=success',
                 cancelUrl: $base.'/account?billing=cancelled',
             );
         } catch (BillingNotConfiguredException) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);
+        } catch (BillingProviderException $e) {
+            // Thrown, so JsonExceptionListener logs it (with Stripe's words, cleaned up)
+            // and Sentry sees it. 503, not 502: the frontend reads a 502 as a proxy
+            // answering for a backend that is down, and shows its connection-loss
+            // banner (answeredBy() in frontend/src/api/client.ts).
+            throw new ServiceUnavailableHttpException(null, $this->translator->trans('errors.billing_checkout_failed'), $e);
         }
 
         return new JsonResponse(['url' => $url]);

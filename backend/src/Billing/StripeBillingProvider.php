@@ -51,25 +51,31 @@ class StripeBillingProvider implements BillingProviderInterface
 
     public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl): string
     {
-        if ('' === $this->stripeSecretKey || '' === $this->stripePriceId) {
-            throw new BillingNotConfiguredException('STRIPE_SECRET_KEY/STRIPE_PRICE_ID are not set.');
+        // The webhook secret too: without it the payment would be taken and the webhook
+        // that moves the company to Plus would refuse every event.
+        if ('' === $this->stripeSecretKey || '' === $this->stripePriceId || '' === $this->stripeWebhookSecret) {
+            throw new BillingNotConfiguredException('STRIPE_SECRET_KEY, STRIPE_PRICE_ID and STRIPE_WEBHOOK_SECRET are not all set.');
         }
 
-        $session = $this->client()->checkout->sessions->create([
-            'mode' => 'subscription',
-            'line_items' => [['price' => $this->stripePriceId, 'quantity' => 1]],
-            'success_url' => $successUrl,
-            'cancel_url' => $cancelUrl,
-            // Ties the checkout back to a Company: read again from
-            // checkout.session.completed, see constructWebhookEvent() below.
-            'client_reference_id' => $company->getId(),
-        ]);
+        try {
+            $session = $this->client()->checkout->sessions->create([
+                'mode' => 'subscription',
+                'line_items' => [['price' => $this->stripePriceId, 'quantity' => 1]],
+                'success_url' => $successUrl,
+                'cancel_url' => $cancelUrl,
+                // Ties the checkout back to a Company: read again from
+                // checkout.session.completed, see constructWebhookEvent() below.
+                'client_reference_id' => $company->getId(),
+            ]);
+        } catch (StripeException $e) {
+            throw new BillingProviderException('Stripe did not create the Checkout session: '.$e->getMessage(), 0, $e);
+        }
 
         $url = $session->url;
         if (null === $url) {
             // Stripe's own SDK types this nullable; genuinely shouldn't happen for a
             // freshly created session, but there's nothing sensible to redirect to if it did.
-            throw new \RuntimeException('Stripe did not return a checkout URL.');
+            throw new BillingProviderException('Stripe did not return a checkout URL.');
         }
 
         return $url;
