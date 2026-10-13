@@ -197,7 +197,10 @@ class Company
         return $this->seatLimit;
     }
 
-    /** Platform-admin only (PlatformAdminController) — self-service company creation (CompanyController) is the only other place this is set. Null = unlimited. */
+    /**
+     * Platform-admin only (PlatformAdminController). The other two places the limit is
+     * set are company creation and a change of plan (followPlan()). Null = unlimited.
+     */
     public function setSeatLimit(?int $seatLimit): void
     {
         if (null !== $seatLimit && $seatLimit < 1) {

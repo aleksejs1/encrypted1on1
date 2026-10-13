@@ -95,8 +95,8 @@ class PlatformAdminController
      * missing payment, ever does either (Company::applySubscription()).
      *
      * Suspending doesn't touch the company's Stripe subscription, and nobody in a
-     * suspended company can log in: unless the operator cancels it in Stripe, the
-     * company keeps being charged. See "Operator rules" in
+     * suspended company can log in: a subscription that pays goes on charging until
+     * the operator cancels that subscription in Stripe. See "Operator rules" in
      * docs/deployment.md's "Stripe billing" section.
      */
     #[Route('/api/platform-admin/companies/{id}/suspended', name: 'platform_admin_company_set_suspended', methods: ['PUT'])]
