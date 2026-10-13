@@ -289,26 +289,32 @@ A subscription is matched to its company by the subscription id the company alre
 
 The two error lines are in the container log, see "Server errors" below. If Stripe's secret key is missing while the webhook secret is set, the webhook answers 500 too.
 
-**What has been verified** ([GitHub issue #298](https://github.com/aleksejs1/encrypted1on1/issues/298), after the earlier runs of [#283](https://github.com/aleksejs1/encrypted1on1/issues/283) and [#287](https://github.com/aleksejs1/encrypted1on1/issues/287)), on the dev stack against a Stripe sandbox with Managed Payments on. Each company was made through the app's own company sign-up, each Checkout session through the endpoint over HTTP, each payment on Stripe's Checkout page with a test card, and each event reached the webhook through `stripe listen`:
+**What has been verified** ([GitHub issue #298](https://github.com/aleksejs1/encrypted1on1/issues/298), after the earlier runs of [#283](https://github.com/aleksejs1/encrypted1on1/issues/283) and [#287](https://github.com/aleksejs1/encrypted1on1/issues/287)), on the dev stack against a Stripe sandbox with Managed Payments on. Two companies were made through the app's own company sign-up. Each Checkout session was asked for through the endpoint over HTTP, each payment was made on Stripe's Checkout page with a test card, and each event reached the webhook through `stripe listen`. The first company went through the first two checks and the hand-set plan; the second, whose Stripe customer sits on a test clock, through the rest:
 
-- A payment moved the company to Plus with `PLUS_SEAT_LIMIT` seats and stored the subscription, the customer and the period end. Both events of the new subscription (`customer.subscription.created` and `checkout.session.completed`, in either order) were answered with 200, and neither was logged as belonging to no company, which the first one was before the checkout tagged its subscription. Whether the first of the two was applied or passed over as not paying yet can't be told from outside: that case is logged as a warning only.
+- A payment moved the company to Plus with `PLUS_SEAT_LIMIT` seats and stored the subscription, the customer and the period end. Both events of the new subscription (`customer.subscription.created` and `checkout.session.completed`, in either order) were answered with 200, and neither was logged as belonging to no company. Whether the first of the two was applied or passed over as not paying yet (a new subscription starts as `incomplete`) can't be told from outside: that case is logged as a warning only.
 - A scheduled cancellation stored its date; undoing it cleared the date. The plan stayed Plus both times.
 - At the period end of a subscription with a scheduled cancellation (a Stripe test clock) the company was back on Free with `DEFAULT_SEAT_LIMIT` seats, and both dates were cleared.
 - The company then bought again through the app. The Checkout reused its Stripe customer, the new subscription replaced the ended one, and a further checkout was refused with 409.
-- A failed renewal: `past_due`, still on Plus and not suspended, and the same 8 days later. By the 16th day Stripe had cancelled the subscription (the run of #287 saw that happen after 14 days) and the company was on Free.
+- A failed renewal: `past_due`, still on Plus and not suspended, and the same 8 days later. By the 16th day Stripe had cancelled the subscription and the company was on Free, which fits the 14 days the run of #287 measured and the "about two weeks" above.
 - Old events sent again after the subscription had ended (`customer.subscription.deleted`, then `customer.subscription.created`, whose payload says `active`) changed nothing.
 - A company whose plan was set in the database to another name kept that plan and its seat limit through a scheduled cancellation and the end of its subscription; only the status and the dates followed. After the subscription had ended its checkout was refused with the 409 for a plan set by agreement.
 - A checkout for a company whose stored Stripe customer doesn't exist made a session without a customer and cleared the stored id. That session, like the others, was due to expire 35 minutes after it was made.
 
-How the run differed from real use. The cancellations were made through Stripe's API, not in the customer portal (the app has no portal link yet). The renewal failed because the card was detached, not because a bank refused it: Stripe doesn't let the API change the payment method of a subscription that Checkout created under Managed Payments. And time was moved with a test clock.
+How the run differed from real use:
 
-**Not verified** against Stripe, in any run:
+- The second company's Stripe customer was made through the API, because a customer can be put on a test clock only when it is created, and its id was written into the company's row by hand before the first checkout. So that company's checkouts both reused a stored customer; only the first company's payment showed a checkout creating the customer and the webhook storing it.
+- The cancellations were made through Stripe's API, not in the customer portal (the app has no portal link yet).
+- The renewal failed because the card was detached, not because a bank refused it. The call that would have swapped the card for a declining one was refused: "default_payment_method cannot be updated for Subscriptions created by Checkout Sessions with Managed Payments enabled".
+- Time was moved with a test clock.
+- The hand-set plan and the missing customer were set in the dev database directly.
+
+**Not verified** against Stripe with the code as it is now:
 
 - Anything in live mode.
 - A Checkout session left open until it expires. Only the expiry time on the session was read.
 - A refusal by Stripe answered with the 503, and the webhook's 500 when Stripe doesn't return the subscription.
-- Two checkouts paid for one company, a subscription that matches no company, and a checkout whose first payment fails. All three are covered by automated tests with Stripe's answers stubbed.
-- A subscription in a state the run didn't produce: `trialing` (the price has no trial), `incomplete`, `unpaid`, `paused`.
+- Two checkouts paid for one company, a subscription that matches no company (the run of #287 delivered such events, to the code before this rework), and a checkout whose first payment fails. All three are covered by automated tests with Stripe's answers stubbed.
+- A subscription that is `trialing` (the price has no trial), `unpaid` or `paused`. `incomplete` may have been read once, see the first check above, but was not observed.
 - An account set to leave an unpaid subscription `past_due` or `unpaid` forever instead of cancelling it. The company would then stay on Plus without paying (`past_due`), or on Free with a subscription that can come back (`unpaid`).
 - Whether Stripe emails the customer about a failed payment.
 
