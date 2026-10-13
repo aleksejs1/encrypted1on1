@@ -41,9 +41,10 @@ class StripeBillingProvider implements BillingProviderInterface
 
     /**
      * Stripe refuses less than 30 minutes "from Checkout Session creation", by its own
-     * clock: one minute more, so a clock a little behind doesn't get every session refused.
+     * clock: five minutes more, so a server clock that runs behind doesn't get every
+     * session refused.
      */
-    private const int SESSION_LIFETIME_SECONDS = 31 * 60;
+    private const int SESSION_LIFETIME_SECONDS = 35 * 60;
 
     private const int TIMEOUT_SECONDS = 10;
     private const int CONNECT_TIMEOUT_SECONDS = 5;

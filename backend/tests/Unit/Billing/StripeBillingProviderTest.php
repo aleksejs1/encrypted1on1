@@ -196,7 +196,7 @@ class StripeBillingProviderTest extends TestCase
         self::assertSame(['metadata' => ['company_id' => $company->getId()]], $params['subscription_data']);
         // Stripe's minimum is 30 minutes; a little more, never an hour.
         self::assertGreaterThan($before + 30 * 60, $params['expires_at']);
-        self::assertLessThanOrEqual(time() + 35 * 60, $params['expires_at']);
+        self::assertLessThanOrEqual(time() + 40 * 60, $params['expires_at']);
         // A company that never bought has no customer to reuse: Stripe makes one.
         self::assertArrayNotHasKey('customer', $params);
     }

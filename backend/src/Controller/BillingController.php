@@ -69,13 +69,17 @@ class BillingController
             try {
                 $url = $this->checkoutUrl($company);
             } catch (BillingCustomerMissingException) {
+                $goneCustomerId = $company->getStripeCustomerId();
+                $company->forgetStripeCustomer();
+                $url = $this->checkoutUrl($company);
+                // Saved only now that Stripe made a session without it. A secret key of
+                // another account also answers "no such customer", and then fails here
+                // on the price: the stored ids must survive that mistake.
+                $this->entityManager->flush();
                 $this->logger->warning('Stripe no longer has customer {customer} of company {company}; the checkout starts a new one.', [
-                    'customer' => $company->getStripeCustomerId(),
+                    'customer' => $goneCustomerId,
                     'company' => $company->getId(),
                 ]);
-                $company->forgetStripeCustomer();
-                $this->entityManager->flush();
-                $url = $this->checkoutUrl($company);
             }
         } catch (BillingNotConfiguredException) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);

@@ -276,11 +276,7 @@ class BillingControllerTest extends ApiTestCase
         $this->withEnv('CLOUD_MODE', '1');
         [$client, $stripe] = $this->webhookClient();
         $logger = $this->recordLogs();
-        $company = $this->makeCompany('Lost Customer Co');
-        $plan = new Plan(100, 1000);
-        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'active', null, null, null), $plan);
-        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'canceled', null, null, null), $plan);
-        $this->entityManager()->flush();
+        $company = $this->lapsedCompany('Lost Customer Co');
         $this->activateUser($client, $this->uniqueEmail('billing-lost-customer'), admin: true, company: $company);
         $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer: \'cus_gone\'"}}');
         $stripe->willAnswer(200, '{"id":"cs_test_1","object":"checkout.session","url":"https://checkout.stripe.com/c/pay/cs_test_1"}');
@@ -301,15 +297,15 @@ class BillingControllerTest extends ApiTestCase
         self::assertStringContainsString($company->getId(), $logger->atLeast('warning')[0]);
     }
 
-    public function testCheckoutSessionAnswers503WhenStripeRefusesAgainAfterForgettingTheCustomer(): void
+    /**
+     * A secret key of another Stripe account knows none of the customers, and not the
+     * price either. The customer id is kept, or one wrong key would wipe every company's.
+     */
+    public function testTheCustomerIsKeptWhenStripeRefusesTheSessionWithoutItToo(): void
     {
         $this->withEnv('CLOUD_MODE', '1');
         [$client, $stripe] = $this->webhookClient();
-        $company = $this->makeCompany('Twice Refused Co');
-        $plan = new Plan(100, 1000);
-        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'active', null, null, null), $plan);
-        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'canceled', null, null, null), $plan);
-        $this->entityManager()->flush();
+        $company = $this->lapsedCompany('Twice Refused Co');
         $this->activateUser($client, $this->uniqueEmail('billing-twice-refused'), admin: true, company: $company);
         $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer"}}');
         $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","message":"The product tax code is missing."}}');
@@ -318,7 +314,7 @@ class BillingControllerTest extends ApiTestCase
 
         self::assertSame(503, $result['status']);
         self::assertCount(2, $stripe->requests);
-        self::assertNull($this->reload($company)->getStripeCustomerId());
+        self::assertSame('cus_gone', $this->reload($company)->getStripeCustomerId());
     }
 
     public function testWebhookRejectsABadSignature(): void
@@ -588,6 +584,18 @@ class BillingControllerTest extends ApiTestCase
         $this->entityManager()->persist($company);
         $this->entityManager()->flush();
         $this->createdCompanyIds[] = $company->getId();
+
+        return $company;
+    }
+
+    /** A company that subscribed and stopped: on Free again, with its Stripe customer `cus_gone` stored. */
+    private function lapsedCompany(string $name): Company
+    {
+        $company = $this->makeCompany($name);
+        $plan = new Plan(100, 1000);
+        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'active', null, null, null), $plan);
+        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'canceled', null, null, null), $plan);
+        $this->entityManager()->flush();
 
         return $company;
     }
