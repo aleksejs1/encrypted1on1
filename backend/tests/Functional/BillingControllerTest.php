@@ -305,6 +305,8 @@ class BillingControllerTest extends ApiTestCase
     {
         $this->withEnv('CLOUD_MODE', '1');
         [$client, $stripe] = $this->webhookClient();
+        // Recorded, not only checked: an error line on stderr stops Infection's first test run.
+        $logger = $this->recordLogs();
         $company = $this->lapsedCompany('Twice Refused Co');
         $this->activateUser($client, $this->uniqueEmail('billing-twice-refused'), admin: true, company: $company);
         $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer"}}');
@@ -315,6 +317,8 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(503, $result['status']);
         self::assertCount(2, $stripe->requests);
         self::assertSame('cus_gone', $this->reload($company)->getStripeCustomerId());
+        self::assertCount(1, $logger->atLeast('error'));
+        self::assertStringContainsString('The product tax code is missing.', $logger->atLeast('error')[0]);
     }
 
     public function testWebhookRejectsABadSignature(): void
