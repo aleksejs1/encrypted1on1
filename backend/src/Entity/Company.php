@@ -327,7 +327,7 @@ class Company
     }
 
     /** By what is stored here; `subscriptionStatus` alone is `active` for a company that never subscribed. */
-    private function hasPayingSubscription(): bool
+    public function hasPayingSubscription(): bool
     {
         return null !== $this->stripeSubscriptionId
             && \in_array($this->subscriptionStatus, self::PAYING_SUBSCRIPTION_STATUSES, true);

@@ -130,6 +130,9 @@ errors:
     cloud_signup_not_open: "L'inscription d'entreprise n'est pas disponible sur cette instance."
     domain_mode_unavailable_in_cloud: "L'inscription libre par domaine n'est pas disponible sur une instance multi-entreprises."
     billing_not_configured: "La facturation n'est pas configurée sur cette instance."
+    billing_already_subscribed: 'L''entreprise a déjà un abonnement actif.'
+    billing_plan_not_purchasable: 'Le forfait de cette entreprise est fixé par accord et ne peut pas être acheté ici.'
+    billing_provider_unavailable: 'Le prestataire de paiement n''a pas répondu. Réessayez dans quelques minutes.'
     display_name_too_long: '"displayName" doit comporter au plus %max% caractères.'
     report_from_after_to: '"from" ne doit pas être postérieur à "to".'
     report_range_too_wide: 'La période demandée est trop large (max %maxDays% jours).'

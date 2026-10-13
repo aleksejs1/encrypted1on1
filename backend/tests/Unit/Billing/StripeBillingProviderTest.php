@@ -8,6 +8,7 @@ use App\Billing\StripeBillingProvider;
 use App\Entity\Company;
 use App\Tests\Support\StripeSignature;
 use App\Tests\Support\StubStripeHttpClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Stripe\ApiRequestor;
@@ -128,12 +129,53 @@ class StripeBillingProviderTest extends TestCase
         self::assertNull($event->checkoutCompanyId);
     }
 
-    public function testCreateCheckoutSessionThrowsWhenNotConfigured(): void
+    /** @param array{string, string, string} $settings */
+    #[DataProvider('incompleteSettings')]
+    public function testCreateCheckoutSessionThrowsUnlessEverySettingIsSet(array $settings): void
     {
-        $provider = new StripeBillingProvider('', '', '');
+        $http = new StubStripeHttpClient();
+        $provider = new StripeBillingProvider($settings[0], $settings[1], $settings[2], $http);
 
-        $this->expectException(BillingNotConfiguredException::class);
-        $provider->createCheckoutSession(new Company('Acme'), 'https://example.com/ok', 'https://example.com/cancel');
+        try {
+            $provider->createCheckoutSession(new Company('Acme'), 'https://example.com/ok', 'https://example.com/cancel');
+            self::fail('Expected a BillingNotConfiguredException.');
+        } catch (BillingNotConfiguredException) {
+            self::assertSame([], $http->requests);
+        }
+    }
+
+    /** @return array<string, array{array{string, string, string}}> */
+    public static function incompleteSettings(): array
+    {
+        return [
+            'nothing' => [['', '', '']],
+            'no secret key' => [['', self::WEBHOOK_SECRET, 'price_whatever']],
+            'no webhook secret' => [['sk_test_whatever', '', 'price_whatever']],
+            'no price' => [['sk_test_whatever', self::WEBHOOK_SECRET, '']],
+        ];
+    }
+
+    public function testCreateCheckoutSessionWrapsAStripeRefusal(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(400, '{"error":{"type":"invalid_request_error","message":"No such price: \'prod_123\'"}}');
+
+        try {
+            $this->providerWith($http)->createCheckoutSession(new Company('Acme'), 'https://example.com/ok', 'https://example.com/cancel');
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertStringContainsString('No such price', $e->getMessage());
+            self::assertInstanceOf(ApiErrorException::class, $e->getPrevious());
+        }
+    }
+
+    public function testCreateCheckoutSessionRefusesASessionWithoutAUrl(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, '{"id":"cs_test_1","object":"checkout.session","url":null}');
+
+        $this->expectException(BillingProviderException::class);
+        $this->providerWith($http)->createCheckoutSession(new Company('Acme'), 'https://example.com/ok', 'https://example.com/cancel');
     }
 
     public function testRetrieveSubscriptionThrowsWhenNotConfigured(): void

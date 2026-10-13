@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Billing\Plan;
 use App\Billing\StripeBillingProvider;
+use App\Billing\SubscriptionSnapshot;
 use App\Entity\Company;
 use App\Tests\Support\ApiTestCase;
 use App\Tests\Support\CleansUpCompanies;
@@ -11,6 +12,7 @@ use App\Tests\Support\FakeBillingProvider;
 use App\Tests\Support\RecordingLogger;
 use App\Tests\Support\StripeSignature;
 use App\Tests\Support\StubStripeHttpClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 /**
@@ -27,17 +29,18 @@ class BillingControllerTest extends ApiTestCase
 {
     use CleansUpCompanies;
 
-    /** The companies made here have no rows of their own; the trait wants at least one table. */
-    private const array COMPANY_TABLES = ['activation_tokens'];
+    private const array COMPANY_TABLES = ['activation_tokens', 'users'];
 
     private const string WEBHOOK_SECRET = 'whsec_test_secret';
+
+    private const string CHECKOUT = '/api/admin/billing/checkout-session';
 
     public function testCheckoutSessionRequiresALogin(): void
     {
         $this->withEnv('CLOUD_MODE', '1');
         $client = static::createClient();
 
-        $result = $this->jsonRequest($client, 'POST', '/api/billing/checkout-session');
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
         self::assertSame(401, $result['status']);
     }
@@ -48,7 +51,7 @@ class BillingControllerTest extends ApiTestCase
         $client = static::createClient();
         $this->activateUser($client, $this->uniqueEmail('billing-csrf'), admin: true);
 
-        $client->request('POST', '/api/billing/checkout-session');
+        $client->request('POST', self::CHECKOUT);
 
         self::assertSame(403, $client->getResponse()->getStatusCode());
         self::assertSame('{"error":"Invalid CSRF token."}', $client->getResponse()->getContent());
@@ -58,39 +61,66 @@ class BillingControllerTest extends ApiTestCase
     {
         $this->withEnv('CLOUD_MODE', '1');
         $client = static::createClient();
+        $fake = $this->useFakeProvider($client);
         $this->activateUser($client, $this->uniqueEmail('billing-employee'));
 
-        $result = $this->jsonRequest($client, 'POST', '/api/billing/checkout-session');
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
         self::assertSame(403, $result['status']);
         self::assertSame('Admin only.', $result['json']['error']);
+        self::assertSame([], $fake->checkoutSessions);
     }
 
-    public function testCheckoutSessionIsRefusedOutsideCloudMode(): void
+    /** A self-hosted instance has no such route, for an admin or for anybody else. */
+    public function testCheckoutSessionDoesNotExistOutsideCloudMode(): void
     {
         $this->withEnv('CLOUD_MODE', '0');
         $client = static::createClient();
         $fake = $this->useFakeProvider($client);
+
+        self::assertSame(404, $this->jsonRequest($client, 'POST', self::CHECKOUT)['status']);
+
         $this->activateUser($client, $this->uniqueEmail('billing-self-hosted'), admin: true);
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
-        $result = $this->jsonRequest($client, 'POST', '/api/billing/checkout-session');
-
-        self::assertSame(400, $result['status']);
-        self::assertSame('Company sign-up is not available on this instance.', $result['json']['error']);
+        self::assertSame(404, $result['status']);
+        self::assertSame('Billing is not configured on this instance.', $result['json']['error']);
         self::assertSame([], $fake->checkoutSessions);
     }
 
-    public function testCheckoutSessionAnswers503WhenBillingIsNotConfigured(): void
+    public function testTheOldCheckoutPathIsGone(): void
     {
         $this->withEnv('CLOUD_MODE', '1');
-        $this->withEnv('STRIPE_SECRET_KEY', '');
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('billing-old-path'), admin: true);
+
+        self::assertSame(404, $this->jsonRequest($client, 'POST', '/api/billing/checkout-session')['status']);
+    }
+
+    /**
+     * All three settings, the webhook secret included: without it the admin would pay
+     * and no event could ever move the company to Plus.
+     */
+    #[DataProvider('stripeSettings')]
+    public function testCheckoutSessionAnswers503UnlessEveryStripeSettingIsSet(string $missing): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        foreach (self::stripeSettings() as [$name]) {
+            $this->withEnv($name, $name === $missing ? '' : 'set');
+        }
         $client = static::createClient();
         $this->activateUser($client, $this->uniqueEmail('billing-unconfigured'), admin: true);
 
-        $result = $this->jsonRequest($client, 'POST', '/api/billing/checkout-session');
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
         self::assertSame(503, $result['status']);
         self::assertSame('Billing is not configured on this instance.', $result['json']['error']);
+    }
+
+    /** @return list<array{string}> */
+    public static function stripeSettings(): array
+    {
+        return [['STRIPE_SECRET_KEY'], ['STRIPE_PRICE_ID'], ['STRIPE_WEBHOOK_SECRET']];
     }
 
     public function testCheckoutSessionReturnsTheUrlForTheAdminsOwnCompany(): void
@@ -98,18 +128,124 @@ class BillingControllerTest extends ApiTestCase
         $this->withEnv('CLOUD_MODE', '1');
         $client = static::createClient();
         $fake = $this->useFakeProvider($client);
-        $this->activateUser($client, $this->uniqueEmail('billing-admin'), admin: true);
+        $company = $this->makeCompany('Buying Co');
+        $this->makeCompany('Bystander Co');
+        $this->activateUser($client, $this->uniqueEmail('billing-admin'), admin: true, company: $company);
 
-        $result = $this->jsonRequest($client, 'POST', '/api/billing/checkout-session');
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
         self::assertSame(200, $result['status']);
         self::assertSame(['url' => FakeBillingProvider::CHECKOUT_URL], $result['json']);
         self::assertCount(1, $fake->checkoutSessions);
-        self::assertSame($this->singleCompanyProvider()->get()->getId(), $fake->checkoutSessions[0]['companyId']);
+        self::assertSame($company->getId(), $fake->checkoutSessions[0]['companyId']);
         // Both lead back to the app (FRONTEND_URL), to two different places.
         self::assertStringStartsWith('http://localhost:5173/', $fake->checkoutSessions[0]['successUrl']);
         self::assertStringStartsWith('http://localhost:5173/', $fake->checkoutSessions[0]['cancelUrl']);
         self::assertNotSame($fake->checkoutSessions[0]['successUrl'], $fake->checkoutSessions[0]['cancelUrl']);
+    }
+
+    /** #285, item 7: a second checkout made a second subscription, which billed as well. */
+    #[DataProvider('payingStatuses')]
+    public function testCheckoutSessionIsRefusedWhileTheCompanysSubscriptionPays(string $status): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $fake = $this->useFakeProvider($client);
+        $company = $this->makeCompany('Subscribed Co');
+        $company->applySubscription(new SubscriptionSnapshot('sub_own', 'cus_own', $status, null, null, null), new Plan(100, 1000));
+        $this->entityManager()->flush();
+        $this->activateUser($client, $this->uniqueEmail('billing-subscribed'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame('This company already has an active subscription.', $result['json']['error']);
+        self::assertSame([], $fake->checkoutSessions);
+    }
+
+    /** @return list<array{string}> */
+    public static function payingStatuses(): array
+    {
+        return [['active'], ['trialing'], ['past_due']];
+    }
+
+    public function testACompanyWhoseSubscriptionEndedCanBuyAgain(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $fake = $this->useFakeProvider($client);
+        $company = $this->makeCompany('Lapsed Co');
+        $plan = new Plan(100, 1000);
+        $company->applySubscription(new SubscriptionSnapshot('sub_own', 'cus_own', 'active', null, null, null), $plan);
+        $company->applySubscription(new SubscriptionSnapshot('sub_own', 'cus_own', 'canceled', null, null, null), $plan);
+        $this->entityManager()->flush();
+        $this->activateUser($client, $this->uniqueEmail('billing-lapsed'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(200, $result['status']);
+        self::assertCount(1, $fake->checkoutSessions);
+    }
+
+    /** The webhook leaves a hand-set plan alone, so the payment would buy nothing. */
+    public function testCheckoutSessionIsRefusedForAPlanSetByHand(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $fake = $this->useFakeProvider($client);
+        $company = new Company('Enterprise Co', seatLimit: 5000, planTier: 'enterprise');
+        $this->entityManager()->persist($company);
+        $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
+        $this->activateUser($client, $this->uniqueEmail('billing-enterprise'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame("This company's plan is set by agreement and can't be bought here.", $result['json']['error']);
+        self::assertSame([], $fake->checkoutSessions);
+    }
+
+    /**
+     * 503 with the app's own JSON: a 502 would read as "the backend is unreachable" in
+     * the frontend. Stripe's own words go to the log, not to the admin.
+     */
+    public function testCheckoutSessionAnswers503AndLogsWhenStripeRefuses(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->makeCompany('Refused Co');
+        $this->activateUser($client, $this->uniqueEmail('billing-refused'), admin: true, company: $company);
+        $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","message":"The product tax code is missing."}}');
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(503, $result['status']);
+        self::assertSame(['error' => "The payment provider didn't respond. Try again in a few minutes."], $result['json']);
+        $errors = $logger->atLeast('error');
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('Checkout for company '.$company->getId().' failed', $errors[0]);
+        self::assertStringContainsString('The product tax code is missing.', $errors[0]);
+    }
+
+    public function testCheckoutSessionAsksStripeForASubscriptionOfTheConfiguredPrice(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $company = $this->makeCompany('Asking Co');
+        $this->activateUser($client, $this->uniqueEmail('billing-asking'), admin: true, company: $company);
+        $stripe->willAnswer(200, '{"id":"cs_test_1","object":"checkout.session","url":"https://checkout.stripe.com/c/pay/cs_test_1"}');
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(['url' => 'https://checkout.stripe.com/c/pay/cs_test_1'], $result['json']);
+        self::assertCount(1, $stripe->requests);
+        self::assertSame('post', $stripe->requests[0]['method']);
+        self::assertSame('https://api.stripe.com/v1/checkout/sessions', $stripe->requests[0]['url']);
+        self::assertSame('subscription', $stripe->requests[0]['params']['mode']);
+        self::assertSame([['price' => 'price_whatever', 'quantity' => 1]], $stripe->requests[0]['params']['line_items']);
+        self::assertSame($company->getId(), $stripe->requests[0]['params']['client_reference_id']);
     }
 
     public function testWebhookRejectsABadSignature(): void

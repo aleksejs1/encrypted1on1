@@ -7,15 +7,16 @@ use App\Entity\Company;
 /**
  * Phase D of private/cloud-service-plan.md (not tracked in git). One real implementation
  * exists (StripeBillingProvider) — this interface exists so BillingController's own
- * auth/gating logic can be tested without ever invoking real Stripe SDK code (no such
- * test exists yet), not because a second provider is planned.
+ * auth/gating logic can be tested without ever invoking real Stripe SDK code
+ * (BillingControllerTest), not because a second provider is planned.
  */
 interface BillingProviderInterface
 {
     /**
      * @return string a URL to redirect the browser to (Stripe Checkout)
      *
-     * @throws BillingNotConfiguredException if this instance has no Stripe secret key/price id set
+     * @throws BillingNotConfiguredException unless all three Stripe settings are set
+     * @throws BillingProviderException      Stripe refused, or gave no answer in time
      */
     public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl): string;
 
