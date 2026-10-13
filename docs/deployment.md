@@ -289,11 +289,42 @@ A subscription is matched to its company by the subscription id the company alre
 
 The two error lines are in the container log, see "Server errors" below. If Stripe's secret key is missing while the webhook secret is set, the webhook answers 500 too.
 
-**What has been verified** ([GitHub issue #283](https://github.com/aleksejs1/encrypted1on1/issues/283)), by hand against a Stripe sandbox: creating a Checkout session, paying it with a test card, and handling the `checkout.session.completed` delivery that followed. Run a test checkout on your own account before relying on it. **Not verified**:
+**What has been verified** ([GitHub issue #298](https://github.com/aleksejs1/encrypted1on1/issues/298), after the earlier runs of [#283](https://github.com/aleksejs1/encrypted1on1/issues/283) and [#287](https://github.com/aleksejs1/encrypted1on1/issues/287)), on the dev stack against a Stripe sandbox with Managed Payments on. Two companies were made through the app's own company sign-up. Each Checkout session was asked for through the endpoint over HTTP, each payment was made on Stripe's Checkout page with a test card, and each event reached the webhook through `stripe listen`. The first company paid once and went through the first two checks and the hand-set plan; the second, whose Stripe customer sits on a test clock, paid twice and went through the rest:
 
-- A real subscription event applied to a company it belongs to. Real `customer.subscription.updated`/`.deleted` deliveries reached the dev stack ([GitHub issue #287](https://github.com/aleksejs1/encrypted1on1/issues/287)), but for subscriptions of no company. What an event does to a company is covered by automated tests of the webhook route, with Stripe's answer stubbed.
-- The checkout-session route over HTTP against Stripe: the provider was called directly. Its refusals are covered by automated tests.
+- A payment moved the company to Plus with `PLUS_SEAT_LIMIT` seats and stored the subscription, the customer and the period end. Both events of the new subscription (`customer.subscription.created` and `checkout.session.completed`; the listener forwarded them in one order for the first payment and in the other for the second) were answered with 200, and neither was logged as belonging to no company. The run didn't check which of the two did the work: an event passed over because the subscription wasn't paying yet would have left no trace, since that is logged as a warning only.
+- A scheduled cancellation stored its date; undoing it cleared the date. The plan stayed Plus both times.
+- At the period end of a subscription with a scheduled cancellation (a Stripe test clock) the company was back on Free with `DEFAULT_SEAT_LIMIT` seats, and both dates were cleared.
+- The company then bought again through the app. The Checkout reused its Stripe customer, the new subscription replaced the ended one, and a further checkout was refused with 409.
+- A failed renewal: `past_due`, still on Plus and not suspended, and the same 8 days later. By the 16th day Stripe had cancelled the subscription and the company was on Free, which fits the 14 days the run of #287 measured and the "about two weeks" above.
+- Old events of the company's own, last subscription, sent again with `stripe events resend` after it had ended (`customer.subscription.deleted`, then `customer.subscription.created`, whose payload says `active`), changed nothing. Events of an older subscription that another one had replaced were not sent again.
+- A company whose plan was set in the database to another name kept that plan and its seat limit through a scheduled cancellation and then an immediate cancellation, both through the API; only the status and the dates followed. After the subscription had ended its checkout was refused with the 409 for a plan set by agreement.
+- A checkout for a company whose stored Stripe customer doesn't exist made a session without a customer and cleared the stored id. That session, like the others, was due to expire 35 minutes after it was made.
+
+The earlier runs, for the record: #283 created a session by calling the provider directly, paid it, and delivered its `checkout.session.completed`; #287 recorded how Stripe itself behaves (the portal, the order of events, failed renewals, the session lifetime); #293 read a real subscription and an unknown id through the provider.
+
+How the run differed from real use:
+
+- The second company's Stripe customer was made through the API, because a customer can be put on a test clock only when it is created, and its id was written into the company's row by hand before the first checkout. So both of that company's paid checkouts reused a stored customer; only the first company's payment showed a checkout creating the customer and the webhook storing it.
+- The cancellations were made through Stripe's API, not in the customer portal (the app has no portal link yet).
+- The renewal failed because the card was detached, not because a bank refused it. The call that would have swapped the card for a declining one was refused: "default_payment_method cannot be updated for Subscriptions created by Checkout Sessions with Managed Payments enabled".
+- For the second company, time was moved with a test clock.
+- The dev stack runs SQLite. The cloud topology runs MySQL, where none of this has run; the two migration sets are kept in step by hand.
+- Events came through `stripe listen`, not through a webhook endpoint set up in the dashboard, so that endpoint's event list and Stripe's own redelivery after a failed delivery were not part of the run.
+- The Checkout pages were filled in by a headless browser with the card `4242 4242 4242 4242`, which asks for no 3-D Secure confirmation.
+- The hand-set plan and the missing customer were set in the dev database directly.
+
+**Not verified** against Stripe with the code as it is now:
+
 - Anything in live mode.
+- A Checkout session left open until it expires. Only the expiry time on the session was read.
+- A refusal by Stripe answered with the 503, and the webhook's 500 when Stripe doesn't return the subscription. (Stripe refusing an unknown subscription id was seen in [#293](https://github.com/aleksejs1/encrypted1on1/issues/293), by calling the provider directly.)
+- Two checkouts paid for one company, a subscription that matches no company (the run of #287 delivered such events, to the code before this rework), and a checkout whose first payment fails. The first two are covered by tests of the webhook route with Stripe's answers stubbed. The third is covered by a unit test of the rule (`CompanyTest`); the route test of that rule uses another subscription that isn't paying and isn't the company's own, an old one reported late.
+- A subscription that is `trialing` (the price has no trial), `unpaid` or `paused`. `incomplete` was not seen either: the one `created` payload that was read said `active`.
+- An old event arriving after the app forgot a customer Stripe no longer has. By the code it writes that customer id back, which costs one failed call at the next checkout.
+- An account set to leave an unpaid subscription `past_due` or `unpaid` forever instead of cancelling it. The company would then stay on Plus without paying (`past_due`), or on Free with a subscription that can come back (`unpaid`).
+- Whether Stripe emails the customer about a failed payment.
+
+Run a test checkout on your own account before relying on any of this.
 
 To try it on the dev stack, put sandbox values and `CLOUD_MODE=1` in `backend/.env.dev.local` (gitignored). Not `backend/.env.local`: the e2e stack mounts the same directory and reads that file too, so the Playwright runs would silently be in cloud mode. Delete the file when done: cloud mode changes the dev stack for everything else as well (company sign-up on the login page, a seat limit for new companies), including the demo-fixture and screenshot scripts, which run against the dev stack. Then let the Stripe CLI (logged in with `stripe login`, or given the sandbox key as `STRIPE_API_KEY`) forward events to the dev backend. It prints the signing secret to use as `STRIPE_WEBHOOK_SECRET`. Stripe CLI 1.53.1 refused to start without an event list ("must specify events to forward using --events, --all-snapshot, or --all-thin"), so the command names the events:
 

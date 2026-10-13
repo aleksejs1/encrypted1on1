@@ -15,19 +15,14 @@ use Stripe\Subscription;
 use Stripe\Webhook;
 
 /**
- * The official `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as
- * proven: nothing has run against a live-mode account. Against a Stripe sandbox, by hand
- * (GitHub issues #283, #287, #293):
- *
- * - createCheckoutSession() created a real Checkout session, which was then paid with a
- *   Stripe test card. BillingController's checkout-session route wasn't part of that run.
- * - constructWebhookEvent() accepted the real `checkout.session.completed` delivery that
- *   followed, and later real `customer.subscription.*` deliveries. Its signature check is
- *   also covered by StripeBillingProviderTest, with a payload signed by hand using the
- *   algorithm Stripe documents.
- * - retrieveSubscription() was called for a real subscription and for an unknown id.
- *   The company tag it reads is written by createCheckoutSession(); a session with
- *   the tag, the stored customer and the short lifetime wasn't run against the sandbox.
+ * The official `stripe/stripe-php` SDK. Verified against a Stripe sandbox only, and not
+ * in every branch: docs/deployment.md's "Stripe billing" section says what the runs
+ * showed and what they didn't cover (GitHub issues #283, #287, #293, #298). Of the
+ * refusals only two were seen: a customer Stripe doesn't have (createCheckoutSession())
+ * and an unknown subscription id (retrieveSubscription()). Nothing has run against a
+ * live-mode account. The webhook signature check is also covered by
+ * StripeBillingProviderTest, with a payload signed by hand using the algorithm Stripe
+ * documents.
  *
  * An event says only which subscription it is about; what the subscription means for a
  * company is Company::applySubscription()'s business, not this class's.
