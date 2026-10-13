@@ -138,10 +138,9 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(['url' => FakeBillingProvider::CHECKOUT_URL], $result['json']);
         self::assertCount(1, $fake->checkoutSessions);
         self::assertSame($company->getId(), $fake->checkoutSessions[0]['companyId']);
-        // Both lead back to the app (FRONTEND_URL), to two different places.
-        self::assertStringStartsWith('http://localhost:5173/', $fake->checkoutSessions[0]['successUrl']);
-        self::assertStringStartsWith('http://localhost:5173/', $fake->checkoutSessions[0]['cancelUrl']);
-        self::assertNotSame($fake->checkoutSessions[0]['successUrl'], $fake->checkoutSessions[0]['cancelUrl']);
+        // Both lead back to the app's Plan page (FRONTEND_URL), which tells them apart.
+        self::assertSame('http://localhost:5173/admin/plan?checkout=success', $fake->checkoutSessions[0]['successUrl']);
+        self::assertSame('http://localhost:5173/admin/plan?checkout=cancelled', $fake->checkoutSessions[0]['cancelUrl']);
     }
 
     /** #285, item 7: a second checkout made a second subscription, which billed as well. */
@@ -265,6 +264,61 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame('subscription', $stripe->requests[0]['params']['mode']);
         self::assertSame([['price' => 'price_whatever', 'quantity' => 1]], $stripe->requests[0]['params']['line_items']);
         self::assertSame($company->getId(), $stripe->requests[0]['params']['client_reference_id']);
+    }
+
+    /**
+     * The customer was deleted in the Stripe dashboard. The id is forgotten and the
+     * checkout goes on without it, so the admin isn't stuck with a company that can
+     * never buy again.
+     */
+    public function testCheckoutSessionForgetsAStripeCustomerThatIsGone(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->lapsedCompany('Lost Customer Co');
+        $this->activateUser($client, $this->uniqueEmail('billing-lost-customer'), admin: true, company: $company);
+        $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer: \'cus_gone\'"}}');
+        $stripe->willAnswer(200, '{"id":"cs_test_1","object":"checkout.session","url":"https://checkout.stripe.com/c/pay/cs_test_1"}');
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(['url' => 'https://checkout.stripe.com/c/pay/cs_test_1'], $result['json']);
+        self::assertCount(2, $stripe->requests);
+        self::assertSame('cus_gone', $stripe->requests[0]['params']['customer']);
+        self::assertArrayNotHasKey('customer', $stripe->requests[1]['params']);
+        self::assertNull($this->reload($company)->getStripeCustomerId());
+        // The subscription id stays: a late event of the old subscription still finds its company.
+        self::assertSame('sub_old', $this->reload($company)->getStripeSubscriptionId());
+        self::assertSame([], $logger->atLeast('error'));
+        self::assertCount(1, $logger->atLeast('warning'));
+        self::assertStringContainsString('cus_gone', $logger->atLeast('warning')[0]);
+        self::assertStringContainsString($company->getId(), $logger->atLeast('warning')[0]);
+    }
+
+    /**
+     * A secret key of another Stripe account knows none of the customers, and not the
+     * price either. The customer id is kept, or one wrong key would wipe every company's.
+     */
+    public function testTheCustomerIsKeptWhenStripeRefusesTheSessionWithoutItToo(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        // Recorded, not only checked: an error line on stderr stops Infection's first test run.
+        $logger = $this->recordLogs();
+        $company = $this->lapsedCompany('Twice Refused Co');
+        $this->activateUser($client, $this->uniqueEmail('billing-twice-refused'), admin: true, company: $company);
+        $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer"}}');
+        $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","message":"The product tax code is missing."}}');
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(503, $result['status']);
+        self::assertCount(2, $stripe->requests);
+        self::assertSame('cus_gone', $this->reload($company)->getStripeCustomerId());
+        self::assertCount(1, $logger->atLeast('error'));
+        self::assertStringContainsString('The product tax code is missing.', $logger->atLeast('error')[0]);
     }
 
     public function testWebhookRejectsABadSignature(): void
@@ -534,6 +588,18 @@ class BillingControllerTest extends ApiTestCase
         $this->entityManager()->persist($company);
         $this->entityManager()->flush();
         $this->createdCompanyIds[] = $company->getId();
+
+        return $company;
+    }
+
+    /** A company that subscribed and stopped: on Free again, with its Stripe customer `cus_gone` stored. */
+    private function lapsedCompany(string $name): Company
+    {
+        $company = $this->makeCompany($name);
+        $plan = new Plan(100, 1000);
+        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'active', null, null, null), $plan);
+        $company->applySubscription(new SubscriptionSnapshot('sub_old', 'cus_gone', 'canceled', null, null, null), $plan);
+        $this->entityManager()->flush();
 
         return $company;
     }

@@ -2,13 +2,17 @@
 
 namespace App\Controller;
 
+use App\Billing\BillingCustomerMissingException;
 use App\Billing\BillingNotConfiguredException;
 use App\Billing\BillingProviderException;
 use App\Billing\BillingProviderInterface;
 use App\Billing\Plan;
 use App\Billing\SubscriptionSync;
+use App\Entity\Company;
 use App\Security\AuthSession;
 use App\Security\RequiresCompanyAdmin;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -31,6 +35,8 @@ class BillingController
         private readonly TranslatorInterface $translator,
         private readonly BillingProviderInterface $billingProvider,
         private readonly SubscriptionSync $subscriptionSync,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly LoggerInterface $logger,
         private readonly string $frontendBaseUrl,
         private readonly bool $cloudMode,
     ) {
@@ -59,14 +65,21 @@ class BillingController
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_plan_not_purchasable')], 409);
         }
 
-        $base = rtrim($this->frontendBaseUrl, '/');
-
         try {
-            $url = $this->billingProvider->createCheckoutSession(
-                $company,
-                successUrl: $base.'/account?billing=success',
-                cancelUrl: $base.'/account?billing=cancelled',
-            );
+            try {
+                $url = $this->checkoutUrl($company);
+            } catch (BillingCustomerMissingException) {
+                $url = $this->checkoutUrl($company, reuseCustomer: false);
+                // Forgotten only now that Stripe made a session without it. A secret key
+                // of another account also answers "no such customer", and then fails
+                // above on the price: the stored ids must survive that mistake.
+                $this->logger->warning('Stripe no longer has customer {customer} of company {company}; the checkout starts a new one.', [
+                    'customer' => $company->getStripeCustomerId(),
+                    'company' => $company->getId(),
+                ]);
+                $company->forgetStripeCustomer();
+                $this->entityManager->flush();
+            }
         } catch (BillingNotConfiguredException) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);
         } catch (BillingProviderException $e) {
@@ -78,6 +91,19 @@ class BillingController
         }
 
         return new JsonResponse(['url' => $url]);
+    }
+
+    /** Stripe sends the admin back to the Plan page either way. */
+    private function checkoutUrl(Company $company, bool $reuseCustomer = true): string
+    {
+        $planPage = rtrim($this->frontendBaseUrl, '/').'/admin/plan';
+
+        return $this->billingProvider->createCheckoutSession(
+            $company,
+            successUrl: $planPage.'?checkout=success',
+            cancelUrl: $planPage.'?checkout=cancelled',
+            reuseCustomer: $reuseCustomer,
+        );
     }
 
     /**

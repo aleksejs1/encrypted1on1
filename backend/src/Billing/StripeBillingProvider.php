@@ -6,6 +6,7 @@ use App\Entity\Company;
 use Stripe\ApiRequestor;
 use Stripe\Checkout\Session;
 use Stripe\Exception\ExceptionInterface as StripeException;
+use Stripe\Exception\InvalidRequestException;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\HttpClient\ClientInterface;
 use Stripe\HttpClient\CurlClient;
@@ -25,7 +26,8 @@ use Stripe\Webhook;
  *   also covered by StripeBillingProviderTest, with a payload signed by hand using the
  *   algorithm Stripe documents.
  * - retrieveSubscription() was called for a real subscription and for an unknown id.
- *   The company tag it reads is written by no checkout yet.
+ *   The company tag it reads is written by createCheckoutSession(); a session with
+ *   the tag, the stored customer and the short lifetime wasn't run against the sandbox.
  *
  * An event says only which subscription it is about; what the subscription means for a
  * company is Company::applySubscription()'s business, not this class's.
@@ -36,6 +38,13 @@ use Stripe\Webhook;
 class StripeBillingProvider implements BillingProviderInterface
 {
     private const array SUBSCRIPTION_EVENTS = ['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted'];
+
+    /**
+     * Stripe refuses less than 30 minutes "from Checkout Session creation", by its own
+     * clock: five minutes more, so a server clock that runs behind doesn't get every
+     * session refused.
+     */
+    private const int SESSION_LIFETIME_SECONDS = 35 * 60;
 
     private const int TIMEOUT_SECONDS = 10;
     private const int CONNECT_TIMEOUT_SECONDS = 5;
@@ -49,13 +58,15 @@ class StripeBillingProvider implements BillingProviderInterface
     ) {
     }
 
-    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl): string
+    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string
     {
         // The webhook secret too: without it the payment would be taken and the webhook
         // that moves the company to Plus would refuse every event.
         if ('' === $this->stripeSecretKey || '' === $this->stripePriceId || '' === $this->stripeWebhookSecret) {
             throw new BillingNotConfiguredException('STRIPE_SECRET_KEY, STRIPE_PRICE_ID and STRIPE_WEBHOOK_SECRET are not all set.');
         }
+
+        $customerId = $reuseCustomer ? $company->getStripeCustomerId() : null;
 
         try {
             $session = $this->client()->checkout->sessions->create([
@@ -66,9 +77,19 @@ class StripeBillingProvider implements BillingProviderInterface
                 // Ties the checkout back to a Company: read again from
                 // checkout.session.completed, see constructWebhookEvent() below.
                 'client_reference_id' => $company->getId(),
+                // The same tie on the subscription itself, where every later event of
+                // it finds the company (snapshotOf()), the first one included: that is
+                // customer.subscription.created, which arrives before the checkout's own.
+                'subscription_data' => ['metadata' => ['company_id' => $company->getId()]],
+                // An open Checkout page can be paid until it expires, also after the
+                // company bought through another one. Stripe's default is 24 hours.
+                'expires_at' => time() + self::SESSION_LIFETIME_SECONDS,
+                // Without it every purchase makes a new Stripe customer, and the
+                // customer portal shows none of the earlier invoices.
+                ...(null !== $customerId ? ['customer' => $customerId] : []),
             ]);
         } catch (StripeException $e) {
-            throw new BillingProviderException('Stripe did not create the Checkout session: '.$e->getMessage(), 0, $e);
+            throw self::checkoutRefusal($e, $customerId);
         }
 
         $url = $session->url;
@@ -79,6 +100,18 @@ class StripeBillingProvider implements BillingProviderInterface
         }
 
         return $url;
+    }
+
+    /** "No such customer" is told apart only when a customer was sent: forgetting it is then the cure. */
+    private static function checkoutRefusal(StripeException $e, ?string $customerId): BillingProviderException
+    {
+        $message = 'Stripe did not create the Checkout session: '.$e->getMessage();
+        $customerIsGone = null !== $customerId
+            && $e instanceof InvalidRequestException
+            && 'resource_missing' === $e->getStripeCode()
+            && 'customer' === $e->getStripeParam();
+
+        return $customerIsGone ? new BillingCustomerMissingException($message, 0, $e) : new BillingProviderException($message, 0, $e);
     }
 
     public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot
