@@ -9,10 +9,10 @@ use App\Billing\Plan;
 use App\Billing\SubscriptionSync;
 use App\Security\AuthSession;
 use App\Security\RequiresCompanyAdmin;
-use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -31,7 +31,6 @@ class BillingController
         private readonly TranslatorInterface $translator,
         private readonly BillingProviderInterface $billingProvider,
         private readonly SubscriptionSync $subscriptionSync,
-        private readonly LoggerInterface $logger,
         private readonly string $frontendBaseUrl,
         private readonly bool $cloudMode,
     ) {
@@ -46,7 +45,7 @@ class BillingController
     #[Route('/api/admin/billing/checkout-session', name: 'billing_checkout_session', methods: ['POST'])]
     public function createCheckoutSession(Request $request): JsonResponse
     {
-        // A self-hosted instance sells nothing: the route isn't there for it.
+        // A self-hosted instance sells nothing: to it the route is as good as absent.
         if (!$this->cloudMode) {
             throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
         }
@@ -55,7 +54,8 @@ class BillingController
         if ($company->hasPayingSubscription()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_already_subscribed')], 409);
         }
-        if (Plan::FREE !== $company->getPlanTier()) {
+        // No seat limit is by hand too: Plus would add nothing to it.
+        if (Plan::FREE !== $company->getPlanTier() || null === $company->getSeatLimit()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_plan_not_purchasable')], 409);
         }
 
@@ -70,15 +70,11 @@ class BillingController
         } catch (BillingNotConfiguredException) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);
         } catch (BillingProviderException $e) {
-            // 503, not 502: the frontend reads a 502 as a proxy answering for a backend
-            // that is down, and shows its connection-loss banner (answeredBy() in
-            // frontend/src/api/client.ts).
-            $this->logger->error('Checkout for company {company} failed: {exception}', [
-                'company' => $company->getId(),
-                'exception' => $e->getMessage(),
-            ]);
-
-            return new JsonResponse(['error' => $this->translator->trans('errors.billing_provider_unavailable')], 503);
+            // Thrown, so JsonExceptionListener logs it (with Stripe's words, cleaned up)
+            // and Sentry sees it. 503, not 502: the frontend reads a 502 as a proxy
+            // answering for a backend that is down, and shows its connection-loss
+            // banner (answeredBy() in frontend/src/api/client.ts).
+            throw new ServiceUnavailableHttpException(null, $this->translator->trans('errors.billing_checkout_failed'), $e);
         }
 
         return new JsonResponse(['url' => $url]);

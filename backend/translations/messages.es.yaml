@@ -128,7 +128,7 @@ errors:
     billing_not_configured: 'La facturación no está configurada en esta instancia.'
     billing_already_subscribed: 'La empresa ya tiene una suscripción activa.'
     billing_plan_not_purchasable: 'El plan de esta empresa se ha fijado por acuerdo y no se puede comprar aquí.'
-    billing_provider_unavailable: 'El proveedor de pagos no respondió. Inténtelo de nuevo en unos minutos.'
+    billing_checkout_failed: 'No se pudo iniciar el pago. Inténtelo de nuevo más tarde; si el error persiste, contacte con soporte.'
     display_name_too_long: '"displayName" no puede tener más de %max% caracteres.'
     report_from_after_to: '"from" no puede ser posterior a "to".'
     report_range_too_wide: 'El rango de fechas solicitado es demasiado amplio (máximo %maxDays% días).'

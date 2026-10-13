@@ -71,7 +71,7 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame([], $fake->checkoutSessions);
     }
 
-    /** A self-hosted instance has no such route, for an admin or for anybody else. */
+    /** A self-hosted instance sells nothing, to an admin or to anybody else (a request without a CSRF token still gets its 403 first). */
     public function testCheckoutSessionDoesNotExistOutsideCloudMode(): void
     {
         $this->withEnv('CLOUD_MODE', '0');
@@ -109,7 +109,7 @@ class BillingControllerTest extends ApiTestCase
             $this->withEnv($name, $name === $missing ? '' : 'set');
         }
         $client = static::createClient();
-        $this->activateUser($client, $this->uniqueEmail('billing-unconfigured'), admin: true);
+        $this->activateUser($client, $this->uniqueEmail('billing-unconfigured'), admin: true, company: $this->makeCompany('Unconfigured Co'));
 
         $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
@@ -208,7 +208,8 @@ class BillingControllerTest extends ApiTestCase
 
     /**
      * 503 with the app's own JSON: a 502 would read as "the backend is unreachable" in
-     * the frontend. Stripe's own words go to the log, not to the admin.
+     * the frontend. Stripe's own words go to the log
+     * (JsonExceptionListener), not to the admin.
      */
     public function testCheckoutSessionAnswers503AndLogsWhenStripeRefuses(): void
     {
@@ -222,11 +223,29 @@ class BillingControllerTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
 
         self::assertSame(503, $result['status']);
-        self::assertSame(['error' => "The payment provider didn't respond. Try again in a few minutes."], $result['json']);
+        self::assertSame(['error' => "The checkout couldn't be started. Try again later; if it keeps failing, contact support."], $result['json']);
         $errors = $logger->atLeast('error');
         self::assertCount(1, $errors);
-        self::assertStringContainsString('Checkout for company '.$company->getId().' failed', $errors[0]);
+        self::assertStringContainsString('API error 503 on POST billing_checkout_session', $errors[0]);
         self::assertStringContainsString('The product tax code is missing.', $errors[0]);
+    }
+
+    /** No limit is set by hand as well, and Plus would add nothing to it. */
+    public function testCheckoutSessionIsRefusedForACompanyWithoutASeatLimit(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $fake = $this->useFakeProvider($client);
+        $company = new Company('Unlimited Co');
+        $this->entityManager()->persist($company);
+        $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
+        $this->activateUser($client, $this->uniqueEmail('billing-unlimited'), admin: true, company: $company);
+
+        $result = $this->jsonRequest($client, 'POST', self::CHECKOUT);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame([], $fake->checkoutSessions);
     }
 
     public function testCheckoutSessionAsksStripeForASubscriptionOfTheConfiguredPrice(): void

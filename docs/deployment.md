@@ -259,8 +259,10 @@ The endpoint refuses with:
 - 404 without `CLOUD_MODE=1`: a self-hosted instance sells nothing.
 - 503 "Billing is not configured" unless all three variables are set. The webhook secret counts: without it the admin would pay and no event could move the company to Plus.
 - 409 while the company's subscription pays (`active`, `trialing`, `past_due`), so a second checkout can't create a second subscription that bills as well. Two admins who both open a checkout before either pays still can; the app then follows the first subscription and logs the second (see below).
-- 409 for a company whose plan is neither `free` nor `plus` paid through Stripe (a plan set in the database for a custom agreement, or `plus` given by hand): the webhook wouldn't change such a plan, so the payment would buy nothing.
-- 503 "The payment provider didn't respond" when Stripe refuses the session or doesn't answer in 10 seconds. Stripe's own message is in the container log, see "Server errors" below.
+- 409 for a company whose plan is neither `free` nor `plus` paid through Stripe (a plan set in the database for a custom agreement, or `plus` given by hand) or that has no seat limit: the payment would buy nothing.
+- 503 "The checkout couldn't be started" when Stripe refuses the session or doesn't answer in 10 seconds. Stripe's own message is in the container log (see "Server errors" below) and in Sentry, if `SENTRY_DSN` is set.
+
+The 409 for a paying subscription goes by what the app has stored. If Stripe's event about an ended subscription never arrived (Stripe retries a failed delivery for days, so this takes a long outage or a changed webhook secret), the company can't buy again until the event is sent again from the Stripe dashboard.
 
 In the Stripe dashboard:
 
@@ -333,7 +335,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod restart app
 A request to `/api/*` that fails with an exception answers with a 5xx and writes one line to the container log (`docker compose ... logs app`), with or without Sentry:
 
 ```
-[error] API error 500 on POST billing_checkout_session: Stripe\Exception\InvalidRequestException: ... at /app/vendor/..., called from /app/src/Billing/StripeBillingProvider.php:NN
+[error] API error 503 on POST billing_checkout_session: Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException: ... at /app/src/Controller/BillingController.php:NN; caused by Stripe\Exception\InvalidRequestException: ... at /app/vendor/..., called from /app/src/Billing/StripeBillingProvider.php:NN
 ```
 
 It names the route, not the URL, and carries no request body and no stack trace. The exception's message is logged as it is (up to 500 characters), and a database or mail error can quote an email address in it, so treat this log like the database: it is not content, but it is not public either. 4xx answers are not logged. Neither is a 5xx the code answers on purpose without an exception (a 503 when billing isn't configured, or when an invitation email couldn't be sent), nor a PHP fatal error such as running out of memory, which PHP reports to the same log in its own words.

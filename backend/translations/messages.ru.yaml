@@ -128,7 +128,7 @@ errors:
     billing_not_configured: 'Оплата не настроена на этом экземпляре.'
     billing_already_subscribed: 'У компании уже есть действующая подписка.'
     billing_plan_not_purchasable: 'Тариф этой компании задан по договорённости, купить его здесь нельзя.'
-    billing_provider_unavailable: 'Платёжный сервис не ответил. Повторите попытку через несколько минут.'
+    billing_checkout_failed: 'Не удалось начать оплату. Повторите попытку позже; если ошибка повторяется, обратитесь в поддержку.'
     display_name_too_long: '«displayName» должно быть не длиннее %max% символов.'
     report_from_after_to: '«from» не может быть позже «to».'
     report_range_too_wide: 'Запрошенный период слишком широк (максимум %maxDays% дн.).'

@@ -128,7 +128,7 @@ errors:
     billing_not_configured: 'Norēķini šajā instancē nav konfigurēti.'
     billing_already_subscribed: 'Uzņēmumam jau ir aktīvs abonements.'
     billing_plan_not_purchasable: 'Šī uzņēmuma plāns ir noteikts pēc vienošanās, to šeit nevar iegādāties.'
-    billing_provider_unavailable: 'Maksājumu pakalpojums neatbildēja. Mēģiniet vēlreiz pēc dažām minūtēm.'
+    billing_checkout_failed: 'Neizdevās sākt apmaksu. Mēģiniet vēlreiz vēlāk; ja kļūda atkārtojas, sazinieties ar atbalstu.'
     display_name_too_long: '"displayName" nedrīkst pārsniegt %max% rakstzīmes.'
     report_from_after_to: '"from" nedrīkst būt vēlāk par "to".'
     report_range_too_wide: 'Pieprasītais laika periods ir pārāk plašs (maksimums %maxDays% dienas).'
