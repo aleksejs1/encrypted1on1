@@ -281,6 +281,16 @@ What the state means for the company:
 - The seat limit changes only when the plan does, so a limit set by hand in the platform-admin panel survives until then. A plan with any other name than `free` or `plus` (set in the database, for a custom agreement) is left alone, with its limit.
 - **Not paying never suspends a company, and paying never lifts a suspension.** Suspension is a platform admin's tool only.
 
+**Operator rules.** The app never cancels a subscription. In two cases the company can't do it either, and it keeps being charged until you cancel the subscription in the Stripe dashboard yourself:
+
+- **Suspending a company that pays.** Nobody in a suspended company can log in. Cancel its subscription when you suspend it, unless you mean to keep charging it. Lifting the suspension doesn't bring a cancelled subscription back: the company is on Free and buys Plus again.
+- **Moving a company that pays to a plan set by hand.** The webhook leaves such a plan alone, so the old Plus subscription goes on, paid and without effect. Cancel it when you change the plan.
+
+A plan set by hand is a change in the database (`companies.planTier`, `companies.seatLimit`); the platform-admin panel sets the seat limit only. Two rules for it:
+
+- Give the plan a name other than `free` and `plus`. Those two belong to the webhook: a company put on `plus` by hand goes back to `free` at the next event that finds the subscription stored for it not paying (an old one that ended, say), and can't buy Plus in the app in the meantime. For Plus granted without payment use a name such as `plus-manual`.
+- A seat limit set by hand on a company that stays on `free` or `plus` lasts only until its plan next changes: buying Plus sets `PLUS_SEAT_LIMIT`, and losing it sets `DEFAULT_SEAT_LIMIT`. For a limit that must stay, use a plan name of your own as well. The one exception is a company with no limit at all, which never gets one from a payment; the app doesn't let such a company buy Plus.
+
 A subscription is matched to its company by the subscription id the company already has stored, else by a `company_id` in the subscription's metadata, else (for a completed checkout) by the checkout's own reference. Never by the Stripe customer. The checkout writes that `company_id`, so every event of a subscription bought in the app finds its company, the first one (`customer.subscription.created`, which arrives before the checkout's own) included. Three cases are worth knowing, and all three answer Stripe with 200:
 
 - A subscription that matches no company (made by hand in the dashboard, say) is logged as an error and ignored: somebody may have paid for nothing.
