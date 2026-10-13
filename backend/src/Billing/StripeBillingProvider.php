@@ -15,10 +15,10 @@ use Stripe\Subscription;
 use Stripe\Webhook;
 
 /**
- * The official `stripe/stripe-php` SDK. Every method here has run against a Stripe
- * sandbox, none against a live-mode account: docs/deployment.md's "Stripe billing"
- * section says what the runs showed and what they didn't cover (GitHub issues #283,
- * #287, #293, #298). The webhook signature check is also covered by
+ * The official `stripe/stripe-php` SDK. Verified against a Stripe sandbox only, and not
+ * in every branch: docs/deployment.md's "Stripe billing" section says what the runs
+ * showed and what they didn't cover (GitHub issues #283, #287, #293, #298). Nothing
+ * has run against a live-mode account. The webhook signature check is also covered by
  * StripeBillingProviderTest, with a payload signed by hand using the algorithm Stripe
  * documents.
  *
