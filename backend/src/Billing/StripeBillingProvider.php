@@ -19,14 +19,16 @@ use Stripe\Webhook;
  * against a live-mode account (GitHub issues #283, #287, #293, #298):
  *
  * - createCheckoutSession(), through BillingController's route: sessions with the
- *   company tag and the 35-minute lifetime, with and without a stored customer, were
- *   paid with a Stripe test card; a stored customer Stripe doesn't have was refused as
- *   BillingCustomerMissingException expects.
+ *   company tag, with and without a stored customer, were paid with a Stripe test
+ *   card; a stored customer Stripe doesn't have was refused as
+ *   BillingCustomerMissingException expects. Stripe accepted the 35-minute lifetime;
+ *   no session was left open until it expired.
  * - constructWebhookEvent() accepted the real deliveries of all four event types. Its
  *   signature check is also covered by StripeBillingProviderTest, with a payload signed
  *   by hand using the algorithm Stripe documents.
- * - retrieveSubscription() read real subscriptions in every state the app tells apart
- *   (active, past_due, canceled, a scheduled cancellation), and an unknown id.
+ * - retrieveSubscription() read real subscriptions that were active, past_due and
+ *   canceled, one with a scheduled cancellation, and an unknown id. Not trialing,
+ *   incomplete, unpaid or paused ones.
  *
  * docs/deployment.md's "Stripe billing" section has the run and what it didn't cover.
  *

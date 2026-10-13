@@ -22,8 +22,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Phase D of private/cloud-service-plan.md (not tracked in git). See
- * StripeBillingProvider's own docblock for what was verified against a Stripe sandbox
- * and what wasn't.
+ * docs/deployment.md's "Stripe billing" section for what was verified against a Stripe
+ * sandbox and what wasn't.
  */
 class BillingController
 {
