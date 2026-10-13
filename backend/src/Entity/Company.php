@@ -232,6 +232,12 @@ class Company
         return $this->stripeCustomerId;
     }
 
+    /** For a customer Stripe no longer has: the next checkout then makes a new one. */
+    public function forgetStripeCustomer(): void
+    {
+        $this->stripeCustomerId = null;
+    }
+
     public function getStripeSubscriptionId(): ?string
     {
         return $this->stripeSubscriptionId;

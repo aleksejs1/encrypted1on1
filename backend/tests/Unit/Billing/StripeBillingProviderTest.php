@@ -2,9 +2,12 @@
 
 namespace App\Tests\Unit\Billing;
 
+use App\Billing\BillingCustomerMissingException;
 use App\Billing\BillingNotConfiguredException;
 use App\Billing\BillingProviderException;
+use App\Billing\Plan;
 use App\Billing\StripeBillingProvider;
+use App\Billing\SubscriptionSnapshot;
 use App\Entity\Company;
 use App\Tests\Support\StripeSignature;
 use App\Tests\Support\StubStripeHttpClient;
@@ -26,6 +29,10 @@ use Stripe\Subscription;
 class StripeBillingProviderTest extends TestCase
 {
     private const string WEBHOOK_SECRET = 'whsec_test_secret';
+
+    private const string SESSION_JSON = '{"id":"cs_test_1","object":"checkout.session","url":"https://checkout.stripe.com/c/pay/cs_test_1"}';
+
+    private const string MISSING_CUSTOMER_JSON = '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer: \'cus_gone\'"}}';
 
     /** The SDK's HTTP client and its limits are per process: put back what a test changed. */
     protected function tearDown(): void
@@ -167,6 +174,89 @@ class StripeBillingProviderTest extends TestCase
             self::assertStringContainsString('No such price', $e->getMessage());
             self::assertInstanceOf(ApiErrorException::class, $e->getPrevious());
         }
+    }
+
+    public function testCreateCheckoutSessionTagsTheSubscriptionAndExpiresSoon(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, self::SESSION_JSON);
+        $company = new Company('Acme');
+        $before = time();
+
+        $url = $this->providerWith($http)->createCheckoutSession($company, 'https://example.com/ok', 'https://example.com/cancel');
+
+        self::assertSame('https://checkout.stripe.com/c/pay/cs_test_1', $url);
+        self::assertCount(1, $http->requests);
+        $params = $http->requests[0]['params'];
+        self::assertSame('subscription', $params['mode']);
+        self::assertSame([['price' => 'price_whatever', 'quantity' => 1]], $params['line_items']);
+        self::assertSame('https://example.com/ok', $params['success_url']);
+        self::assertSame('https://example.com/cancel', $params['cancel_url']);
+        self::assertSame($company->getId(), $params['client_reference_id']);
+        self::assertSame(['metadata' => ['company_id' => $company->getId()]], $params['subscription_data']);
+        // Stripe's minimum is 30 minutes; a little more, never an hour.
+        self::assertGreaterThan($before + 30 * 60, $params['expires_at']);
+        self::assertLessThanOrEqual(time() + 35 * 60, $params['expires_at']);
+        // A company that never bought has no customer to reuse: Stripe makes one.
+        self::assertArrayNotHasKey('customer', $params);
+    }
+
+    public function testCreateCheckoutSessionReusesTheCompanysStripeCustomer(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, self::SESSION_JSON);
+
+        $this->providerWith($http)->createCheckoutSession($this->companyWithCustomer('cus_known'), 'https://example.com/ok', 'https://example.com/cancel');
+
+        self::assertSame('cus_known', $http->requests[0]['params']['customer']);
+    }
+
+    public function testCreateCheckoutSessionSaysWhenTheStoredCustomerIsGone(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(400, self::MISSING_CUSTOMER_JSON);
+
+        $this->expectException(BillingCustomerMissingException::class);
+        $this->providerWith($http)->createCheckoutSession($this->companyWithCustomer('cus_gone'), 'https://example.com/ok', 'https://example.com/cancel');
+    }
+
+    /** Something else missing (the price, say) is an ordinary refusal: retrying without the customer wouldn't help. */
+    #[TestWith(['{"error":{"type":"invalid_request_error","code":"resource_missing","param":"line_items[0][price]","message":"No such price"}}'])]
+    #[TestWith(['{"error":{"type":"invalid_request_error","code":"parameter_invalid","param":"customer","message":"Invalid customer"}}'])]
+    public function testAnotherRefusalWithACustomerIsNotAMissingCustomer(string $answer): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(400, $answer);
+
+        try {
+            $this->providerWith($http)->createCheckoutSession($this->companyWithCustomer('cus_known'), 'https://example.com/ok', 'https://example.com/cancel');
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertNotInstanceOf(BillingCustomerMissingException::class, $e);
+        }
+    }
+
+    /** Without a stored customer there is nothing to forget, whatever Stripe says is missing. */
+    public function testAMissingCustomerAnswerWithoutAStoredCustomerIsAnOrdinaryRefusal(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(400, self::MISSING_CUSTOMER_JSON);
+
+        try {
+            $this->providerWith($http)->createCheckoutSession(new Company('Acme'), 'https://example.com/ok', 'https://example.com/cancel');
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertNotInstanceOf(BillingCustomerMissingException::class, $e);
+        }
+    }
+
+    private function companyWithCustomer(string $customerId): Company
+    {
+        $company = new Company('Acme', seatLimit: 100);
+        $company->applySubscription(new SubscriptionSnapshot('sub_old', $customerId, 'active', null, null, null), new Plan(100, 1000));
+        $company->applySubscription(new SubscriptionSnapshot('sub_old', $customerId, 'canceled', null, null, null), new Plan(100, 1000));
+
+        return $company;
     }
 
     public function testCreateCheckoutSessionRefusesASessionWithoutAUrl(): void

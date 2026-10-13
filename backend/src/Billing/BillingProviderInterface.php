@@ -15,8 +15,9 @@ interface BillingProviderInterface
     /**
      * @return string a URL to redirect the browser to (Stripe Checkout)
      *
-     * @throws BillingNotConfiguredException unless all three Stripe settings are set
-     * @throws BillingProviderException      Stripe refused, or gave no answer in time
+     * @throws BillingNotConfiguredException   unless all three Stripe settings are set
+     * @throws BillingCustomerMissingException the company's stored Stripe customer is gone: forget it and ask again
+     * @throws BillingProviderException        Stripe refused, or gave no answer in time
      */
     public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl): string;
 
