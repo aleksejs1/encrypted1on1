@@ -69,17 +69,16 @@ class BillingController
             try {
                 $url = $this->checkoutUrl($company);
             } catch (BillingCustomerMissingException) {
-                $goneCustomerId = $company->getStripeCustomerId();
-                $company->forgetStripeCustomer();
-                $url = $this->checkoutUrl($company);
-                // Saved only now that Stripe made a session without it. A secret key of
-                // another account also answers "no such customer", and then fails here
-                // on the price: the stored ids must survive that mistake.
-                $this->entityManager->flush();
+                $url = $this->checkoutUrl($company, reuseCustomer: false);
+                // Forgotten only now that Stripe made a session without it. A secret key
+                // of another account also answers "no such customer", and then fails
+                // above on the price: the stored ids must survive that mistake.
                 $this->logger->warning('Stripe no longer has customer {customer} of company {company}; the checkout starts a new one.', [
-                    'customer' => $goneCustomerId,
+                    'customer' => $company->getStripeCustomerId(),
                     'company' => $company->getId(),
                 ]);
+                $company->forgetStripeCustomer();
+                $this->entityManager->flush();
             }
         } catch (BillingNotConfiguredException) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);
@@ -95,7 +94,7 @@ class BillingController
     }
 
     /** Stripe sends the admin back to the Plan page either way. */
-    private function checkoutUrl(Company $company): string
+    private function checkoutUrl(Company $company, bool $reuseCustomer = true): string
     {
         $planPage = rtrim($this->frontendBaseUrl, '/').'/admin/plan';
 
@@ -103,6 +102,7 @@ class BillingController
             $company,
             successUrl: $planPage.'?checkout=success',
             cancelUrl: $planPage.'?checkout=cancelled',
+            reuseCustomer: $reuseCustomer,
         );
     }
 

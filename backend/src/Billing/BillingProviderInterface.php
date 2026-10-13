@@ -13,13 +13,15 @@ use App\Entity\Company;
 interface BillingProviderInterface
 {
     /**
+     * @param bool $reuseCustomer false to leave out the company's stored Stripe customer, after it turned out to be gone
+     *
      * @return string a URL to redirect the browser to (Stripe Checkout)
      *
      * @throws BillingNotConfiguredException   unless all three Stripe settings are set
      * @throws BillingCustomerMissingException the company's stored Stripe customer is gone: forget it and ask again
      * @throws BillingProviderException        Stripe refused, or gave no answer in time
      */
-    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl): string;
+    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string;
 
     /**
      * @throws \RuntimeException if $signatureHeader doesn't verify against $payload — callers must treat this

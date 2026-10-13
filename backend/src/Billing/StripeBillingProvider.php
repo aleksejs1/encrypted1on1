@@ -58,7 +58,7 @@ class StripeBillingProvider implements BillingProviderInterface
     ) {
     }
 
-    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl): string
+    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string
     {
         // The webhook secret too: without it the payment would be taken and the webhook
         // that moves the company to Plus would refuse every event.
@@ -66,7 +66,7 @@ class StripeBillingProvider implements BillingProviderInterface
             throw new BillingNotConfiguredException('STRIPE_SECRET_KEY, STRIPE_PRICE_ID and STRIPE_WEBHOOK_SECRET are not all set.');
         }
 
-        $customerId = $company->getStripeCustomerId();
+        $customerId = $reuseCustomer ? $company->getStripeCustomerId() : null;
 
         try {
             $session = $this->client()->checkout->sessions->create([
