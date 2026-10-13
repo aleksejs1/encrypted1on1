@@ -17,8 +17,10 @@ use Stripe\Webhook;
 /**
  * The official `stripe/stripe-php` SDK. Verified against a Stripe sandbox only, and not
  * in every branch: docs/deployment.md's "Stripe billing" section says what the runs
- * showed and what they didn't cover (GitHub issues #283, #287, #293, #298). Nothing
- * has run against a live-mode account. The webhook signature check is also covered by
+ * showed and what they didn't cover (GitHub issues #283, #287, #293, #298). Of the
+ * refusals only two were seen: a customer Stripe doesn't have (createCheckoutSession())
+ * and an unknown subscription id (retrieveSubscription()). Nothing has run against a
+ * live-mode account. The webhook signature check is also covered by
  * StripeBillingProviderTest, with a payload signed by hand using the algorithm Stripe
  * documents.
  *
