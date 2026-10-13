@@ -289,11 +289,20 @@ A subscription is matched to its company by the subscription id the company alre
 
 The two error lines are in the container log, see "Server errors" below. If Stripe's secret key is missing while the webhook secret is set, the webhook answers 500 too.
 
-**What has been verified** ([GitHub issue #283](https://github.com/aleksejs1/encrypted1on1/issues/283)), by hand against a Stripe sandbox: creating a Checkout session, paying it with a test card, and handling the `checkout.session.completed` delivery that followed. Run a test checkout on your own account before relying on it. **Not verified**:
+**What has been verified** ([GitHub issue #298](https://github.com/aleksejs1/encrypted1on1/issues/298), after the earlier runs of [#283](https://github.com/aleksejs1/encrypted1on1/issues/283) and [#287](https://github.com/aleksejs1/encrypted1on1/issues/287)), on the dev stack against a Stripe sandbox with Managed Payments on. Each company was made through the app's own company sign-up, each Checkout session through the endpoint over HTTP, each payment on Stripe's Checkout page with a test card, and each event reached the webhook through `stripe listen`:
 
-- A real subscription event applied to a company it belongs to. Real `customer.subscription.updated`/`.deleted` deliveries reached the dev stack ([GitHub issue #287](https://github.com/aleksejs1/encrypted1on1/issues/287)), but for subscriptions of no company. What an event does to a company is covered by automated tests of the webhook route, with Stripe's answer stubbed.
-- The checkout-session route over HTTP against Stripe: the provider was called directly. Its refusals are covered by automated tests.
-- Anything in live mode.
+- A payment moved the company to Plus with `PLUS_SEAT_LIMIT` seats and stored the subscription, the customer and the period end. Both events of the new subscription (`customer.subscription.created`, then `checkout.session.completed`) found the company; nothing was logged.
+- A scheduled cancellation stored its date; undoing it cleared the date. The plan stayed Plus both times.
+- At the period end of a subscription with a scheduled cancellation (a Stripe test clock) the company was back on Free with `DEFAULT_SEAT_LIMIT` seats, and both dates were cleared.
+- The company then bought again through the app. The Checkout reused its Stripe customer, the new subscription replaced the ended one, and a further checkout was refused with 409.
+- A failed renewal: `past_due`, still on Plus and not suspended; 16 days later, after Stripe's retries, the subscription was cancelled and the company was on Free.
+- Old events sent again after the subscription had ended (`customer.subscription.deleted`, then `customer.subscription.created`, whose payload says `active`) changed nothing.
+- A company whose plan was set in the database to another name kept that plan and its seat limit through a scheduled cancellation and the end of its subscription; only the status and the dates followed. Its checkout was refused with 409.
+- A checkout for a company whose stored Stripe customer doesn't exist made a session without a customer and cleared the stored id.
+
+How the run differed from real use. The cancellations were made through Stripe's API, not in the customer portal (the app has no portal link yet). The renewal failed because the card was detached, not because a bank refused it: Stripe doesn't let the API change the payment method of a subscription that Checkout created under Managed Payments. And time was moved with a test clock.
+
+**Not verified**: anything in live mode; a refusal by Stripe answered with the 503 (automated tests only); two checkouts paid for one company (automated tests only); and whether Stripe emails the customer about a failed payment. Run a test checkout on your own account before relying on any of this.
 
 To try it on the dev stack, put sandbox values and `CLOUD_MODE=1` in `backend/.env.dev.local` (gitignored). Not `backend/.env.local`: the e2e stack mounts the same directory and reads that file too, so the Playwright runs would silently be in cloud mode. Delete the file when done: cloud mode changes the dev stack for everything else as well (company sign-up on the login page, a seat limit for new companies), including the demo-fixture and screenshot scripts, which run against the dev stack. Then let the Stripe CLI (logged in with `stripe login`, or given the sandbox key as `STRIPE_API_KEY`) forward events to the dev backend. It prints the signing secret to use as `STRIPE_WEBHOOK_SECRET`. Stripe CLI 1.53.1 refused to start without an event list ("must specify events to forward using --events, --all-snapshot, or --all-thin"), so the command names the events:
 

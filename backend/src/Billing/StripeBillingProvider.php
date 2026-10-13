@@ -15,19 +15,20 @@ use Stripe\Subscription;
 use Stripe\Webhook;
 
 /**
- * The official `stripe/stripe-php` SDK. Only partly verified, so don't treat billing as
- * proven: nothing has run against a live-mode account. Against a Stripe sandbox, by hand
- * (GitHub issues #283, #287, #293):
+ * The official `stripe/stripe-php` SDK. Verified against a Stripe sandbox only, never
+ * against a live-mode account (GitHub issues #283, #287, #293, #298):
  *
- * - createCheckoutSession() created a real Checkout session, which was then paid with a
- *   Stripe test card. BillingController's checkout-session route wasn't part of that run.
- * - constructWebhookEvent() accepted the real `checkout.session.completed` delivery that
- *   followed, and later real `customer.subscription.*` deliveries. Its signature check is
- *   also covered by StripeBillingProviderTest, with a payload signed by hand using the
- *   algorithm Stripe documents.
- * - retrieveSubscription() was called for a real subscription and for an unknown id.
- *   The company tag it reads is written by createCheckoutSession(); a session with
- *   the tag, the stored customer and the short lifetime wasn't run against the sandbox.
+ * - createCheckoutSession(), through BillingController's route: sessions with the
+ *   company tag and the 35-minute lifetime, with and without a stored customer, were
+ *   paid with a Stripe test card; a stored customer Stripe doesn't have was refused as
+ *   BillingCustomerMissingException expects.
+ * - constructWebhookEvent() accepted the real deliveries of all four event types. Its
+ *   signature check is also covered by StripeBillingProviderTest, with a payload signed
+ *   by hand using the algorithm Stripe documents.
+ * - retrieveSubscription() read real subscriptions in every state the app tells apart
+ *   (active, past_due, canceled, a scheduled cancellation), and an unknown id.
+ *
+ * docs/deployment.md's "Stripe billing" section has the run and what it didn't cover.
  *
  * An event says only which subscription it is about; what the subscription means for a
  * company is Company::applySubscription()'s business, not this class's.
