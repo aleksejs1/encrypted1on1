@@ -258,7 +258,7 @@ class Company
         return $this->suspendedAt;
     }
 
-    /** A platform admin acting directly (PlatformAdminController), the only way a company is ever suspended. */
+    /** A platform admin acting directly (PlatformAdminController); see $suspendedAt. */
     public function suspend(): void
     {
         $this->suspendedAt = new \DateTimeImmutable();

@@ -94,9 +94,9 @@ class PlatformAdminController
      * Suspends or unsuspends a company. A platform admin's tool only: no payment, and no
      * missing payment, ever does either (Company::applySubscription()).
      *
-     * Suspending doesn't touch the company's Stripe subscription. Nobody in a suspended
-     * company can log in, so nobody there can cancel it either: the operator cancels it
-     * in Stripe, or the company keeps being charged. See "Operator rules" in
+     * Suspending doesn't touch the company's Stripe subscription, and nobody in a
+     * suspended company can log in: unless the operator cancels it in Stripe, the
+     * company keeps being charged. See "Operator rules" in
      * docs/deployment.md's "Stripe billing" section.
      */
     #[Route('/api/platform-admin/companies/{id}/suspended', name: 'platform_admin_company_set_suspended', methods: ['PUT'])]
@@ -120,12 +120,11 @@ class PlatformAdminController
     }
 
     /**
-     * Lets a platform admin set a company's seat count directly (e.g. a customer who
-     * upgraded outside Stripe). It changes the number only, not Company::$planTier, so
-     * on a `free` or `plus` company a number lasts until the plan next changes, by a
-     * payment or by the end of a subscription. No limit at all survives every plan
-     * change, and keeps a Free company from buying Plus (docs/deployment.md's
-     * "Operator rules").
+     * Lets a platform admin set a company's seat count directly. It changes the number
+     * only, not Company::$planTier, so on a `free` or `plus` company a number lasts until
+     * the plan next changes, by a payment or by the end of a subscription. No limit at
+     * all survives every plan change, and keeps a Free company from buying Plus
+     * (docs/deployment.md's "Operator rules").
      * `null` means unlimited, same convention as everywhere else this field is read.
      */
     #[Route('/api/platform-admin/companies/{id}/seat-limit', name: 'platform_admin_company_set_seat_limit', methods: ['PUT'])]
