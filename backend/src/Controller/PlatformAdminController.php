@@ -122,8 +122,10 @@ class PlatformAdminController
     /**
      * Lets a platform admin set a company's seat count directly (e.g. a customer who
      * upgraded outside Stripe). It changes the number only, not Company::$planTier, so
-     * on a `free` or `plus` company the number lasts until a payment next changes the
-     * plan (docs/deployment.md's "Operator rules").
+     * on a `free` or `plus` company a number lasts until the plan next changes, by a
+     * payment or by the end of a subscription. No limit at all survives every plan
+     * change, and keeps a Free company from buying Plus (docs/deployment.md's
+     * "Operator rules").
      * `null` means unlimited, same convention as everywhere else this field is read.
      */
     #[Route('/api/platform-admin/companies/{id}/seat-limit', name: 'platform_admin_company_set_seat_limit', methods: ['PUT'])]
