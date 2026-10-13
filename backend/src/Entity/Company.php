@@ -198,8 +198,8 @@ class Company
     }
 
     /**
-     * Platform-admin only (PlatformAdminController). The other two places the limit is
-     * set are company creation and a change of plan (followPlan()). Null = unlimited.
+     * Called by the platform admin's action (PlatformAdminController) and by the
+     * constructor. A change of plan sets the limit too (followPlan()). Null = unlimited.
      */
     public function setSeatLimit(?int $seatLimit): void
     {
