@@ -40,7 +40,8 @@ export interface RequestOptions {
  * Who a response is from, as far as its headers tell:
  * - 'gateway': a reverse proxy or CDN answering for a backend it can't reach
  *   (a restart during a deploy). The app never sends 502 or 504, and its own
- *   503s (billing not configured, an invite email that couldn't be sent) are
+ *   503s (billing not configured, a checkout Stripe refused, an invite email
+ *   that couldn't be sent) are
  *   JSON, which a proxy's error page isn't.
  * - 'app': JSON, as every answer of the app's is, with any status.
  * - 'unknown': anything else (a captive portal's login page, a proxy's plain
