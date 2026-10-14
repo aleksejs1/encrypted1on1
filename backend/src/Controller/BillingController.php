@@ -87,6 +87,44 @@ class BillingController
     }
 
     /**
+     * What Plus costs, for the Plan page to show before the admin clicks. Its own
+     * route, so that the polled overview above never waits for Stripe. A page without
+     * a price is still usable (Checkout shows it), so Stripe not answering, refusing, or
+     * holding a price the page can't word is a plain `null`, never an error status.
+     */
+    #[Route('/api/admin/billing/plus-price', name: 'billing_plus_price', methods: ['GET'])]
+    public function plusPrice(Request $request): JsonResponse
+    {
+        if (!$this->cloudMode) {
+            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
+        }
+        $this->requireAdmin($request);
+
+        // Before Stripe is asked, or the tab's other requests wait for its answer
+        // behind the session lock — see AuthSession::closeForReading()'s docblock.
+        $this->authSession->closeForReading($request);
+
+        try {
+            $price = $this->billingProvider->retrievePlusPrice();
+        } catch (BillingNotConfiguredException) {
+            return JsonResponse::fromJsonString('null');
+        } catch (BillingProviderException $e) {
+            // An error, not a warning: the default logger prints nothing below it, and
+            // a STRIPE_PRICE_ID that names no usable price would otherwise go unseen.
+            $this->logger->error('The Plus price could not be read from Stripe: {reason}', ['reason' => $e->getMessage()]);
+
+            return JsonResponse::fromJsonString('null');
+        }
+
+        return new JsonResponse([
+            'amount' => $price->amount,
+            'currency' => $price->currency,
+            'interval' => $price->interval,
+            'taxBehavior' => $price->taxBehavior,
+        ]);
+    }
+
+    /**
      * Starts the purchase of Plus for the admin's own company. Refused when there is
      * nothing to buy: the company already has a subscription that pays (a second one
      * would bill as well), or its plan was set by hand, which the webhook leaves alone

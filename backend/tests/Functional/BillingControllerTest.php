@@ -16,8 +16,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 /**
- * Both billing routes: who may ask for a checkout session, what the webhook accepts,
- * and what a subscription event does to a company. Which subscription means what is
+ * The billing routes: who may ask for a checkout session, what the Plan page is told
+ * (the overview and the price of Plus), what the webhook accepts, and what a
+ * subscription event does to a company. Which subscription means what is
  * Company::applySubscription()'s rule, tested in CompanyTest; here it is the route,
  * finding the company, and Stripe not answering.
  *
@@ -36,6 +37,8 @@ class BillingControllerTest extends ApiTestCase
     private const string CHECKOUT = '/api/admin/billing/checkout-session';
 
     private const string OVERVIEW = '/api/admin/billing';
+
+    private const string PLUS_PRICE = '/api/admin/billing/plus-price';
 
     public function testOverviewRequiresALogin(): void
     {
@@ -194,6 +197,89 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame('enterprise', $json['planTier']);
         self::assertNull($json['seatLimit']);
         self::assertSame(1, $json['activeUsers']);
+    }
+
+    public function testPlusPriceRequiresALogin(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+
+        self::assertSame(401, $this->jsonRequest($client, 'GET', self::PLUS_PRICE)['status']);
+    }
+
+    public function testPlusPriceIsForCompanyAdminsOnly(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('price-employee'), company: $this->makeCompany('Employee Co'));
+
+        $result = $this->jsonRequest($client, 'GET', self::PLUS_PRICE);
+
+        self::assertSame(403, $result['status']);
+        self::assertSame([], $stripe->requests);
+    }
+
+    public function testPlusPriceDoesNotExistOutsideCloudMode(): void
+    {
+        $this->withEnv('CLOUD_MODE', '0');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('price-self-hosted'), admin: true);
+
+        $result = $this->jsonRequest($client, 'GET', self::PLUS_PRICE);
+
+        self::assertSame(404, $result['status']);
+        self::assertSame([], $stripe->requests);
+    }
+
+    public function testPlusPriceIsThePriceStripeHas(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('price-admin'), admin: true, company: $this->makeCompany('Asking Co'));
+        $json = file_get_contents(__DIR__.'/../Fixtures/stripe/price-monthly.json');
+        self::assertIsString($json);
+        $stripe->willAnswer(200, $json);
+
+        $result = $this->jsonRequest($client, 'GET', self::PLUS_PRICE);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(['amount' => 2000, 'currency' => 'eur', 'interval' => 'month', 'taxBehavior' => 'exclusive'], $result['json']);
+        self::assertSame('https://api.stripe.com/v1/prices/price_whatever', $stripe->requests[0]['url']);
+    }
+
+    /** No price is no error to the page, which says the price is on the payment page. The operator's log gets one. */
+    public function testPlusPriceIsNullWhenStripeDoesNotAnswerInTime(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $this->activateUser($client, $this->uniqueEmail('price-timeout'), admin: true, company: $this->makeCompany('Waiting Co'));
+        $stripe->willNotAnswer();
+
+        $client->request('GET', self::PLUS_PRICE);
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('null', $client->getResponse()->getContent());
+        self::assertSame('application/json', $client->getResponse()->headers->get('Content-Type'));
+        $errors = $logger->atLeast('error');
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('The Plus price could not be read from Stripe: Stripe did not return the price: Operation timed out', $errors[0]);
+    }
+
+    public function testPlusPriceIsNullWhenStripeIsNotConfigured(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->configureStripe(except: 'STRIPE_WEBHOOK_SECRET');
+        $client = static::createClient();
+        $client->disableReboot();
+        $logger = $this->recordLogs();
+        $this->activateUser($client, $this->uniqueEmail('price-unconfigured'), admin: true, company: $this->makeCompany('Unconfigured Co'));
+
+        $client->request('GET', self::PLUS_PRICE);
+
+        self::assertSame(200, $client->getResponse()->getStatusCode());
+        self::assertSame('null', $client->getResponse()->getContent());
+        self::assertSame([], $logger->atLeast('warning'));
     }
 
     public function testCheckoutSessionRequiresALogin(): void
