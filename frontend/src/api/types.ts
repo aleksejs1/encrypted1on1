@@ -8,6 +8,7 @@
 import type { AnketaTemplateKey, Side } from '../anketa/questions';
 import type { Goal } from '../anketa/goals';
 import type { TemplateDefinition } from '../anketa/templateDefinition';
+import type { BillingState } from './billingState';
 
 /** GET /api/me */
 export interface MeResponse {
@@ -30,13 +31,7 @@ export interface MeResponse {
  * decided on the server (App\Billing\BillingState), never derived here.
  */
 export interface BillingOverview {
-  state:
-    | 'custom'
-    | 'plus-past-due'
-    | 'plus-ending'
-    | 'plus'
-    | 'free-unavailable'
-    | 'free';
+  state: BillingState;
   /** `free`, `plus`, or the name of a plan set by hand. */
   planTier: string;
   /** Null = unlimited. */
@@ -52,6 +47,18 @@ export interface BillingOverview {
   freeSeatLimit: number;
   plusSeatLimit: number;
   supportEmail: string | null;
+}
+
+/** GET /api/admin/billing/plus-price: what Plus costs, as Stripe has it. `null` when it can't be told. */
+export interface PlusPrice {
+  /** In the currency's minor units, which are not hundredths for every currency. */
+  amount: number;
+  /** Lowercase ISO code. */
+  currency: string;
+  /** Stripe's word: day, week, month or year. */
+  interval: string;
+  /** Stripe's word: inclusive, exclusive or unspecified. */
+  taxBehavior: string;
 }
 
 export interface UserSummary {
