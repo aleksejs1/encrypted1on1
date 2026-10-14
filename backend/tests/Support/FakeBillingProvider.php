@@ -45,4 +45,9 @@ final class FakeBillingProvider implements BillingProviderInterface
     {
         throw new \LogicException('No test reads the price through the fake provider.');
     }
+
+    public function createPortalSession(string $customerId, string $returnUrl, string $locale): string
+    {
+        throw new \LogicException('No test opens the portal through the fake provider.');
+    }
 }

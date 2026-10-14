@@ -10,6 +10,7 @@ use App\Billing\PlusPrice;
 use App\Billing\StripeBillingProvider;
 use App\Billing\SubscriptionSnapshot;
 use App\Entity\Company;
+use App\Entity\User;
 use App\Tests\Support\StripeSignature;
 use App\Tests\Support\StubStripeHttpClient;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -386,6 +387,98 @@ class StripeBillingProviderTest extends TestCase
         self::assertInstanceOf(CurlClient::class, $http);
         self::assertSame(10, $http->getTimeout());
         self::assertSame(5, $http->getConnectTimeout());
+    }
+
+    public function testCreatePortalSessionThrowsUnlessEverySettingIsSet(): void
+    {
+        $http = new StubStripeHttpClient();
+
+        try {
+            new StripeBillingProvider('sk_test_whatever', self::WEBHOOK_SECRET, '', $http)->createPortalSession('cus_1', 'https://example.com/back', 'en');
+            self::fail('Expected a BillingNotConfiguredException.');
+        } catch (BillingNotConfiguredException) {
+            self::assertSame([], $http->requests);
+        }
+    }
+
+    public function testCreatePortalSessionAsksForTheCustomersPortal(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, '{"id":"bps_test_1","object":"billing_portal.session","url":"https://billing.stripe.com/p/session/test_1"}');
+
+        $url = $this->providerWith($http)->createPortalSession('cus_1', 'https://example.com/back', 'de');
+
+        self::assertSame('https://billing.stripe.com/p/session/test_1', $url);
+        self::assertCount(1, $http->requests);
+        self::assertSame('post', $http->requests[0]['method']);
+        self::assertSame('https://api.stripe.com/v1/billing_portal/sessions', $http->requests[0]['url']);
+        self::assertSame(['customer' => 'cus_1', 'return_url' => 'https://example.com/back', 'locale' => 'de'], $http->requests[0]['params']);
+    }
+
+    /** Stripe answers a locale it doesn't have with a 400: a language added to the app later gets the browser's. */
+    #[TestWith(['lv', 'lv'])]
+    #[TestWith(['pt', 'auto'])]
+    #[TestWith(['', 'auto'])]
+    public function testCreatePortalSessionSendsOnlyALocaleThePortalHas(string $locale, string $sent): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, '{"id":"bps_test_1","object":"billing_portal.session","url":"https://billing.stripe.com/p/session/test_1"}');
+
+        $this->providerWith($http)->createPortalSession('cus_1', 'https://example.com/back', $locale);
+
+        self::assertSame($sent, $http->requests[0]['params']['locale']);
+    }
+
+    /** Every UI language of today is sent as it is; one added later must be checked against Stripe's list before it joins. */
+    public function testEveryUiLanguageIsAPortalLocale(): void
+    {
+        $portalLocales = new \ReflectionClassConstant(StripeBillingProvider::class, 'PORTAL_LOCALES')->getValue();
+
+        self::assertSame([], array_diff(User::SUPPORTED_LOCALES, $portalLocales));
+    }
+
+    public function testCreatePortalSessionSaysWhenTheCustomerIsGone(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(400, self::MISSING_CUSTOMER_JSON);
+
+        try {
+            $this->providerWith($http)->createPortalSession('cus_gone', 'https://example.com/back', 'en');
+            self::fail('Expected a BillingCustomerMissingException.');
+        } catch (BillingCustomerMissingException $e) {
+            self::assertSame("Stripe did not create the customer portal session: No such customer: 'cus_gone'", $e->getMessage());
+            self::assertInstanceOf(ApiErrorException::class, $e->getPrevious());
+        }
+    }
+
+    public function testCreatePortalSessionWrapsAnyOtherRefusalAndNoAnswerInTime(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(400, '{"error":{"type":"invalid_request_error","message":"No configuration provided."}}');
+        $http->willNotAnswer();
+
+        foreach (['No configuration provided.', 'Operation timed out'] as $reason) {
+            try {
+                $this->providerWith($http)->createPortalSession('cus_1', 'https://example.com/back', 'en');
+                self::fail('Expected a BillingProviderException.');
+            } catch (BillingProviderException $e) {
+                self::assertNotInstanceOf(BillingCustomerMissingException::class, $e);
+                self::assertSame('Stripe did not create the customer portal session: '.$reason, $e->getMessage());
+            }
+        }
+    }
+
+    public function testCreatePortalSessionRefusesASessionWithoutAUrl(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, '{"id":"bps_test_1","object":"billing_portal.session","url":null}');
+
+        try {
+            $this->providerWith($http)->createPortalSession('cus_1', 'https://example.com/back', 'en');
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertSame('Stripe did not return a customer portal URL.', $e->getMessage());
+        }
     }
 
     public function testRetrievePlusPriceThrowsUnlessEverySettingIsSet(): void
