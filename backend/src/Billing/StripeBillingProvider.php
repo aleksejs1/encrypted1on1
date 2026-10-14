@@ -19,7 +19,8 @@ use Stripe\Webhook;
  * in every branch: docs/deployment.md's "Stripe billing" section says what the runs
  * showed and what they didn't cover (GitHub issues #283, #287, #293, #298). Of the
  * refusals only two were seen: a customer Stripe doesn't have (createCheckoutSession())
- * and an unknown subscription id (retrieveSubscription()). Nothing has run against a
+ * and an unknown subscription id (retrieveSubscription()); reading the price
+ * (retrievePlusPrice()) was run against the sandbox too. Nothing has run against a
  * live-mode account. The webhook signature check is also covered by
  * StripeBillingProviderTest, with a payload signed by hand using the algorithm Stripe
  * documents.
@@ -44,6 +45,9 @@ class StripeBillingProvider implements BillingProviderInterface
     private const int TIMEOUT_SECONDS = 10;
     private const int CONNECT_TIMEOUT_SECONDS = 5;
 
+    /** For the one call a page waits for (retrievePlusPrice()), connecting included. */
+    private const int PAGE_TIMEOUT_SECONDS = 3;
+
     public function __construct(
         private readonly string $stripeSecretKey,
         private readonly string $stripeWebhookSecret,
@@ -62,11 +66,16 @@ class StripeBillingProvider implements BillingProviderInterface
         return '' !== $this->stripeSecretKey && '' !== $this->stripePriceId && '' !== $this->stripeWebhookSecret;
     }
 
-    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string
+    private function assertConfigured(): void
     {
         if (!$this->isConfigured()) {
             throw new BillingNotConfiguredException('STRIPE_SECRET_KEY, STRIPE_PRICE_ID and STRIPE_WEBHOOK_SECRET are not all set.');
         }
+    }
+
+    public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string
+    {
+        $this->assertConfigured();
 
         $customerId = $reuseCustomer ? $company->getStripeCustomerId() : null;
 
@@ -131,6 +140,38 @@ class StripeBillingProvider implements BillingProviderInterface
         }
     }
 
+    public function retrievePlusPrice(): PlusPrice
+    {
+        $this->assertConfigured();
+
+        try {
+            $price = $this->client(self::PAGE_TIMEOUT_SECONDS)->prices->retrieve($this->stripePriceId);
+        } catch (StripeException $e) {
+            throw new BillingProviderException('Stripe did not return the price: '.$e->getMessage(), 0, $e);
+        }
+
+        $amount = $price->unit_amount;
+        $interval = $price->recurring?->interval;
+        // What the page can print as "20 per month" and Checkout charges as that: not a
+        // tiered price (no single amount), not one per several periods, per package of
+        // units or per unit of usage, and not an archived one, which Checkout refuses.
+        // The page then names no price.
+        $isFlatPerPeriod = $price->active && \is_int($amount) && \is_string($interval)
+            && 1 === $price->recurring->interval_count
+            && 'licensed' === $price->recurring->usage_type
+            && null === $price->transform_quantity;
+        if (!$isFlatPerPeriod) {
+            throw new BillingProviderException(\sprintf('Price %s is archived, or is not a flat amount per single day, week, month or year.', $this->stripePriceId));
+        }
+
+        try {
+            return new PlusPrice($amount, $price->currency, $interval, $price->tax_behavior ?? 'unspecified');
+        } catch (\TypeError $e) {
+            // An answer without a field the SDK documents as always there (the currency).
+            throw new BillingProviderException(\sprintf('Stripe returned price %s with a field missing.', $this->stripePriceId), 0, $e);
+        }
+    }
+
     /** Public for its test, which feeds it subscription objects saved from the sandbox. */
     public static function snapshotOf(Subscription $subscription): SubscriptionSnapshot
     {
@@ -166,16 +207,14 @@ class StripeBillingProvider implements BillingProviderInterface
      * is one per process and keeps its connection between requests, so the limits are
      * set on that shared client every time, not on a new one.
      */
-    private function client(): StripeClient
+    private function client(int $timeout = self::TIMEOUT_SECONDS): StripeClient
     {
-        $http = $this->httpClient;
-        if (null === $http) {
-            $http = CurlClient::instance();
-            \assert($http instanceof CurlClient);
-            $http->setTimeout(self::TIMEOUT_SECONDS);
-            $http->setConnectTimeout(self::CONNECT_TIMEOUT_SECONDS);
-        }
-        ApiRequestor::setHttpClient($http);
+        // Also when a test's client answers instead: the limits are then only read back.
+        $curl = CurlClient::instance();
+        \assert($curl instanceof CurlClient);
+        $curl->setTimeout($timeout);
+        $curl->setConnectTimeout(min($timeout, self::CONNECT_TIMEOUT_SECONDS));
+        ApiRequestor::setHttpClient($this->httpClient ?? $curl);
 
         return new StripeClient($this->stripeSecretKey);
     }

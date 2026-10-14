@@ -6,6 +6,7 @@ use App\Billing\BillingCustomerMissingException;
 use App\Billing\BillingNotConfiguredException;
 use App\Billing\BillingProviderException;
 use App\Billing\Plan;
+use App\Billing\PlusPrice;
 use App\Billing\StripeBillingProvider;
 use App\Billing\SubscriptionSnapshot;
 use App\Entity\Company;
@@ -24,7 +25,8 @@ use Stripe\Subscription;
  * signature verification (local HMAC, see StripeSignature) and the parsing of the three
  * event types; the not-configured refusals; reading a subscription, with
  * StubStripeHttpClient answering in Stripe's place and with subscription objects saved
- * from the sandbox; the limits given to the SDK's HTTP client.
+ * from the sandbox; reading the price, with a price object saved from the sandbox too;
+ * the limits given to the SDK's HTTP client.
  */
 class StripeBillingProviderTest extends TestCase
 {
@@ -384,6 +386,134 @@ class StripeBillingProviderTest extends TestCase
         self::assertInstanceOf(CurlClient::class, $http);
         self::assertSame(10, $http->getTimeout());
         self::assertSame(5, $http->getConnectTimeout());
+    }
+
+    public function testRetrievePlusPriceThrowsUnlessEverySettingIsSet(): void
+    {
+        $http = new StubStripeHttpClient();
+
+        try {
+            new StripeBillingProvider('sk_test_whatever', '', 'price_whatever', $http)->retrievePlusPrice();
+            self::fail('Expected a BillingNotConfiguredException.');
+        } catch (BillingNotConfiguredException) {
+            self::assertSame([], $http->requests);
+        }
+    }
+
+    public function testRetrievePlusPriceAsksStripeForTheConfiguredPrice(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, $this->fixtureJson('price-monthly'));
+
+        $price = $this->providerWith($http)->retrievePlusPrice();
+
+        self::assertCount(1, $http->requests);
+        self::assertSame('get', $http->requests[0]['method']);
+        self::assertSame('https://api.stripe.com/v1/prices/price_whatever', $http->requests[0]['url']);
+        self::assertSame(2000, $price->amount);
+        self::assertSame('eur', $price->currency);
+        self::assertSame('month', $price->interval);
+        self::assertSame('exclusive', $price->taxBehavior);
+    }
+
+    public function testAPriceWithoutATaxBehaviorIsUnspecified(): void
+    {
+        $price = $this->plusPriceFrom(['tax_behavior' => null]);
+
+        self::assertSame('unspecified', $price->taxBehavior);
+    }
+
+    public function testAPriceThatIncludesTaxSaysSo(): void
+    {
+        self::assertSame('inclusive', $this->plusPriceFrom(['tax_behavior' => 'inclusive'])->taxBehavior);
+    }
+
+    /**
+     * Nothing the page could print as "20 per month": a tiered price, a one-time one,
+     * one charged every three months, per unit of usage or per ten units, and an
+     * archived one.
+     *
+     * @param array<string, mixed> $changes
+     */
+    #[TestWith([['unit_amount' => null, 'billing_scheme' => 'tiered']])]
+    #[TestWith([['recurring' => null, 'type' => 'one_time']])]
+    #[TestWith([['recurring' => ['interval' => 'month', 'interval_count' => 3, 'usage_type' => 'licensed']]])]
+    #[TestWith([['recurring' => ['interval' => 'month', 'interval_count' => 1, 'usage_type' => 'metered']]])]
+    #[TestWith([['transform_quantity' => ['divide_by' => 10, 'round' => 'up']]])]
+    #[TestWith([['active' => false]])]
+    public function testRetrievePlusPriceRefusesAPriceThatIsNotAFlatAmountPerPeriod(array $changes): void
+    {
+        try {
+            $this->plusPriceFrom($changes);
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertSame('Price price_whatever is archived, or is not a flat amount per single day, week, month or year.', $e->getMessage());
+        }
+    }
+
+    public function testRetrievePlusPriceRefusesAnAnswerWithAFieldMissing(): void
+    {
+        try {
+            $this->plusPriceFrom(['currency' => null]);
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertSame('Stripe returned price price_whatever with a field missing.', $e->getMessage());
+            self::assertInstanceOf(\TypeError::class, $e->getPrevious());
+        }
+    }
+
+    public function testRetrievePlusPriceWrapsAStripeRefusal(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(404, '{"error":{"type":"invalid_request_error","code":"resource_missing","message":"No such price: \'price_whatever\'"}}');
+
+        try {
+            $this->providerWith($http)->retrievePlusPrice();
+            self::fail('Expected a BillingProviderException.');
+        } catch (BillingProviderException $e) {
+            self::assertSame("Stripe did not return the price: No such price: 'price_whatever'", $e->getMessage());
+            self::assertInstanceOf(ApiErrorException::class, $e->getPrevious());
+        }
+    }
+
+    public function testRetrievePlusPriceWrapsNoAnswerInTime(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willNotAnswer();
+
+        $this->expectException(BillingProviderException::class);
+        $this->providerWith($http)->retrievePlusPrice();
+    }
+
+    /** A page waits for the price: three seconds, connecting included, and the next call has its own limits back. */
+    public function testThePriceIsReadWithAShorterTimeout(): void
+    {
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, $this->fixtureJson('price-monthly'));
+        $http->willAnswer(200, $this->fixtureJson('subscription-canceled-tagged'));
+        $curl = CurlClient::instance();
+        self::assertInstanceOf(CurlClient::class, $curl);
+
+        $this->providerWith($http)->retrievePlusPrice();
+        self::assertSame(3, $curl->getTimeout());
+        self::assertSame(3, $curl->getConnectTimeout());
+
+        $this->providerWith($http)->retrieveSubscription('sub_fixture1');
+        self::assertSame(10, $curl->getTimeout());
+        self::assertSame(5, $curl->getConnectTimeout());
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     */
+    private function plusPriceFrom(array $changes): PlusPrice
+    {
+        $price = json_decode($this->fixtureJson('price-monthly'), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($price);
+        $http = new StubStripeHttpClient();
+        $http->willAnswer(200, json_encode($changes + $price, \JSON_THROW_ON_ERROR));
+
+        return $this->providerWith($http)->retrievePlusPrice();
     }
 
     /** A subscription object saved from the Stripe sandbox, ids replaced (tests/Fixtures/stripe). */

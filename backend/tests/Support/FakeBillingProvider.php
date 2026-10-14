@@ -3,6 +3,7 @@
 namespace App\Tests\Support;
 
 use App\Billing\BillingProviderInterface;
+use App\Billing\PlusPrice;
 use App\Billing\SubscriptionSnapshot;
 use App\Billing\WebhookEvent;
 use App\Entity\Company;
@@ -38,5 +39,10 @@ final class FakeBillingProvider implements BillingProviderInterface
     public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot
     {
         throw new \LogicException('No test reads a subscription through the fake provider yet.');
+    }
+
+    public function retrievePlusPrice(): PlusPrice
+    {
+        throw new \LogicException('No test reads the price through the fake provider.');
     }
 }

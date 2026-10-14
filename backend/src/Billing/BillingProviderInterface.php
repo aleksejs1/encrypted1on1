@@ -40,4 +40,14 @@ interface BillingProviderInterface
      * @throws BillingProviderException      an unknown id, a refusal, or no answer in time
      */
     public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot;
+
+    /**
+     * The price of Plus, read from Stripe: the configured price itself, not a copy of
+     * its number kept here. Checkout can still show another currency to a customer
+     * abroad. Answers within a few seconds or not at all: a page waits for it.
+     *
+     * @throws BillingNotConfiguredException
+     * @throws BillingProviderException      a refusal, no answer in time, or a price the page has no words for
+     */
+    public function retrievePlusPrice(): PlusPrice;
 }
