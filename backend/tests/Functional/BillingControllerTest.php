@@ -16,8 +16,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 /**
- * The billing routes: who may ask for a checkout session, what the Plan page is told
- * (the overview and the price of Plus), what the webhook accepts, and what a
+ * The billing routes: who may ask for a checkout session or the customer portal, what
+ * the Plan page is told (the overview and the price of Plus), what the webhook accepts, and what a
  * subscription event does to a company. Which subscription means what is
  * Company::applySubscription()'s rule, tested in CompanyTest; here it is the route,
  * finding the company, and Stripe not answering.
@@ -39,6 +39,8 @@ class BillingControllerTest extends ApiTestCase
     private const string OVERVIEW = '/api/admin/billing';
 
     private const string PLUS_PRICE = '/api/admin/billing/plus-price';
+
+    private const string PORTAL = '/api/admin/billing/portal-session';
 
     public function testOverviewRequiresALogin(): void
     {
@@ -280,6 +282,167 @@ class BillingControllerTest extends ApiTestCase
         self::assertSame(200, $client->getResponse()->getStatusCode());
         self::assertSame('null', $client->getResponse()->getContent());
         self::assertSame([], $logger->atLeast('warning'));
+    }
+
+    public function testPortalSessionRequiresALogin(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+
+        self::assertSame(401, $this->jsonRequest($client, 'POST', self::PORTAL)['status']);
+    }
+
+    public function testPortalSessionRequiresACsrfToken(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('portal-csrf'), admin: true, company: $this->lapsedCompany('Csrf Co'));
+
+        $client->request('POST', self::PORTAL);
+
+        self::assertSame(403, $client->getResponse()->getStatusCode());
+        self::assertSame([], $stripe->requests);
+    }
+
+    public function testPortalSessionIsForCompanyAdminsOnly(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('portal-employee'), company: $this->lapsedCompany('Employee Co'));
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(403, $result['status']);
+        self::assertSame('Admin only.', $result['json']['error']);
+        self::assertSame([], $stripe->requests);
+    }
+
+    public function testPortalSessionDoesNotExistOutsideCloudMode(): void
+    {
+        $this->withEnv('CLOUD_MODE', '0');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('portal-self-hosted'), admin: true, company: $this->lapsedCompany('Self-hosted Co'));
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(404, $result['status']);
+        self::assertSame([], $stripe->requests);
+    }
+
+    /** A company that never paid has nothing in Stripe to open. */
+    public function testPortalSessionIsRefusedForACompanyWithoutAStripeCustomer(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('portal-never-paid'), admin: true, company: $this->makeCompany('Never Paid Co'));
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame(['error' => 'This company has no payments to manage yet.'], $result['json']);
+        self::assertSame([], $stripe->requests);
+    }
+
+    /** The company's own customer, the way back to the Plan page, and the admin's language. */
+    public function testPortalSessionIsForTheCompanysCustomerInTheAdminsLanguage(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $this->activateUser($client, $this->uniqueEmail('portal-admin'), admin: true, locale: 'lv', company: $this->lapsedCompany('Paid Once Co'));
+        $stripe->willAnswer(200, '{"id":"bps_test_1","object":"billing_portal.session","url":"https://billing.stripe.com/p/session/test_1"}');
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame(['url' => 'https://billing.stripe.com/p/session/test_1'], $result['json']);
+        self::assertCount(1, $stripe->requests);
+        self::assertSame('post', $stripe->requests[0]['method']);
+        self::assertSame('https://api.stripe.com/v1/billing_portal/sessions', $stripe->requests[0]['url']);
+        self::assertSame(['customer' => 'cus_gone', 'return_url' => 'http://localhost:5173/admin/plan?portal=return', 'locale' => 'lv'], $stripe->requests[0]['params']);
+    }
+
+    /**
+     * The customer was deleted in Stripe. "Try again later" would be wrong, it fails the
+     * same way every time; the id stays, since a wrong secret key says the same; and
+     * the operator's log gets an error, since nothing on the company's side cures it.
+     */
+    public function testPortalSessionIsRefusedForAStripeCustomerThatIsGone(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $company = $this->lapsedCompany('Gone Co');
+        $this->activateUser($client, $this->uniqueEmail('portal-gone'), admin: true, company: $company);
+        $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","code":"resource_missing","param":"customer","message":"No such customer: \'cus_gone\'"}}');
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(409, $result['status']);
+        self::assertSame(['error' => "This company's payment records couldn't be found. Contact support."], $result['json']);
+        $errors = $logger->atLeast('error');
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('Stripe has no customer cus_gone, stored on company '.$company->getId(), $errors[0]);
+        self::assertSame('cus_gone', $this->reload($company)->getStripeCustomerId());
+    }
+
+    public function testPortalSessionAnswers503AndLogsWhenStripeRefuses(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $this->activateUser($client, $this->uniqueEmail('portal-refused'), admin: true, company: $this->lapsedCompany('Refused Co'));
+        $stripe->willAnswer(400, '{"error":{"type":"invalid_request_error","message":"No configuration provided and your default has not been created."}}');
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(503, $result['status']);
+        self::assertSame(['error' => "The payment page couldn't be opened. Try again later; if it keeps failing, contact support."], $result['json']);
+        $errors = $logger->atLeast('error');
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('API error 503 on POST billing_portal_session', $errors[0]);
+        self::assertStringContainsString('your default has not been created', $errors[0]);
+    }
+
+    public function testPortalSessionAnswers503WhenStripeDoesNotAnswerInTime(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        [$client, $stripe] = $this->webhookClient();
+        $logger = $this->recordLogs();
+        $this->activateUser($client, $this->uniqueEmail('portal-timeout'), admin: true, company: $this->lapsedCompany('Waiting Co'));
+        $stripe->willNotAnswer();
+
+        self::assertSame(503, $this->jsonRequest($client, 'POST', self::PORTAL)['status']);
+        self::assertStringContainsString('Operation timed out', $logger->atLeast('error')[0] ?? '');
+    }
+
+    #[DataProvider('stripeSettings')]
+    public function testPortalSessionAnswers503UnlessEveryStripeSettingIsSet(string $missing): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $settings = ['STRIPE_SECRET_KEY' => 'sk_test_whatever', 'STRIPE_WEBHOOK_SECRET' => self::WEBHOOK_SECRET, 'STRIPE_PRICE_ID' => 'price_whatever'];
+        $settings[$missing] = '';
+        $client = static::createClient();
+        $client->disableReboot();
+        $stripe = new StubStripeHttpClient();
+        static::getContainer()->set(StripeBillingProvider::class, new StripeBillingProvider($settings['STRIPE_SECRET_KEY'], $settings['STRIPE_WEBHOOK_SECRET'], $settings['STRIPE_PRICE_ID'], $stripe));
+        $this->activateUser($client, $this->uniqueEmail('portal-unconfigured'), admin: true, company: $this->lapsedCompany('Unconfigured Co'));
+
+        $result = $this->jsonRequest($client, 'POST', self::PORTAL);
+
+        self::assertSame(503, $result['status']);
+        self::assertSame('Billing is not configured on this instance.', $result['json']['error']);
+        self::assertSame([], $stripe->requests);
+    }
+
+    /** What is wrong with the server comes before what the company lacks. */
+    public function testPortalSessionWithoutStripeAnswers503AlsoForACompanyThatNeverPaid(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->configureStripe(except: 'STRIPE_SECRET_KEY');
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('portal-unconfigured-free'), admin: true, company: $this->makeCompany('Never Paid Co'));
+
+        self::assertSame(503, $this->jsonRequest($client, 'POST', self::PORTAL)['status']);
     }
 
     public function testCheckoutSessionRequiresALogin(): void

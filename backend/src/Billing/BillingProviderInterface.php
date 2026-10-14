@@ -50,4 +50,17 @@ interface BillingProviderInterface
      * @throws BillingProviderException      a refusal, no answer in time, or a price the page has no words for
      */
     public function retrievePlusPrice(): PlusPrice;
+
+    /**
+     * Stripe's customer portal for one customer: the card, the invoices, cancelling.
+     *
+     * @param string $locale the admin's UI language; one the portal doesn't have becomes the browser's
+     *
+     * @return string a URL to redirect the browser to
+     *
+     * @throws BillingNotConfiguredException
+     * @throws BillingCustomerMissingException Stripe doesn't have this customer
+     * @throws BillingProviderException        Stripe refused, or gave no answer in time
+     */
+    public function createPortalSession(string $customerId, string $returnUrl, string $locale): string;
 }

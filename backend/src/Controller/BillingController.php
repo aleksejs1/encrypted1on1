@@ -11,6 +11,7 @@ use App\Billing\Plan;
 use App\Billing\SeatLimitChecker;
 use App\Billing\SubscriptionSync;
 use App\Entity\Company;
+use App\Entity\User;
 use App\Security\AuthSession;
 use App\Security\RequiresCompanyAdmin;
 use Doctrine\ORM\EntityManagerInterface;
@@ -58,10 +59,7 @@ class BillingController
     #[Route('/api/admin/billing', name: 'billing_overview', methods: ['GET'])]
     public function overview(Request $request): JsonResponse
     {
-        if (!$this->cloudMode) {
-            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
-        }
-        $company = $this->requireAdmin($request)->getCompany();
+        $company = $this->requireCloudAdmin($request)->getCompany();
 
         // Read-only from here on — see AuthSession::closeForReading()'s docblock.
         $this->authSession->closeForReading($request);
@@ -95,10 +93,7 @@ class BillingController
     #[Route('/api/admin/billing/plus-price', name: 'billing_plus_price', methods: ['GET'])]
     public function plusPrice(Request $request): JsonResponse
     {
-        if (!$this->cloudMode) {
-            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
-        }
-        $this->requireAdmin($request);
+        $this->requireCloudAdmin($request);
 
         // Before Stripe is asked, or the tab's other requests wait for its answer
         // behind the session lock — see AuthSession::closeForReading()'s docblock.
@@ -133,11 +128,7 @@ class BillingController
     #[Route('/api/admin/billing/checkout-session', name: 'billing_checkout_session', methods: ['POST'])]
     public function createCheckoutSession(Request $request): JsonResponse
     {
-        // A self-hosted instance sells nothing: to it the route is as good as absent.
-        if (!$this->cloudMode) {
-            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
-        }
-        $company = $this->requireAdmin($request)->getCompany();
+        $company = $this->requireCloudAdmin($request)->getCompany();
 
         // canBuyPlus() refuses this case too: asked first only for its own message.
         if ($company->hasPayingSubscription()) {
@@ -175,10 +166,74 @@ class BillingController
         return new JsonResponse(['url' => $url]);
     }
 
+    /**
+     * Opens Stripe's customer portal for the company's Stripe customer: the card, the
+     * invoices and cancelling are all done there, the app has no forms of its own for
+     * them. Also for a company that paid once and is on Free again (its invoices), and
+     * for one on a plan set by hand whose old subscription still runs.
+     */
+    #[Route('/api/admin/billing/portal-session', name: 'billing_portal_session', methods: ['POST'])]
+    public function createPortalSession(Request $request): JsonResponse
+    {
+        $user = $this->requireCloudAdmin($request);
+        $company = $user->getCompany();
+        $customerId = $company->getStripeCustomerId();
+
+        // First, so that the answer says what is wrong with the server before what is
+        // missing on the company.
+        if (!$this->billingProvider->isConfigured()) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);
+        }
+        if (null === $customerId) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.billing_no_customer')], 409);
+        }
+
+        // Nothing below touches the session, and Stripe may take seconds to answer:
+        // see AuthSession::closeForReading()'s docblock.
+        $this->authSession->closeForReading($request);
+
+        try {
+            $url = $this->billingProvider->createPortalSession($customerId, $this->planPageUrl().'?portal=return', $user->getLocale());
+        } catch (BillingNotConfiguredException) {
+            return new JsonResponse(['error' => $this->translator->trans('errors.billing_not_configured')], 503);
+        } catch (BillingCustomerMissingException) {
+            // Not "try again later": it fails the same way every time, and nothing
+            // here cures it (a checkout forgets the id, but a company that still pays
+            // is refused one). An error, so that the operator sees it: the customer was
+            // deleted, or the secret key is another account's.
+            $this->logger->error('Stripe has no customer {customer}, stored on company {company}: its portal can\'t be opened.', [
+                'customer' => $customerId,
+                'company' => $company->getId(),
+            ]);
+
+            return new JsonResponse(['error' => $this->translator->trans('errors.billing_customer_missing')], 409);
+        } catch (BillingProviderException $e) {
+            // Thrown and 503 for the same reasons as in createCheckoutSession().
+            throw new ServiceUnavailableHttpException(null, $this->translator->trans('errors.billing_portal_failed'), $e);
+        }
+
+        return new JsonResponse(['url' => $url]);
+    }
+
+    /** A self-hosted instance sells nothing: to it every route of the Plan page is as good as absent. */
+    private function requireCloudAdmin(Request $request): User
+    {
+        if (!$this->cloudMode) {
+            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
+        }
+
+        return $this->requireAdmin($request);
+    }
+
+    private function planPageUrl(): string
+    {
+        return rtrim($this->frontendBaseUrl, '/').'/admin/plan';
+    }
+
     /** Stripe sends the admin back to the Plan page either way. */
     private function checkoutUrl(Company $company, bool $reuseCustomer = true): string
     {
-        $planPage = rtrim($this->frontendBaseUrl, '/').'/admin/plan';
+        $planPage = $this->planPageUrl();
 
         return $this->billingProvider->createCheckoutSession(
             $company,

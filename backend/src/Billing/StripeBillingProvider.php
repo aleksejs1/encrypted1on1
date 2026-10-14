@@ -17,10 +17,10 @@ use Stripe\Webhook;
 /**
  * The official `stripe/stripe-php` SDK. Verified against a Stripe sandbox only, and not
  * in every branch: docs/deployment.md's "Stripe billing" section says what the runs
- * showed and what they didn't cover (GitHub issues #283, #287, #293, #298). Of the
- * refusals only two were seen: a customer Stripe doesn't have (createCheckoutSession())
- * and an unknown subscription id (retrieveSubscription()); reading the price
- * (retrievePlusPrice()) was run against the sandbox too. Nothing has run against a
+ * showed and what they didn't cover (GitHub issues #283, #287, #293, #298, #302, #303). Of the
+ * refusals only these were seen: a customer Stripe doesn't have (createCheckoutSession(),
+ * createPortalSession()), an unknown subscription id (retrieveSubscription()) and an
+ * unknown price id (retrievePlusPrice()). Nothing has run against a
  * live-mode account. The webhook signature check is also covered by
  * StripeBillingProviderTest, with a payload signed by hand using the algorithm Stripe
  * documents.
@@ -45,8 +45,15 @@ class StripeBillingProvider implements BillingProviderInterface
     private const int TIMEOUT_SECONDS = 10;
     private const int CONNECT_TIMEOUT_SECONDS = 5;
 
-    /** For the one call a page waits for (retrievePlusPrice()), connecting included. */
+    /** For the one call a page makes while it loads (retrievePlusPrice()), connecting included. */
     private const int PAGE_TIMEOUT_SECONDS = 3;
+
+    /**
+     * The languages the customer portal was seen to accept (GitHub issue #287): the UI
+     * languages of today. Any other one gets `auto`, the browser's, since Stripe
+     * refuses a locale it doesn't have.
+     */
+    private const array PORTAL_LOCALES = ['en', 'ru', 'lv', 'es', 'de', 'fr'];
 
     public function __construct(
         private readonly string $stripeSecretKey,
@@ -100,7 +107,7 @@ class StripeBillingProvider implements BillingProviderInterface
                 ...(null !== $customerId ? ['customer' => $customerId] : []),
             ]);
         } catch (StripeException $e) {
-            throw self::checkoutRefusal($e, $customerId);
+            throw self::refusal('Stripe did not create the Checkout session', $e, $customerId);
         }
 
         $url = $session->url;
@@ -113,16 +120,39 @@ class StripeBillingProvider implements BillingProviderInterface
         return $url;
     }
 
-    /** "No such customer" is told apart only when a customer was sent: forgetting it is then the cure. */
-    private static function checkoutRefusal(StripeException $e, ?string $customerId): BillingProviderException
+    /**
+     * Stripe's refusal as this app's exception. "No such customer" is told apart, and
+     * only when a customer was sent: the id stored on the company is then of no use.
+     */
+    private static function refusal(string $what, StripeException $e, ?string $customerId): BillingProviderException
     {
-        $message = 'Stripe did not create the Checkout session: '.$e->getMessage();
+        $message = $what.': '.$e->getMessage();
         $customerIsGone = null !== $customerId
             && $e instanceof InvalidRequestException
             && 'resource_missing' === $e->getStripeCode()
             && 'customer' === $e->getStripeParam();
 
         return $customerIsGone ? new BillingCustomerMissingException($message, 0, $e) : new BillingProviderException($message, 0, $e);
+    }
+
+    public function createPortalSession(string $customerId, string $returnUrl, string $locale): string
+    {
+        $this->assertConfigured();
+
+        try {
+            // No `configuration`: the account's default portal configuration decides
+            // what the page offers (docs/deployment.md's "Stripe billing" section).
+            return $this->client()->billingPortal->sessions->create([
+                'customer' => $customerId,
+                'return_url' => $returnUrl,
+                'locale' => \in_array($locale, self::PORTAL_LOCALES, true) ? $locale : 'auto',
+            ])->url;
+        } catch (StripeException $e) {
+            throw self::refusal('Stripe did not create the customer portal session', $e, $customerId);
+        } catch (\TypeError $e) {
+            // The SDK documents the URL as always there: an answer without one.
+            throw new BillingProviderException('Stripe did not return a customer portal URL.', 0, $e);
+        }
     }
 
     public function retrieveSubscription(string $subscriptionId): SubscriptionSnapshot
