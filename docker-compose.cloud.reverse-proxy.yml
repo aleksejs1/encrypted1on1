@@ -60,6 +60,7 @@ services:
       STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
       STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
+      SUPPORT_EMAIL: "${SUPPORT_EMAIL:-}"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       # Rate limits — overridable per deployment, see docker-compose.prod.yml's own
       # comment and docs/deployment.md's "Rate limits" table. Defaults match what

@@ -356,4 +356,39 @@ class CompanyTest extends TestCase
     {
         return new SubscriptionSnapshot($id, $customerId, $status, $periodEndsAt, $cancelsAt, null);
     }
+
+    public function testACompanyOnFreeWithASeatLimitCanBuyPlus(): void
+    {
+        self::assertTrue(new Company('Acme', seatLimit: 100)->canBuyPlus());
+    }
+
+    public function testACompanyWithoutASeatLimitOrOnAPlanSetByHandCannotBuyPlus(): void
+    {
+        self::assertFalse(new Company('Acme')->canBuyPlus());
+        self::assertFalse(new Company('Acme', seatLimit: 100, planTier: 'enterprise')->canBuyPlus());
+        self::assertFalse(new Company('Acme', seatLimit: 100, planTier: Plan::PLUS)->canBuyPlus());
+    }
+
+    public function testACompanyCanBuyPlusAgainOnceItsSubscriptionEnded(): void
+    {
+        $plan = new Plan(100, 1000);
+        $company = new Company('Acme', seatLimit: 100);
+        $company->applySubscription(new SubscriptionSnapshot('sub_1', 'cus_1', 'past_due', null, null, null), $plan);
+
+        self::assertFalse($company->canBuyPlus());
+
+        $company->applySubscription(new SubscriptionSnapshot('sub_1', 'cus_1', 'canceled', null, null, null), $plan);
+
+        self::assertTrue($company->canBuyPlus());
+    }
+
+    /** `free` with a paying subscription: the rules don't produce it, a database edit can. */
+    public function testASubscriptionThatPaysRulesOutASecondOneWhateverThePlan(): void
+    {
+        $company = new Company('Acme', seatLimit: 100);
+        $company->applySubscription(new SubscriptionSnapshot('sub_1', 'cus_1', 'active', null, null, null), new Plan(100, 1000));
+        new \ReflectionProperty(Company::class, 'planTier')->setValue($company, Plan::FREE);
+
+        self::assertFalse($company->canBuyPlus());
+    }
 }
