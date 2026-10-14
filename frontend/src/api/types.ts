@@ -25,6 +25,35 @@ export interface MeResponse {
   encryptedPrivateKey: string;
 }
 
+/**
+ * GET /api/admin/billing: everything the admin Plan page shows. `state` is
+ * decided on the server (App\Billing\BillingState), never derived here.
+ */
+export interface BillingOverview {
+  state:
+    | 'custom'
+    | 'plus-past-due'
+    | 'plus-ending'
+    | 'plus'
+    | 'free-unavailable'
+    | 'free';
+  /** `free`, `plus`, or the name of a plan set by hand. */
+  planTier: string;
+  /** Null = unlimited. */
+  seatLimit: number | null;
+  /** Accounts that hold a seat: every one that isn't deleted, blocked ones included. */
+  activeUsers: number;
+  pendingInvites: number;
+  /** ISO 8601. The next payment date, except in `plus-past-due`: there it ends a period nobody paid for yet. */
+  periodEndsAt: string | null;
+  cancelsAt: string | null;
+  /** The customer portal can be opened: the company has a Stripe customer, and Stripe is configured on the server. Not "the company has paid". */
+  hasInvoices: boolean;
+  freeSeatLimit: number;
+  plusSeatLimit: number;
+  supportEmail: string | null;
+}
+
 export interface UserSummary {
   id: string;
   email: string;

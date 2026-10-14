@@ -694,7 +694,12 @@
     "usersTab": "Utilisateurs",
     "reportsTab": "Rapports",
     "invitesTab": "Invitations",
-    "templatesTab": "Modèles"
+    "templatesTab": "Modèles",
+    "planTab": "Forfait"
+  },
+  "adminPlan": {
+    "title": "Forfait",
+    "errorLoad": "Impossible de charger le forfait."
   },
   "adminInvites": {
     "title": "Invitations",

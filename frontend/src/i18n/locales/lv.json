@@ -679,7 +679,12 @@
     "usersTab": "Lietotāji",
     "reportsTab": "Pārskati",
     "invitesTab": "Uzaicinājumi",
-    "templatesTab": "Veidnes"
+    "templatesTab": "Veidnes",
+    "planTab": "Plāns"
+  },
+  "adminPlan": {
+    "title": "Plāns",
+    "errorLoad": "Neizdevās ielādēt plānu."
   },
   "adminInvites": {
     "title": "Uzaicinājumi",

@@ -681,7 +681,12 @@
     "usersTab": "Usuarios",
     "reportsTab": "Informes",
     "invitesTab": "Invitaciones",
-    "templatesTab": "Plantillas"
+    "templatesTab": "Plantillas",
+    "planTab": "Plan"
+  },
+  "adminPlan": {
+    "title": "Plan",
+    "errorLoad": "No se pudo cargar el plan."
   },
   "adminInvites": {
     "title": "Invitaciones",

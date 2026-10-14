@@ -675,7 +675,12 @@
     "usersTab": "Users",
     "reportsTab": "Reports",
     "invitesTab": "Invites",
-    "templatesTab": "Templates"
+    "templatesTab": "Templates",
+    "planTab": "Plan"
+  },
+  "adminPlan": {
+    "title": "Plan",
+    "errorLoad": "Could not load the plan."
   },
   "adminInvites": {
     "title": "Invites",

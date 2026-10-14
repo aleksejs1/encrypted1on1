@@ -5,7 +5,6 @@
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { formatDisplayDate } from '../datePreference.svelte';
   import type { AdminTemplate } from '../api/types';
-  import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
   import { fetchAdminTemplates } from '../api/adminTemplates';
   import { PATHS, adminTemplatePath } from '../routes';
@@ -162,9 +161,11 @@
 <main>
   <h1>{$_('adminTemplates.title')}</h1>
 
-  <AdminGate onReady={loadTemplates} errorLoadKey="adminTemplates.errorLoad">
-    <AdminTabStrip active="templates" />
-
+  <AdminGate
+    tab="templates"
+    onReady={loadTemplates}
+    errorLoadKey="adminTemplates.errorLoad"
+  >
     <p class="text-muted intro">{$_('adminTemplates.intro')}</p>
 
     {#if loadError}

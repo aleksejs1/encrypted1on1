@@ -677,7 +677,12 @@
     "usersTab": "Пользователи",
     "reportsTab": "Отчёты",
     "invitesTab": "Приглашения",
-    "templatesTab": "Шаблоны"
+    "templatesTab": "Шаблоны",
+    "planTab": "Тариф"
+  },
+  "adminPlan": {
+    "title": "Тариф",
+    "errorLoad": "Не удалось загрузить тариф."
   },
   "adminInvites": {
     "title": "Приглашения",
