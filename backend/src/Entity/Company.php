@@ -335,6 +335,18 @@ class Company
         }
     }
 
+    /**
+     * Whether a purchase of Plus would change anything: the one rule the checkout
+     * (BillingController) and the Plan page's state (BillingState) both go by. Not while
+     * a subscription already pays (a second one would bill as well), not for a plan set
+     * by hand (applySubscription() leaves it alone), and not without a seat limit, which
+     * is by hand too and to which Plus would add nothing.
+     */
+    public function canBuyPlus(): bool
+    {
+        return Plan::FREE === $this->planTier && null !== $this->seatLimit && !$this->hasPayingSubscription();
+    }
+
     /** By what is stored here; `subscriptionStatus` alone is `active` for a company that never subscribed. */
     public function hasPayingSubscription(): bool
     {

@@ -19,7 +19,8 @@ return static function (ContainerConfigurator $container): void {
             ->bind('int $plusSeatLimit', '%env(int:PLUS_SEAT_LIMIT)%')
             ->bind('string $stripeSecretKey', '%env(STRIPE_SECRET_KEY)%')
             ->bind('string $stripeWebhookSecret', '%env(STRIPE_WEBHOOK_SECRET)%')
-            ->bind('string $stripePriceId', '%env(STRIPE_PRICE_ID)%');
+            ->bind('string $stripePriceId', '%env(STRIPE_PRICE_ID)%')
+            ->bind('string $supportEmail', '%env(SUPPORT_EMAIL)%');
 
     $services->load('App\\', __DIR__.'/../src/')
         ->exclude([

@@ -29,11 +29,172 @@ class BillingControllerTest extends ApiTestCase
 {
     use CleansUpCompanies;
 
-    private const array COMPANY_TABLES = ['activation_tokens', 'users'];
+    private const array COMPANY_TABLES = ['invite_records', 'activation_tokens', 'users'];
 
     private const string WEBHOOK_SECRET = 'whsec_test_secret';
 
     private const string CHECKOUT = '/api/admin/billing/checkout-session';
+
+    private const string OVERVIEW = '/api/admin/billing';
+
+    public function testOverviewRequiresALogin(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+
+        self::assertSame(401, $this->jsonRequest($client, 'GET', self::OVERVIEW)['status']);
+    }
+
+    public function testOverviewIsForCompanyAdminsOnly(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('overview-employee'), company: $this->makeCompany('Employee Co'));
+
+        $result = $this->jsonRequest($client, 'GET', self::OVERVIEW);
+
+        self::assertSame(403, $result['status']);
+        self::assertSame('Admin only.', $result['json']['error']);
+    }
+
+    public function testOverviewDoesNotExistOutsideCloudMode(): void
+    {
+        $this->withEnv('CLOUD_MODE', '0');
+        $client = static::createClient();
+
+        self::assertSame(404, $this->jsonRequest($client, 'GET', self::OVERVIEW)['status']);
+
+        $this->activateUser($client, $this->uniqueEmail('overview-self-hosted'), admin: true);
+        $result = $this->jsonRequest($client, 'GET', self::OVERVIEW);
+
+        self::assertSame(404, $result['status']);
+        self::assertSame('Billing is not configured on this instance.', $result['json']['error']);
+    }
+
+    /** The whole answer, for a company that never paid: its own seats, not another company's. */
+    public function testOverviewOfAFreeCompany(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->withEnv('DEFAULT_SEAT_LIMIT', '50');
+        $this->withEnv('PLUS_SEAT_LIMIT', '500');
+        $this->withEnv('SUPPORT_EMAIL', ' support@example.com ');
+        $this->configureStripe();
+        $client = static::createClient();
+        $company = $this->makeCompany('Free Co');
+        $this->activateUser($client, $this->uniqueEmail('overview-free'), admin: true, company: $company);
+        self::assertSame(201, $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('overview-invitee')])['status']);
+        $this->activateUser($this->secondClient(), $this->uniqueEmail('overview-bystander'), admin: true, company: $this->makeCompany('Bystander Co'));
+
+        $result = $this->jsonRequest($client, 'GET', self::OVERVIEW);
+
+        self::assertSame(200, $result['status']);
+        self::assertSame([
+            'state' => 'free',
+            'planTier' => 'free',
+            // The limit stored on the company, which is not the plan's current number.
+            'seatLimit' => 100,
+            'activeUsers' => 1,
+            'pendingInvites' => 1,
+            'periodEndsAt' => null,
+            'cancelsAt' => null,
+            'hasInvoices' => false,
+            'freeSeatLimit' => 50,
+            'plusSeatLimit' => 500,
+            'supportEmail' => 'support@example.com',
+        ], $result['json']);
+    }
+
+    public function testOverviewOfACompanyWhoseSubscriptionIsEnding(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        // Empty unless an operator sets it; a stray space is empty too.
+        $this->withEnv('SUPPORT_EMAIL', ' ');
+        $this->configureStripe();
+        $client = static::createClient();
+        $company = $this->makeCompany('Ending Co');
+        $periodEnd = new \DateTimeImmutable('2026-11-11T09:30:00+00:00');
+        $company->applySubscription(new SubscriptionSnapshot('sub_own', 'cus_own', 'active', $periodEnd, $periodEnd, null), new Plan(100, 1000));
+        $this->entityManager()->flush();
+        $this->activateUser($client, $this->uniqueEmail('overview-ending'), admin: true, company: $company);
+
+        $json = $this->jsonRequest($client, 'GET', self::OVERVIEW)['json'];
+
+        self::assertSame('plus-ending', $json['state']);
+        self::assertSame('plus', $json['planTier']);
+        self::assertSame(1000, $json['seatLimit']);
+        self::assertSame($periodEnd->getTimestamp(), (new \DateTimeImmutable($json['periodEndsAt']))->getTimestamp());
+        self::assertSame($periodEnd->getTimestamp(), (new \DateTimeImmutable($json['cancelsAt']))->getTimestamp());
+        self::assertTrue($json['hasInvoices']);
+        self::assertNull($json['supportEmail']);
+    }
+
+    public function testOverviewOfACompanyWhoseLastPaymentFailed(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->configureStripe();
+        $client = static::createClient();
+        $company = $this->makeCompany('Past Due Co');
+        $company->applySubscription(new SubscriptionSnapshot('sub_own', 'cus_own', 'past_due', new \DateTimeImmutable('2026-11-11'), null, null), new Plan(100, 1000));
+        $this->entityManager()->flush();
+        $this->activateUser($client, $this->uniqueEmail('overview-past-due'), admin: true, company: $company);
+
+        $json = $this->jsonRequest($client, 'GET', self::OVERVIEW)['json'];
+
+        self::assertSame('plus-past-due', $json['state']);
+        self::assertSame('plus', $json['planTier']);
+        self::assertNotNull($json['periodEndsAt']);
+        self::assertNull($json['cancelsAt']);
+        self::assertTrue($json['hasInvoices']);
+    }
+
+    /** One setting missing is "not configured": nothing to buy, and no portal to open for a former payer. */
+    #[DataProvider('stripeSettings')]
+    public function testOverviewWithoutStripeOffersNoPaymentAndNoInvoices(string $missing): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->configureStripe(except: $missing);
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('overview-unconfigured'), admin: true, company: $this->lapsedCompany('Lapsed Co'));
+
+        $json = $this->jsonRequest($client, 'GET', self::OVERVIEW)['json'];
+
+        self::assertSame('free-unavailable', $json['state']);
+        self::assertFalse($json['hasInvoices']);
+    }
+
+    /** Free with a Stripe customer: the page links to the earlier invoices. */
+    public function testOverviewOfAFormerPayerHasInvoices(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->configureStripe();
+        $client = static::createClient();
+        $this->activateUser($client, $this->uniqueEmail('overview-lapsed'), admin: true, company: $this->lapsedCompany('Lapsed Co'));
+
+        $json = $this->jsonRequest($client, 'GET', self::OVERVIEW)['json'];
+
+        self::assertSame('free', $json['state']);
+        self::assertSame(100, $json['seatLimit']);
+        self::assertTrue($json['hasInvoices']);
+    }
+
+    public function testOverviewOfAPlanSetByHandWithoutASeatLimit(): void
+    {
+        $this->withEnv('CLOUD_MODE', '1');
+        $this->configureStripe();
+        $client = static::createClient();
+        $company = new Company('Enterprise Co', planTier: 'enterprise');
+        $this->entityManager()->persist($company);
+        $this->entityManager()->flush();
+        $this->createdCompanyIds[] = $company->getId();
+        $this->activateUser($client, $this->uniqueEmail('overview-enterprise'), admin: true, company: $company);
+
+        $json = $this->jsonRequest($client, 'GET', self::OVERVIEW)['json'];
+
+        self::assertSame('custom', $json['state']);
+        self::assertSame('enterprise', $json['planTier']);
+        self::assertNull($json['seatLimit']);
+        self::assertSame(1, $json['activeUsers']);
+    }
 
     public function testCheckoutSessionRequiresALogin(): void
     {
@@ -105,9 +266,7 @@ class BillingControllerTest extends ApiTestCase
     public function testCheckoutSessionAnswers503UnlessEveryStripeSettingIsSet(string $missing): void
     {
         $this->withEnv('CLOUD_MODE', '1');
-        foreach (self::stripeSettings() as [$name]) {
-            $this->withEnv($name, $name === $missing ? '' : 'set');
-        }
+        $this->configureStripe(except: $missing);
         $client = static::createClient();
         $this->activateUser($client, $this->uniqueEmail('billing-unconfigured'), admin: true, company: $this->makeCompany('Unconfigured Co'));
 
@@ -572,6 +731,14 @@ class BillingControllerTest extends ApiTestCase
         static::getContainer()->set(StripeBillingProvider::class, new StripeBillingProvider('sk_test_whatever', self::WEBHOOK_SECRET, 'price_whatever', $stripe));
 
         return [$client, $stripe];
+    }
+
+    /** The real provider with every Stripe setting set, or all but one. No test with these values lets it reach Stripe. */
+    private function configureStripe(?string $except = null): void
+    {
+        foreach (self::stripeSettings() as [$name]) {
+            $this->withEnv($name, $name === $except ? '' : 'set');
+        }
     }
 
     private function recordLogs(): RecordingLogger

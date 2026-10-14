@@ -6,7 +6,9 @@ use App\Billing\BillingCustomerMissingException;
 use App\Billing\BillingNotConfiguredException;
 use App\Billing\BillingProviderException;
 use App\Billing\BillingProviderInterface;
+use App\Billing\BillingState;
 use App\Billing\Plan;
+use App\Billing\SeatLimitChecker;
 use App\Billing\SubscriptionSync;
 use App\Entity\Company;
 use App\Security\AuthSession;
@@ -34,11 +36,54 @@ class BillingController
         private readonly TranslatorInterface $translator,
         private readonly BillingProviderInterface $billingProvider,
         private readonly SubscriptionSync $subscriptionSync,
+        private readonly SeatLimitChecker $seatLimitChecker,
+        private readonly Plan $plan,
         private readonly EntityManagerInterface $entityManager,
         private readonly LoggerInterface $logger,
         private readonly string $frontendBaseUrl,
         private readonly bool $cloudMode,
+        private readonly string $supportEmail,
     ) {
+    }
+
+    /**
+     * Everything the Plan page shows, from what is stored on the company: Stripe is not
+     * asked, so the page can poll this while it waits for a payment to arrive.
+     *
+     * `activeUsers` is the count seats are enforced on: every account that isn't
+     * deleted, a blocked one included. `periodEndsAt` is the next payment date except in
+     * `plus-past-due`, where it ends a period nobody paid for yet
+     * (Company::$subscriptionPeriodEndsAt).
+     */
+    #[Route('/api/admin/billing', name: 'billing_overview', methods: ['GET'])]
+    public function overview(Request $request): JsonResponse
+    {
+        if (!$this->cloudMode) {
+            throw new NotFoundHttpException($this->translator->trans('errors.billing_not_configured'));
+        }
+        $company = $this->requireAdmin($request)->getCompany();
+
+        // Read-only from here on — see AuthSession::closeForReading()'s docblock.
+        $this->authSession->closeForReading($request);
+
+        $paymentAvailable = $this->billingProvider->isConfigured();
+        $supportEmail = trim($this->supportEmail);
+        $seats = $this->seatLimitChecker->usage($company);
+
+        return new JsonResponse([
+            'state' => BillingState::of($company, $paymentAvailable)->value,
+            'planTier' => $company->getPlanTier(),
+            'seatLimit' => $seats->limit,
+            'activeUsers' => $seats->people,
+            'pendingInvites' => $seats->pendingInvites,
+            'periodEndsAt' => $company->getSubscriptionPeriodEndsAt()?->format(\DATE_ATOM),
+            'cancelsAt' => $company->getSubscriptionCancelsAt()?->format(\DATE_ATOM),
+            // Something to open the customer portal for, and a portal to open.
+            'hasInvoices' => $paymentAvailable && null !== $company->getStripeCustomerId(),
+            'freeSeatLimit' => $this->plan->seatLimit(Plan::FREE),
+            'plusSeatLimit' => $this->plan->seatLimit(Plan::PLUS),
+            'supportEmail' => '' !== $supportEmail ? $supportEmail : null,
+        ]);
     }
 
     /**
@@ -56,11 +101,11 @@ class BillingController
         }
         $company = $this->requireAdmin($request)->getCompany();
 
+        // canBuyPlus() refuses this case too: asked first only for its own message.
         if ($company->hasPayingSubscription()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_already_subscribed')], 409);
         }
-        // No seat limit is by hand too: Plus would add nothing to it.
-        if (Plan::FREE !== $company->getPlanTier() || null === $company->getSeatLimit()) {
+        if (!$company->canBuyPlus()) {
             return new JsonResponse(['error' => $this->translator->trans('errors.billing_plan_not_purchasable')], 409);
         }
 

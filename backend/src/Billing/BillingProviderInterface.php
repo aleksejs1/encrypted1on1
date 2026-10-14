@@ -12,6 +12,9 @@ use App\Entity\Company;
  */
 interface BillingProviderInterface
 {
+    /** Whether a purchase can be made here at all: every Stripe setting is set. Asks Stripe nothing. */
+    public function isConfigured(): bool;
+
     /**
      * @param bool $reuseCustomer false to leave out the company's stored Stripe customer, after it turned out to be gone
      *

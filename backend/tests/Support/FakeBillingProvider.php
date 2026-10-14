@@ -18,6 +18,11 @@ final class FakeBillingProvider implements BillingProviderInterface
     /** @var list<array{companyId: string, successUrl: string, cancelUrl: string}> */
     public array $checkoutSessions = [];
 
+    public function isConfigured(): bool
+    {
+        return true;
+    }
+
     public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string
     {
         $this->checkoutSessions[] = ['companyId' => $company->getId(), 'successUrl' => $successUrl, 'cancelUrl' => $cancelUrl];

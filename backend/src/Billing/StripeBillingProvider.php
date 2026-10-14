@@ -53,11 +53,18 @@ class StripeBillingProvider implements BillingProviderInterface
     ) {
     }
 
+    /**
+     * The webhook secret too: without it the payment would be taken and the webhook
+     * that moves the company to Plus would refuse every event.
+     */
+    public function isConfigured(): bool
+    {
+        return '' !== $this->stripeSecretKey && '' !== $this->stripePriceId && '' !== $this->stripeWebhookSecret;
+    }
+
     public function createCheckoutSession(Company $company, string $successUrl, string $cancelUrl, bool $reuseCustomer = true): string
     {
-        // The webhook secret too: without it the payment would be taken and the webhook
-        // that moves the company to Plus would refuse every event.
-        if ('' === $this->stripeSecretKey || '' === $this->stripePriceId || '' === $this->stripeWebhookSecret) {
+        if (!$this->isConfigured()) {
             throw new BillingNotConfiguredException('STRIPE_SECRET_KEY, STRIPE_PRICE_ID and STRIPE_WEBHOOK_SECRET are not all set.');
         }
 
