@@ -2,6 +2,7 @@ import {
   test,
   expect,
   type Browser,
+  type Locator,
   type Page,
   type Route,
 } from '@playwright/test';
@@ -183,6 +184,30 @@ function held(answer: { status: number; json: unknown }): {
   };
 }
 
+/**
+ * pretendCloud() with a plan the test changes as it goes, and a count of the
+ * times the page read it.
+ */
+async function changingPlan(
+  page: Page,
+  first: unknown,
+): Promise<{ set: (overview: unknown) => void; reads: () => number }> {
+  let overview = first;
+  let reads = 0;
+  await pretendCloud(page, { status: 200, json: first });
+  await page.unroute('**/api/admin/billing');
+  await page.route('**/api/admin/billing', (route) => {
+    reads++;
+    return route.fulfill({ status: 200, json: overview });
+  });
+  return {
+    set: (next) => {
+      overview = next;
+    },
+    reads: () => reads,
+  };
+}
+
 test('on Free the Plan page offers Plus and sends the admin to Checkout', async ({
   browser,
 }) => {
@@ -273,12 +298,7 @@ test('back from Stripe, the page shows the plan as it is now', async ({
   browser,
 }) => {
   const admin = await activate(browser, 'plan-back-admin', true);
-  let overview: unknown = FREE_OVERVIEW;
-  await pretendCloud(admin, { status: 200, json: FREE_OVERVIEW });
-  await admin.unroute('**/api/admin/billing');
-  await admin.route('**/api/admin/billing', (route) =>
-    route.fulfill({ status: 200, json: overview }),
-  );
+  const plan = await changingPlan(admin, FREE_OVERVIEW);
   await admin.route('**/api/admin/billing/plus-price', (route) =>
     route.fulfill({ status: 200, json: PLUS_PRICE }),
   );
@@ -305,7 +325,7 @@ test('back from Stripe, the page shows the plan as it is now', async ({
   // The admin paid there and came back with the Back button. The event is
   // simulated: whether a browser really brings the page back from the cache
   // is the browser's business, checked by hand against the Stripe sandbox.
-  overview = PLUS_OVERVIEW;
+  plan.set(PLUS_OVERVIEW);
   const reloaded = admin.waitForEvent('load');
   // As a string: this file is typed without the DOM's types.
   await admin.evaluate(
@@ -596,4 +616,378 @@ test('a plan set by hand shows its name and its terms', async ({ browser }) => {
   await expect(
     admin.getByRole('region', { name: 'Plus', exact: true }),
   ).toHaveCount(0);
+});
+
+/**
+ * For GitHub issue #307, where the page waits for the webhook: Playwright's
+ * clock, stopped, so that thirty seconds pass in an instant by runFor() and
+ * no poll fires on its own while a slow step of the test runs. The requests
+ * themselves are real.
+ */
+async function stopClock(page: Page): Promise<void> {
+  const now = Date.now();
+  await page.clock.install({ time: now });
+  await page.clock.pauseAt(now + 1_000);
+}
+
+/** Back from a paid Checkout, the company on `first`, and waiting. */
+async function openWaiting(
+  page: Page,
+  first: unknown,
+): Promise<{
+  plan: Awaited<ReturnType<typeof changingPlan>>;
+  status: Locator;
+}> {
+  const plan = await changingPlan(page, first);
+  await stopClock(page);
+  await page.goto('/admin/plan?checkout=success');
+  const status = page.locator('main').getByRole('status');
+  await expect(status).toHaveText(
+    'Payment received. Switching your company to Plus…',
+  );
+  return { plan, status };
+}
+
+test('back from Checkout the page waits for Plus, and says thank you', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-return-admin', true);
+  const { plan, status } = await openWaiting(admin, FREE_OVERVIEW);
+  // Nothing to pay with meanwhile, and no "Your plan: Free" either.
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toHaveCount(0);
+  await expect(admin.getByRole('heading', { name: /^Your plan/ })).toHaveCount(
+    0,
+  );
+
+  // The page reads the plan again two seconds after each answer.
+  expect(plan.reads()).toBe(1);
+  await admin.clock.runFor(2_000);
+  await expect.poll(plan.reads).toBe(2);
+
+  // A reload while waiting keeps waiting: the parameter is still there.
+  expect(new URL(admin.url()).search).toBe('?checkout=success');
+  await admin.reload();
+  await expect(status).toHaveText(
+    'Payment received. Switching your company to Plus…',
+  );
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toHaveCount(0);
+
+  // The webhook arrived.
+  plan.set(PLUS_OVERVIEW);
+  await admin.clock.runFor(2_000);
+  await expect(status).toHaveText("You're on Plus. Thank you.");
+  const heading = admin.getByRole('heading', { name: 'Your plan: Plus' });
+  await expect(heading).toBeFocused();
+  await expect(admin.getByText('Next payment: 11.11.2026')).toBeVisible();
+  await expect.poll(() => new URL(admin.url()).search).toBe('');
+  expect(new URL(admin.url()).pathname).toBe('/admin/plan');
+
+  // And stops reading.
+  const reads = plan.reads();
+  await admin.clock.runFor(10_000);
+  expect(plan.reads()).toBe(reads);
+});
+
+test('when Plus does not come, the page stops waiting and still offers no second payment', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-gave-up-admin', true);
+  const { plan, status } = await openWaiting(admin, {
+    ...FREE_OVERVIEW,
+    supportEmail: 'billing@example.com',
+  });
+  for (let second = 2; second <= 28; second += 2) {
+    await admin.clock.runFor(2_000);
+    await expect.poll(plan.reads).toBe(second / 2 + 1);
+  }
+  await admin.clock.runFor(2_000);
+  await expect(status).toHaveText(
+    "If you just paid: the plan hasn't updated yet. This can take a few minutes. You don't need to pay again.",
+  );
+  await expect.poll(() => new URL(admin.url()).search).toBe('');
+  await expect(
+    admin.getByRole('heading', { name: 'Your plan: Free' }),
+  ).toBeVisible();
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toHaveCount(0);
+  await expect(
+    admin.getByText("If it still hasn't changed in an hour, write to"),
+  ).toBeVisible();
+  await expect(
+    admin.getByText(
+      "Didn't pay? Reload the page to see the Upgrade button again.",
+    ),
+  ).toBeVisible();
+  await expect(
+    admin.getByRole('link', { name: 'billing@example.com' }),
+  ).toHaveCount(1);
+  // No more reading by itself.
+  const reads = plan.reads();
+  await admin.clock.runFor(10_000);
+  expect(plan.reads()).toBe(reads);
+
+  // "Check again" reads once; a failure is said under the button.
+  const check = admin.getByRole('button', { name: 'Check again' });
+  const failure = held({
+    status: 500,
+    json: { error: 'Something went wrong.' },
+  });
+  await admin.unroute('**/api/admin/billing');
+  await admin.route('**/api/admin/billing', failure.handler);
+  await check.click();
+  failure.release();
+  await expect(admin.getByRole('alert')).toHaveText(
+    'Could not check the plan. Try again.',
+  );
+  // Never disabled, so focus stays where it was.
+  await expect(check).toBeFocused();
+
+  // Still Free: said, so that the press isn't taken for nothing.
+  await admin.unroute('**/api/admin/billing');
+  await admin.route('**/api/admin/billing', (route) =>
+    route.fulfill({ status: 200, json: FREE_OVERVIEW }),
+  );
+  await check.click();
+  await expect(status).toContainText(
+    "Checked just now: the plan hasn't changed yet.",
+  );
+  await expect(admin.getByRole('alert')).toHaveCount(0);
+  await expect(check).toBeFocused();
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toHaveCount(0);
+
+  await admin.unroute('**/api/admin/billing');
+  await admin.route('**/api/admin/billing', (route) =>
+    route.fulfill({ status: 200, json: PLUS_OVERVIEW }),
+  );
+  await check.click();
+  await expect(status).toHaveText("You're on Plus. Thank you.");
+  await expect(
+    admin.getByRole('heading', { name: 'Your plan: Plus' }),
+  ).toBeFocused();
+  await expect(check).toHaveCount(0);
+  await expect(admin.getByRole('alert')).toHaveCount(0);
+});
+
+test('a Checkout left without paying says nothing was charged', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-cancelled-admin', true);
+  const plan = await changingPlan(admin, FREE_OVERVIEW);
+  await admin.route('**/api/admin/billing/plus-price', (route) =>
+    route.fulfill({ status: 200, json: PLUS_PRICE }),
+  );
+  await stopClock(admin);
+
+  await admin.goto('/admin/plan?checkout=cancelled');
+  await expect(admin.locator('main').getByRole('status')).toHaveText(
+    "The payment wasn't completed. You haven't been charged.",
+  );
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toBeEnabled();
+  await expect.poll(() => new URL(admin.url()).search).toBe('');
+  await admin.clock.runFor(10_000);
+  expect(plan.reads()).toBe(1);
+});
+
+test('back from the portal the page reads the plan again for a while, silently', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-portal-admin', true);
+  const plan = await changingPlan(admin, PLUS_OVERVIEW);
+  await stopClock(admin);
+
+  await admin.goto('/admin/plan?portal=return');
+  await expect(admin.getByText('Next payment: 11.11.2026')).toBeVisible();
+
+  // Cancelled there: the webhook comes a few seconds later.
+  plan.set({
+    ...PLUS_OVERVIEW,
+    state: 'plus-ending',
+    cancelsAt: '2026-11-11T12:00:00+00:00',
+  });
+  await admin.clock.runFor(2_000);
+  await expect(admin.getByText(/^Plus ends on 11.11.2026/)).toBeVisible();
+  await expect(admin.locator('main').getByRole('status')).toHaveText('');
+  expect(new URL(admin.url()).search).toBe('?portal=return');
+
+  await expect.poll(plan.reads).toBe(2);
+  for (let second = 4; second <= 8; second += 2) {
+    await admin.clock.runFor(2_000);
+    await expect.poll(plan.reads).toBe(second / 2 + 1);
+  }
+  // Ten seconds: done, without one more read.
+  await admin.clock.runFor(2_000);
+  await expect.poll(() => new URL(admin.url()).search).toBe('');
+  const reads = plan.reads();
+  expect(reads).toBe(5);
+  await admin.clock.runFor(10_000);
+  expect(plan.reads()).toBe(reads);
+  await expect(admin.locator('main').getByRole('status')).toHaveText('');
+});
+
+test('leaving the page while it waits stops the waiting and leaves the new address alone', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-leave-admin', true);
+  const { plan } = await openWaiting(admin, FREE_OVERVIEW);
+  // Within the app, as router.svelte.ts's navigate() does: the admin tabs
+  // are plain links, which would load a new document and prove nothing.
+  await admin.evaluate(
+    "history.pushState(null, '', '/admin/invites?x=1'); window.dispatchEvent(new PopStateEvent('popstate'))",
+  );
+  await expect(
+    admin.getByRole('heading', { name: 'Invites', exact: true }),
+  ).toBeVisible();
+
+  const reads = plan.reads();
+  await admin.clock.runFor(40_000);
+  expect(plan.reads()).toBe(reads);
+  expect(new URL(admin.url()).pathname).toBe('/admin/invites');
+  expect(new URL(admin.url()).search).toBe('?x=1');
+});
+
+test('a refusal while the page waits ends the waiting', async ({ browser }) => {
+  const admin = await activate(browser, 'plan-refused-admin', true);
+  const { plan, status } = await openWaiting(admin, FREE_OVERVIEW);
+  // The admin role was taken away meanwhile.
+  await admin.unroute('**/api/admin/billing');
+  let refusals = 0;
+  await admin.route('**/api/admin/billing', (route) => {
+    refusals++;
+    return route.fulfill({ status: 403, json: { error: 'Access denied.' } });
+  });
+  await admin.clock.runFor(2_000);
+  await expect(admin.getByRole('alert')).toHaveText('Access denied.');
+  await expect(status).toHaveText('');
+  await admin.clock.runFor(10_000);
+  expect(refusals).toBe(1);
+  expect(plan.reads()).toBe(1);
+});
+
+test('a wait that ends on a plan other than Plus shows that plan, without thanks', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-other-end-admin', true);
+  const { plan, status } = await openWaiting(admin, FREE_OVERVIEW);
+  // An operator set the plan by hand meanwhile.
+  plan.set({
+    ...FREE_OVERVIEW,
+    state: 'custom',
+    planTier: 'Enterprise',
+    seatLimit: null,
+  });
+  await admin.clock.runFor(2_000);
+  await expect(
+    admin.getByRole('heading', { name: 'Your plan: Enterprise' }),
+  ).toBeFocused();
+  await expect(status).toHaveText('');
+  await expect.poll(() => new URL(admin.url()).search).toBe('');
+});
+
+test('a read that hangs neither holds up the end of the wait nor undoes a later one', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-hang-admin', true);
+  const { status } = await openWaiting(admin, FREE_OVERVIEW);
+  // The next read gets no answer for as long as the test runs.
+  const hanging = held({ status: 200, json: FREE_OVERVIEW });
+  const asked = admin.waitForRequest('**/api/admin/billing');
+  await admin.unroute('**/api/admin/billing');
+  await admin.route('**/api/admin/billing', hanging.handler);
+  await admin.clock.runFor(2_000);
+  await asked;
+
+  await admin.clock.runFor(28_000);
+  await expect(status).toContainText("If you just paid: the plan hasn't");
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toHaveCount(0);
+
+  // "Check again" hangs too, and can be pressed again; the second press
+  // finds Plus. The hung reads, still Free and failed, are older: they
+  // change nothing.
+  const check = admin.getByRole('button', { name: 'Check again' });
+  const hangingCheck = held({
+    status: 500,
+    json: { error: 'Something went wrong.' },
+  });
+  const checkAsked = admin.waitForRequest('**/api/admin/billing');
+  await admin.unroute('**/api/admin/billing');
+  await admin.route('**/api/admin/billing', hangingCheck.handler);
+  await check.click();
+  await checkAsked;
+  await expect(check).toBeEnabled();
+  await admin.unroute('**/api/admin/billing');
+  await admin.route('**/api/admin/billing', (route) =>
+    route.fulfill({ status: 200, json: PLUS_OVERVIEW }),
+  );
+  await check.click();
+  await expect(status).toHaveText("You're on Plus. Thank you.");
+  // The older reads were stopped when the newer ones began: their answers
+  // would reach nothing, and are never sent.
+  await admin.clock.runFor(2_000);
+  await expect(admin.getByRole('alert')).toHaveCount(0);
+  await expect(
+    admin.getByRole('heading', { name: 'Your plan: Plus' }),
+  ).toBeVisible();
+  await expect(
+    admin.getByRole('button', { name: 'Upgrade to Plus' }),
+  ).toHaveCount(0);
+});
+
+test('the end of the portal wait leaves the address alone while the browser leaves for Stripe', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-portal-leaving-admin', true);
+  await changingPlan(admin, { ...FREE_OVERVIEW, hasInvoices: true });
+  await admin.route('**/api/admin/billing/plus-price', (route) =>
+    route.fulfill({ status: 200, json: PLUS_PRICE }),
+  );
+  await admin.route('**/api/admin/billing/checkout-session', (route) =>
+    route.fulfill({ status: 200, json: { url: 'https://stripe.test/slow' } }),
+  );
+  // Stripe's page doesn't come (204: the browser stays where it was), so the
+  // page is still there, on its way to Stripe as far as it knows.
+  const left = admin.waitForRequest('https://stripe.test/slow');
+  await admin.route('https://stripe.test/slow', (route) =>
+    route.fulfill({ status: 204 }),
+  );
+  await stopClock(admin);
+
+  await admin.goto('/admin/plan?portal=return');
+  await admin.getByRole('button', { name: 'Upgrade to Plus' }).click();
+  await left;
+  await admin.clock.runFor(10_000);
+  expect(new URL(admin.url()).search).toBe('?portal=return');
+});
+
+test('a redirect that fails after the portal wait ended drops the parameter then', async ({
+  browser,
+}) => {
+  const admin = await activate(browser, 'plan-portal-failed-admin', true);
+  await changingPlan(admin, { ...FREE_OVERVIEW, hasInvoices: true });
+  await admin.route('**/api/admin/billing/plus-price', (route) =>
+    route.fulfill({ status: 200, json: PLUS_PRICE }),
+  );
+  const refusal = held({ status: 503, json: { error: 'Try again later.' } });
+  await admin.route('**/api/admin/billing/checkout-session', refusal.handler);
+  await stopClock(admin);
+
+  await admin.goto('/admin/plan?portal=return');
+  const asked = admin.waitForRequest('**/api/admin/billing/checkout-session');
+  await admin.getByRole('button', { name: 'Upgrade to Plus' }).click();
+  await asked;
+  await admin.clock.runFor(10_000);
+  expect(new URL(admin.url()).search).toBe('?portal=return');
+  refusal.release();
+  await expect(admin.getByRole('alert')).toHaveText('Try again later.');
+  await expect.poll(() => new URL(admin.url()).search).toBe('');
 });
