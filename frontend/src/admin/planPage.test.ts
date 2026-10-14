@@ -82,7 +82,7 @@ describe('priceLine', () => {
     expect(priceLine(EUR_20, 'en')).toEqual({
       amount: '€20',
       interval: 'month',
-      plusTax: true,
+      tax: 'added',
     });
     // German puts the sign after the number, with a no-break space.
     expect(priceLine(EUR_20, 'de')?.amount).toBe('20 €');
@@ -124,14 +124,18 @@ describe('priceLine', () => {
     ).toBe('¥3,000');
   });
 
-  it('adds tax on top unless the price includes it', () => {
-    expect(priceLine(EUR_20, 'en')?.plusTax).toBe(true);
+  it('says what Stripe says about tax, and nothing when it says nothing', () => {
+    expect(priceLine(EUR_20, 'en')?.tax).toBe('added');
+    expect(priceLine({ ...EUR_20, taxBehavior: 'inclusive' }, 'en')?.tax).toBe(
+      'included',
+    );
     expect(
-      priceLine({ ...EUR_20, taxBehavior: 'unspecified' }, 'en')?.plusTax,
-    ).toBe(true);
-    expect(
-      priceLine({ ...EUR_20, taxBehavior: 'inclusive' }, 'en')?.plusTax,
-    ).toBe(false);
+      priceLine({ ...EUR_20, taxBehavior: 'unspecified' }, 'en')?.tax,
+    ).toBe('none');
+    // Not a key of Object.prototype.
+    expect(priceLine({ ...EUR_20, taxBehavior: 'toString' }, 'en')?.tax).toBe(
+      'none',
+    );
   });
 
   it('names every period Stripe has', () => {
@@ -162,8 +166,10 @@ describe('planPageView', () => {
         full: false,
       },
       offer: 'plus',
+      plusSeatLimit: 1000,
       nextPaymentOn: null,
       endsOn: null,
+      seatLimitAfterEnd: null,
       noInvitesAfterEnd: false,
       portal: null,
       supportEmail: null,
@@ -203,8 +209,22 @@ describe('planPageView', () => {
       plus('plus-ending', { cancelsAt: '2026-11-11T00:00:00+00:00' }),
     );
     expect(view.endsOn).toBe('2026-11-11T00:00:00+00:00');
+    expect(view.seatLimitAfterEnd).toBe(100);
     expect(view.nextPaymentOn).toBeNull();
     expect(view.portal).toBe('manage');
+  });
+
+  it('names no Free limit after the end for a company without a limit', () => {
+    const view = planPageView(
+      plus('plus-ending', {
+        cancelsAt: '2026-11-11T00:00:00+00:00',
+        seatLimit: null,
+      }),
+    );
+    expect(view.endsOn).toBe('2026-11-11T00:00:00+00:00');
+    expect(view.seatLimitAfterEnd).toBeNull();
+    // Only a Plus that ends has a limit after its end.
+    expect(planPageView(plus('plus')).seatLimitAfterEnd).toBeNull();
   });
 
   it("warns a Plus that ends when Free's seats are all taken already", () => {

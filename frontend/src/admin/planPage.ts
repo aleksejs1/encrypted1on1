@@ -74,8 +74,12 @@ export interface PriceLine {
   /** The amount with its currency, in the UI language: "€20", "20,50 €". */
   amount: string;
   interval: PriceInterval;
-  /** Tax comes on top: everything but a price Stripe calls `inclusive`. */
-  plusTax: boolean;
+  /**
+   * What the price says about tax: `added` on top of an `exclusive` price,
+   * `included` in an `inclusive` one, and `none` for `unspecified`, which
+   * Stripe charges as it is unless the account sets a default.
+   */
+  tax: 'added' | 'included' | 'none';
 }
 
 /**
@@ -110,7 +114,13 @@ export function priceLine(
     return null;
   }
 
-  return { amount, interval, plusTax: price.taxBehavior !== 'inclusive' };
+  const tax =
+    price.taxBehavior === 'exclusive'
+      ? 'added'
+      : price.taxBehavior === 'inclusive'
+        ? 'included'
+        : 'none';
+  return { amount, interval, tax };
 }
 
 export interface PlanPageView {
@@ -130,10 +140,17 @@ export interface PlanPageView {
    * paid plans aren't available on this server. `null` in every other state.
    */
   offer: 'plus' | 'unavailable' | null;
+  /** The seats Plus offers, for the offer's card. */
+  plusSeatLimit: number;
   /** "Next payment": the period end of a subscription that renews and is paid. */
   nextPaymentOn: string | null;
   /** "Plus ends on": the date of a scheduled cancellation. */
   endsOn: string | null;
+  /**
+   * With `endsOn`: Free's seat limit, which the company has after that date.
+   * `null` for a company without a seat limit, which keeps having none.
+   */
+  seatLimitAfterEnd: number | null;
   /**
    * With `endsOn`: Free's seats are all taken already, so after that date
    * everyone stays but nobody can be invited. Never for a company without a
@@ -167,8 +184,11 @@ export function planPageView(overview: BillingOverview): PlanPageView {
         : state === 'free-unavailable'
           ? 'unavailable'
           : null,
+    plusSeatLimit: overview.plusSeatLimit,
     nextPaymentOn: state === 'plus' ? overview.periodEndsAt : null,
     endsOn: state === 'plus-ending' ? overview.cancelsAt : null,
+    seatLimitAfterEnd:
+      state === 'plus-ending' && seats !== null ? overview.freeSeatLimit : null,
     // From the limit up, as the server refuses an invitation (seatLine()).
     noInvitesAfterEnd:
       state === 'plus-ending' &&
