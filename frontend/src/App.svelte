@@ -19,6 +19,7 @@
   import AdminReports from './admin/AdminReports.svelte';
   import AdminInvites from './admin/AdminInvites.svelte';
   import AdminTemplates from './admin/AdminTemplates.svelte';
+  import AdminPlan from './admin/AdminPlan.svelte';
   import TemplateEditor from './admin/TemplateEditor.svelte';
   import PlatformAdminPanel from './admin/PlatformAdminPanel.svelte';
   import LanguageSwitcher from './i18n/LanguageSwitcher.svelte';
@@ -192,6 +193,8 @@
     <AdminInvites />
   {:else if routerState.path === PATHS.adminTemplates}
     <AdminTemplates />
+  {:else if routerState.path === PATHS.adminPlan}
+    <AdminPlan />
   {:else if routerState.path === PATHS.adminTemplateNew}
     <TemplateEditor id={null} />
   {:else if adminTemplateMatch}

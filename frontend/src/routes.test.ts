@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { adminTabs } from './admin/adminTabs';
 import {
   ADMIN_TEMPLATE_PATTERN,
   adminTemplatePath,
@@ -70,6 +71,13 @@ describe('MIGRATED_AUTHED_PATHS', () => {
     const staticPaths: string[] = Object.values(PATHS);
     for (const path of MIGRATED_AUTHED_PATHS) {
       expect(staticPaths).toContain(path);
+    }
+  });
+
+  // Without it the page has no app header.
+  it('contains every admin tab', () => {
+    for (const tab of adminTabs(true)) {
+      expect(MIGRATED_AUTHED_PATHS).toContain(tab.href);
     }
   });
 

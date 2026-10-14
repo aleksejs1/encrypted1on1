@@ -7,7 +7,6 @@
   import { dateRangeForQuarterPreset } from '../anketa/report';
   import DateInput from '../design/DateInput.svelte';
   import BarChart from '../report/BarChart.svelte';
-  import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
 
   /**
@@ -202,9 +201,11 @@
 <main>
   <h1>{$_('adminReports.title')}</h1>
 
-  <AdminGate onReady={loadInitialReport} errorLoadKey="adminReports.errorLoad">
-    <AdminTabStrip active="reports" />
-
+  <AdminGate
+    tab="reports"
+    onReady={loadInitialReport}
+    errorLoadKey="adminReports.errorLoad"
+  >
     <form class="card filters" onsubmit={handleGenerate}>
       <fieldset>
         <legend>{$_('report.dateRangeLegend')}</legend>

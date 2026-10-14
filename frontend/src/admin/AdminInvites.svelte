@@ -11,7 +11,6 @@
   } from './inviteDisplay';
   import InviteForm from './InviteForm.svelte';
   import InviteSettings from './InviteSettings.svelte';
-  import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
 
   /** `resendable`: only this company-scoped list has it (InviteController::list()). */
@@ -111,9 +110,11 @@
 <main>
   <h1>{$_('adminInvites.title')}</h1>
 
-  <AdminGate onReady={loadInvites} errorLoadKey="adminInvites.errorLoad">
-    <AdminTabStrip active="invites" />
-
+  <AdminGate
+    tab="invites"
+    onReady={loadInvites}
+    errorLoadKey="adminInvites.errorLoad"
+  >
     <!-- Above the list and outside its branches: shown with an empty list and
          when the list fails to load. -->
     <div class="invite-cards">

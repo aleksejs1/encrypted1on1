@@ -17,6 +17,8 @@ export const PATHS = {
   adminInvites: '/admin/invites',
   adminTemplates: '/admin/templates',
   adminTemplateNew: '/admin/templates/new',
+  // The company's plan, in the Cloud deployment only (GitHub issue #286).
+  adminPlan: '/admin/plan',
   account: '/account',
   platformAdmin: '/platform-admin',
   // Public: a shared template's preview, from its share link (GitHub issue #163).
@@ -31,6 +33,7 @@ export const MIGRATED_AUTHED_PATHS: string[] = [
   PATHS.adminReports,
   PATHS.adminInvites,
   PATHS.adminTemplates,
+  PATHS.adminPlan,
   PATHS.account,
   PATHS.platformAdmin,
 ];

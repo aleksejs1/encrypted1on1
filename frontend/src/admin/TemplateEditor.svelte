@@ -57,7 +57,6 @@
     ignoreHeldEnter,
     refocus,
   } from '../anketa/keepFocus';
-  import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
   import { fetchAdminTemplates } from '../api/adminTemplates';
   import {
@@ -671,8 +670,11 @@
         : $_('adminTemplateEditor.titleView')}
   </h1>
 
-  <AdminGate onReady={load} errorLoadKey="adminTemplateEditor.errorLoad">
-    <AdminTabStrip active="templates" />
+  <AdminGate
+    tab="templates"
+    onReady={load}
+    errorLoadKey="adminTemplateEditor.errorLoad"
+  >
     <p>
       <a href={PATHS.adminTemplates}>{$_('adminTemplateEditor.back')}</a>
     </p>

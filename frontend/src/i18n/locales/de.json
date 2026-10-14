@@ -685,7 +685,12 @@
     "usersTab": "Nutzer",
     "reportsTab": "Berichte",
     "invitesTab": "Einladungen",
-    "templatesTab": "Vorlagen"
+    "templatesTab": "Vorlagen",
+    "planTab": "Tarif"
+  },
+  "adminPlan": {
+    "title": "Tarif",
+    "errorLoad": "Der Tarif konnte nicht geladen werden."
   },
   "adminInvites": {
     "title": "Einladungen",

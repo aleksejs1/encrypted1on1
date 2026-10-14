@@ -22,7 +22,6 @@
   } from './managerColumn';
   import { PATHS } from '../routes';
   import OrgImportCard from './OrgImportCard.svelte';
-  import AdminTabStrip from './AdminTabStrip.svelte';
   import AdminGate from './AdminGate.svelte';
 
   interface AdminUser extends OrgUser {
@@ -365,9 +364,7 @@
 <main>
   <h1>{$_('admin.title')}</h1>
 
-  <AdminGate onReady={loadPanelData}>
-    <AdminTabStrip active="users" />
-
+  <AdminGate tab="users" onReady={loadPanelData}>
     {#if panelDataError}
       <p class="banner-error">{panelDataError}</p>
     {:else}
