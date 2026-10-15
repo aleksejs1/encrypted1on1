@@ -78,6 +78,7 @@ errors:
     email_domain_restricted: 'Atļautas tikai adreses ar "@%domain%".'
     email_already_registered: 'Šim e-pastam jau ir konts.'
     seat_limit_reached: 'Uzņēmums ir sasniedzis vietu limitu pašreizējam plānam.'
+    no_seats_left: 'Uzņēmumam pašreizējā plānā vairs nav brīvu vietu.'
     invalid_role: '"myRole" jābūt "employee" vai "manager".'
     counterpart_not_found: 'Otra puse nav atrasta.'
     periodicity_required: '"periodicityDays" jaunam pārim jābūt pozitīvam veselam skaitlim.'

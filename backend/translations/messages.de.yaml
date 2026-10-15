@@ -82,6 +82,7 @@ errors:
     email_domain_restricted: 'Nur E-Mail-Adressen von "@%domain%" sind zugelassen.'
     email_already_registered: 'Für diese E-Mail existiert bereits ein Konto.'
     seat_limit_reached: 'Dieses Unternehmen hat das Platzlimit seines aktuellen Plans erreicht.'
+    no_seats_left: 'Das Unternehmen hat in seinem aktuellen Tarif keine freien Plätze mehr.'
     invalid_role: '"myRole" muss "employee" oder "manager" sein.'
     counterpart_not_found: 'Gegenüber nicht gefunden.'
     periodicity_required: '"periodicityDays" muss für ein neues Paar eine positive Ganzzahl sein.'

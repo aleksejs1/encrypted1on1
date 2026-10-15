@@ -941,7 +941,9 @@
     "submit": "Envoyer l'invitation",
     "submitting": "Envoi en cours…",
     "sent": "Invitation envoyée.",
-    "error": "Impossible d'envoyer l'invitation."
+    "error": "Impossible d'envoyer l'invitation.",
+    "viewPlan": "Voir l'offre",
+    "askAdmin": "Demandez à l'administrateur de votre entreprise de passer à une offre supérieure."
   },
   "languageSwitcher": {
     "label": "Langue"

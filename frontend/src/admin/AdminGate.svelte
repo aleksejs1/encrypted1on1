@@ -26,7 +26,7 @@
   }: {
     /** The page's own tab in the strip this gate shows above the page. */
     tab: AdminTab['key'];
-    /** Fires once, before `onReady` and for someone who isn't an admin too: for a page that doesn't exist in every deployment (AdminPlan). */
+    /** Fires once, before `onReady` and for someone who isn't an admin too: for a page that depends on the deployment (AdminPlan; AdminInvites' seat-limit next step). */
     onIdentity?: (identity: Identity) => void;
     onReady?: (identity: Identity) => void;
     /** i18n key for a non-ApiError failure (e.g. "not logged in") — each host page has its own ("Could not load the admin panel." vs. "Could not load the report."). */

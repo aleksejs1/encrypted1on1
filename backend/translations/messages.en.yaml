@@ -84,7 +84,10 @@ errors:
     missing_email: 'Missing "email".'
     email_domain_restricted: 'Only "@%domain%" email addresses are allowed.'
     email_already_registered: 'That email already has an account.'
+    # Self-registration by domain only (SignupController, no code). The invite
+    # refusal that carries code seat_limit_reached says no_seats_left below.
     seat_limit_reached: 'This company has reached its seat limit for the current plan.'
+    no_seats_left: 'The company has no seats left on its current plan.'
     invalid_role: '"myRole" must be "employee" or "manager".'
     counterpart_not_found: 'Counterpart not found.'
     periodicity_required: '"periodicityDays" must be a positive integer for a new pair.'

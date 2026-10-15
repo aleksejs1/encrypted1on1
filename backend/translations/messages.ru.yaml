@@ -78,6 +78,7 @@ errors:
     email_domain_restricted: 'Разрешены только адреса вида «@%domain%».'
     email_already_registered: 'Для этого email уже есть учётная запись.'
     seat_limit_reached: 'Компания достигла лимита мест по текущему тарифу.'
+    no_seats_left: 'У компании не осталось мест на текущем тарифе.'
     invalid_role: '«myRole» должно быть «employee» или «manager».'
     counterpart_not_found: 'Собеседник не найден.'
     periodicity_required: '«periodicityDays» должно быть положительным целым числом для новой пары.'

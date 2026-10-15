@@ -141,6 +141,8 @@ class SignupController
                 return $rawToken;
             });
 
+            // Deliberately no `code`: the code InviteController sends, seat_limit_reached,
+            // makes the invite form offer a next step this page has no place for.
             if (null === $rawToken) {
                 return new JsonResponse(['error' => $this->translator->trans('errors.seat_limit_reached')], 400);
             }

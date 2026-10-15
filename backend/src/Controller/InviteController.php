@@ -111,8 +111,11 @@ class InviteController
             return $rawToken;
         });
 
+        // The code lets the invite form add its next step (a link to the Plan page, or
+        // whom to ask) without matching the text. Self-registration by domain keeps
+        // its own message and no code (SignupController).
         if (null === $rawToken) {
-            return new JsonResponse(['error' => $this->translator->trans('errors.seat_limit_reached')], 400);
+            return new JsonResponse(['error' => $this->translator->trans('errors.no_seats_left'), 'code' => 'seat_limit_reached'], 400);
         }
 
         $this->notifier->notifyInvited($email, $rawToken, $inviter);

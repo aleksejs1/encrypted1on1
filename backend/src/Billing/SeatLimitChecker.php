@@ -13,7 +13,9 @@ use Doctrine\ORM\EntityManagerInterface;
  * (Company::$seatLimit). Two real call sites (InviteController, SignupController — every
  * place a company can gain a member after its first), the same "two call sites clears
  * this project's own extraction bar" reasoning RateLimitResponse/SingleCompanyProvider
- * already established.
+ * already established. Their refusals differ on purpose: only the invite carries
+ * `code: 'seat_limit_reached'`, which the invite form turns into a next step (GitHub
+ * issue #309); a new seat-checked path that refuses through that form needs the code too.
  *
  * Counts deletedAt IS NULL rows only — a deleted (anonymized-in-place) account no longer
  * occupies a functional seat, and counting it forever would make a company with any

@@ -132,6 +132,15 @@ export function expireAsInvite(email: string, inviterEmail: string): void {
 }
 
 /**
+ * Removes an invite expireAsInvite() made, so a test that leaves it
+ * unrenewed doesn't add a Re-send row to the shared company's list.
+ */
+export function removeInvite(email: string): void {
+  runSql(`DELETE FROM invite_records WHERE email = ${sqlString(email)}`);
+  runSql(`DELETE FROM activation_tokens WHERE email = ${sqlString(email)}`);
+}
+
+/**
  * GitHub issue #206: makes an existing meeting one created at an older form
  * version, the way every meeting from before a form change is stored. Done in
  * SQL because the server stamps the current version on everything it creates.

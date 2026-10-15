@@ -46,7 +46,7 @@ test('an admin invites from the Invites tab, and the list shows it at once', asy
   const row = admin.getByRole('row').filter({ hasText: inviteeEmail });
   await expect(row).toHaveCount(0);
   await admin.locator('#invite-email').fill(inviteeEmail);
-  await admin.getByRole('button', { name: 'Send invite' }).click();
+  await admin.getByRole('button', { name: 'Send invite', exact: true }).click();
   await expect(admin.getByText('Invite sent.')).toBeVisible();
   await expect(row).toHaveCount(1);
   await expect(row).toContainText('Pending');

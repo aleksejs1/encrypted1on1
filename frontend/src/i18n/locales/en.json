@@ -922,7 +922,9 @@
     "submit": "Send invite",
     "submitting": "Sending…",
     "sent": "Invite sent.",
-    "error": "Could not send the invite."
+    "error": "Could not send the invite.",
+    "viewPlan": "View plan",
+    "askAdmin": "Ask your company's administrator to upgrade the plan."
   },
   "languageSwitcher": {
     "label": "Language"

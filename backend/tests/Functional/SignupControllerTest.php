@@ -18,9 +18,10 @@ use App\Tests\Support\ApiTestCase;
  * silently skipped — verified manually against a real rebuilt container instead (see
  * the plan file's Verification section). This also covers signup()'s own seat-limit
  * check (Phase D) — SeatLimitTest exercises the exact same shared SeatLimitChecker
- * through InviteController instead, the fully reachable path; the two call sites are
- * visually identical one-liners, and this specific branch was verified manually
- * alongside the rest of domain mode, not left untested.
+ * through InviteController instead, the fully reachable path. The two refusals differ
+ * on purpose (GitHub issue #309): signup keeps errors.seat_limit_reached and sends no
+ * `code`, so SeatLimitTest's message and code assertions don't cover it; this branch
+ * was verified manually alongside the rest of domain mode.
  */
 class SignupControllerTest extends ApiTestCase
 {

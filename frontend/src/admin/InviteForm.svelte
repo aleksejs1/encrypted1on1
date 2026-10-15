@@ -1,14 +1,23 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { apiPost, ApiError } from '../api/client';
+  import { apiPost } from '../api/client';
+  import {
+    inviteError,
+    type InviteError,
+    type SeatLimitStep,
+  } from './seatLimit';
+  import SeatLimitNextStep from './SeatLimitNextStep.svelte';
 
   // Prefilled from the "requested a new invitation" email's link (GitHub
   // issue #169), so re-inviting is one click on Send.
   const {
     initialEmail = '',
+    seatStep,
     onSent,
   }: {
     initialEmail?: string;
+    /** What follows a "no seats left" error: `seatLimitStep()` of the viewer. */
+    seatStep: SeatLimitStep;
     /** An invite went out: a list of invites on the same page reloads. */
     onSent?: () => void;
   } = $props();
@@ -16,7 +25,7 @@
   // svelte-ignore state_referenced_locally
   let email = $state(initialEmail);
   let submitting = $state(false);
-  let error = $state<string | null>(null);
+  let error = $state<InviteError | null>(null);
   let sent = $state(false);
 
   async function handleSubmit(event: SubmitEvent): Promise<void> {
@@ -31,7 +40,7 @@
       sent = true;
       email = '';
     } catch (err) {
-      error = err instanceof ApiError ? err.message : $_('inviteForm.error');
+      error = inviteError(err, $_('inviteForm.error'));
       return;
     } finally {
       submitting = false;
@@ -62,7 +71,10 @@
     </div>
   </div>
   {#if error}
-    <p class="banner-error" role="alert">{error}</p>
+    <p class="banner-error" role="alert">
+      {error.message}
+      {#if error.seatLimit}<SeatLimitNextStep step={seatStep} />{/if}
+    </p>
   {/if}
   {#if sent}
     <p class="banner-success" role="status">{$_('inviteForm.sent')}</p>
