@@ -12,6 +12,13 @@
   import InviteForm from './InviteForm.svelte';
   import InviteSettings from './InviteSettings.svelte';
   import AdminGate from './AdminGate.svelte';
+  import {
+    inviteError,
+    seatLimitStep,
+    type InviteError,
+    type SeatLimitStep,
+  } from './seatLimit';
+  import SeatLimitNextStep from './SeatLimitNextStep.svelte';
 
   /** `resendable`: only this company-scoped list has it (InviteController::list()). */
   type AdminInvite = Invite & { resendable: boolean };
@@ -19,10 +26,13 @@
   let invites = $state<AdminInvite[]>([]);
   let loadError = $state<string | null>(null);
   let resendingId = $state<string | null>(null);
-  let resendError = $state<string | null>(null);
+  // As in InviteForm: a re-send can be refused for want of a seat too.
+  let resendError = $state<InviteError | null>(null);
   let resentTo = $state<string | null>(null);
   // The re-send banners and the list: what a re-send's focus stays within.
   let list = $state<HTMLElement>();
+  // Known before the gate shows the form (AdminGate calls onIdentity first).
+  let seatStep = $state<SeatLimitStep>('none');
 
   // Cancels loadInvites()'s fetch below on unmount — see GitHub issue #95.
   const readAbort = abortOnDestroy();
@@ -72,10 +82,7 @@
     try {
       await apiPost('/api/invites', { email: invite.email });
     } catch (error) {
-      resendError =
-        error instanceof ApiError
-          ? error.message
-          : $_('adminInvites.resendError');
+      resendError = inviteError(error, $_('adminInvites.resendError'));
       return;
     } finally {
       resendingId = null;
@@ -112,13 +119,14 @@
 
   <AdminGate
     tab="invites"
+    onIdentity={(identity) => (seatStep = seatLimitStep(identity))}
     onReady={loadInvites}
     errorLoadKey="adminInvites.errorLoad"
   >
     <!-- Above the list and outside its branches: shown with an empty list and
          when the list fails to load. -->
     <div class="invite-cards">
-      <InviteForm onSent={inviteSent} />
+      <InviteForm {seatStep} onSent={inviteSent} />
       <InviteSettings />
     </div>
 
@@ -136,7 +144,10 @@
         </p>
       {/if}
       {#if resendError}
-        <p class="banner-error" role="alert">{resendError}</p>
+        <p class="banner-error" role="alert" data-resend-error>
+          {resendError.message}
+          {#if resendError.seatLimit}<SeatLimitNextStep step={seatStep} />{/if}
+        </p>
       {/if}
 
       {#if loadError}

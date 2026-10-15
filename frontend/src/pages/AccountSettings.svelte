@@ -27,6 +27,7 @@
   import { logOut } from '../auth.svelte';
   import { navigate } from '../router.svelte';
   import InviteForm from '../admin/InviteForm.svelte';
+  import { seatLimitStep, type SeatLimitStep } from '../admin/seatLimit';
   import {
     DATE_FORMAT_IDS,
     EXAMPLE_DATE,
@@ -83,6 +84,7 @@
   // moved here so the home page stays focused on anketas. Admins always see
   // an invite form on AdminInvites.svelte regardless of this flag.
   let showInvite = $state(false);
+  let seatStep = $state<SeatLimitStep>('none');
 
   // onMount (unlike an $effect) doesn't track reactive reads inside it, so
   // ensureUnlocked()'s synchronous read of getGeneration() can't re-trigger
@@ -92,6 +94,7 @@
     ensureUnlocked()
       .then((identity) => {
         showInvite = identity.registrationMode === 'invite';
+        seatStep = seatLimitStep(identity);
         displayName = identity.displayName;
       })
       .catch(() => {});
@@ -614,7 +617,7 @@
     </div>
 
     {#if showInvite}
-      <InviteForm initialEmail={inviteEmailFromUrl} />
+      <InviteForm initialEmail={inviteEmailFromUrl} {seatStep} />
     {/if}
 
     <div class="card elev-md">

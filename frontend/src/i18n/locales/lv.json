@@ -926,7 +926,9 @@
     "submit": "Nosūtīt uzaicinājumu",
     "submitting": "Sūta…",
     "sent": "Uzaicinājums nosūtīts.",
-    "error": "Neizdevās nosūtīt uzaicinājumu."
+    "error": "Neizdevās nosūtīt uzaicinājumu.",
+    "viewPlan": "Skatīt plānu",
+    "askAdmin": "Palūdziet uzņēmuma administratoram pāriet uz augstāku plānu."
   },
   "languageSwitcher": {
     "label": "Valoda"

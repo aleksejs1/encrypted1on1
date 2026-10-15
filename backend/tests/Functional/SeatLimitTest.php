@@ -66,7 +66,9 @@ class SeatLimitTest extends ApiTestCase
         $result = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-at-limit-invitee')]);
 
         self::assertSame(400, $result['status']);
-        self::assertSame('This company has reached its seat limit for the current plan.', $result['json']['error']);
+        self::assertSame('The company has no seats left on its current plan.', $result['json']['error']);
+        // The invite form adds its next step by this code, not by the text (GitHub issue #309).
+        self::assertSame('seat_limit_reached', $result['json']['code']);
     }
 
     public function testInviteIsNeverRejectedWhenSeatLimitIsNull(): void
@@ -177,7 +179,8 @@ class SeatLimitTest extends ApiTestCase
         // remaining seat — a second invite must be rejected too, not just a second real user.
         $second = $this->jsonRequest($client, 'POST', '/api/invites', ['email' => $this->uniqueEmail('seat-pending-invitee-2')]);
         self::assertSame(400, $second['status']);
-        self::assertSame('This company has reached its seat limit for the current plan.', $second['json']['error']);
+        self::assertSame('The company has no seats left on its current plan.', $second['json']['error']);
+        self::assertSame('seat_limit_reached', $second['json']['code']);
     }
 
     public function testAnExpiredPendingInviteNoLongerCountsAgainstTheSeatLimit(): void

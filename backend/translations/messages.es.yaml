@@ -78,6 +78,7 @@ errors:
     email_domain_restricted: 'Solo se permiten direcciones "@%domain%".'
     email_already_registered: 'Ese email ya tiene una cuenta.'
     seat_limit_reached: 'Esta empresa ha alcanzado el límite de plazas de su plan actual.'
+    no_seats_left: 'La empresa no tiene plazas libres en su plan actual.'
     invalid_role: '"myRole" debe ser "employee" o "manager".'
     counterpart_not_found: 'No se encontró a la otra persona.'
     periodicity_required: '"periodicityDays" debe ser un entero positivo para una nueva pareja.'

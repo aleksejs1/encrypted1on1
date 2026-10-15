@@ -928,7 +928,9 @@
     "submit": "Enviar invitación",
     "submitting": "Enviando…",
     "sent": "Invitación enviada.",
-    "error": "No se pudo enviar la invitación."
+    "error": "No se pudo enviar la invitación.",
+    "viewPlan": "Ver el plan",
+    "askAdmin": "Pida al administrador de su empresa que mejore el plan."
   },
   "languageSwitcher": {
     "label": "Idioma"

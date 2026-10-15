@@ -932,7 +932,9 @@
     "submit": "Einladung senden",
     "submitting": "Wird gesendet…",
     "sent": "Einladung gesendet.",
-    "error": "Die Einladung konnte nicht gesendet werden."
+    "error": "Die Einladung konnte nicht gesendet werden.",
+    "viewPlan": "Tarif ansehen",
+    "askAdmin": "Bitten Sie den Administrator Ihres Unternehmens, den Tarif zu erweitern."
   },
   "languageSwitcher": {
     "label": "Sprache"
