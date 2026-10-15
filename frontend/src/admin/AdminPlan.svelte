@@ -4,12 +4,13 @@
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
   import { pause } from '../api/pause';
-  import { requestTimeout } from '../api/requestTimeout';
+  import { latestReads } from '../api/latestRead';
   import type { BillingOverview, PlusPrice } from '../api/types';
   import type { Identity } from '../crypto/identity.svelte';
   import { formatDisplayDate } from '../datePreference.svelte';
   import NotFound from '../pages/NotFound.svelte';
   import AdminGate from './AdminGate.svelte';
+  import SeatUsage from './SeatUsage.svelte';
   import {
     planPageView,
     priceLine,
@@ -241,33 +242,20 @@
   // Reads can overlap: a poll still running at the end of the wait, and
   // "Check again" after it, or pressed again. Only the one started last is
   // answered, and an older one is stopped.
-  let readsStarted = 0;
-  let readRunning: AbortController | null = null;
+  const startRead = latestReads(readAbort);
 
   /**
    * The plan, put on the page, or `null` when a read started later, or the
    * end of the page, has made this one stale; its failure is then nobody's
-   * either. Each read gives up after requestTimeout()'s time, as `apiGet()`
-   * itself never does: a failure then, like a lost connection.
+   * either. Each read gives up after requestTimeout()'s time (latestReads()):
+   * a failure then, like a lost connection.
    */
   async function readPlan(): Promise<BillingOverview | null> {
-    const mine = ++readsStarted;
-    const stale = (): boolean => mine !== readsStarted || back.phase === 'left';
-    readRunning?.abort();
-    const controller = new AbortController();
-    readRunning = controller;
-    // By hand, not AbortSignal.any(), which Safari has only since 17.4. The
-    // listeners go with the controller, aborted once the read is over.
-    for (const signal of [readAbort, requestTimeout(0)]) {
-      if (signal.aborted) controller.abort(signal.reason);
-      signal.addEventListener('abort', () => controller.abort(signal.reason), {
-        once: true,
-        signal: controller.signal,
-      });
-    }
+    const mine = startRead();
+    const stale = (): boolean => !mine.current() || back.phase === 'left';
     try {
       const read = await apiGet<BillingOverview>('/api/admin/billing', {
-        signal: controller.signal,
+        signal: mine.signal,
       });
       if (stale()) return null;
       overview = read;
@@ -276,7 +264,7 @@
       if (stale()) return null;
       throw error;
     } finally {
-      controller.abort();
+      mine.end();
     }
   }
 
@@ -460,19 +448,7 @@
             {/if}
 
             {#if view.seats}
-              <p>
-                {$_('adminPlan.seats', {
-                  values: {
-                    used: view.seats.used,
-                    limit: view.seats.limit,
-                    people: view.seats.people,
-                    pending: view.seats.pendingInvites,
-                  },
-                })}
-              </p>
-              {#if view.seats.full}
-                <p>{$_('adminPlan.seatsFull')}</p>
-              {/if}
+              <SeatUsage seats={view.seats} />
             {/if}
 
             {#if view.nextPaymentOn}

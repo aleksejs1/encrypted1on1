@@ -6,6 +6,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { FREE_OVERVIEW } from './helpers/billing.js';
 import { createActivationLink, uniqueEmail } from './helpers/provision.js';
 
 const PASSWORD = 'correct horse battery staple 123';
@@ -71,21 +72,6 @@ test('a self-hosted instance has no Plan tab and no Plan page', async ({
     employee.getByRole('heading', { name: 'Page not found' }),
   ).toBeVisible();
 });
-
-/** What GET /api/admin/billing answers for a company on Free (BillingController::overview()). */
-const FREE_OVERVIEW = {
-  state: 'free',
-  planTier: 'free',
-  seatLimit: 100,
-  activeUsers: 1,
-  pendingInvites: 0,
-  periodEndsAt: null,
-  cancelsAt: null,
-  hasInvoices: false,
-  freeSeatLimit: 100,
-  plusSeatLimit: 1000,
-  supportEmail: null,
-};
 
 /**
  * The Cloud deployment, as far as the browser can tell: this stack's own

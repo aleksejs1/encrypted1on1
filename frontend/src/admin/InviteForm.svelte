@@ -14,12 +14,15 @@
     initialEmail = '',
     seatStep,
     onSent,
+    onSeatLimit,
   }: {
     initialEmail?: string;
     /** What follows a "no seats left" error: `seatLimitStep()` of the viewer. */
     seatStep: SeatLimitStep;
     /** An invite went out: a list of invites on the same page reloads. */
     onSent?: () => void;
+    /** Refused for want of a seat: a seat line on the same page reads again. */
+    onSeatLimit?: () => void;
   } = $props();
 
   // svelte-ignore state_referenced_locally
@@ -41,6 +44,7 @@
       email = '';
     } catch (err) {
       error = inviteError(err, $_('inviteForm.error'));
+      if (error.seatLimit) onSeatLimit?.();
       return;
     } finally {
       submitting = false;

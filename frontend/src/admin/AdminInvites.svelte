@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { apiGet, apiPost, ApiError } from '../api/client';
   import { abortOnDestroy, isAbortError } from '../api/abortOnDestroy';
+  import { latestReads } from '../api/latestRead';
   import { formatDisplayDate } from '../datePreference.svelte';
   import { beginAction, refocus } from '../anketa/keepFocus';
   import {
@@ -19,6 +20,10 @@
     type SeatLimitStep,
   } from './seatLimit';
   import SeatLimitNextStep from './SeatLimitNextStep.svelte';
+  import type { BillingOverview } from '../api/types';
+  import { seatLine, type SeatLine } from './planPage';
+  import SeatUsage from './SeatUsage.svelte';
+  import type { Identity } from '../crypto/identity.svelte';
 
   /** `resendable`: only this company-scoped list has it (InviteController::list()). */
   type AdminInvite = Invite & { resendable: boolean };
@@ -33,9 +38,18 @@
   let list = $state<HTMLElement>();
   // Known before the gate shows the form (AdminGate calls onIdentity first).
   let seatStep = $state<SeatLimitStep>('none');
+  // GitHub issue #310: the Plan page's seat line, in the Cloud deployment and
+  // for a company with a limit only. Read again with the list and after a
+  // refusal for want of a seat; a failed read keeps the line last shown.
+  let seats = $state<SeatLine | null>(null);
+  let cloudMode = false;
 
   // Cancels loadInvites()'s fetch below on unmount — see GitHub issue #95.
   const readAbort = abortOnDestroy();
+  // Seat reads: only the one started last is answered, as on the Plan page,
+  // and a failed one leaves the line as it was. Not in the list's queue, so
+  // a slow read never holds up the list or Re-send.
+  const startSeatRead = latestReads(readAbort);
 
   // The list is reloaded after a re-send and after the form sends an invite. One
   // reload at a time, in the order asked for: the last answer shown is the newest,
@@ -69,6 +83,41 @@
     }
   }
 
+  /** Never rejects. */
+  async function loadSeats(): Promise<void> {
+    if (!cloudMode) return;
+    const read = startSeatRead();
+    let overview: BillingOverview;
+    try {
+      overview = await apiGet<BillingOverview>('/api/admin/billing', {
+        signal: read.signal,
+      });
+    } catch (error) {
+      // Refused: the numbers are no longer this viewer's to see.
+      if (
+        read.current() &&
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        seats = null;
+      }
+      return;
+    } finally {
+      read.end();
+    }
+    if (read.current()) seats = seatLine(overview);
+  }
+
+  function identified(identity: Identity): void {
+    seatStep = seatLimitStep(identity);
+    cloudMode = identity.cloudMode;
+  }
+
+  function loadAll(): Promise<void> {
+    void loadSeats();
+    return loadInvites();
+  }
+
   // GitHub issue #169: sends a fresh invite to an expired row's address,
   // through the same endpoint as the invite form (same permission, rate limit
   // and seat-limit checks), then reloads, so the new pending row replaces
@@ -83,12 +132,13 @@
       await apiPost('/api/invites', { email: invite.email });
     } catch (error) {
       resendError = inviteError(error, $_('adminInvites.resendError'));
+      if (resendError.seatLimit) void loadSeats();
       return;
     } finally {
       resendingId = null;
     }
     resentTo = invite.email;
-    await loadInvites();
+    await loadAll();
     // The clicked button is gone after the reload; the confirmation takes focus,
     // unless the admin has gone on to something else meanwhile, the invite form
     // above included (keepFocus.ts).
@@ -99,7 +149,7 @@
   function inviteSent(): void {
     resentTo = null;
     resendError = null;
-    void loadInvites();
+    void loadAll();
   }
 
   function senderLabel(invite: Invite): string {
@@ -119,14 +169,20 @@
 
   <AdminGate
     tab="invites"
-    onIdentity={(identity) => (seatStep = seatLimitStep(identity))}
-    onReady={loadInvites}
+    onIdentity={identified}
+    onReady={loadAll}
     errorLoadKey="adminInvites.errorLoad"
   >
+    <!-- Not a live region: a refusal's own alert says there are no seats. -->
+    <div data-seat-usage>
+      {#if seats}
+        <div class="seat-usage"><SeatUsage {seats} step={seatStep} /></div>
+      {/if}
+    </div>
     <!-- Above the list and outside its branches: shown with an empty list and
          when the list fails to load. -->
     <div class="invite-cards">
-      <InviteForm {seatStep} onSent={inviteSent} />
+      <InviteForm {seatStep} onSent={inviteSent} onSeatLimit={loadSeats} />
       <InviteSettings />
     </div>
 
@@ -240,6 +296,13 @@
     gap: 24px;
     align-items: start;
     margin-bottom: 24px;
+  }
+
+  .seat-usage {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: 16px;
   }
 
   .table-wrap {
