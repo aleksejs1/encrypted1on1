@@ -308,12 +308,14 @@ test('back from Stripe, the page shows the plan as it is now', async ({
       json: { url: 'https://stripe.test/stopped' },
     }),
   );
-  // The way to Stripe stopped short (204: the browser stays on the page it
-  // was leaving), so the page stays as it was left for Stripe, which is how
-  // Back from Stripe brings it back from the back/forward cache too.
+  // The way to Stripe stopped short (an aborted navigation: the browser stays
+  // on the page it was leaving), so the page stays as it was left for Stripe,
+  // which is how Back from Stripe brings it back from the back/forward cache
+  // too. Not a 204: since 1.64, Playwright's locators wait for a navigation
+  // answered with 204 to finish, which it never does.
   const left = admin.waitForRequest('https://stripe.test/stopped');
   await admin.route('https://stripe.test/stopped', (route) =>
-    route.fulfill({ status: 204 }),
+    route.abort('aborted'),
   );
 
   await admin.goto('/admin/plan');
