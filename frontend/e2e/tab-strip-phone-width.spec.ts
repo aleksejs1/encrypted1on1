@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 import { FREE_OVERVIEW, PLUS_PRICE } from './helpers/billing.js';
-import { createActivationLink, uniqueEmail } from './helpers/provision.js';
+import {
+  createActivationLink,
+  removeInvite,
+  uniqueEmail,
+} from './helpers/provision.js';
 
 const PASSWORD = 'correct horse battery staple 123';
 
@@ -46,19 +50,37 @@ test('the admin and report tab strips fit a phone screen', async ({
   await page.locator('form button[type="submit"]').click();
   await page.waitForURL('/');
 
-  for (const path of [
-    '/admin',
-    '/admin/reports',
-    '/admin/invites',
-    '/admin/templates',
-    '/admin/templates/new',
-    '/admin/plan',
-    '/report',
-    '/report/notes',
-  ]) {
-    await page.goto(path);
-    await expect(page.locator('nav.tab-strip')).toBeVisible();
-    expect(await sidewaysOverflow(page), path).toBeLessThanOrEqual(0);
+  // A row in the invites table, whose header has .sr-only text: the widest
+  // table on these pages.
+  const invitee = uniqueEmail('tabs-phone-invitee');
+  const inviteRow = page.getByRole('row').filter({ hasText: invitee });
+  try {
+    await page.goto('/admin/invites');
+    const inviteForm = page.locator('form', {
+      has: page.locator('#invite-email'),
+    });
+    await inviteForm.locator('#invite-email').fill(invitee);
+    await inviteForm.locator('button[type="submit"]').click();
+    await expect(inviteRow).toBeVisible();
+
+    // Each page, and what shows that its data has rendered.
+    for (const [path, loaded] of [
+      ['/admin', page.locator('main table')],
+      ['/admin/reports', null],
+      ['/admin/invites', inviteRow],
+      ['/admin/templates', null],
+      ['/admin/templates/new', null],
+      ['/admin/plan', null],
+      ['/report', null],
+      ['/report/notes', null],
+    ] as const) {
+      await page.goto(path);
+      await expect(page.locator('nav.tab-strip')).toBeVisible();
+      if (loaded) await expect(loaded).toBeVisible();
+      expect(await sidewaysOverflow(page), path).toBeLessThanOrEqual(0);
+    }
+  } finally {
+    removeInvite(invitee);
   }
   // Russian, the longest labels, with all five tabs.
   await page.goto('/admin/plan');

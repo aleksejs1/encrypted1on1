@@ -442,6 +442,13 @@ textarea.input {
 }
 
 /* — tables — */
+/* A table that scrolls on its own on a narrow screen, not the page. Positioned
+   so that it is the containing block of an absolutely positioned .sr-only
+   header, which would otherwise escape the scroll (GitHub issue #330). */
+.table-wrap {
+  overflow-x: auto;
+  position: relative;
+}
 .table {
   width: 100%;
   border-collapse: collapse;

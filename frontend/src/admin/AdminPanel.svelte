@@ -648,10 +648,6 @@
     margin-bottom: 20px;
   }
 
-  .table-wrap {
-    overflow-x: auto;
-  }
-
   .filters {
     display: flex;
     flex-wrap: wrap;

@@ -305,10 +305,6 @@
     margin-bottom: 16px;
   }
 
-  .table-wrap {
-    overflow-x: auto;
-  }
-
   .banner-success,
   .banner-error {
     margin-bottom: 12px;
