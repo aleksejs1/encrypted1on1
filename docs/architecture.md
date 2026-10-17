@@ -16,6 +16,7 @@ How the system is put together. For what the encryption actually does, see [encr
 | i18n | `svelte-i18n` (frontend), Symfony Translation (backend emails/errors) | 6 languages: English, Russian, Latvian, Spanish, German, French |
 | Mail | Symfony Mailer, any SMTP DSN | Mailpit in dev, real SMTP in prod |
 | Error tracking | Sentry (`sentry/sentry-symfony`), opt-in via `SENTRY_DSN` | Backend only, empty DSN = disabled (see [deployment.md](deployment.md)); no frontend error tracking yet |
+| Payments | Stripe (`stripe/stripe-php`): Checkout, the customer portal, webhooks | Cloud deployment only, optional; the browser is sent to Stripe's own pages, no Stripe.js (see [deployment.md](deployment.md#stripe-billing)) |
 
 ## High-level shape
 
