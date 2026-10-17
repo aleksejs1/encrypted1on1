@@ -69,7 +69,8 @@ The design proposal had eleven open questions for the maintainer, each with a re
    the Stripe dashboard, not in the code, and it is the only way to cancel.
    [#287](https://github.com/aleksejs1/encrypted1on1/issues/287) saw a portal page with Managed
    Payments on offer cancellation, adding a payment method and the invoices. Cancelling there
-   was run; updating the card there was not (see "Accepted limitations").
+   was run (#308), and so was replacing the card, also while a payment was overdue, which Stripe
+   then charged at once (#287 and #308, on the production server against the sandbox).
 8. **A custom (Enterprise) plan is set in the database by hand,** with a plan name other than
    `free` and `plus`, and the webhook leaves such a plan and its limit alone. Rejected: a plan
    field in the platform-admin panel, for cases that are rare.
@@ -77,10 +78,9 @@ The design proposal had eleven open questions for the maintainer, each with a re
    shown. Rejected: an address in the translations, which belongs to one operator.
 10. **A failed payment is signalled by Stripe's email and by a warning on the Plan tab.** The app
     sends no billing emails of its own. Rejected: a mark on the Plan tab in the admin tab strip,
-    visible from any admin page, which needs a field in `/api/me`. **Still open:** this choice
-    holds only if Stripe's failed-payment emails are on and are sent with Managed Payments, which
-    #287 hasn't checked yet; if they aren't, decision 10 is reopened. Checking the setting is a
-    required setup step in `docs/deployment.md`.
+    visible from any admin page, which needs a field in `/api/me`. This choice holds only if
+    Stripe's failed-payment emails are on: #287 saw one sent with Managed Payments on, from Link,
+    and turning the setting on is a required setup step in `docs/deployment.md`.
 11. **Two paying subscriptions for one company can't be fully prevented; they are detected,
     logged as an error, and refunded by hand.** The checkout refuses a company that already pays,
     but a Checkout page that is already open can be paid until it expires (35 minutes, the
@@ -112,7 +112,8 @@ Two further choices of the proposal, outside the eleven:
 - **No end-to-end test in cloud mode.** The e2e stack runs without `CLOUD_MODE`, so
   `frontend/e2e/admin-plan.spec.ts` and `invite-seat-limit.spec.ts` answer the cloud-only API
   (and `/api/me`'s `cloudMode`) themselves. The whole flow was run by hand against the Stripe
-  sandbox instead ([#308](https://github.com/aleksejs1/encrypted1on1/issues/308)).
+  sandbox instead ([#308](https://github.com/aleksejs1/encrypted1on1/issues/308)), and its
+  remaining checks on the production server, on MySQL under its own domain (#287, #308).
 - Two events of one subscription handled at the same moment can be written in reverse order;
   both read the current state from Stripe, so they can differ only around a real change. No row
   lock. The same holds for the first events of two subscriptions of one company: both can be
@@ -124,13 +125,15 @@ Two further choices of the proposal, outside the eleven:
 - The rollout steps in `docs/deployment.md` assume a server that never took a payment through
   the old checkout API. Payments taken by the old code are reconciled by hand: describing every
   way the old webhook could have stored them was attempted across review rounds and dropped,
-  since payments were never turned on on this project's own server (as the design proposal
-  states; E4, #312, checks it).
+  since live payments were never turned on on this project's own server (as the design
+  proposal states; E4, #312, checks it). It has taken sandbox payments, for the checks of #287
+  and #308; those were reset by hand after the runs, and any made since are cleared by a rollout
+  step before the live keys take effect (`docs/deployment.md`).
 - The Plan page says nothing about the Free plan's history promise (decision 4) until the
   landing page's text matches what the code does.
-- Not verified at the time of writing: whether Stripe sends failed-payment emails with Managed
-  Payments on (#287), and adding or changing a card in the portal at all, in any status (#308: in
-  a headless browser "Add" never finished; #287 changed the card through the API only).
+- Stripe's failed-payment email leads the payer to Link, not to the Plan page's portal. By
+  [Stripe's documentation](https://docs.stripe.com/payments/managed-payments/how-it-works) the
+  card can be changed there too; that path wasn't tried.
 
 `docs/encryption.md`'s threat-model list of what the server sees now has a line for the
 company's billing data, the two new dates included. `docs/architecture.md`'s stack table gets a
@@ -145,5 +148,6 @@ provider), `CompanyTest` (the plan rules), `Unit/Billing/*` (`Plan`, `SeatUsage`
 `planReturn.test.ts`, `seatLimit.test.ts`, `latestRead.test.ts`, and the e2e specs named above.
 Against the Stripe sandbox: the plan rules through the API (#298: payment, scheduled
 cancellation with a test clock, a failed renewal, events sent again, a missing customer) and the
-whole flow through the Plan page in a browser (#308). Both runs, and what neither covered, are
+whole flow through the Plan page in a browser (#308), then the card, the failed renewal and its
+email by a person on the production server (#287, #308). The runs, and what none covered, are
 listed in `docs/deployment.md`'s "Stripe billing" section.
