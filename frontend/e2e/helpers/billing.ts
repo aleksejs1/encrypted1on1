@@ -12,3 +12,11 @@ export const FREE_OVERVIEW = {
   plusSeatLimit: 1000,
   supportEmail: null,
 };
+
+/** What GET /api/admin/billing/plus-price answers for €20 a month, tax on top. */
+export const PLUS_PRICE = {
+  amount: 2000,
+  currency: 'eur',
+  interval: 'month',
+  taxBehavior: 'exclusive',
+};

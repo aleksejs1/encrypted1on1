@@ -22,7 +22,10 @@
 <style>
   .tab-strip {
     display: flex;
-    gap: 4px;
+    /* Wraps rather than scrolls on a phone, so every tab, the current one
+       included, stays in view (GitHub issue #330). */
+    flex-wrap: wrap;
+    gap: 8px 20px;
     margin-bottom: 20px;
     border-bottom: 1px solid var(--color-divider);
   }
@@ -33,7 +36,6 @@
     color: var(--color-text-muted);
     text-decoration: none;
     border-bottom: 2px solid transparent;
-    margin-right: 16px;
   }
 
   a.tab:hover {

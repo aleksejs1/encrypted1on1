@@ -6,7 +6,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
-import { FREE_OVERVIEW } from './helpers/billing.js';
+import { FREE_OVERVIEW, PLUS_PRICE } from './helpers/billing.js';
 import { createActivationLink, uniqueEmail } from './helpers/provision.js';
 
 const PASSWORD = 'correct horse battery staple 123';
@@ -140,14 +140,6 @@ test('the Plan page says so when its data cannot be loaded', async ({
     admin.getByRole('heading', { name: 'Plan', exact: true }),
   ).toBeVisible();
 });
-
-/** What GET /api/admin/billing/plus-price answers for €20 a month, tax on top. */
-const PLUS_PRICE = {
-  amount: 2000,
-  currency: 'eur',
-  interval: 'month',
-  taxBehavior: 'exclusive',
-};
 
 /**
  * An answer held back until the test releases it, so that the page can be
