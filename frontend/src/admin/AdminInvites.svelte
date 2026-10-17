@@ -279,7 +279,7 @@
 
 <style>
   main {
-    max-width: 56rem;
+    max-width: min(56rem, 100%);
     margin: 0 auto;
     padding: 32px 24px 60px;
   }
@@ -303,10 +303,6 @@
     flex-direction: column;
     gap: var(--space-2);
     margin-bottom: 16px;
-  }
-
-  .table-wrap {
-    overflow-x: auto;
   }
 
   .banner-success,

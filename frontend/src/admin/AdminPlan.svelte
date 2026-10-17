@@ -564,7 +564,7 @@
 
 <style>
   main {
-    max-width: 56rem;
+    max-width: min(56rem, 100%);
     margin: 0 auto;
     padding: 32px 24px 60px;
   }

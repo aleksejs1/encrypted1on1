@@ -543,7 +543,6 @@
   }
 
   .table-wrap {
-    overflow-x: auto;
     margin-bottom: 12px;
   }
 </style>

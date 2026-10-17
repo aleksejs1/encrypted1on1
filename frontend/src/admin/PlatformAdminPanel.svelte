@@ -407,7 +407,7 @@
 
 <style>
   main {
-    max-width: 64rem;
+    max-width: min(64rem, 100%);
     margin: 0 auto;
     padding: 32px 24px 60px;
   }
@@ -420,10 +420,6 @@
   h2 {
     font-size: 18px;
     margin: 28px 0 12px;
-  }
-
-  .table-wrap {
-    overflow-x: auto;
   }
 
   .actions {

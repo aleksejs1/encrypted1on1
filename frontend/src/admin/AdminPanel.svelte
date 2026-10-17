@@ -638,7 +638,7 @@
 
 <style>
   main {
-    max-width: 56rem;
+    max-width: min(56rem, 100%);
     margin: 0 auto;
     padding: 32px 24px 60px;
   }
@@ -646,10 +646,6 @@
   h1 {
     font-size: 28px;
     margin-bottom: 20px;
-  }
-
-  .table-wrap {
-    overflow-x: auto;
   }
 
   .filters {
