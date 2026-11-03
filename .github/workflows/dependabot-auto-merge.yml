@@ -1,0 +1,65 @@
+# Turns on GitHub's auto-merge for Dependabot's patch and minor updates of composer
+# and npm packages: the PR is squash-merged once the status checks branch protection
+# requires on `main` have passed (backend, frontend, e2e, repo-tooling,
+# backup-restore; `mutation` is report-only and not required), and stays open if any
+# of them fails. Grouping and the release-age cooldown are in dependabot.yml.
+#
+# Left for a person: major updates, and every GitHub Actions and Docker update. An
+# action runs with the token of the workflow that uses it, which can be a write
+# token (docker-release.yml's, or this one's), and a Docker tag bump such as php8.5 -> php8.6
+# reads as "minor" but changes the production runtime.
+#
+# Needs "Allow auto-merge" and squash merging turned on in the repository settings;
+# without them this step fails on every Dependabot PR.
+#
+# Accepted: security updates skip the cooldown (Dependabot never delays them), so a
+# patch or minor security fix merges as soon as CI is green. A minor update of a 0.x
+# package can break things under semver and still merges if CI passes.
+#
+# Branch protection requires a PR to be up to date with `main`, and Dependabot only
+# rebases on a conflict, so a PR that is merely behind waits for its "Update branch"
+# button. Because of that requirement, the merged tree is exactly what CI tested; the
+# push to main made by the merge doesn't run CI again (pushes made with GITHUB_TOKEN
+# start no workflows).
+#
+# Auto-merge stays on until someone turns it off: a commit a person pushes to the PR
+# (including "Update branch") merges too once CI is green, and a later push by
+# Dependabot (a rebase) turns it back on. To hold a PR, close it.
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    # Both: the PR is Dependabot's, and this run was triggered by Dependabot's own push.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Pinned to a commit, since this job's token can write.
+      - id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # For a grouped PR, update-type is the largest update in the group.
+      - name: Enable auto-merge
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          case "$ECOSYSTEM/$UPDATE_TYPE" in
+            composer/version-update:semver-patch | composer/version-update:semver-minor | \
+            npm_and_yarn/version-update:semver-patch | npm_and_yarn/version-update:semver-minor)
+              gh pr merge --auto --squash "$PR_URL"
+              ;;
+            *)
+              echo "::notice::Not auto-merging: ecosystem '$ECOSYSTEM', update type '$UPDATE_TYPE'. Review and merge by hand."
+              ;;
+          esac
