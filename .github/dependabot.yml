@@ -2,23 +2,54 @@
 # those block a PR that introduces a *known* vulnerability; this proactively opens
 # PRs to keep dependencies current before an advisory even gets filed against them.
 # Covers every ecosystem this repo actually has dependency manifests for.
+#
+# Patch and minor updates are grouped into one PR per ecosystem. For composer and npm,
+# .github/workflows/dependabot-auto-merge.yml merges that PR once CI is green, and
+# also a patch or minor security-update PR (those come ungrouped). Major updates come
+# as separate PRs, and they and the Actions and Docker groups are merged by hand.
+# composer and npm run on different days, so the npm group usually opens from a main
+# that already has the composer one, instead of falling behind it. The cooldown (5 days)
+# waits until a version has been out for a while, since a compromised release is
+# usually pulled within that time; it doesn't apply to security updates.
 version: 2
 updates:
   - package-ecosystem: composer
     directory: /backend
     schedule:
       interval: weekly
+      day: monday
+    cooldown:
+      default-days: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+      day: wednesday
+    cooldown:
+      default-days: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
   - package-ecosystem: docker
     directories:
       - /docker/dev
       - /docker/prod
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
