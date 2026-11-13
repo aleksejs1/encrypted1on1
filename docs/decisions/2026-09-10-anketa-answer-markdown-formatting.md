@@ -310,7 +310,7 @@ Known limits:
   `bob@example.com:x:` show the emoji. This differs from the issue, which also skips a
   shortcode after the backtick or `*` that closes code or emphasis. Its own examples
   (`` `user`:id:int ``, `**key**:id:x`) still stay as typed, through the check on the character
-  after. That check stops at the same boundaries: `:id:*x*` and `:tada:www.example.com` show the
+  after. That check stops at the same boundaries: `:id:*x*` and `:tada:https://example.com` show the
   emoji, though `:id:int` doesn't. See "Tried and replaced" below for why.
 - A link's label is text like any other, so a URL typed as a label
   (`[https://example.com/:tada:](https://example.com)`) shows the emoji in it. A bare URL doesn't.

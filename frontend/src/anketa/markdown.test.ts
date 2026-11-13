@@ -727,12 +727,15 @@ describe('emoji shortcodes', () => {
     expectBoth('<b>y</b>:id: z', '&lt;b&gt;y&lt;/b&gt;🆔 z');
     // The same on the other side: emphasis or a link right after doesn't block it.
     expectBoth(
-      ':id:*x* :tada:www.example.com',
+      ':id:*x* :tada:https://example.com',
       [
         '🆔<em>x</em>',
-        '🎉<a href="http://www.example.com" rel="noopener noreferrer" target="_blank">www.example.com</a>',
+        '🎉<a href="https://example.com" rel="noopener noreferrer" target="_blank">https://example.com</a>',
       ].join(' '),
     );
+    // A `www.` host glued to the colon is not a link (GFM starts one only at a word boundary),
+    // so it is a word right after the shortcode.
+    expectBoth(':tada:www.example.com', ':tada:www.example.com');
     // The character after still counts, so these code-like texts stay as typed.
     expectBoth('`user`:id:int', '<code>user</code>:id:int');
     expectBoth('**key**:id:x', '<strong>key</strong>:id:x');
@@ -797,8 +800,8 @@ describe('emoji shortcodes', () => {
       [':zz:', ':zz:'],
     ]) {
       expectBoth(
-        `x${first}www.example.com and y${second}bob@example.com`,
-        `x${first}<a href="http://www.example.com" rel="noopener noreferrer" target="_blank">www.example.com</a> and y${second}<a href="mailto:bob@example.com" rel="noopener noreferrer" target="_blank">bob@example.com</a>`,
+        `x${first}https://example.com and y${second}bob@example.com`,
+        `x${first}<a href="https://example.com" rel="noopener noreferrer" target="_blank">https://example.com</a> and y${second}<a href="mailto:bob@example.com" rel="noopener noreferrer" target="_blank">bob@example.com</a>`,
       );
     }
     expectBoth(
