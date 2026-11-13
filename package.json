@@ -9,6 +9,6 @@
     "check-doc-links": "node scripts/check-doc-links.mjs"
   },
   "devDependencies": {
-    "jscpd": "^5.4.2"
+    "jscpd": "^5.4.3"
   }
 }
